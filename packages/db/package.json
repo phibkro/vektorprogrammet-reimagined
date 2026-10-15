@@ -9,9 +9,9 @@
   "scripts": {
     "test": "vp test",
     "check": "vp check",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:check": "drizzle-kit check"
+    "db:generate": "bun --bun drizzle-kit generate",
+    "db:migrate": "bun --bun drizzle-kit migrate",
+    "db:check": "bun --bun drizzle-kit check"
   },
   "dependencies": {
     "@effect/sql-pg": "catalog:",

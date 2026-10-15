@@ -15,10 +15,8 @@
     "deploy": "alchemy deploy alchemy.run.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@effect/sql-pg": "catalog:",
-    "@radix-ui/react-label": "^2.1.17",
-    "@radix-ui/react-select": "^2.4.1",
-    "@radix-ui/react-slot": "^1.5.0",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
@@ -26,6 +24,7 @@
     "@vektorprogrammet/domain": "workspace:*",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "cn": "^0.4.0",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "lucide-react": "1.57.0",
