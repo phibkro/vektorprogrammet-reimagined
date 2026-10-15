@@ -1,0 +1,186 @@
+/**
+ * The PostgreSQL target: a Neon branch (or a local database), written directly
+ * through `@effect/sql-pg` and Drizzle with `@vektorprogrammet/db`'s schema, not
+ * through Hyperdrive.
+ *
+ * `replaceAll` is the whole write in one transaction: truncate every Phase 1
+ * table the importer owns, insert the plan in foreign-key order, advance the
+ * identity sequences past the kept legacy ids, and read the row counts back.
+ * A failure anywhere, including a count that differs from the plan, rolls the
+ * target back to its previous state. There is no `CASCADE`: if a later phase
+ * adds a table that references these, the truncate fails instead of wiping it.
+ */
+import { PgClient } from "@effect/sql-pg";
+import { schema } from "@vektorprogrammet/db";
+import { getTableName, sql } from "drizzle-orm";
+import * as PgDrizzle from "drizzle-orm/effect-postgres";
+import { Array as Arr, Context, DateTime, Effect, Layer, Redacted, Schema } from "effect";
+import { TARGET_TABLES, type TargetRows, type TargetTable } from "./transform/plan.ts";
+
+export class TargetWriteError extends Schema.TaggedError<TargetWriteError>()("TargetWriteError", {
+  step: Schema.String,
+  cause: Schema.Defect(),
+}) {}
+
+/** The Drizzle table of each target table name. */
+const TABLES = {
+  public_file: schema.publicFile,
+  department: schema.department,
+  semester: schema.semester,
+  field_of_study: schema.fieldOfStudy,
+  admission_period: schema.admissionPeriod,
+  article: schema.article,
+  article_department: schema.articleDepartment,
+  static_content: schema.staticContent,
+  sponsor: schema.sponsor,
+  social_event: schema.socialEvent,
+} as const;
+
+/** Tables whose integer `id` is an identity column; their sequences follow the kept legacy ids. */
+const IDENTITY_TABLES = [
+  schema.department,
+  schema.semester,
+  schema.fieldOfStudy,
+  schema.admissionPeriod,
+  schema.article,
+  schema.sponsor,
+  schema.socialEvent,
+] as const;
+
+/** Rows per `INSERT` statement, far below PostgreSQL's 65 535 bind parameters. */
+const BATCH = 500;
+
+export class ImportTarget extends Context.Service<
+  ImportTarget,
+  {
+    /** Replaces the target's Phase 1 data with `rows`; returns the stored row count per table. */
+    replaceAll(
+      rows: TargetRows,
+    ): Effect.Effect<Readonly<Record<TargetTable, number>>, TargetWriteError>;
+  }
+>()("@vektorprogrammet/import/ImportTarget") {
+  /** Writes through the ambient `PgClient`. */
+  static readonly layer = Layer.effect(
+    ImportTarget,
+    Effect.gen(function* () {
+      const pg = yield* PgClient.PgClient;
+      const db = yield* PgDrizzle.makeWithDefaults();
+
+      const step =
+        (name: string) =>
+        <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, TargetWriteError, R> =>
+          Effect.mapError(effect, (cause) => new TargetWriteError({ step: name, cause }));
+
+      /** Writes `values` in batches; `write` is one typed Drizzle insert per table. */
+      const inBatches = <A>(
+        table: TargetTable,
+        values: ReadonlyArray<A>,
+        write: (chunk: Array<A>) => Effect.Effect<unknown, unknown>,
+      ) =>
+        Effect.forEach(Arr.chunksOf(values, BATCH), write, { discard: true }).pipe(
+          step(`insert ${table}`),
+        );
+
+      const date = DateTime.toDateUtc;
+
+      const replaceAll = Effect.fn("ImportTarget.replaceAll")(function* (rows: TargetRows) {
+        const tables = TARGET_TABLES.map(({ table }) => TABLES[table]);
+        yield* db
+          .execute(sql`truncate table ${sql.join(tables, sql`, `)} restart identity`)
+          .pipe(step("truncate"));
+
+        yield* inBatches(
+          "public_file",
+          rows.public_file.map((row) => ({ ...row, uploadedAt: date(row.uploadedAt) })),
+          (chunk) => db.insert(schema.publicFile).values(chunk),
+        );
+        yield* inBatches("department", rows.department, (chunk) =>
+          db.insert(schema.department).values(chunk),
+        );
+        yield* inBatches("semester", rows.semester, (chunk) =>
+          db.insert(schema.semester).values(chunk),
+        );
+        yield* inBatches("field_of_study", rows.field_of_study, (chunk) =>
+          db.insert(schema.fieldOfStudy).values(chunk),
+        );
+        yield* inBatches(
+          "admission_period",
+          rows.admission_period.map((row) => ({
+            ...row,
+            startsAt: date(row.startsAt),
+            endsAt: date(row.endsAt),
+          })),
+          (chunk) => db.insert(schema.admissionPeriod).values(chunk),
+        );
+        yield* inBatches(
+          "article",
+          rows.article.map((row) => ({ ...row, createdAt: date(row.createdAt) })),
+          (chunk) => db.insert(schema.article).values(chunk),
+        );
+        yield* inBatches("article_department", rows.article_department, (chunk) =>
+          db.insert(schema.articleDepartment).values(chunk),
+        );
+        yield* inBatches("static_content", rows.static_content, (chunk) =>
+          db.insert(schema.staticContent).values(chunk),
+        );
+        yield* inBatches("sponsor", rows.sponsor, (chunk) =>
+          db.insert(schema.sponsor).values(chunk),
+        );
+        yield* inBatches(
+          "social_event",
+          rows.social_event.map((row) => ({
+            ...row,
+            startsAt: date(row.startsAt),
+            endsAt: date(row.endsAt),
+          })),
+          (chunk) => db.insert(schema.socialEvent).values(chunk),
+        );
+
+        yield* Effect.forEach(
+          IDENTITY_TABLES,
+          (table) =>
+            db.execute(
+              sql`select setval(pg_get_serial_sequence(${getTableName(table)}, 'id'),
+                                coalesce(max(${table.id}), 1), max(${table.id}) is not null)
+                  from ${table}`,
+            ),
+          { discard: true },
+        ).pipe(step("advance identity sequences"));
+
+        const counts = yield* Effect.forEach(TARGET_TABLES, ({ table }) =>
+          db.$count(TABLES[table]).pipe(
+            Effect.map((count) => [table, count] as const),
+            step(`count ${table}`),
+          ),
+        );
+        const rowsOut = Object.fromEntries(counts) as Record<TargetTable, number>;
+        const mismatched = TARGET_TABLES.filter(
+          ({ table }) => rowsOut[table] !== rows[table].length,
+        );
+        if (mismatched.length > 0) {
+          return yield* new TargetWriteError({
+            step: "reconcile",
+            cause: `stored row counts differ from the plan: ${mismatched.map((t) => t.table).join(", ")}`,
+          });
+        }
+        return rowsOut;
+      }, pg.withTransaction);
+
+      return ImportTarget.of({
+        replaceAll: (rows) =>
+          replaceAll(rows).pipe(
+            Effect.catchTag("SqlError", (cause) =>
+              Effect.fail(new TargetWriteError({ step: "transaction", cause })),
+            ),
+          ),
+      });
+    }),
+  );
+}
+
+/**
+ * The target client: a direct connection (not Hyperdrive), so prepared
+ * statements stay on; two connections are plenty for a sequential import.
+ */
+export const targetPgLayer = (url: Redacted.Redacted<string>) =>
+  PgClient.layer({ url, maxConnections: 2, applicationName: "vektorprogrammet-import" });

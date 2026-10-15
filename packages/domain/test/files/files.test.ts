@@ -105,7 +105,7 @@ describe("C11 upload and serving", () => {
       assert.strictEqual(served.headers["Content-Type"], "image/png");
       assert.isTrue(served.headers["Content-Disposition"]?.startsWith("inline;"));
       assert.strictEqual(served.headers["X-Content-Type-Options"], "nosniff");
-      assert.strictEqual(served.headers["Content-Security-Policy"], "sandbox");
+      assert.strictEqual(served.headers["Content-Security-Policy"], "sandbox; default-src 'none'");
       const audit = yield* table((db) => db.audit);
       assert.deepStrictEqual(
         audit.map((e) => [e.action, e.entityKey]),
@@ -148,7 +148,7 @@ describe("C11 upload and serving", () => {
       attachment["Content-Disposition"]?.includes("filename*=UTF-8''%C3%85rsrapport%202025.docx"),
     );
     assert.strictEqual(attachment["X-Content-Type-Options"], "nosniff");
-    assert.strictEqual(attachment["Content-Security-Policy"], "sandbox");
+    assert.strictEqual(attachment["Content-Security-Policy"], "sandbox; default-src 'none'");
     for (const inline of [
       "image/jpeg",
       "image/png",

@@ -2,7 +2,7 @@
  * C11 file typing by magic bytes (never by the client's claimed type or name)
  * and the serving policy for `/filer/{key}` (RULE-290 replacement, architecture §4):
  * only JPEG, PNG, WebP, GIF and PDF are served inline; everything else is an
- * attachment; every response carries `nosniff` and `CSP: sandbox`.
+ * attachment; every response carries `nosniff` and `CSP: sandbox; default-src 'none'`.
  */
 import { Result, Schema } from "effect";
 import { encode as hexEncode } from "effect/encoding/Hex";
@@ -120,6 +120,6 @@ export const servingHeaders = (file: {
     file.name,
   ),
   "X-Content-Type-Options": "nosniff",
-  "Content-Security-Policy": "sandbox",
+  "Content-Security-Policy": "sandbox; default-src 'none'",
   "Cache-Control": "public, max-age=31536000, immutable",
 });
