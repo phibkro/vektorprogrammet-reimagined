@@ -1,0 +1,55 @@
+/**
+ * C12 change audit: one row per staff write, written in the write's
+ * transaction. Replaces the legacy Slack-as-audit-log (`DbSubscriber`).
+ */
+import { Context, DateTime, Effect, Schema } from "effect";
+import type { Staff } from "../shared/actor.ts";
+import { EntityName, UserId } from "../shared/ids.ts";
+
+export const AuditAction = Schema.Literals([
+  "department.created",
+  "department.updated",
+  "semester.created",
+  "fieldOfStudy.created",
+  "fieldOfStudy.updated",
+  "staticContent.updated",
+  /** RULE-266 fixed: a draft is recorded as a draft, never as "published". */
+  "article.createdDraft",
+  "article.createdPublished",
+  "article.published",
+  "article.unpublished",
+  "sponsor.created",
+  "socialEvent.created",
+  "publicFile.registered",
+]);
+export type AuditAction = typeof AuditAction.Type;
+
+export const AuditEntry = Schema.Struct({
+  action: AuditAction,
+  actorId: UserId,
+  entity: EntityName,
+  /** The entity's id or natural key, as text. */
+  entityKey: Schema.String,
+  at: Schema.DateTimeUtc,
+});
+export type AuditEntry = typeof AuditEntry.Type;
+
+export class AuditLog extends Context.Service<
+  AuditLog,
+  {
+    /** Inserts one audit row in the current transaction. */
+    record(entry: AuditEntry): Effect.Effect<void>;
+  }
+>()("@vektorprogrammet/domain/audit/AuditLog") {}
+
+/** Records a staff write at the current `Clock` instant. */
+export const recordAudit = Effect.fnUntraced(function* (
+  actor: Staff,
+  action: AuditAction,
+  entity: EntityName,
+  entityKey: string | number,
+) {
+  const at = yield* DateTime.now;
+  const log = yield* AuditLog;
+  yield* log.record({ action, actorId: actor.userId, entity, entityKey: String(entityKey), at });
+});
