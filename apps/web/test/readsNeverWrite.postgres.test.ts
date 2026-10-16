@@ -70,6 +70,7 @@ import {
 } from "../src/server/panel";
 import { legacyFileLocation } from "../src/server/redirects";
 import type { DatabaseServices } from "../src/server/runtime";
+import { shellView } from "../src/server/shell";
 
 type ReadServices = DatabaseServices | CurrentActor | FileStore;
 
@@ -125,6 +126,7 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getFooter", footerSponsors),
   readPath("public.functions getContactPage", contactPage(null)),
   readPath("public.functions getContactPage (receipt)", contactPage(1)),
+  readPath("panel.functions getShell", shellView("local")),
   readPath("panel.functions getDashboard", dashboardView),
   readPath("panel.functions getDepartments", departmentsView),
   readPath("panel.functions getSemesters", semestersView),
@@ -141,7 +143,7 @@ const READ_PATHS: readonly ReadPath[] = [
 
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
-  "functions/panel.functions.ts": 8,
+  "functions/panel.functions.ts": 9,
   "functions/public.functions.ts": 6,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,

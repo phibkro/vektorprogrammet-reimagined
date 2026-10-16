@@ -14,4 +14,9 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof getRouter>;
   }
+
+  interface StaticDataRouteOption {
+    /** A route that owns the whole page (the control panel) renders without the public site's header and footer. */
+    readonly ownsPage?: boolean;
+  }
 }

@@ -1,60 +1,44 @@
-import {
-  Link,
-  Outlet,
-  createFileRoute,
-  useRouterState,
-} from "@tanstack/react-router";
-import { Array as Arr, pipe } from "effect";
+import { Outlet, createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { Button } from "@/components/ui/button";
+import { NotSignedIn } from "@/components/panel/notSignedIn";
+import { PanelShell } from "@/components/panel/panelShell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getShell } from "@/functions/panel.functions";
+import { pageData } from "@/lib/outcome";
 
-const SECTIONS = [
-  { label: "Oversikt", to: "/kontrollpanel" },
-  { label: "Avdelinger", to: "/kontrollpanel/avdelinger" },
-  { label: "Semestre", to: "/kontrollpanel/semestre" },
-  { label: "Linjer", to: "/kontrollpanel/linjer" },
-  { label: "Statisk innhold", to: "/kontrollpanel/statisk-innhold" },
-  { label: "Artikler", to: "/kontrollpanel/artikler" },
-  { label: "Sponsorer", to: "/kontrollpanel/sponsorer" },
-  { label: "Arrangementer", to: "/kontrollpanel/arrangementer" },
-] as const;
+const routeApi = getRouteApi("/kontrollpanel");
+
+const PanelNotFound = () => (
+  <Alert>
+    <AlertTitle>Fant ikke siden</AlertTitle>
+    <AlertDescription>Siden finnes ikke i kontrollpanelet.</AlertDescription>
+  </Alert>
+);
 
 const ControlPanelLayout = () => {
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
-  });
+  const { actor, navigation, testActors } = routeApi.useLoaderData();
+
+  if (actor === null) {
+    return <NotSignedIn testActors={testActors} />;
+  }
 
   return (
-    <main className="page-wrap grid gap-6 px-4 py-10 md:grid-cols-[13rem_1fr]">
-      <nav aria-label="Kontrollpanel" className="flex flex-col gap-1">
-        {pipe(
-          SECTIONS,
-          Arr.map((section) => (
-            <Button
-              key={section.to}
-              variant={pathname === section.to ? "secondary" : "ghost"}
-              size="sm"
-              nativeButton={false}
-              className="justify-start"
-              render={<Link to={section.to} activeOptions={{ exact: true }} />}
-            >
-              {section.label}
-            </Button>
-          ))
-        )}
-      </nav>
-      <div className="grid content-start gap-6">
-        <Outlet />
-      </div>
-    </main>
+    <PanelShell actor={actor} navigation={navigation}>
+      <Outlet />
+    </PanelShell>
   );
 };
 
 /**
- * Staff control panel. Phase 1 has no login: authority is decided inside each
- * command's transaction (deny by default), so outside a local deployment
- * every write here is refused with 403.
+ * Staff control panel: a dashboard shell (sidebar, header, page) that owns the whole page. The sidebar lists
+ * only the sections the actor may use, derived from the domain's capabilities (`server/shell.ts`); a visitor who
+ * is not signed in gets a plain page instead. Phase 1 has no login: authority is decided inside each command's
+ * transaction (deny by default), so outside a local deployment every write here is refused with 403, whatever
+ * the shell shows.
  */
 export const Route = createFileRoute("/kontrollpanel")({
   component: ControlPanelLayout,
+  loader: () => getShell().then(pageData),
+  notFoundComponent: PanelNotFound,
+  staticData: { ownsPage: true },
 });

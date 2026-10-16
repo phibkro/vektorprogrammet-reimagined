@@ -18,6 +18,7 @@ import {
 } from "@vektorprogrammet/domain";
 import { Effect, Schema } from "effect";
 
+import { decodeDeployment } from "../server/deployment";
 import {
   SAVED,
   articleInput,
@@ -41,12 +42,25 @@ import {
 } from "../server/panel";
 import { runCommand, runPreparedCommand, runQuery } from "../server/runtime";
 import { requestScope } from "../server/scope";
+import { shellView } from "../server/shell";
 
 const formData = Schema.toStandardSchemaV1(Schema.FormData);
 
 const decodeArticleId = decodeInput(ArticleId);
 
 // ---------------------------------------------------------------- views
+
+/** The layout's data: who is acting and the sidebar they get (`server/shell.ts`). */
+export const getShell = createServerFn({ method: "GET" }).handler(
+  ({ context }) => {
+    const scope = requestScope(context);
+
+    return runQuery(
+      scope,
+      Effect.flatMap(decodeDeployment(scope.env.DEPLOYMENT), shellView)
+    );
+  }
+);
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), dashboardView)

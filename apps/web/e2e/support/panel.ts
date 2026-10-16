@@ -1,21 +1,33 @@
 /**
- * Helpers the specs share: the local test actor, the dialog every control-panel form opens in, the server
- * function call a click makes, and the semester labels a page lists. Locators go by role and visible label,
- * as a person reads the page.
+ * Helpers the specs share: the local test actor, the Sheet every control-panel form opens in, the server
+ * function call a click makes, the sidebar, and the semester labels a page lists. Locators go by role and
+ * visible label, as a person reads the page.
  */
+import { expect } from "@playwright/test";
 import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
-import { Array as Arr, Record as Rec } from "effect";
+import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
 /** The cookie `apps/web/src/server/actor.ts` reads in a `local` deployment (`TEST_ACTOR_COOKIE`). */
 const TEST_ACTOR_COOKIE = "vp-test-actor";
 
-export type Actor = "admin" | "teamLeader";
+export type Actor = "admin" | "teamLeader" | "anonymous";
 
 /** Selects the local test actor for every page of `localhost` the context opens. */
 export const signInAs = async (context: BrowserContext, actor: Actor) => {
   await context.addCookies([
     { domain: "localhost", name: TEST_ACTOR_COOKIE, path: "/", value: actor },
   ]);
+};
+
+const screenshotDirectory = Effect.runSync(
+  Config.option(Config.String("E2E_SCREENSHOT_DIRECTORY"))
+);
+
+/** Saves the viewport as `<name>.png` in `E2E_SCREENSHOT_DIRECTORY`; a run without that variable takes none. */
+export const screenshot = async (page: Page, name: string) => {
+  if (Option.isSome(screenshotDirectory)) {
+    await page.screenshot({ path: `${screenshotDirectory.value}/${name}.png` });
+  }
 };
 
 /**
@@ -36,24 +48,33 @@ export const openPage = async (page: Page, path: string) => {
   await page.waitForFunction(INTERACTIVE_CONTENT_IS_HYDRATED);
 };
 
-export const dialogOf = (page: Page) => page.getByRole("dialog");
+/** The Sheet that is open (a form, a record's details, or the phone's sidebar). */
+export const sheetOf = (page: Page) => page.getByRole("dialog");
+
+/** The sidebar's list of sections (a landmark of the sidebar, not of the page header or footer). */
+export const sidebarOf = (page: Page) =>
+  page.getByRole("navigation", { name: "Kontrollpanel" });
+
+/** The button that expands or collapses the sidebar (on a phone it opens the off-canvas panel). */
+export const sidebarToggleOf = (page: Page) =>
+  page.getByRole("button", { name: "Vis eller skjul sidemenyen" });
 
 /**
- * Fills the open dialog's fields by their labels, in the order given (the whole label, so "Navn" never
+ * Fills the open Sheet's fields by their labels, in the order given (the whole label, so "Navn" never
  * matches "Kortnavn"). One after another: each `fill` moves the focus, so concurrent fills type into the
  * wrong fields.
  */
-export const fillDialog = async (
+export const fillSheet = async (
   page: Page,
   fields: Readonly<Record<string, string>>
 ) => {
   for (const [label, value] of Rec.toEntries(fields)) {
-    await dialogOf(page).getByLabel(label, { exact: true }).fill(value);
+    await sheetOf(page).getByLabel(label, { exact: true }).fill(value);
   }
 };
 
 /**
- * Rewrites a hidden field of the open dialog's form before it is submitted, as a person with the browser's
+ * Rewrites a hidden field of the open Sheet's form before it is submitted, as a person with the browser's
  * developer tools would: the page offers no way to send this request, the server must refuse it anyway.
  */
 export const tamperWith = async (
@@ -61,7 +82,7 @@ export const tamperWith = async (
   field: string,
   forgedValue: string
 ) => {
-  await dialogOf(page)
+  await sheetOf(page)
     .locator(`input[name="${field}"]`)
     .evaluate((input: HTMLInputElement, forged: string) => {
       input.value = forged;
@@ -85,15 +106,30 @@ const statusOfClick = async (page: Page, button: Locator): Promise<number> => {
   return response.status();
 };
 
-/** Presses a button of the open dialog and returns the status of the server function call it made. */
-export const submitDialog = async (
+/** Presses a button of the open Sheet and returns the status of the server function call it made. */
+export const submitSheet = async (
   page: Page,
   buttonName: string
 ): Promise<number> =>
   await statusOfClick(
     page,
-    dialogOf(page).getByRole("button", { name: buttonName })
+    sheetOf(page).getByRole("button", { name: buttonName })
   );
+
+/**
+ * Marks the document so a later check can tell a full page reload from a client-side update: a reload builds
+ * a new `body`, and React never writes this attribute back.
+ */
+export const markPage = async (page: Page) => {
+  await page.evaluate(() => {
+    document.body.dataset.marker = "kept";
+  });
+};
+
+/** The page is still the one `markPage` marked: nothing reloaded it. */
+export const expectPageNotReloaded = async (page: Page) => {
+  await expect(page.locator("body")).toHaveAttribute("data-marker", "kept");
+};
 
 /** The visible text of an element, `""` when it has none. */
 export const textOf = async (locator: Locator): Promise<string> => {
@@ -131,3 +167,12 @@ export const semesterLabelsOf = async (
     return label === undefined ? [] : [label];
   });
 };
+
+/** The semester the overview names as the current one. */
+export const currentSemesterOnOverview = async (page: Page): Promise<string> =>
+  await textOf(
+    page
+      .locator("[data-slot='card']")
+      .filter({ hasText: "Nåværende semester" })
+      .locator("[data-slot='card-title']")
+  );

@@ -5,7 +5,9 @@ import {
   Scripts,
   createRootRoute,
   getRouteApi,
+  useMatches,
 } from "@tanstack/react-router";
+import { Array as Arr } from "effect";
 import type { ReactNode } from "react";
 
 import Footer from "@/components/footer";
@@ -19,6 +21,15 @@ const routeApi = getRouteApi("__root__");
 
 const RootComponent = () => {
   const sponsors = routeApi.useLoaderData();
+
+  const ownsPage = useMatches({
+    select: (matches) =>
+      Arr.some(matches, (match) => match.staticData.ownsPage === true),
+  });
+
+  if (ownsPage) {
+    return <Outlet />;
+  }
 
   return (
     <>

@@ -47,6 +47,9 @@ jobs:
         run: devenv shell -- bunx vp run -r test
       - name: Browser tests
         shell: bash
+        # A run takes 2 to 3 minutes. The limit makes a run that passes its tests and then never exits fail the
+        # step, instead of holding the job for the 6-hour default.
+        timeout-minutes: 15
         run: devenv shell -- bun run e2e
       - name: Knip
         shell: bash

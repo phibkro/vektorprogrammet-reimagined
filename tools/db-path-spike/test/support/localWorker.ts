@@ -9,6 +9,7 @@
  * shows the checks' own logic is sound, so a deployed failure is the platform's.
  */
 import { PgClient } from "@effect/sql-pg";
+import { withClient } from "@vektorprogrammet/db/testing";
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
 import { migrate } from "drizzle-orm/effect-postgres/migrator";
 import {
@@ -63,20 +64,24 @@ const adminUrl = Config.Redacted("TEST_DATABASE_ADMIN_URL");
 const provision = (surgery: readonly string[]) =>
   Effect.gen(function* provisioned() {
     const admin = yield* adminUrl;
-    const adminClient = yield* PgClient.make({ maxConnections: 1, url: admin });
     const suffix = (yield* Random.nextIntBetween(0, 2 ** 31)).toString(36);
     const database = `vp_spike_test_${suffix}`;
 
-    yield* adminClient.unsafe(`create database "${database}"`);
+    // Each admin statement gets its own client: the drop runs while this scope closes (see `withClient`).
+    yield* withClient(admin, (client) =>
+      client.unsafe(`create database "${database}"`)
+    );
     yield* Effect.addFinalizer(() =>
-      adminClient
-        .unsafe(`drop database if exists "${database}" with (force)`)
-        .pipe(Effect.orDie)
+      withClient(admin, (client) =>
+        client.unsafe(`drop database if exists "${database}" with (force)`)
+      ).pipe(Effect.orDie)
     );
 
     // Suites run in parallel: two of them may create the role at once.
-    yield* adminClient.unsafe(
-      `do $$ begin create role vp_app login; exception when duplicate_object or unique_violation then null; end $$`
+    yield* withClient(admin, (client) =>
+      client.unsafe(
+        `do $$ begin create role vp_app login; exception when duplicate_object or unique_violation then null; end $$`
+      )
     );
 
     const ownerUrl = new URL(Redacted.value(admin));

@@ -28,6 +28,10 @@ import {
   SemesterId,
   SemesterRepository,
   Slug,
+  SocialEventId,
+  SocialEventRepository,
+  SponsorId,
+  SponsorRepository,
   StaticContentRepository,
   anonymous,
 } from "@vektorprogrammet/domain";
@@ -40,6 +44,8 @@ import type {
   FieldOfStudy,
   OutboxMessage,
   PublicFile,
+  SocialEvent,
+  Sponsor,
   StaticContent,
   StoredSemester,
 } from "@vektorprogrammet/domain";
@@ -77,6 +83,8 @@ export interface MemoryTables {
   audit: AuditEntry[];
   semesters: StoredSemester[];
   fieldsOfStudy: FieldOfStudy[];
+  sponsors: Sponsor[];
+  socialEvents: SocialEvent[];
   /** Number of `Transactor.run` calls that committed. */
   commits: number;
   /** The next id every table hands out; it survives layer builds and rollbacks, as a sequence does. */
@@ -99,6 +107,8 @@ export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   outbox: [],
   publicFiles: [],
   semesters: [],
+  socialEvents: [],
+  sponsors: [],
   staticContent: [],
   ...seed,
 });
@@ -335,6 +345,40 @@ const repositories = Layer.effectContext(
         }),
     });
 
+    const sponsors = SponsorRepository.of({
+      create: (draft) =>
+        Effect.sync(() => {
+          const sponsor: Sponsor = { ...draft, id: SponsorId.make(takeId()) };
+          db.sponsors.push(sponsor);
+
+          return sponsor;
+        }),
+      list: Effect.sync(() => [...db.sponsors]),
+    });
+
+    const socialEvents = SocialEventRepository.of({
+      create: (draft) =>
+        Effect.sync(() => {
+          const event: SocialEvent = {
+            ...draft,
+            id: SocialEventId.make(takeId()),
+          };
+
+          db.socialEvents.push(event);
+
+          return event;
+        }),
+      list: ({ departmentId, semesterId }) =>
+        Effect.sync(() =>
+          Arr.filter(
+            db.socialEvents,
+            (event) =>
+              event.departmentId === departmentId &&
+              event.semesterId === semesterId
+          )
+        ),
+    });
+
     const publicFiles = PublicFileRepository.of({
       findByKey: (key) =>
         Effect.sync(() =>
@@ -481,6 +525,8 @@ const repositories = Layer.effectContext(
       Context.add(FieldOfStudyRepository, fieldsOfStudy),
       Context.add(ArticleRepository, articles),
       Context.add(StaticContentRepository, staticContent),
+      Context.add(SponsorRepository, sponsors),
+      Context.add(SocialEventRepository, socialEvents),
       Context.add(PublicFileRepository, publicFiles),
       Context.add(FileStore, fileStore),
       Context.add(Outbox, outbox),
@@ -512,6 +558,8 @@ const transactor = Layer.effect(
             outbox: Arr.map(db.outbox, (row) => ({ ...row })),
             publicFiles: [...db.publicFiles],
             semesters: [...db.semesters],
+            socialEvents: [...db.socialEvents],
+            sponsors: [...db.sponsors],
             staticContent: [...db.staticContent],
           };
 

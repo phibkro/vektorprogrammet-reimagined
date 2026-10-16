@@ -179,15 +179,33 @@ body::after {
   mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
 }
 
-a {
+/*
+ * The public site's link style. An anchor that a shadcn component renders (a sidebar entry, a breadcrumb link,
+ * a button used as a link) carries `data-slot` and takes its colour from the component's own utilities: an
+ * unlayered `a` rule would beat every Tailwind utility on it. `:where()` keeps the specificity of plain `a`.
+ */
+a:where(:not([data-slot])) {
   color: var(--lagoon-deep);
   text-decoration-color: rgba(50, 143, 151, 0.4);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
-a:hover {
+a:where(:not([data-slot])):hover {
   color: #246f76;
+}
+
+/*
+ * shadcn's default border colour, for the control panel's own components (its sidebar, tables and Sheets).
+ * Tailwind's default is `currentColor`; the public site names the colour of every border it draws, so this
+ * is scoped to the panel. In the base layer, so every border utility still wins.
+ */
+@layer base {
+  [data-slot="sidebar-wrapper"] *,
+  [data-slot="sheet-content"],
+  [data-slot="sheet-content"] * {
+    border-color: var(--border);
+  }
 }
 
 code {
@@ -606,4 +624,13 @@ a {
 
 @utility cf-turnstile {
   display: block;
+}
+
+/* shadcn's sidebar hides the scrollbar of its content area. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
