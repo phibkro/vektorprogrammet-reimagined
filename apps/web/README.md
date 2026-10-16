@@ -95,7 +95,7 @@ Deploy-time placeholders (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON
 
 ## Local development (devenv)
 
-Run everything inside devenv from the monorepo root. The devenv services (PostgreSQL 17, MySQL 8.4) must be up (`devenv up -d`), and the schema must be migrated (`packages/db`: `bun run db:migrate`).
+Run everything inside devenv from the monorepo root. The devenv services (PostgreSQL 18, MySQL 8.4) must be up (`devenv up -d`), and the schema must be migrated (`packages/db`: `bun run db:migrate`).
 
 ```sh
 devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'
