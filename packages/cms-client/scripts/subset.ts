@@ -26,7 +26,7 @@ export const OpenApiDocument = Schema.StructWithRest(
 
 export type OpenApiDocument = typeof OpenApiDocument.Type;
 
-export interface OpenApiSubset {
+interface OpenApiSubset {
   readonly document: OpenApiDocument;
   /** Operation ids the document does not offer. */
   readonly missing: readonly string[];

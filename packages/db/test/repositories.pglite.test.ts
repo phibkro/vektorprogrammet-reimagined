@@ -7,9 +7,7 @@
 import { assert, layer } from "@effect/vitest";
 import {
   AdmissionPeriodRepository,
-  ArticleRepository,
   AuditLog,
-  ArticleId,
   DepartmentId,
   FieldOfStudyId,
   DepartmentRepository,
@@ -20,17 +18,10 @@ import {
   SemesterId,
   SemesterRepository,
   SocialEventRepository,
-  Slug,
   SlackTarget,
-  SponsorRepository,
-  StaticContentKey,
-  StaticContentRepository,
   UserId,
-  HttpUrl,
   hasOpenAdmission,
-  sanitizeRichText,
 } from "@vektorprogrammet/domain";
-import type { ArticleDraft } from "@vektorprogrammet/domain";
 import { eq } from "drizzle-orm";
 import {
   Array as Arr,
@@ -38,7 +29,6 @@ import {
   Effect,
   Exit,
   Option,
-  Order,
   Predicate,
   pipe,
 } from "effect";
@@ -50,23 +40,8 @@ import {
   departmentDraft,
   fileKey,
   publicFileFixture,
-  registerImages,
   slackChannel,
 } from "./support/fixtures.ts";
-
-const articleDraft = (overrides: Partial<ArticleDraft> = {}): ArticleDraft => ({
-  authorId: UserId.make(42),
-  body: sanitizeRichText("<p>Velkommen</p>"),
-  createdAt: AT,
-  departmentIds: [],
-  imageLargeKey: fileKey("b"),
-  imageSmallKey: fileKey("a"),
-  published: false,
-  slug: Slug.make("opptak-apner"),
-  sticky: false,
-  title: "Opptak åpner!",
-  ...overrides,
-});
 
 layer(pgliteDatabase)("repositories on PGlite", (it) => {
   it.effect(
@@ -216,158 +191,6 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
         );
 
         assert.strictEqual(missing._tag, "NotFound");
-      })
-  );
-
-  it.effect(
-    "article: create with tags, find, slugsLike, publish; drafts are not listed",
-    () =>
-      Effect.gen(function* effectProgram() {
-        yield* registerImages(fileKey("a"), fileKey("b"));
-
-        const department = yield* (yield* DepartmentRepository).create(
-          departmentDraft("Tromsø")
-        );
-
-        const articles = yield* ArticleRepository;
-
-        const created = yield* articles.create(
-          articleDraft({ departmentIds: [department.id, department.id] })
-        );
-
-        assert.strictEqual(created.slug, "opptak-apner");
-        assert.deepStrictEqual(created.departmentIds, [department.id]);
-        assert.isTrue(DateTime.Equivalence(created.createdAt, AT));
-        assert.deepStrictEqual(yield* articles.findById(created.id), created);
-        assert.deepStrictEqual(
-          yield* articles.findBySlug(created.slug),
-          Option.some(created)
-        );
-        assert.isFalse(
-          pipe(
-            yield* articles.listPublished,
-            Arr.some((a) => a.id === created.id)
-          )
-        );
-        const published = yield* articles.setPublished(created.id, true);
-        assert.isTrue(published.published);
-        assert.isTrue(
-          pipe(
-            yield* articles.listPublished,
-            Arr.some((a) => a.id === created.id)
-          )
-        );
-        assert.deepStrictEqual(
-          Arr.map(yield* articles.slugsLike(Slug.make("opptak-apner")), String),
-          ["opptak-apner"]
-        );
-
-        const missing = yield* Effect.flip(
-          articles.setPublished(ArticleId.make(999_999), true)
-        );
-
-        assert.strictEqual(missing._tag, "NotFound");
-      })
-  );
-
-  it.effect(
-    "RULE-096: a slug taken after the domain chose it is retried once with the next suffix",
-    () =>
-      Effect.gen(function* effectProgram() {
-        yield* registerImages(fileKey("a"), fileKey("b"));
-        const articles = yield* ArticleRepository;
-
-        const draft = articleDraft({
-          slug: Slug.make("sommerfest"),
-          title: "Sommerfest",
-        });
-
-        const first = yield* articles.create(draft);
-        // Simulates the race: the second create still carries the slug the first one took.
-        const second = yield* articles.create(draft);
-        assert.strictEqual(first.slug, "sommerfest");
-        assert.strictEqual(second.slug, "sommerfest-2");
-        const third = yield* articles.create(draft);
-        assert.strictEqual(third.slug, "sommerfest-3");
-        assert.deepStrictEqual(
-          pipe(
-            [...(yield* articles.slugsLike(Slug.make("sommerfest")))],
-            Arr.sortBy<readonly string[]>(Order.String)
-          ),
-          ["sommerfest", "sommerfest-2", "sommerfest-3"]
-        );
-      })
-  );
-
-  it.effect("RULE-133: stored rich text is sanitized again when read", () =>
-    Effect.gen(function* effectProgram() {
-      const db = yield* Drizzle;
-      yield* db.insert(schema.staticContent).values({
-        html: `<p>Hei</p><script>alert("x")</script>`,
-        key: "legacy-block",
-      });
-
-      const block = yield* (yield* StaticContentRepository).find(
-        StaticContentKey.make("legacy-block")
-      );
-
-      assert.deepStrictEqual(
-        Option.map(block, (b) => b.html),
-        Option.some("<p>Hei</p>")
-      );
-    })
-  );
-
-  it.effect(
-    "RULE-296: static content upsert creates the block, then replaces its HTML",
-    () =>
-      Effect.gen(function* effectProgram() {
-        const blocks = yield* StaticContentRepository;
-        const key = StaticContentKey.make("about-intro");
-        assert.isTrue(Option.isNone(yield* blocks.find(key)));
-        yield* blocks.upsert(key, sanitizeRichText("<p>Første</p>"));
-
-        const replaced = yield* blocks.upsert(
-          key,
-          sanitizeRichText("<p>Andre</p>")
-        );
-
-        assert.strictEqual(replaced.html, "<p>Andre</p>");
-        assert.deepStrictEqual(yield* blocks.find(key), Option.some(replaced));
-      })
-  );
-
-  it.effect(
-    "RULE-189: sponsor create and list (logo is a registered file)",
-    () =>
-      Effect.gen(function* effectProgram() {
-        yield* registerImages(fileKey("c"));
-        const sponsors = yield* SponsorRepository;
-
-        const created = yield* sponsors.create({
-          logoKey: fileKey("c"),
-          name: "Eksempel AS",
-          size: "large",
-          url: HttpUrl.make("https://sponsor.example"),
-        });
-
-        assert.isTrue(
-          pipe(
-            yield* sponsors.list,
-            Arr.some((s) => s.id === created.id && s.size === "large")
-          )
-        );
-
-        const unregistered = yield* Effect.exit(
-          sponsors.create({
-            logoKey: fileKey("d"),
-            name: "Uten logo",
-            size: "small",
-            url: HttpUrl.make("https://sponsor.example"),
-          })
-        );
-
-        assert.isTrue(Exit.hasDies(unregistered));
       })
   );
 
@@ -625,10 +448,10 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
     Effect.gen(function* effectProgram() {
       const audit = yield* AuditLog;
       yield* audit.record({
-        action: "sponsor.created",
+        action: "department.created",
         actorId: UserId.make(7),
         at: AT,
-        entity: "Sponsor",
+        entity: "Department",
         entityKey: "77",
       });
       const db = yield* Drizzle;
@@ -639,7 +462,7 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
         .where(eq(schema.auditLog.entityKey, "77"));
 
       assert.strictEqual(rows.length, 1);
-      assert.strictEqual(rows[0]?.action, "sponsor.created");
+      assert.strictEqual(rows[0]?.action, "department.created");
       assert.strictEqual(rows[0]?.at.toISOString(), "2026-10-15T10:00:00.000Z");
     })
   );

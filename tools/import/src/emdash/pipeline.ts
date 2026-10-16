@@ -21,7 +21,7 @@ import { buildEmDashReport, writeEmDashReport } from "./report.ts";
 import { writeContent } from "./write.ts";
 
 /** The CMS refused entries: the report says which collections and why, and the import is not complete. */
-export class CmsImportIncomplete extends Schema.TaggedError<
+class CmsImportIncomplete extends Schema.TaggedError<
   CmsImportIncomplete,
   { readonly brand: unique symbol }
 >()("CmsImportIncomplete", {

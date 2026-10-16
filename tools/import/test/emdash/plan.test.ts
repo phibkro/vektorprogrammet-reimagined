@@ -6,41 +6,15 @@ import { Array as Arr, DateTime, Schema } from "effect";
 import { planEmDashContent } from "../../src/emdash/plan.ts";
 import type {
   LegacyArticle,
-  LegacyDepartment,
   LegacySnapshot,
   LegacySponsor,
   LegacyStaticContent,
 } from "../../src/legacy/rows.ts";
+import { NO_ROWS, legacyDepartment } from "../support/legacyRows.ts";
 
 const IMPORTED_AT = DateTime.makeUnsafe("2024-10-16T12:00:00.000Z");
 
 const isTextBlock = Schema.is(PortableText.TextBlock);
-
-const NO_ROWS: LegacySnapshot = {
-  admissionPeriods: [],
-  articleDepartments: [],
-  articles: [],
-  departments: [],
-  fieldsOfStudy: [],
-  semesters: [],
-  socialEvents: [],
-  sponsors: [],
-  staticContents: [],
-};
-
-const department = (id: number, city: string): LegacyDepartment => ({
-  active: 1,
-  address: null,
-  city,
-  email: `kontakt${id}@example.org`,
-  id,
-  latitude: null,
-  logoPath: null,
-  longitude: null,
-  name: `Avdeling ${id}`,
-  shortName: `A${id}`,
-  slackChannel: null,
-});
 
 const article = (
   id: number,
@@ -118,7 +92,10 @@ describe("the CMS import plan: articles", () => {
         { articleId: 2, departmentId: 99 },
       ],
       articles: [article(1), article(2), article(3)],
-      departments: [department(1, "Trondheim"), department(2, "Bergen")],
+      departments: [
+        legacyDepartment(1, "Trondheim"),
+        legacyDepartment(2, "Bergen"),
+      ],
     });
 
     assert.deepStrictEqual(
@@ -303,7 +280,7 @@ describe("the CMS import plan", () => {
     const rows = {
       articleDepartments: [{ articleId: 1, departmentId: 1 }],
       articles: [article(1), article(2, { published: 0 })],
-      departments: [department(1, "Trondheim")],
+      departments: [legacyDepartment(1, "Trondheim")],
       sponsors: [sponsor(1)],
       staticContents: [text(1, "home-tagline")],
     };

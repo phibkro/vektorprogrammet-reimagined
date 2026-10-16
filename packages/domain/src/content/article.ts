@@ -1,81 +1,32 @@
 /**
- * C5 news articles: model, editor input (RULE-182) and the public read rules
- * (RULE-267 visibility, RULE-331 front page, RULE-326 pagination).
+ * C5 news: the public read rules over published articles (RULE-331 front page, RULE-326 pagination).
+ *
+ * The articles themselves live in the CMS (spec 0005): an editor writes, saves a draft and publishes there, so the
+ * model, the editor input (RULE-182), the unique slug (RULE-096) and the visibility of a draft (RULE-267) are the
+ * CMS's. These two rules are what the public site still decides, over whatever list of articles it read.
  */
-import { Array as Arr, DateTime, Order, Schema } from "effect";
+import { Array as Arr, DateTime, Order } from "effect";
 
 import { addOsloCalendar, isBefore } from "../shared/clock.ts";
-import { ArticleId, DepartmentId, FileKey, UserId } from "../shared/ids.ts";
-import { requiredText } from "../shared/validation.ts";
-import { SanitizedHtmlFromString } from "./sanitizer.ts";
-import { Slug } from "./slug.ts";
 
-export const Article = Schema.Struct({
-  /** Legacy author id; no foreign key until Phase 2. */
-  authorId: Schema.NullOr(UserId),
-  /** Sanitized on save and again on every decode (RULE-133 replacement). */
-  body: SanitizedHtmlFromString,
-  createdAt: Schema.DateTimeUtc,
-  /** Departments the article is tagged with; empty means "all departments". */
-  departmentIds: Schema.Array(DepartmentId),
-  id: ArticleId,
-  imageLargeKey: FileKey,
-  imageSmallKey: FileKey,
-  published: Schema.Boolean,
-  slug: Slug,
-  sticky: Schema.Boolean,
-  title: Schema.String.check(Schema.isNonEmpty()),
-});
+interface FrontPageSortFields {
+  readonly sticky: boolean;
+  readonly createdAt: DateTime.Utc;
+}
 
-export type Article = typeof Article.Type;
-
-/** What `ArticleRepository.create` writes. */
-export type ArticleDraft = Omit<Article, "id">;
-
-export const ARTICLE_IMAGES_REQUIRED_MESSAGE =
-  "Last opp både et lite og et stort bilde.";
-
-/** RULE-182: a new article needs a title, a body and both images. */
-export const ArticleInput = Schema.Struct({
-  body: Schema.String,
-  departmentIds: Schema.Array(DepartmentId),
-  imageLargeKey: FileKey.annotateKey({
-    messageMissingKey: ARTICLE_IMAGES_REQUIRED_MESSAGE,
-  }),
-  imageSmallKey: FileKey.annotateKey({
-    messageMissingKey: ARTICLE_IMAGES_REQUIRED_MESSAGE,
-  }),
-  published: Schema.Boolean,
-  sticky: Schema.Boolean,
-  title: requiredText({ maxLength: 255 }),
-});
-
-export type ArticleInput = typeof ArticleInput.Type;
-
-/** RULE-267: drafts are never public. */
-export const isPubliclyVisible = (
-  article: Pick<Article, "published">
-): boolean => article.published;
-
-/** `/nyheter/{department}`: tagged with the department, or untagged. */
-export const isVisibleForDepartment = (
-  article: Pick<Article, "departmentIds">,
-  departmentId: DepartmentId
-): boolean =>
-  article.departmentIds.length === 0 ||
-  article.departmentIds.includes(departmentId);
-
-type FrontPageFields = Pick<Article, "sticky" | "createdAt">;
+interface FrontPageFields extends FrontPageSortFields {
+  readonly published: boolean;
+}
 
 /** Sticky first, then newest first. */
-export const FrontPageOrder: Order.Order<FrontPageFields> = Order.combine(
+export const FrontPageOrder: Order.Order<FrontPageSortFields> = Order.combine(
   Order.mapInput(
     Order.flip(Order.Boolean),
-    (article: FrontPageFields) => article.sticky
+    (article: FrontPageSortFields) => article.sticky
   ),
   Order.mapInput(
     Order.flip(DateTime.Order),
-    (article: FrontPageFields) => article.createdAt
+    (article: FrontPageSortFields) => article.createdAt
   )
 );
 
@@ -86,9 +37,7 @@ export const FRONT_PAGE_NEWS_DAYS = 30;
  * RULE-331: published articles created within the last 30 days (Oslo calendar),
  * or sticky; sticky first, then newest first; at most `limit` when given.
  */
-export const selectFrontPageNews = <
-  A extends Pick<Article, "published" | "sticky" | "createdAt">,
->(
+export const selectFrontPageNews = <A extends FrontPageFields>(
   articles: Iterable<A>,
   now: DateTime.DateTime,
   limit?: number
@@ -134,11 +83,3 @@ export const paginate = <A>(
     totalPages: Math.ceil(items.length / pageSize),
   };
 };
-
-/** RULE-266 fixed: the editor notice says what actually happened. */
-export const articleSavedNotice = (
-  article: Pick<Article, "published">
-): string =>
-  article.published
-    ? "Artikkelen har blitt publisert."
-    : "Artikkelen er lagret som kladd.";

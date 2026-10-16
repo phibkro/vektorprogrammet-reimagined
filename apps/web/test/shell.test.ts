@@ -13,14 +13,10 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
   Actor,
-  ArticleId,
   DepartmentId,
   UserId,
   anonymous,
   createSocialEvent,
-  createSponsor,
-  setArticlePublished,
-  updateStaticContent,
 } from "@vektorprogrammet/domain";
 import type { Actor as ActorType, StaffRole } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Predicate } from "effect";
@@ -29,16 +25,11 @@ import { TestClock } from "effect/testing";
 import type { Outcome } from "../src/lib/outcome";
 import type { SectionKey } from "../src/lib/panelSections";
 import {
-  SAVED,
-  articlesView,
   departmentsView,
   fieldsOfStudyView,
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
   socialEventsView,
-  sponsorsView,
-  staticContentInput,
-  staticContentView,
 } from "../src/server/panel";
 import { navigationFor, shellView } from "../src/server/shell";
 import {
@@ -76,9 +67,13 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "departments",
   "semesters",
   "fieldsOfStudy",
-  "staticContent",
-  "articles",
-  "sponsors",
+  "socialEvents",
+];
+
+/** What a team member may use: the departments and fields of study are a leader's. */
+const MEMBER_SECTIONS: readonly SectionKey[] = [
+  "overview",
+  "semesters",
   "socialEvents",
 ];
 
@@ -93,36 +88,13 @@ describe("spec 0004, falsifier 6: the sidebar is computed from the domain's capa
       ActorType,
       readonly SectionKey[],
     ])[] = [
+      ["a team member", staff("teamMember"), MEMBER_SECTIONS],
       [
-        "a team member",
-        staff("teamMember"),
-        ["overview", "semesters", "articles", "sponsors", "socialEvents"],
-      ],
-      [
-        "a team leader",
-        staff("teamLeader"),
-        [
-          "overview",
-          "departments",
-          "semesters",
-          "fieldsOfStudy",
-          "articles",
-          "sponsors",
-          "socialEvents",
-        ],
-      ],
-      [
-        "a team member on the executive board (RULE-296)",
+        "a team member on the executive board",
         staff("teamMember", { executiveBoard: true }),
-        [
-          "overview",
-          "semesters",
-          "staticContent",
-          "articles",
-          "sponsors",
-          "socialEvents",
-        ],
+        MEMBER_SECTIONS,
       ],
+      ["a team leader", staff("teamLeader"), EVERY_SECTION],
       [
         "a team leader on the executive board",
         staff("teamLeader", { executiveBoard: true }),
@@ -137,13 +109,13 @@ describe("spec 0004, falsifier 6: the sidebar is computed from the domain's capa
   });
 
   it("changing one capability of the actor changes exactly the sections it gates", () => {
-    // The executive-board flag is the only difference: it gates the static texts.
+    // The executive-board flag gated only the static texts, which the CMS owns now (spec 0005): it gates no section.
     assert.deepStrictEqual(
       Arr.difference(
         sectionsOf(staff("teamLeader", { executiveBoard: true })),
         sectionsOf(staff("teamLeader"))
       ),
-      ["staticContent"]
+      []
     );
 
     // The role is the only difference: a leader may change departments and fields of study, a member may not.
@@ -292,69 +264,6 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
               SEEDED(),
               actor,
               saveFieldOfStudyProgram(form({ name: "Kjemi", shortName: "KJ" }))
-            )
-          );
-        }
-      })
-  );
-
-  it.effect(
-    "static content (RULE-296), articles and sponsors: one capability each",
-    () =>
-      Effect.gen(function* contentControlsEffect() {
-        for (const [who, actor] of ACTORS) {
-          const content = assertSuccess(
-            yield* viewAs(SEEDED(), actor, staticContentView)
-          );
-
-          const articles = assertSuccess(
-            yield* viewAs(SEEDED(), actor, articlesView)
-          );
-
-          const sponsors = assertSuccess(
-            yield* viewAs(SEEDED(), actor, sponsorsView)
-          );
-
-          assertAgrees(
-            `${who}: edit a static block`,
-            content.canEdit,
-            yield* runAs(
-              SEEDED(),
-              actor,
-              Effect.as(
-                updateStaticContent(
-                  staticContentInput(
-                    form({ editorId: "about-header", html: "<p>Hei</p>" })
-                  )
-                ),
-                SAVED
-              )
-            )
-          );
-
-          // No article 999: a staff member who may manage articles gets NotFound, never Forbidden.
-          assertAgrees(
-            `${who}: publish or unpublish an article`,
-            articles.canManage,
-            yield* runAs(
-              SEEDED(),
-              actor,
-              setArticlePublished(ArticleId.make(999), true)
-            )
-          );
-
-          assertAgrees(
-            `${who}: create a sponsor`,
-            sponsors.canManage,
-            yield* runAs(
-              SEEDED(),
-              actor,
-              createSponsor({
-                logoKey: null,
-                name: "Sponsor",
-                size: "small",
-                url: "https://example.org",
-              })
             )
           );
         }

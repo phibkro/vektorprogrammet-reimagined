@@ -9,8 +9,6 @@ import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
 import {
   AdmissionPeriodRepository,
   AlreadyExists,
-  ArticleId,
-  ArticleRepository,
   AuditLog,
   CurrentActor,
   DepartmentId,
@@ -25,21 +23,15 @@ import {
   Outbox,
   OutboxMessageId,
   PublicFileRepository,
-  sanitizeRichText,
   SemesterId,
   SemesterRepository,
-  Slug,
   SocialEventId,
   SocialEventRepository,
-  SponsorId,
-  SponsorRepository,
-  StaticContentRepository,
   anonymous,
 } from "@vektorprogrammet/domain";
 import type {
   Actor,
   AdmissionPeriod,
-  Article,
   AuditEntry,
   Department,
   EntityName,
@@ -47,8 +39,6 @@ import type {
   OutboxMessage,
   PublicFile,
   SocialEvent,
-  Sponsor,
-  StaticContent,
   StoredSemester,
 } from "@vektorprogrammet/domain";
 import {
@@ -78,15 +68,12 @@ interface OutboxRow {
 export interface MemoryTables {
   departments: Department[];
   admissionPeriods: AdmissionPeriod[];
-  articles: Article[];
-  staticContent: StaticContent[];
   publicFiles: PublicFile[];
   objects: Map<string, Uint8Array>;
   outbox: OutboxRow[];
   audit: AuditEntry[];
   semesters: StoredSemester[];
   fieldsOfStudy: FieldOfStudy[];
-  sponsors: Sponsor[];
   socialEvents: SocialEvent[];
   /** Number of `Transactor.run` calls that committed. */
   commits: number;
@@ -101,7 +88,6 @@ export class Memory extends Context.Service<Memory, MemoryTables>()(
 /** Fresh tables; tests keep the reference to inspect what was (not) written. */
 export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   admissionPeriods: [],
-  articles: [],
   audit: [],
   commits: 0,
   departments: [],
@@ -112,8 +98,6 @@ export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   publicFiles: [],
   semesters: [],
   socialEvents: [],
-  sponsors: [],
-  staticContent: [],
   ...seed,
 });
 
@@ -269,95 +253,6 @@ const repositories = Layer.effectContext(
 
           return Effect.succeed(renamed);
         }),
-    });
-
-    const articles = ArticleRepository.of({
-      create: (draft) =>
-        Effect.suspend(() => {
-          if (Arr.some(db.articles, (row) => row.slug === draft.slug)) {
-            return Effect.fail(
-              new AlreadyExists({
-                entity: "Article",
-                key: draft.slug,
-                message: "Slug finnes.",
-              })
-            );
-          }
-
-          const created: Article = { id: ArticleId.make(takeId()), ...draft };
-          db.articles.push(created);
-
-          return Effect.succeed(created);
-        }),
-      findById: findById(db.articles, "Article"),
-      findBySlug: (slug) =>
-        Effect.sync(() =>
-          Option.fromNullishOr(
-            Option.getOrUndefined(
-              Arr.findFirst(db.articles, (row) => row.slug === slug)
-            )
-          )
-        ),
-      listPublished: Effect.sync(() =>
-        Arr.filter(db.articles, (row) => row.published)
-      ),
-      setPublished: (id, published) =>
-        Effect.suspend(() => {
-          const index = Option.getOrElse(
-            Arr.findFirstIndex(db.articles, (row) => row.id === id),
-            () => -1
-          );
-
-          if (index === -1) {
-            return Effect.fail(
-              new NotFound({ entity: "Article", key: String(id) })
-            );
-          }
-
-          const updated: Article = { ...db.articles[index], published };
-          db.articles[index] = updated;
-
-          return Effect.succeed(updated);
-        }),
-      slugsLike: (base) =>
-        Effect.sync(() =>
-          Arr.filter(
-            Arr.map(db.articles, (row) => row.slug),
-            (slug) => slug === base || slug.startsWith(`${base}-`)
-          )
-        ),
-    });
-
-    const staticContent = StaticContentRepository.of({
-      find: (key) =>
-        Effect.sync(() =>
-          Option.fromNullishOr(
-            Option.getOrUndefined(
-              Arr.findFirst(db.staticContent, (row) => row.key === key)
-            )
-          )
-        ),
-      upsert: (key, html) =>
-        Effect.sync(() => {
-          const block: StaticContent = { html, key };
-          db.staticContent = [
-            ...Arr.filter(db.staticContent, (row) => row.key !== key),
-            block,
-          ];
-
-          return block;
-        }),
-    });
-
-    const sponsors = SponsorRepository.of({
-      create: (draft) =>
-        Effect.sync(() => {
-          const sponsor: Sponsor = { ...draft, id: SponsorId.make(takeId()) };
-          db.sponsors.push(sponsor);
-
-          return sponsor;
-        }),
-      list: Effect.sync(() => [...db.sponsors]),
     });
 
     const socialEvents = SocialEventRepository.of({
@@ -532,9 +427,6 @@ const repositories = Layer.effectContext(
       Context.add(AdmissionPeriodRepository, admissionPeriods),
       Context.add(SemesterRepository, semesters),
       Context.add(FieldOfStudyRepository, fieldsOfStudy),
-      Context.add(ArticleRepository, articles),
-      Context.add(StaticContentRepository, staticContent),
-      Context.add(SponsorRepository, sponsors),
       Context.add(SocialEventRepository, socialEvents),
       Context.add(PublicFileRepository, publicFiles),
       Context.add(FileStore, fileStore),
@@ -560,7 +452,6 @@ const transactor = Layer.effect(
         Effect.suspend(() => {
           const before: Omit<MemoryTables, "commits" | "nextId"> = {
             admissionPeriods: [...db.admissionPeriods],
-            articles: [...db.articles],
             audit: [...db.audit],
             departments: [...db.departments],
             fieldsOfStudy: [...db.fieldsOfStudy],
@@ -569,8 +460,6 @@ const transactor = Layer.effect(
             publicFiles: [...db.publicFiles],
             semesters: [...db.semesters],
             socialEvents: [...db.socialEvents],
-            sponsors: [...db.sponsors],
-            staticContent: [...db.staticContent],
           };
 
           return Effect.provideService(program, InTransaction, {
@@ -662,26 +551,3 @@ export const fakeKey = (
   seed: number,
   extension: "png" | "jpg" | "bin" | "pdf" | "gif" | "webp" = "png"
 ) => FileKey.make(`${seed.toString(16).padStart(64, "0")}.${extension}`);
-
-export const fakeArticle = (
-  id: number,
-  options: {
-    readonly published: boolean;
-    readonly createdAt: DateTime.Utc;
-    readonly departmentIds?: readonly number[];
-  }
-): Article => ({
-  authorId: null,
-  body: sanitizeRichText(`<p>Tekst ${id}</p>`),
-  createdAt: options.createdAt,
-  departmentIds: Arr.map(options.departmentIds ?? [], (value) =>
-    DepartmentId.make(value)
-  ),
-  id: ArticleId.make(id),
-  imageLargeKey: fakeKey(id + 10_000),
-  imageSmallKey: fakeKey(id),
-  published: options.published,
-  slug: Slug.make(`nyhet-${id}`),
-  sticky: false,
-  title: `Nyhet ${id}`,
-});

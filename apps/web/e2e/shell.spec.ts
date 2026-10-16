@@ -31,25 +31,8 @@ import {
 
 /** The sections the sidebar lists, by actor: what each one's capabilities allow (domain `authorize`). */
 const SECTIONS_BY_ACTOR = {
-  admin: [
-    "Oversikt",
-    "Avdelinger",
-    "Semestre",
-    "Linjer",
-    "Statisk innhold",
-    "Artikler",
-    "Sponsorer",
-    "Arrangementer",
-  ],
-  teamLeader: [
-    "Oversikt",
-    "Avdelinger",
-    "Semestre",
-    "Linjer",
-    "Artikler",
-    "Sponsorer",
-    "Arrangementer",
-  ],
+  admin: ["Oversikt", "Avdelinger", "Semestre", "Linjer", "Arrangementer"],
+  teamLeader: ["Oversikt", "Avdelinger", "Semestre", "Linjer", "Arrangementer"],
 } as const;
 
 type Staff = keyof typeof SECTIONS_BY_ACTOR;
@@ -91,26 +74,6 @@ const GATED_CONTROLS: readonly {
   {
     control: "Gi nytt navn til Fag Alfa",
     path: "/kontrollpanel/linjer",
-    shownTo: ["admin", "teamLeader"],
-  },
-  {
-    control: "Rediger about-header",
-    path: "/kontrollpanel/statisk-innhold",
-    shownTo: ["admin"],
-  },
-  {
-    control: "Ny artikkel",
-    path: "/kontrollpanel/artikler",
-    shownTo: ["admin", "teamLeader"],
-  },
-  {
-    control: "Publiser etter id",
-    path: "/kontrollpanel/artikler",
-    shownTo: ["admin", "teamLeader"],
-  },
-  {
-    control: "Ny sponsor",
-    path: "/kontrollpanel/sponsorer",
     shownTo: ["admin", "teamLeader"],
   },
   {
@@ -167,7 +130,16 @@ test("falsifier 1 (anonymous): no control-panel navigation or link anywhere, and
   }
 
   // The public site has no way in: not in its header, its footer or its pages.
-  for (const path of ["/", "/omvektor", "/foreldre", "/nyheter", "/kontakt"]) {
+  for (const path of [
+    "/",
+    "/om-oss",
+    "/assistenter",
+    "/team",
+    "/foreldre",
+    "/skoler",
+    "/nyheter",
+    "/kontakt",
+  ]) {
     await openPage(page, path);
     await expect(page.locator("a[href^='/kontrollpanel']")).toHaveCount(0);
     await expect(

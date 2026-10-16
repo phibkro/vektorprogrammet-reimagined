@@ -1,5 +1,6 @@
 /**
- * Article URL slugs (RULE-096). A slug is unique and immutable once saved.
+ * URL slugs (RULE-096's character mapping): a department's address on the public site, and the check on the
+ * slugs of imported legacy articles. The CMS makes the slug of a new article and keeps it unique.
  *
  * Character mapping follows legacy `SlugMaker::replaceCharacters`: Æ/Ø/Å become
  * AE/O/A, soft hyphens, `-`, `!`, `,` and `.` are dropped, then every run of
@@ -59,22 +60,4 @@ export const slugify = (title: string): Slug => {
     .replace(/-+$/u, "");
 
   return Slug.make(base.length > 0 ? base : FALLBACK_SLUG);
-};
-
-/** RULE-096: the base slug, or `base-2`, `base-3`, … whichever is first free. */
-export const uniqueSlug = (title: string, existing: Iterable<string>): Slug => {
-  const taken = new Set(existing);
-  const base = slugify(title);
-
-  if (!taken.has(base)) {
-    return base;
-  }
-
-  let suffix = 2;
-
-  while (taken.has(`${base}-${suffix}`)) {
-    suffix += 1;
-  }
-
-  return Slug.make(`${base}-${suffix}`);
 };

@@ -1,17 +1,12 @@
 import {
   EmailAddress,
-  HttpUrl,
   SemesterYear,
   SlackChannel,
-  Slug,
-  SponsorSize,
-  StaticContentKey,
   osloParts,
   osloWallClock,
 } from "@vektorprogrammet/domain";
 import type {
   FileKey,
-  SanitizedHtml,
   StoredContentType,
   Term,
 } from "@vektorprogrammet/domain";
@@ -29,34 +24,23 @@ import type {
  * - A row that breaks a target constraint is quarantined with its reasons and
  *   never repaired by guessing. Rows referencing a quarantined or absent row
  *   are quarantined too.
- * - Values are checked with the domain's own schemas (`EmailAddress`,
- *   `SlackChannel`, `HttpUrl`, `Slug`, `SponsorSize`, `StaticContentKey`), so the
+ * - Values are checked with the domain's own schemas (`EmailAddress`, `SlackChannel`, `SemesterYear`), so the
  *   imported data decodes in `packages/db`'s repositories.
  * - Reasons hold column names and ids only, never values: the report must not
  *   carry personal data.
  */
-import {
-  Array as Arr,
-  DateTime,
-  Match,
-  Option,
-  Order,
-  pipe,
-  Schema,
-} from "effect";
+import { Array as Arr, DateTime, Match, Order, pipe, Schema } from "effect";
 
 import type { FileIndex } from "../files.ts";
-import type { LegacyArticle, LegacySnapshot } from "../legacy/rows.ts";
+import type { LegacySnapshot } from "../legacy/rows.ts";
 import type {
   BrokenReference,
   CollapsedSemester,
   MissingFileReference,
   Normalisation,
   QuarantinedRow,
-  RowRef,
 } from "../report.ts";
 import { classifyReference, fileArea } from "./legacyPath.ts";
-import { importRichText, richTextFilePaths } from "./richText.ts";
 
 const unresolvedFileKey = undefined;
 
@@ -67,10 +51,6 @@ export const TARGET_TABLES = [
   { source: "semester", table: "semester" },
   { source: "field_of_study", table: "field_of_study" },
   { source: "AdmissionPeriod", table: "admission_period" },
-  { source: "article", table: "article" },
-  { source: "articles_departments", table: "article_department" },
-  { source: "static_content", table: "static_content" },
-  { source: "sponsor", table: "sponsor" },
   { source: "event", table: "social_event" },
 ] as const;
 
@@ -84,19 +64,9 @@ export const DROPPED_COLUMNS = [
     table: "event",
   },
   {
-    column: "updated",
-    reason: "not part of the Phase 1 article model",
-    table: "article",
-  },
-  {
     column: "infoMeeting_id",
     reason: "info meetings belong to Phase 3",
     table: "AdmissionPeriod",
-  },
-  {
-    column: "id",
-    reason: "the block is keyed by html_id",
-    table: "static_content",
   },
 ] as const;
 
@@ -146,37 +116,6 @@ interface AdmissionPeriodRow {
   readonly endsAt: DateTime.Utc;
 }
 
-interface ArticleRow {
-  readonly id: number;
-  readonly title: string;
-  readonly slug: string;
-  readonly body: SanitizedHtml;
-  readonly imageSmallKey: FileKey;
-  readonly imageLargeKey: FileKey;
-  readonly sticky: boolean;
-  readonly published: boolean;
-  readonly authorId: number | null;
-  readonly createdAt: DateTime.Utc;
-}
-
-interface ArticleDepartmentRow {
-  readonly articleId: number;
-  readonly departmentId: number;
-}
-
-interface StaticContentRow {
-  readonly key: string;
-  readonly html: SanitizedHtml;
-}
-
-interface SponsorRow {
-  readonly id: number;
-  readonly name: string;
-  readonly url: string;
-  readonly size: SponsorSize;
-  readonly logoKey: FileKey | null;
-}
-
 interface SocialEventRow {
   readonly id: number;
   readonly title: string;
@@ -194,10 +133,6 @@ export interface TargetRows {
   readonly semester: readonly SemesterRow[];
   readonly field_of_study: readonly FieldOfStudyRow[];
   readonly admission_period: readonly AdmissionPeriodRow[];
-  readonly article: readonly ArticleRow[];
-  readonly article_department: readonly ArticleDepartmentRow[];
-  readonly static_content: readonly StaticContentRow[];
-  readonly sponsor: readonly SponsorRow[];
   readonly social_event: readonly SocialEventRow[];
 }
 
@@ -208,9 +143,6 @@ export interface ImportPlan {
   readonly collapsedSemesters: readonly CollapsedSemester[];
   readonly missingFiles: readonly MissingFileReference[];
   readonly brokenReferences: readonly BrokenReference[];
-  /** Rich-text rows whose markup the sanitizer changed. */
-  readonly sanitized: readonly RowRef[];
-  readonly rewrittenReferences: number;
   readonly normalisations: readonly Normalisation[];
   /** Legacy paths whose bytes equal an earlier path's file (one `public_file` row per key). */
   readonly pathsSharingContent: number;
@@ -222,31 +154,14 @@ export const referencedFilePaths = (
 ): readonly string[] => {
   const isText = Schema.is(Schema.String);
 
-  const columns = Arr.flatMap(
-    [
-      ...Arr.map(snapshot.departments, (row) => row.logoPath),
-      ...Arr.flatMap(snapshot.articles, (row) => [
-        row.imageLarge,
-        row.imageSmall,
-      ]),
-      ...Arr.map(snapshot.sponsors, (row) => row.logoImagePath),
-    ],
+  return Arr.flatMap(
+    Arr.map(snapshot.departments, (row) => row.logoPath),
     (value) => {
       const reference = isText(value) ? classifyReference(value) : undefined;
 
       return reference?._tag === "File" ? [reference.path] : [];
     }
   );
-
-  const richText = Arr.flatMap(
-    [
-      ...Arr.map(snapshot.articles, (row) => row.body),
-      ...Arr.map(snapshot.staticContents, (row) => row.html),
-    ],
-    richTextFilePaths
-  );
-
-  return [...columns, ...richText];
 };
 
 const WALL_CLOCK =
@@ -325,14 +240,6 @@ const getLegacyTerm = (value: string): Term | undefined =>
 const isEmail = Schema.is(EmailAddress);
 const isSlackChannel = Schema.is(SlackChannel);
 
-export const isHttpUrl = Schema.is(HttpUrl);
-
-export const isSlug = Schema.is(Slug);
-
-export const isSponsorSize = Schema.is(SponsorSize);
-
-export const isStaticContentKey = Schema.is(StaticContentKey);
-
 const isSemesterYear = Schema.is(SemesterYear);
 
 const COORDINATE = /^-?\d+(?:\.\d+)?$/u;
@@ -384,43 +291,6 @@ export const addReason = (
   }
 };
 
-/** Why a legacy article cannot be imported into any target: column names and ids only, never values. */
-export const articleReasons = (
-  row: LegacyArticle,
-  firstWithSlug: number | undefined
-): string[] => {
-  const reasons: string[] = [];
-
-  addEmptyTextReason(reasons, "title", row.title);
-  addReason(
-    reasons,
-    !isSlug(row.slug),
-    "slug is not a URL slug ([a-z0-9-], at most 255)"
-  );
-  addReason(
-    reasons,
-    firstWithSlug !== undefined,
-    `slug duplicates article ${firstWithSlug}`
-  );
-  addReason(
-    reasons,
-    parseLegacyDateTime(row.created) === undefined,
-    "created is not a valid date-time"
-  );
-  addReason(
-    reasons,
-    row.sticky !== 0 && row.sticky !== 1,
-    "sticky is not 0 or 1"
-  );
-  addReason(
-    reasons,
-    row.published !== null && row.published !== 0 && row.published !== 1,
-    "published is not 0, 1 or NULL"
-  );
-
-  return reasons;
-};
-
 /** Builds the plan. Pure: no I/O, no clock, no randomness. */
 export const planImport = (
   snapshot: LegacySnapshot,
@@ -429,13 +299,10 @@ export const planImport = (
   const quarantine: QuarantinedRow[] = [];
   const brokenReferences: BrokenReference[] = [];
   const normalisations: Normalisation[] = [];
-  const sanitized: RowRef[] = [];
 
   const missing: (Omit<MissingFileReference, "file"> & {
     readonly path: string;
   })[] = [];
-
-  let rewrittenReferences = 0;
 
   /** Keeps the row when it has no reasons; otherwise records the quarantine. */
   const admit = (
@@ -533,38 +400,6 @@ export const planImport = (
         return unresolvedFileKey;
       },
     });
-  };
-
-  const richText = (
-    table: TargetTable,
-    id: string,
-    field: string,
-    html: string
-  ) => {
-    const imported = importRichText(html, (path) => files.get(path)?.key);
-
-    if (imported.sanitizerChanged) {
-      sanitized.push({ id, table });
-    }
-
-    rewrittenReferences += imported.rewritten;
-
-    for (const path of imported.missing) {
-      missing.push({ area: fileArea(path), field, id, path, table });
-    }
-
-    for (const area of imported.unmappable) {
-      brokenReferences.push({
-        field,
-        id,
-        kind: "unmappable-file",
-        table,
-        target: area,
-        targetId: null,
-      });
-    }
-
-    return imported.html;
   };
 
   /** Resolves a foreign key to a kept row, recording the reason and broken reference otherwise. */
@@ -916,215 +751,6 @@ export const planImport = (
 
   buildAdmissionPeriods();
 
-  // article
-  const articles: ArticleRow[] = [];
-  const articleIds = new Map<number, number>();
-  const slugs = new Map<string, number>();
-
-  const addArticle = (row: LegacySnapshot["articles"][number]) => {
-    const id = String(row.id);
-    const reasons = [...articleReasons(row, slugs.get(row.slug))];
-    const createdAt = parseLegacyDateTime(row.created);
-    addReason(
-      reasons,
-      row.authorId !== null && row.authorId < 1,
-      "author_id is not a positive id"
-    );
-
-    const imageLargeKey = Option.fromNullishOr(
-      fileColumn("article", id, "imageLarge", row.imageLarge)
-    );
-
-    const imageSmallKey = Option.fromNullishOr(
-      fileColumn("article", id, "imageSmall", row.imageSmall)
-    );
-
-    addReason(
-      reasons,
-      Option.isNone(imageLargeKey),
-      "imageLarge has no registered file"
-    );
-    addReason(
-      reasons,
-      Option.isNone(imageSmallKey),
-      "imageSmall has no registered file"
-    );
-
-    const body = richText("article", id, "article", row.body);
-
-    if (
-      !admit("article", id, reasons) ||
-      createdAt === undefined ||
-      Option.isNone(imageLargeKey) ||
-      Option.isNone(imageSmallKey)
-    ) {
-      return;
-    }
-
-    if (row.published === null) {
-      normalisations.push({
-        change: "NULL stored as false (draft)",
-        field: "published",
-        id,
-        table: "article",
-      });
-    }
-
-    slugs.set(row.slug, row.id);
-    articleIds.set(row.id, row.id);
-    articles.push({
-      authorId: row.authorId,
-      body,
-      createdAt,
-      id: row.id,
-      imageLargeKey: imageLargeKey.value,
-      imageSmallKey: imageSmallKey.value,
-      published: row.published === 1,
-      slug: row.slug,
-      sticky: row.sticky === 1,
-      title: row.title,
-    });
-  };
-
-  const buildArticles = () => {
-    for (const row of snapshot.articles) {
-      addArticle(row);
-    }
-
-    return new Set(Arr.map(snapshot.articles, (row) => row.id));
-  };
-
-  const sourceArticleIds = buildArticles();
-
-  // article_department
-  const buildArticleDepartments = () => {
-    const articleDepartments: ArticleDepartmentRow[] = [];
-
-    for (const row of snapshot.articleDepartments) {
-      const id = `${row.articleId}:${row.departmentId}`;
-      const reasons: string[] = [];
-
-      const articleId = reference(
-        "article_department",
-        id,
-        "article_id",
-        "article",
-        row.articleId,
-        articleIds,
-        sourceArticleIds,
-        reasons
-      );
-
-      const departmentId = reference(
-        "article_department",
-        id,
-        "department_id",
-        "department",
-        row.departmentId,
-        departmentIds,
-        sourceDepartmentIds,
-        reasons
-      );
-
-      if (
-        !admit("article_department", id, reasons) ||
-        articleId === undefined ||
-        departmentId === undefined
-      ) {
-        continue;
-      }
-
-      articleDepartments.push({ articleId, departmentId });
-    }
-
-    return articleDepartments;
-  };
-
-  const articleDepartments = buildArticleDepartments();
-
-  // static_content
-  const buildStaticContents = () => {
-    const staticContents: StaticContentRow[] = [];
-    const blockKeys = new Map<string, number>();
-
-    for (const row of snapshot.staticContents) {
-      const id = String(row.id);
-      const reasons: string[] = [];
-
-      if (!isStaticContentKey(row.htmlId)) {
-        reasons.push("html_id is empty or longer than 50");
-      }
-
-      const first = blockKeys.get(row.htmlId);
-
-      if (first !== undefined) {
-        reasons.push(`html_id duplicates static_content ${first}`);
-      }
-
-      const html = richText("static_content", id, "html", row.html);
-
-      if (!admit("static_content", id, reasons)) {
-        continue;
-      }
-
-      blockKeys.set(row.htmlId, row.id);
-      staticContents.push({ html, key: row.htmlId });
-    }
-
-    return staticContents;
-  };
-
-  const staticContents = buildStaticContents();
-
-  // sponsor
-  const sponsors: SponsorRow[] = [];
-
-  const addSponsor = (row: LegacySnapshot["sponsors"][number]) => {
-    const id = String(row.id);
-    const reasons: string[] = [];
-
-    if (row.name === null || row.name.length === 0) {
-      reasons.push("name is empty");
-    }
-
-    if (row.url === null || !isHttpUrl(row.url)) {
-      reasons.push("url is not an absolute http(s) URL");
-    }
-
-    if (row.size === null || !isSponsorSize(row.size)) {
-      reasons.push("size is not small, medium or large");
-    }
-
-    const logoKey =
-      fileColumn("sponsor", id, "logoImagePath", row.logoImagePath) ?? null;
-
-    if (
-      !admit("sponsor", id, reasons) ||
-      row.name === null ||
-      row.url === null ||
-      row.size === null ||
-      !isSponsorSize(row.size)
-    ) {
-      return;
-    }
-
-    sponsors.push({
-      id: row.id,
-      logoKey,
-      name: row.name,
-      size: row.size,
-      url: row.url,
-    });
-  };
-
-  const buildSponsors = () => {
-    for (const row of snapshot.sponsors) {
-      addSponsor(row);
-    }
-  };
-
-  buildSponsors();
-
   // social_event (role_id is not read: RULE-188)
   const socialEvents: SocialEventRow[] = [];
 
@@ -1221,31 +847,21 @@ export const planImport = (
     normalisations,
     pathsSharingContent,
     quarantine,
-    rewrittenReferences,
     rows: {
       admission_period: admissionPeriods,
-      article: articles,
-      article_department: articleDepartments,
       department: departments,
       field_of_study: fieldsOfStudy,
       public_file: publicFiles,
       semester: semesters,
       social_event: socialEvents,
-      sponsor: sponsors,
-      static_content: staticContents,
     },
     rowsIn: {
       admission_period: snapshot.admissionPeriods.length,
-      article: snapshot.articles.length,
-      article_department: snapshot.articleDepartments.length,
       department: snapshot.departments.length,
       field_of_study: snapshot.fieldsOfStudy.length,
       public_file: new Set(referencedFilePaths(snapshot)).size,
       semester: snapshot.semesters.length,
       social_event: snapshot.socialEvents.length,
-      sponsor: snapshot.sponsors.length,
-      static_content: snapshot.staticContents.length,
     },
-    sanitized,
   };
 };

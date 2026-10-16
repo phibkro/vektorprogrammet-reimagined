@@ -12,18 +12,12 @@ import { Forbidden } from "./errors.ts";
 import type { DepartmentId } from "./ids.ts";
 
 export type Capability = Data.TaggedEnum<{
-  /** C4, RULE-296: admin or executive-board member. */
-  EditStaticContent: Record<never, never>;
   /** C1: admin creates departments. */
   CreateDepartment: Record<never, never>;
   /** C1: admin, or a team leader of that department. */
   UpdateDepartment: { readonly departmentId: DepartmentId };
   /** C1, RULE-139: admin, or a team leader of that department. */
   ManageFieldsOfStudy: { readonly departmentId: DepartmentId };
-  /** C5: any staff. */
-  ManageArticles: Record<never, never>;
-  /** C6: any staff. */
-  ManageSponsors: Record<never, never>;
   /** C8: admin, or staff of that department. */
   ManageSocialEvents: { readonly departmentId: DepartmentId };
   /** C11: any staff. */
@@ -47,12 +41,9 @@ export const authorize = (actor: Actor, capability: Capability): boolean => {
 
   return Capability.$match(capability, {
     CreateDepartment: () => isAdmin,
-    EditStaticContent: () => isAdmin || actor.executiveBoard,
-    ManageArticles: () => true,
     ManageFieldsOfStudy: ({ departmentId }) => isAdmin || leads(departmentId),
     ManageSocialEvents: ({ departmentId }) =>
       isAdmin || actor.departmentId === departmentId,
-    ManageSponsors: () => true,
     ReadAudit: () => isAdmin,
     UpdateDepartment: ({ departmentId }) => isAdmin || leads(departmentId),
     UploadFiles: () => true,

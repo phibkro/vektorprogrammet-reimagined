@@ -14,7 +14,7 @@ import { Array as Arr, Data, Effect, Result } from "effect";
 import type { EmDashPlan, ImportedCollection, PlannedEntry } from "./plan.ts";
 
 /** The CMS refused an entry; only the operation and the CMS's error code are kept (never values). */
-export interface Rejection {
+interface Rejection {
   readonly collection: ImportedCollection;
   /** The legacy id. */
   readonly id: string;
@@ -38,7 +38,7 @@ type Step = Data.TaggedEnum<{
 
 const Step = Data.taggedEnum<Step>();
 
-export interface CollectionResult {
+interface CollectionResult {
   readonly collection: ImportedCollection;
   readonly drafted: number;
   readonly published: number;

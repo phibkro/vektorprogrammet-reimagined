@@ -13,19 +13,15 @@ import {
   TRONDHEIM,
   admin,
   asActor,
-  boardMember,
   failureTag,
   teamLeaderTrondheim,
   teamMemberBergen,
 } from "../support/inMemory.ts";
 
 const every: readonly Capability[] = [
-  Capability.EditStaticContent(),
   Capability.CreateDepartment(),
   Capability.UpdateDepartment({ departmentId: TRONDHEIM }),
   Capability.ManageFieldsOfStudy({ departmentId: TRONDHEIM }),
-  Capability.ManageArticles(),
-  Capability.ManageSponsors(),
   Capability.ManageSocialEvents({ departmentId: TRONDHEIM }),
   Capability.UploadFiles(),
   Capability.ReadAudit(),
@@ -46,15 +42,6 @@ describe("capabilities: deny by default, scoped by department", () => {
     assert.isTrue(
       authorize(admin, Capability.ManageFieldsOfStudy({ departmentId: BERGEN }))
     );
-  });
-
-  it("RULE-296: static content is editable only by an admin or an executive-board member", () => {
-    const edit = Capability.EditStaticContent();
-    assert.isTrue(authorize(admin, edit));
-    assert.isTrue(authorize(boardMember, edit));
-    assert.isFalse(authorize(teamLeaderTrondheim, edit));
-    assert.isFalse(authorize(teamMemberBergen, edit));
-    assert.isFalse(authorize(anonymous, edit));
   });
 
   it("RULE-139: fields of study are managed only within one's own department", () => {

@@ -52,14 +52,11 @@ import { SqlClient } from "effect/sql";
 
 import { TEST_ACTORS } from "../src/server/actor";
 import {
-  articlesView,
   dashboardView,
   departmentsView,
   fieldsOfStudyView,
   semestersView,
   socialEventsView,
-  sponsorsView,
-  staticContentView,
 } from "../src/server/panel";
 import { legacyFileLocation } from "../src/server/redirects";
 import type { DatabaseServices } from "../src/server/runtime";
@@ -134,7 +131,6 @@ const CMS_SEEDS = {
 } satisfies Record<"empty" | "seeded", Partial<CmsSeed>>;
 
 const KEY_SMALL = `${"a".repeat(64)}.png`;
-const KEY_LARGE = `${"b".repeat(64)}.png`;
 const LEGACY_PATH = "Offentlige filer/logo.png";
 
 /** Every `runQuery` call site of the app, by the server function or entry point that holds it. */
@@ -180,9 +176,6 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("panel.functions getDepartments", departmentsView),
   readPath("panel.functions getSemesters", semestersView),
   readPath("panel.functions getFieldsOfStudy", fieldsOfStudyView),
-  readPath("panel.functions getStaticContentAdmin", staticContentView),
-  readPath("panel.functions getArticlesAdmin", articlesView),
-  readPath("panel.functions getSponsorsAdmin", sponsorsView),
   readPath("panel.functions getSocialEvents", socialEventsView),
   readPath("routes/filer/$key GET", servePublicFile(KEY_SMALL), {
     empty: "NotFound",
@@ -192,7 +185,7 @@ const READ_PATHS: readonly ReadPath[] = [
 
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
-  "functions/panel.functions.ts": 9,
+  "functions/panel.functions.ts": 6,
   "functions/public.functions.ts": 11,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,
@@ -220,21 +213,14 @@ const requestServices = (url: Redacted.Redacted) =>
     Layer.orDie
   );
 
-/** The fixture: a department with a field of study, a published article and a draft, a sponsor, a file. */
+/** The fixture: a department with a field of study, and a file. */
 const SEED = [
   `insert into public_file (key, sha256, content_type, name, size, uploaded_at, legacy_path) values
-     ('${KEY_SMALL}', '${"a".repeat(64)}', 'image/png', 'liten.png', 1, now(), '${LEGACY_PATH}'),
-     ('${KEY_LARGE}', '${"b".repeat(64)}', 'image/png', 'stor.png', 1, now(), null)`,
+     ('${KEY_SMALL}', '${"a".repeat(64)}', 'image/png', 'liten.png', 1, now(), '${LEGACY_PATH}')`,
   `insert into department (id, city, email, name, short_name, active, logo_key) values
      (1, 'Alfaby', 'kontakt@alfa.example', 'Avdeling Alfa', 'ALFA', true, '${KEY_SMALL}'),
      (2, 'Betaby', 'kontakt@beta.example', 'Avdeling Beta', 'BETA', false, null)`,
   `insert into field_of_study (department_id, name, short_name) values (1, 'Fag Alfa', 'FA')`,
-  `insert into article (id, author_id, body, created_at, image_large_key, image_small_key, published, slug, sticky, title) values
-     (1, 42, '<p>Søk nå</p>', now(), '${KEY_LARGE}', '${KEY_SMALL}', true, 'opptak-apner', true, 'Opptak åpner'),
-     (2, 42, '<p>Kommer</p>', now(), '${KEY_LARGE}', '${KEY_SMALL}', false, 'utkast', false, 'Utkast')`,
-  `insert into article_department (article_id, department_id) values (1, 1)`,
-  `insert into static_content (key, html) values ('about-header', '<p>Om oss</p>'), ('home-tagline', '<p>Hei</p>')`,
-  `insert into sponsor (name, size, url, logo_key) values ('Sponsor', 'medium', 'https://example.org', '${KEY_SMALL}')`,
 ];
 
 /** The job's two rows, and an event in the current semester of the first department. */

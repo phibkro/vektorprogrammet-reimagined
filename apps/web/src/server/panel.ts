@@ -1,13 +1,11 @@
 /**
- * `/kontrollpanel` (C1, C2, C4, C5, C6, C8): view programs over the domain's queries and services,
- * the command programs a server function runs, and form → command-input mapping. C1 and C2
- * (departments, semesters, fields of study; spec 0001) are complete; the other capabilities are at stub
- * depth. The domain decodes and validates every input; this module only turns form text into the
- * shapes the domain's input schemas expect (numbers, booleans, nulls, UTC instants). Authorization
- * happens inside each command (in its transaction); the route guard is UX only.
+ * `/kontrollpanel` (C1, C2, C8): view programs over the domain's queries and services, the command programs a
+ * server function runs, and form → command-input mapping. The domain decodes and validates every input; this
+ * module only turns form text into the shapes the domain's input schemas expect (numbers, booleans, nulls, UTC
+ * instants). Authorization happens inside each command (in its transaction); the route guard is UX only.
+ * The public site's content (texts, news, sponsors, FAQ, teams) is edited in the CMS (spec 0005), not here.
  */
 import {
-  ArticleRepository,
   Capability,
   CurrentActor,
   DepartmentId,
@@ -16,7 +14,6 @@ import {
   FieldOfStudyId,
   SemesterOrder,
   SocialEventRepository,
-  StaticContentKey,
   authorize,
   createDepartment,
   createFieldOfStudy,
@@ -24,24 +21,14 @@ import {
   decodeInput,
   eventBadge,
   findCurrentSemester,
-  getStaticContent,
   listFieldsOfStudy,
   listSemestersNewestFirst,
-  listSponsorsForFooter,
   osloWallClock,
   renameFieldOfStudy,
   semesterLabel,
-  storeUpload,
   updateDepartment,
 } from "@vektorprogrammet/domain";
-import type {
-  Actor,
-  Article,
-  Department,
-  Semester,
-  StoredUpload,
-  UploadAccept,
-} from "@vektorprogrammet/domain";
+import type { Actor, Department, Semester } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -49,29 +36,10 @@ import {
   Option,
   Order,
   Predicate,
-  Record as Rec,
   Schema,
 } from "effect";
 
 import { actorSummary } from "./shell";
-
-/**
- * Legacy `html_id`s of the editable blocks the old public pages embedded. The public pages now read their text
- * from EmDash (spec 0005), so this list and the page that edits it retire with the content control panel.
- */
-const STATIC_BLOCKS = {
-  foreldre: ["parent-header", "parent-assistants-info", "parent-course"],
-  home: ["home-tagline"],
-  kontakt: ["contact-header"],
-  nyheter: ["vektor_i_media"],
-  omvektor: [
-    "about-header",
-    "about-motivate-children",
-    "about-motivate-students",
-    "about-try-teaching",
-    "about-faq",
-  ],
-} as const;
 
 // ---------------------------------------------------------------- form text
 
@@ -265,11 +233,6 @@ const byDepartmentName = Order.mapInput(
   (row: DepartmentRow) => row.name
 );
 
-const newestArticleOrder = Order.mapInput(
-  Order.Number,
-  (article: Article) => -DateTime.toEpochMillis(article.createdAt)
-);
-
 /** C2 the current semester (RULE-033, answered by the calendar, no row needed) and who is acting. */
 export const dashboardView = Effect.gen(function* dashboardView() {
   const actor = yield* CurrentActor;
@@ -355,153 +318,6 @@ export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
       id: field.id,
       name: field.name,
       shortName: field.shortName,
-    })),
-  };
-});
-
-// ---------------------------------------------------------------- C4
-
-export const staticContentInput = (form: FormData) => {
-  const editorId = optionalText(form, "editorId");
-  const input = { html: text(form, "html") };
-
-  if (editorId === null) {
-    return input;
-  }
-
-  return { ...input, editorId };
-};
-
-/** Every block the public pages embed, with its current HTML; `canEdit` is `EditStaticContent` (RULE-296). */
-export const staticContentView = Effect.gen(function* staticContentView() {
-  const actor = yield* CurrentActor;
-
-  const blocks = yield* Effect.forEach(
-    Arr.flatMap(Rec.toEntries(STATIC_BLOCKS), ([page, keys]) =>
-      Arr.map(keys, (key) => ({ key, page }))
-    ),
-    ({ page, key }) =>
-      Effect.map(getStaticContent(StaticContentKey.make(key)), (block) => ({
-        html: Option.match(block, {
-          onNone: () => "",
-          onSome: (found): string => found.html,
-        }),
-        key,
-        page,
-      }))
-  );
-
-  return { blocks, canEdit: authorize(actor, Capability.EditStaticContent()) };
-});
-
-// ---------------------------------------------------------------- C5 / C6 uploads
-
-/** A file read from a form before entering Effect. */
-export interface UploadedFile {
-  readonly name: string;
-  readonly bytes: Uint8Array;
-}
-
-/** Reads a form file through its native Promise API; interruption discards the result. */
-export const readFile = Effect.fnUntraced(function* readFile(
-  form: FormData,
-  name: string
-) {
-  const value = form.get(name);
-
-  if (value === null || Schema.is(Schema.String)(value) || value.size === 0) {
-    return null;
-  }
-
-  const buffer = yield* Effect.orDie(
-    Effect.tryPromise(() => value.arrayBuffer())
-  );
-
-  return { bytes: new Uint8Array(buffer), name: value.name };
-});
-
-/** Step 1 of an upload (outside the transaction): RULE-130 typing, content-addressed R2 put. */
-export const storeOptional = (
-  file: UploadedFile | null,
-  accept: UploadAccept
-) =>
-  file === null
-    ? Effect.succeed<StoredUpload | null>(null)
-    : Effect.map(
-        storeUpload({ accept, bytes: file.bytes, name: file.name }),
-        (stored): StoredUpload | null => stored
-      );
-
-export const articleInput = (
-  form: FormData,
-  images: {
-    readonly large: string | undefined;
-    readonly small: string | undefined;
-  }
-) => {
-  const article = {
-    body: text(form, "body"),
-    departmentIds: Arr.flatMap(form.getAll("departmentIds"), (value) =>
-      Schema.is(Schema.String)(value) ? [integer(value)] : []
-    ),
-    published: checkbox(form, "published"),
-    sticky: checkbox(form, "sticky"),
-    title: text(form, "title"),
-  };
-
-  if (images.large !== undefined) {
-    const withLargeImage = { ...article, imageLargeKey: images.large };
-
-    if (images.small !== undefined) {
-      return { ...withLargeImage, imageSmallKey: images.small };
-    }
-
-    return withLargeImage;
-  }
-
-  if (images.small !== undefined) {
-    return { ...article, imageSmallKey: images.small };
-  }
-
-  return article;
-};
-
-/** Published articles, newest first (drafts have no staff listing query yet; see README); `canManage` is `ManageArticles`. */
-export const articlesView = Effect.gen(function* articlesView() {
-  const actor = yield* CurrentActor;
-  const articles = yield* ArticleRepository;
-  const published = yield* articles.listPublished;
-
-  return {
-    articles: Arr.map(Arr.sort(published, newestArticleOrder), (article) => ({
-      id: article.id,
-      slug: article.slug,
-      sticky: article.sticky,
-      title: article.title,
-    })),
-    canManage: authorize(actor, Capability.ManageArticles()),
-  };
-});
-
-export const sponsorInput = (form: FormData, logoKey: string | null) => ({
-  logoKey,
-  name: text(form, "name"),
-  size: text(form, "size"),
-  url: text(form, "url"),
-});
-
-/** Sponsors by size; `canManage` is `ManageSponsors`. */
-export const sponsorsView = Effect.gen(function* sponsorsView() {
-  const actor = yield* CurrentActor;
-  const sponsors = yield* listSponsorsForFooter;
-
-  return {
-    canManage: authorize(actor, Capability.ManageSponsors()),
-    sponsors: Arr.map(sponsors, (sponsor) => ({
-      id: sponsor.id,
-      name: sponsor.name,
-      size: sponsor.size,
-      url: sponsor.url,
     })),
   };
 });

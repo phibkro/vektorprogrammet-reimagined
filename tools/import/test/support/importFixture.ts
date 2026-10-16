@@ -7,58 +7,40 @@
  * `apps/web/e2e` starts its disposable database this way: the browser tests run on migrated data, whose
  * quirks (collapsed duplicate semesters, quarantined rows, legacy ids) are the importer's own.
  */
-import { NodeRuntime } from "@effect/platform-node";
-import {
-  Array as Arr,
-  Console,
-  Effect,
-  FileSystem,
-  Layer,
-  Option,
-} from "effect";
+import { Array as Arr, Console, Effect, Option } from "effect";
 
 import { ImportConfig, checkTarget } from "../../src/config.ts";
-import { nodeServicesLayer } from "../../src/nodeServices.ts";
 import { importLayer, runImport } from "../../src/pipeline.ts";
-import { LegacyTestDatabase } from "./databases.ts";
+import { runOnFixture } from "./fixtureScript.ts";
 
-const importFixture = Effect.gen(function* importFixture() {
-  const fs = yield* FileSystem.FileSystem;
-  const legacy = yield* LegacyTestDatabase;
-  const config = yield* ImportConfig;
-  const refused = checkTarget(config, false);
+runOnFixture(({ legacyMysqlUrl, reportDirectory }) =>
+  Effect.gen(function* importFixture() {
+    const config = yield* ImportConfig;
+    const refused = checkTarget(config, false);
 
-  if (Option.isSome(refused)) {
-    return yield* refused.value;
-  }
+    if (Option.isSome(refused)) {
+      return yield* refused.value;
+    }
 
-  const reportDirectory = yield* fs.makeTempDirectoryScoped();
+    const { report } = yield* runImport(reportDirectory).pipe(
+      Effect.provide(
+        importLayer({
+          legacyFilesDir: Option.none(),
+          legacyMysqlUrl,
+          targetUrl: config.targetUrl,
+        })
+      )
+    );
 
-  const { report } = yield* runImport(reportDirectory).pipe(
-    Effect.provide(
-      importLayer({
-        legacyFilesDir: Option.none(),
-        legacyMysqlUrl: legacy.url,
-        targetUrl: config.targetUrl,
-      })
-    )
-  );
+    const counts = Arr.map(
+      report.tables,
+      ({ table, rowsIn, rowsOut }) => `${table} ${rowsOut}/${rowsIn}`
+    );
 
-  const counts = Arr.map(
-    report.tables,
-    ({ table, rowsIn, rowsOut }) => `${table} ${rowsOut}/${rowsIn}`
-  );
+    yield* Console.log(
+      `fixture imported (rows out/in): ${Arr.join(counts, ", ")}`
+    );
 
-  yield* Console.log(
-    `fixture imported (rows out/in): ${Arr.join(counts, ", ")}`
-  );
-
-  return yield* Effect.void;
-}).pipe(
-  Effect.scoped,
-  Effect.provide(
-    LegacyTestDatabase.layer.pipe(Layer.provideMerge(nodeServicesLayer))
-  )
+    return yield* Effect.void;
+  })
 );
-
-NodeRuntime.runMain(importFixture);

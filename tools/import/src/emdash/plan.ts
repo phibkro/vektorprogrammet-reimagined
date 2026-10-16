@@ -13,24 +13,21 @@
  * - A row that breaks a rule of its collection is quarantined with its reasons and never repaired by guessing.
  *   Reasons hold column names and ids only, never values: the report must not carry personal data.
  */
+import { SponsorSize } from "@vektorprogrammet/cms-client";
 import type {
   NewEntry,
   NewsData,
   SponsorData,
   TextData,
 } from "@vektorprogrammet/cms-client";
-import { sanitizeRichText } from "@vektorprogrammet/domain";
+import { HttpUrl, Slug, sanitizeRichText } from "@vektorprogrammet/domain";
 import type { DateTime } from "effect";
-import { Array as Arr, HashMap, Option, Result } from "effect";
+import { Array as Arr, HashMap, Option, Result, Schema } from "effect";
 
-import type { LegacySnapshot } from "../legacy/rows.ts";
+import type { LegacyArticle, LegacySnapshot } from "../legacy/rows.ts";
 import {
   addEmptyTextReason,
   addReason,
-  articleReasons,
-  isHttpUrl,
-  isSponsorSize,
-  isStaticContentKey,
   parseLegacyDateTime,
 } from "../transform/plan.ts";
 import { htmlToPortableText } from "./portableText.ts";
@@ -50,7 +47,7 @@ export interface PlannedEntry<A> extends NewEntry<A> {
   readonly publish: boolean;
 }
 
-export interface QuarantinedEntry {
+interface QuarantinedEntry {
   readonly collection: ImportedCollection;
   /** The legacy id. */
   readonly id: string;
@@ -96,6 +93,54 @@ const CMS_SLUG = /^[a-z0-9][a-z0-9_-]*$/u;
 
 const hasText = (value: string | null): value is string =>
   value !== null && value.trim() !== "";
+
+const isHttpUrl = Schema.is(HttpUrl);
+
+const isSlug = Schema.is(Slug);
+
+const isSponsorSize = Schema.is(SponsorSize);
+
+/** A legacy `html_id` is the slug of its text entry: not empty, at most 50 characters. */
+const isTextKey = Schema.is(
+  Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(50))
+);
+
+/** Why a legacy article cannot be imported: column names and ids only, never values. */
+const articleReasons = (
+  row: LegacyArticle,
+  firstWithSlug: number | undefined
+): string[] => {
+  const reasons: string[] = [];
+
+  addEmptyTextReason(reasons, "title", row.title);
+  addReason(
+    reasons,
+    !isSlug(row.slug),
+    "slug is not a URL slug ([a-z0-9-], at most 255)"
+  );
+  addReason(
+    reasons,
+    firstWithSlug !== undefined,
+    `slug duplicates article ${firstWithSlug}`
+  );
+  addReason(
+    reasons,
+    parseLegacyDateTime(row.created) === undefined,
+    "created is not a valid date-time"
+  );
+  addReason(
+    reasons,
+    row.sticky !== 0 && row.sticky !== 1,
+    "sticky is not 0 or 1"
+  );
+  addReason(
+    reasons,
+    row.published !== null && row.published !== 0 && row.published !== 1,
+    "published is not 0, 1 or NULL"
+  );
+
+  return reasons;
+};
 
 /**
  * Builds the plan. Texts and sponsors have no legacy date, so they are created at `importedAt`; the clock is the
@@ -210,7 +255,7 @@ export const planEmDashContent = (
 
       addReason(
         reasons,
-        !isStaticContentKey(row.htmlId) || !CMS_SLUG.test(row.htmlId),
+        !isTextKey(row.htmlId) || !CMS_SLUG.test(row.htmlId),
         "html_id is not a CMS slug ([a-z0-9_-], at most 50)"
       );
       addReason(

@@ -20,12 +20,9 @@ import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
 import { Route as KontrollpanelIndexRouteImport } from './routes/kontrollpanel/index'
 import { Route as KontrollpanelArrangementerRouteImport } from './routes/kontrollpanel/arrangementer'
-import { Route as KontrollpanelArtiklerRouteImport } from './routes/kontrollpanel/artikler'
 import { Route as KontrollpanelAvdelingerRouteImport } from './routes/kontrollpanel/avdelinger'
 import { Route as KontrollpanelLinjerRouteImport } from './routes/kontrollpanel/linjer'
 import { Route as KontrollpanelSemestreRouteImport } from './routes/kontrollpanel/semestre'
-import { Route as KontrollpanelSponsorerRouteImport } from './routes/kontrollpanel/sponsorer'
-import { Route as KontrollpanelStatiskInnholdRouteImport } from './routes/kontrollpanel/statisk-innhold'
 import { Route as NyhetSlugRouteImport } from './routes/nyhet/$slug'
 import { Route as NyheterIndexRouteImport } from './routes/nyheter/index'
 import { Route as TeamIndexRouteImport } from './routes/team/index'
@@ -88,11 +85,6 @@ const KontrollpanelArrangementerRoute =
     path: '/arrangementer',
     getParentRoute: () => KontrollpanelRouteRoute,
   } as any)
-const KontrollpanelArtiklerRoute = KontrollpanelArtiklerRouteImport.update({
-  id: '/artikler',
-  path: '/artikler',
-  getParentRoute: () => KontrollpanelRouteRoute,
-} as any)
 const KontrollpanelAvdelingerRoute = KontrollpanelAvdelingerRouteImport.update({
   id: '/avdelinger',
   path: '/avdelinger',
@@ -108,17 +100,6 @@ const KontrollpanelSemestreRoute = KontrollpanelSemestreRouteImport.update({
   path: '/semestre',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
-const KontrollpanelSponsorerRoute = KontrollpanelSponsorerRouteImport.update({
-  id: '/sponsorer',
-  path: '/sponsorer',
-  getParentRoute: () => KontrollpanelRouteRoute,
-} as any)
-const KontrollpanelStatiskInnholdRoute =
-  KontrollpanelStatiskInnholdRouteImport.update({
-    id: '/statisk-innhold',
-    path: '/statisk-innhold',
-    getParentRoute: () => KontrollpanelRouteRoute,
-  } as any)
 const NyhetSlugRoute = NyhetSlugRouteImport.update({
   id: '/nyhet/$slug',
   path: '/nyhet/$slug',
@@ -155,12 +136,9 @@ export interface FileRoutesByFullPath {
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
-  '/kontrollpanel/artikler': typeof KontrollpanelArtiklerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
-  '/kontrollpanel/sponsorer': typeof KontrollpanelSponsorerRoute
-  '/kontrollpanel/statisk-innhold': typeof KontrollpanelStatiskInnholdRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
   '/team/$department': typeof TeamDepartmentRoute
   '/kontakt/': typeof KontaktIndexRoute
@@ -178,12 +156,9 @@ export interface FileRoutesByTo {
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
-  '/kontrollpanel/artikler': typeof KontrollpanelArtiklerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
-  '/kontrollpanel/sponsorer': typeof KontrollpanelSponsorerRoute
-  '/kontrollpanel/statisk-innhold': typeof KontrollpanelStatiskInnholdRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
   '/team/$department': typeof TeamDepartmentRoute
   '/kontakt': typeof KontaktIndexRoute
@@ -203,12 +178,9 @@ export interface FileRoutesById {
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
-  '/kontrollpanel/artikler': typeof KontrollpanelArtiklerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
-  '/kontrollpanel/sponsorer': typeof KontrollpanelSponsorerRoute
-  '/kontrollpanel/statisk-innhold': typeof KontrollpanelStatiskInnholdRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
   '/team/$department': typeof TeamDepartmentRoute
   '/kontakt/': typeof KontaktIndexRoute
@@ -229,12 +201,9 @@ export interface FileRouteTypes {
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/arrangementer'
-    | '/kontrollpanel/artikler'
     | '/kontrollpanel/avdelinger'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/semestre'
-    | '/kontrollpanel/sponsorer'
-    | '/kontrollpanel/statisk-innhold'
     | '/nyhet/$slug'
     | '/team/$department'
     | '/kontakt/'
@@ -252,12 +221,9 @@ export interface FileRouteTypes {
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/arrangementer'
-    | '/kontrollpanel/artikler'
     | '/kontrollpanel/avdelinger'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/semestre'
-    | '/kontrollpanel/sponsorer'
-    | '/kontrollpanel/statisk-innhold'
     | '/nyhet/$slug'
     | '/team/$department'
     | '/kontakt'
@@ -276,12 +242,9 @@ export interface FileRouteTypes {
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/arrangementer'
-    | '/kontrollpanel/artikler'
     | '/kontrollpanel/avdelinger'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/semestre'
-    | '/kontrollpanel/sponsorer'
-    | '/kontrollpanel/statisk-innhold'
     | '/nyhet/$slug'
     | '/team/$department'
     | '/kontakt/'
@@ -387,13 +350,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KontrollpanelArrangementerRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
-    '/kontrollpanel/artikler': {
-      id: '/kontrollpanel/artikler'
-      path: '/artikler'
-      fullPath: '/kontrollpanel/artikler'
-      preLoaderRoute: typeof KontrollpanelArtiklerRouteImport
-      parentRoute: typeof KontrollpanelRouteRoute
-    }
     '/kontrollpanel/avdelinger': {
       id: '/kontrollpanel/avdelinger'
       path: '/avdelinger'
@@ -413,20 +369,6 @@ declare module '@tanstack/react-router' {
       path: '/semestre'
       fullPath: '/kontrollpanel/semestre'
       preLoaderRoute: typeof KontrollpanelSemestreRouteImport
-      parentRoute: typeof KontrollpanelRouteRoute
-    }
-    '/kontrollpanel/sponsorer': {
-      id: '/kontrollpanel/sponsorer'
-      path: '/sponsorer'
-      fullPath: '/kontrollpanel/sponsorer'
-      preLoaderRoute: typeof KontrollpanelSponsorerRouteImport
-      parentRoute: typeof KontrollpanelRouteRoute
-    }
-    '/kontrollpanel/statisk-innhold': {
-      id: '/kontrollpanel/statisk-innhold'
-      path: '/statisk-innhold'
-      fullPath: '/kontrollpanel/statisk-innhold'
-      preLoaderRoute: typeof KontrollpanelStatiskInnholdRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
     '/nyhet/$slug': {
@@ -469,23 +411,17 @@ declare module '@tanstack/react-router' {
 
 interface KontrollpanelRouteRouteChildren {
   KontrollpanelArrangementerRoute: typeof KontrollpanelArrangementerRoute
-  KontrollpanelArtiklerRoute: typeof KontrollpanelArtiklerRoute
   KontrollpanelAvdelingerRoute: typeof KontrollpanelAvdelingerRoute
   KontrollpanelLinjerRoute: typeof KontrollpanelLinjerRoute
   KontrollpanelSemestreRoute: typeof KontrollpanelSemestreRoute
-  KontrollpanelSponsorerRoute: typeof KontrollpanelSponsorerRoute
-  KontrollpanelStatiskInnholdRoute: typeof KontrollpanelStatiskInnholdRoute
   KontrollpanelIndexRoute: typeof KontrollpanelIndexRoute
 }
 
 const KontrollpanelRouteRouteChildren: KontrollpanelRouteRouteChildren = {
   KontrollpanelArrangementerRoute: KontrollpanelArrangementerRoute,
-  KontrollpanelArtiklerRoute: KontrollpanelArtiklerRoute,
   KontrollpanelAvdelingerRoute: KontrollpanelAvdelingerRoute,
   KontrollpanelLinjerRoute: KontrollpanelLinjerRoute,
   KontrollpanelSemestreRoute: KontrollpanelSemestreRoute,
-  KontrollpanelSponsorerRoute: KontrollpanelSponsorerRoute,
-  KontrollpanelStatiskInnholdRoute: KontrollpanelStatiskInnholdRoute,
   KontrollpanelIndexRoute: KontrollpanelIndexRoute,
 }
 

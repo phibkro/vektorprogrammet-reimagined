@@ -32,24 +32,6 @@ export const PANEL_SECTIONS = [
   },
   {
     group: "Innhold",
-    key: "staticContent",
-    label: "Statisk innhold",
-    to: "/kontrollpanel/statisk-innhold",
-  },
-  {
-    group: "Innhold",
-    key: "articles",
-    label: "Artikler",
-    to: "/kontrollpanel/artikler",
-  },
-  {
-    group: "Innhold",
-    key: "sponsors",
-    label: "Sponsorer",
-    to: "/kontrollpanel/sponsorer",
-  },
-  {
-    group: "Innhold",
     key: "socialEvents",
     label: "Arrangementer",
     to: "/kontrollpanel/arrangementer",

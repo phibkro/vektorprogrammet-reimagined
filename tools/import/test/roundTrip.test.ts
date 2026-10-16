@@ -38,11 +38,7 @@ import type { ReconciliationReport } from "../src/report.ts";
 import { TARGET_TABLES } from "../src/transform/plan.ts";
 import type { TargetTable } from "../src/transform/plan.ts";
 import { LegacyTestDatabase } from "./support/databases.ts";
-import {
-  ARTICLE_1_BODY,
-  FAKE_FILES,
-  PERSONAL_SENTINELS,
-} from "./support/fixture.ts";
+import { FAKE_FILES, PERSONAL_SENTINELS } from "./support/fixture.ts";
 
 const IMPORT_DIR = new URL("..", import.meta.url);
 
@@ -117,10 +113,6 @@ const dumpTarget = queryTarget((sql) =>
     sql`select sequencename, last_value::text from pg_sequences order by sequencename`,
   ])
 ).pipe(Effect.map((dump) => JSON.stringify(dump)));
-
-/** A column's value as text; a missing or non-text value is the empty string, so text assertions fail on it. */
-const textOf = (value: DatabaseValue | undefined): string =>
-  Schema.is(Schema.String)(value) ? value : "";
 
 const rowsOf = (table: TargetTable) =>
   queryTarget<readonly DatabaseRow[]>((sql) =>
@@ -253,15 +245,11 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           // [rows in, rows out, quarantined]
           assert.deepStrictEqual(counts(report), {
             admission_period: [2, 1, 1],
-            article: [3, 0, 3],
-            article_department: [4, 0, 4],
             department: [3, 2, 1],
             field_of_study: [5, 2, 3],
-            public_file: [9, 0, 0],
+            public_file: [1, 0, 0],
             semester: [7, 2, 2],
             social_event: [4, 1, 3],
-            sponsor: [3, 1, 2],
-            static_content: [3, 2, 1],
           });
 
           // RULE-144/237: (term, year) is unique in the target, so duplicates collapse into the lowest id.
@@ -299,22 +287,11 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           assert.deepStrictEqual(reasonsOf(report, "department", "3"), [
             "email is not a valid e-mail address",
           ]);
-          assert.deepStrictEqual(reasonsOf(report, "static_content", "2"), [
-            "html_id duplicates static_content 1",
-          ]);
-          assert.deepStrictEqual(reasonsOf(report, "sponsor", "2"), [
-            "url is not an absolute http(s) URL",
-          ]);
           assert.deepStrictEqual(reasonsOf(report, "social_event", "3"), [
             "endTime is not after startTime",
           ]);
           assert.deepStrictEqual(reasonsOf(report, "admission_period", "2"), [
             "end_date is not after start_date",
-          ]);
-          // Without a file copy, every article lacks its required images.
-          assert.deepStrictEqual(reasonsOf(report, "article", "1"), [
-            "imageLarge has no registered file",
-            "imageSmall has no registered file",
           ]);
           assert.isTrue(
             Arr.some(
@@ -328,7 +305,7 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           );
 
           // Every referenced file is missing; references are grouped by file, never named.
-          assert.strictEqual(report.missingFiles.distinctFiles, 9);
+          assert.strictEqual(report.missingFiles.distinctFiles, 1);
           assert.deepStrictEqual(
             Arr.map(
               Arr.filter(
@@ -341,44 +318,6 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           );
           const [alfa] = yield* rowsOf("department");
           assert.strictEqual(alfa?.logo_key, null);
-        })
-    );
-
-    it.effect(
-      "RULE-133: rich text is sanitised; without files, legacy references are kept and listed as missing",
-      () =>
-        Effect.gen(function* effectProgram() {
-          const { report } = yield* importOnce(Option.none());
-          const blocks = yield* rowsOf("static_content");
-
-          const about = Option.getOrUndefined(
-            Arr.findFirst(blocks, (block) => block.key === "about-intro")
-          );
-
-          const html = textOf(about?.html);
-          assert.notInclude(html, "onclick");
-          assert.include(html, "Om oss");
-          assert.include(
-            html,
-            'src="https://vektorprogrammet.no/images/article_images/bilde-1.jpg"'
-          );
-          assert.isTrue(
-            Arr.some(
-              report.missingFiles.references,
-              (m) =>
-                m.table === "static_content" &&
-                m.id === "1" &&
-                m.area === "images/article_images"
-            )
-          );
-          assert.deepStrictEqual(
-            Arr.filter(
-              report.richText.sanitizedRows,
-              (row) => row.table === "static_content"
-            ),
-            [{ id: "1", table: "static_content" }]
-          );
-          assert.strictEqual(report.richText.rewrittenReferences, 0);
         })
     );
 
@@ -405,21 +344,11 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
     );
 
     it.effect(
-      "RULE-290 / RULE-133 / RULE-130: with LEGACY_FILES_DIR, files are registered with legacy_path and references are rewritten to /filer/{key}",
+      "RULE-290 / RULE-130: with LEGACY_FILES_DIR, the department logo is registered with its legacy_path and the department points at it",
       () =>
         Effect.gen(function* effectProgram() {
           const filesDir = yield* fakeFilesDir;
           const { report } = yield* importOnce(Option.some(filesDir));
-
-          const imageKey = yield* expectedKey(
-            "images/article_images/bilde-1.jpg",
-            "jpg"
-          );
-
-          const pdfKey = yield* expectedKey(
-            "Offentlige filer/Dokumenter/info.pdf",
-            "pdf"
-          );
 
           const logoKey = yield* expectedKey(
             "images/Logo images/alfa-logo.png",
@@ -427,121 +356,22 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           );
 
           assert.strictEqual(report.fileSource, "directory");
-          assert.deepStrictEqual(counts(report).public_file, [9, 7, 0]);
-          assert.deepStrictEqual(counts(report).article, [3, 3, 0]);
-          assert.deepStrictEqual(counts(report).article_department, [4, 2, 2]);
-          assert.strictEqual(report.files.pathsSharingContent, 1);
-          assert.strictEqual(report.missingFiles.distinctFiles, 1);
-          assert.deepStrictEqual(
-            Arr.map(
-              report.missingFiles.references,
-              ({ table, id, field, area }) => ({
-                area,
-                field,
-                id,
-                table,
-              })
-            ),
-            [
-              {
-                area: "images/article_images",
-                field: "article",
-                id: "1",
-                table: "article",
-              },
-            ]
-          );
+          assert.deepStrictEqual(counts(report).public_file, [1, 1, 0]);
+          assert.strictEqual(report.files.pathsSharingContent, 0);
+          assert.strictEqual(report.missingFiles.distinctFiles, 0);
 
-          // RULE-290: registered files, keyed by content, with the legacy path for the 301.
-          const files = yield* rowsOf("public_file");
-
-          const byPath = new Map(
-            Arr.map(files, (file) => [file.legacy_path, file])
-          );
-
+          // RULE-290: a registered file, keyed by its content, with the legacy path for the 301.
+          const [file] = yield* rowsOf("public_file");
+          assert.strictEqual(file?.key, logoKey);
           assert.strictEqual(
-            byPath.get("Offentlige filer/Dokumenter/info.pdf")?.key,
-            pdfKey
-          );
-          assert.strictEqual(
-            byPath.get("images/article_images/bilde-1.jpg")?.key,
-            imageKey
+            file?.legacy_path,
+            "images/Logo images/alfa-logo.png"
           );
           // RULE-130: the stored type comes from the bytes.
-          assert.strictEqual(
-            byPath.get("Offentlige filer/Dokumenter/info.pdf")?.content_type,
-            "application/pdf"
-          );
-          assert.strictEqual(
-            byPath.get("images/Logo images/alfa-logo.png")?.content_type,
-            "image/png"
-          );
-          assert.isFalse(byPath.has("images/Logo images/sponsor-en.png"));
+          assert.strictEqual(file?.content_type, "image/png");
 
-          // RULE-133 + rewrite: the script is gone, legacy references point at /filer/{key}.
-          const articles = yield* rowsOf("article");
-
-          const body = textOf(
-            Option.getOrUndefined(Arr.findFirst(articles, (a) => a.id === 1))
-              ?.body
-          );
-
-          assert.notInclude(body, "<script");
-          assert.notInclude(body, "alert(1)");
-          assert.include(body, `src="/filer/${imageKey}"`);
-          assert.include(body, `href="/filer/${pdfKey}"`);
-          // A missing upload keeps its original reference; an unmapped asset is left alone.
-          assert.include(body, 'src="/images/article_images/finnes-ikke.jpg"');
-          assert.include(body, 'src="/images/team_images/x.png"');
-          assert.notStrictEqual(body, ARTICLE_1_BODY);
-
-          const about = Option.getOrUndefined(
-            Arr.findFirst(
-              yield* rowsOf("static_content"),
-              (b) => b.key === "about-intro"
-            )
-          );
-
-          assert.include(textOf(about?.html), `src="/filer/${imageKey}"`);
-          assert.strictEqual(report.richText.rewrittenReferences, 3);
-
-          // Logos: the same bytes give one key for both the department and the sponsor.
           const [alfa] = yield* rowsOf("department");
           assert.strictEqual(alfa?.logo_key, logoKey);
-          const [sponsor] = yield* rowsOf("sponsor");
-          assert.strictEqual(sponsor?.logo_key, logoKey);
-        })
-    );
-
-    it.effect(
-      "RULE-267: drafts stay drafts, and a NULL published flag is a draft",
-      () =>
-        Effect.gen(function* effectProgram() {
-          const { report } = yield* importOnce(
-            Option.some(yield* fakeFilesDir)
-          );
-
-          const published = Arr.map(yield* rowsOf("article"), (a) => [
-            a.id,
-            a.published,
-          ]);
-
-          assert.deepStrictEqual(published, [
-            [1, true],
-            [2, false],
-            [3, false],
-          ]);
-          assert.deepStrictEqual(
-            Arr.filter(report.normalisations, (n) => n.table === "article"),
-            [
-              {
-                change: "NULL stored as false (draft)",
-                field: "published",
-                id: "3",
-                table: "article",
-              },
-            ]
-          );
         })
     );
 

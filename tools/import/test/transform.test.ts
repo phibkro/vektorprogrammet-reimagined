@@ -1,18 +1,12 @@
-/** Pure mapping functions: legacy file references, rich text, date-times, the import plan's guards and the target guard. */
+/** Pure mapping functions: legacy file references, date-times, the import plan's guards and the target guard. */
 import { assert, describe, it } from "@effect/vitest";
-import { FileKey } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Option, Predicate, Redacted } from "effect";
 
 import { checkTarget, sameDatabase } from "../src/config.ts";
-import type { LegacyDepartment, LegacySnapshot } from "../src/legacy/rows.ts";
 import type { LegacyReference } from "../src/transform/legacyPath.ts";
 import { classifyReference } from "../src/transform/legacyPath.ts";
 import { parseLegacyDateTime, planImport } from "../src/transform/plan.ts";
-import { importRichText } from "../src/transform/richText.ts";
-
-const KEY = FileKey.make(
-  `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg`
-);
+import { NO_ROWS, legacyDepartment } from "./support/legacyRows.ts";
 
 const assertFileReference = (reference: LegacyReference, path: string) => {
   if (Predicate.isTagged(reference, "File")) {
@@ -86,33 +80,6 @@ describe("legacy file references", () => {
       classifyReference("/images/team_images/x.png"),
       "images/team_images"
     );
-  });
-});
-
-describe("rich text (RULE-133 replacement)", () => {
-  it("RULE-133: sanitises, then rewrites resolved references and keeps missing ones", () => {
-    const imported = importRichText(
-      '<p onclick="x()">a</p><img src="/images/article_images/a.jpg?x=1&amp;y=2"><img src="/images/article_images/b.jpg"><script>alert(1)</script>',
-      (path) => (path === "images/article_images/a.jpg" ? KEY : undefined)
-    );
-
-    assert.strictEqual(
-      imported.html,
-      `<p>a</p><img src="/filer/${KEY}" /><img src="/images/article_images/b.jpg" />`
-    );
-    assert.isTrue(imported.sanitizerChanged);
-    assert.strictEqual(imported.rewritten, 1);
-    assert.deepStrictEqual(imported.missing, ["images/article_images/b.jpg"]);
-  });
-
-  it("RULE-133: a script's src is removed with the script, not reported as a missing file", () => {
-    const imported = importRichText(
-      '<script src="/images/article_images/x.js"></script>',
-      () => {}
-    );
-
-    assert.strictEqual(imported.html, "");
-    assert.deepStrictEqual(imported.missing, []);
   });
 });
 
@@ -211,32 +178,6 @@ describe("target guard", () => {
       )
     );
   });
-});
-
-const NO_ROWS: LegacySnapshot = {
-  admissionPeriods: [],
-  articleDepartments: [],
-  articles: [],
-  departments: [],
-  fieldsOfStudy: [],
-  semesters: [],
-  socialEvents: [],
-  sponsors: [],
-  staticContents: [],
-};
-
-const legacyDepartment = (id: number, city: string): LegacyDepartment => ({
-  active: 1,
-  address: null,
-  city,
-  email: `kontakt${id}@example.org`,
-  id,
-  latitude: null,
-  logoPath: null,
-  longitude: null,
-  name: `Avdeling ${id}`,
-  shortName: `A${id}`,
-  slackChannel: null,
 });
 
 describe("the import plan", () => {

@@ -1,15 +1,16 @@
 /**
  * RULE-133 replacement (operator, 2026-10-15): rich text passes a maintained
- * allowlist sanitizer on save and on render. Allowed: editor tags, http/https/
- * mailto links, images and tables. Everything else (scripts, event-handler
- * attributes, `javascript:` URLs, svg, object, iframe, style) is removed.
- * Plain-text fields are never rendered as HTML; React escapes them.
+ * allowlist sanitizer. Allowed: editor tags, http/https/mailto links, images and
+ * tables. Everything else (scripts, event-handler attributes, `javascript:` URLs,
+ * svg, object, iframe, style) is removed. Plain-text fields are never rendered
+ * as HTML; React escapes them.
  *
- * `SanitizedHtml` can only be produced here: `sanitizeRichText` for fresh input,
- * and the `SanitizedHtmlFromString` codec, which re-sanitizes stored HTML when
- * `packages/db` decodes a row (the "on render" half of the rule).
+ * Since spec 0005 the public pages show Portable Text from the CMS, which holds
+ * no HTML; this sanitizer is what `tools/import` runs legacy HTML through before
+ * it converts the HTML to Portable Text. `SanitizedHtml` can only be produced by
+ * `sanitizeRichText`.
  */
-import { Predicate, Schema, SchemaGetter } from "effect";
+import { Predicate, Schema } from "effect";
 import sanitizeHtml from "sanitize-html";
 
 const SanitizedHtmlValue = Schema.String.pipe(Schema.brand("SanitizedHtml"));
@@ -75,12 +76,4 @@ export const SanitizedHtml = Schema.declare<SanitizedHtml>(
   (input): input is SanitizedHtml =>
     Predicate.isString(input) && sanitizeRichText(input) === input,
   { expected: "sanitized HTML" }
-);
-
-/** Decodes any string by sanitizing it; encodes as the plain string. Use for stored rich text. */
-export const SanitizedHtmlFromString = Schema.String.pipe(
-  Schema.decodeTo(SanitizedHtml, {
-    decode: SchemaGetter.transform(sanitizeRichText),
-    encode: SchemaGetter.passthroughSubtype(),
-  })
 );

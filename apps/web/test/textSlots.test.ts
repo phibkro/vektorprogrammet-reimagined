@@ -3,49 +3,28 @@
  * carries the default copy that a development, preview or browser-test stage starts with. This test keeps the two
  * in step, so a slot a page shows is never silently empty, and checks the copy is valid content for the client.
  */
-import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { FaqData, PortableText, TextData } from "@vektorprogrammet/cms-client";
-import {
-  Array as Arr,
-  Effect,
-  FileSystem,
-  Order,
-  Path,
-  Record as Rec,
-  Schema,
-} from "effect";
+import { Array as Arr, Effect, Order, Record as Rec, Schema } from "effect";
 
+import seedFile from "../../cms/seed/seed.json" with { type: "json" };
 import { ALL_TEXT_SLOTS } from "../src/lib/textSlots";
 
-const SeedFile = Schema.fromJsonString(
-  Schema.Struct({
-    content: Schema.Record(
-      Schema.String,
-      Schema.Array(
-        Schema.Struct({
-          data: Schema.Unknown,
-          id: Schema.String,
-          slug: Schema.String,
-          status: Schema.Literal("published"),
-        })
-      )
-    ),
-  })
-);
-
-const readSeed = Effect.gen(function* readSeed() {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-
-  return yield* Schema.decodeEffect(SeedFile)(
-    yield* fs.readFileString(
-      yield* path.fromFileUrl(
-        new URL("../../cms/seed/seed.json", import.meta.url)
-      )
+const SeedContent = Schema.Struct({
+  content: Schema.Record(
+    Schema.String,
+    Schema.Array(
+      Schema.Struct({
+        data: Schema.Unknown,
+        id: Schema.String,
+        slug: Schema.String,
+        status: Schema.Literal("published"),
+      })
     )
-  );
-}).pipe(Effect.provide(NodeServices.layer));
+  ),
+});
+
+const readSeed = Schema.decodeUnknownEffect(SeedContent)(seedFile);
 
 /**
  * Legacy blocks whose copy only the organisation's editors have: mono-web has no text for them, so the seed has

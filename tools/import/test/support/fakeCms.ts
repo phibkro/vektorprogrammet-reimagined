@@ -17,7 +17,7 @@ import type {
 } from "@vektorprogrammet/cms-client";
 import { Array as Arr, Effect, Layer, Option } from "effect";
 
-export interface Stored<A> {
+interface Stored<A> {
   readonly id: string;
   status: "draft" | "published";
   readonly entry: NewEntry<A>;

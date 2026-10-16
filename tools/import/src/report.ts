@@ -86,10 +86,6 @@ export const Normalisation = Schema.Struct({
 
 export type Normalisation = typeof Normalisation.Type;
 
-export const RowRef = Schema.Struct({ id: Schema.String, table: TargetTable });
-
-export type RowRef = typeof RowRef.Type;
-
 export const FileSource = Schema.Literals(["directory", "none"]);
 
 export type FileSource = typeof FileSource.Type;
@@ -109,18 +105,13 @@ export const ReconciliationReport = Schema.Struct({
   /** `none`: no legacy file copy was given, so every referenced file is missing. */
   fileSource: FileSource,
   files: Schema.Struct({ pathsSharingContent: Count, registered: Count }),
-  formatVersion: Schema.Literal(1),
+  formatVersion: Schema.Literal(2),
   missingFiles: Schema.Struct({
     distinctFiles: Count,
     references: Schema.Array(MissingFileReference),
   }),
   normalisations: Schema.Array(Normalisation),
   quarantine: Schema.Array(QuarantinedRow),
-  richText: Schema.Struct({
-    rewrittenReferences: Count,
-    /** Rows whose markup the sanitizer changed (RULE-133 replacement). */
-    sanitizedRows: Schema.Array(RowRef),
-  }),
   tables: Schema.Array(
     Schema.Struct({
       quarantined: Count,
@@ -155,7 +146,7 @@ export const buildReport = (
     pathsSharingContent: plan.pathsSharingContent,
     registered: plan.rows.public_file.length,
   },
-  formatVersion: 1,
+  formatVersion: 2,
   missingFiles: {
     distinctFiles: new Set(
       Arr.map(plan.missingFiles, (reference) => reference.file)
@@ -164,10 +155,6 @@ export const buildReport = (
   },
   normalisations: plan.normalisations,
   quarantine: plan.quarantine,
-  richText: {
-    rewrittenReferences: plan.rewrittenReferences,
-    sanitizedRows: plan.sanitized,
-  },
   tables: Arr.map(TARGET_TABLES, ({ table, source }) => ({
     quarantined: Arr.filter(plan.quarantine, (row) => row.table === table)
       .length,
@@ -246,16 +233,6 @@ const renderMarkdown = (report: ReconciliationReport): string =>
           b.target,
           b.targetId ?? "",
         ])
-      ),
-      "## Rich text",
-      "",
-      `References rewritten to \`/filer/{key}\`: ${report.richText.rewrittenReferences}.`,
-      "",
-      "Rows whose markup the sanitizer changed (RULE-133 replacement):",
-      "",
-      markdownTable(
-        ["Table", "Id"],
-        Arr.map(report.richText.sanitizedRows, (row) => [row.table, row.id])
       ),
       "## Files",
       "",

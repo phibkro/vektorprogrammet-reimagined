@@ -4,7 +4,6 @@
  */
 import type {
   Actor,
-  ArticleRepository,
   AuditLog,
   CurrentActor,
   DepartmentRepository,
@@ -13,8 +12,6 @@ import type {
   PublicFileRepository,
   SemesterRepository,
   SocialEventRepository,
-  SponsorRepository,
-  StaticContentRepository,
 } from "@vektorprogrammet/domain";
 import { Effect } from "effect";
 
@@ -27,14 +24,11 @@ const { signal } = new AbortController();
 
 type ViewServices =
   | CurrentActor
-  | ArticleRepository
   | DepartmentRepository
   | SemesterRepository
   | FieldOfStudyRepository
   | PublicFileRepository
   | SocialEventRepository
-  | SponsorRepository
-  | StaticContentRepository
   | AuditLog;
 
 /** Runs a command as `actor` exactly as a server function does: in a transaction, through the error table. */

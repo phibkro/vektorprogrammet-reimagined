@@ -26,7 +26,6 @@ import {
 } from "@vektorprogrammet/domain";
 import type {
   AdmissionPeriodRepository,
-  ArticleRepository,
   AuditLog,
   DepartmentRepository,
   FieldOfStudyRepository,
@@ -36,8 +35,6 @@ import type {
   PublicFileRepository,
   SemesterRepository,
   SocialEventRepository,
-  SponsorRepository,
-  StaticContentRepository,
 } from "@vektorprogrammet/domain";
 import { Cause, Effect, Layer, Predicate, Redacted, Ref } from "effect";
 import type { Crypto } from "effect";
@@ -79,9 +76,6 @@ export type DatabaseServices =
   | DepartmentRepository
   | SemesterRepository
   | FieldOfStudyRepository
-  | ArticleRepository
-  | StaticContentRepository
-  | SponsorRepository
   | SocialEventRepository
   | PublicFileRepository
   | Outbox

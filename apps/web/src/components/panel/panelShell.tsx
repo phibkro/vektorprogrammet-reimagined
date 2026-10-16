@@ -4,11 +4,8 @@ import {
   BuildingIcon,
   CalendarDaysIcon,
   ExternalLinkIcon,
-  FileTextIcon,
   GraduationCapIcon,
-  HandshakeIcon,
   LayoutDashboardIcon,
-  NewspaperIcon,
   PartyPopperIcon,
   SigmaIcon,
 } from "lucide-react";
@@ -47,14 +44,11 @@ import type { NavigationGroup, SectionKey } from "@/lib/panelSections";
 import type { ActorSummary } from "@/server/shell";
 
 const SECTION_ICONS: Readonly<Record<SectionKey, LucideIcon>> = {
-  articles: NewspaperIcon,
   departments: BuildingIcon,
   fieldsOfStudy: GraduationCapIcon,
   overview: LayoutDashboardIcon,
   semesters: CalendarDaysIcon,
   socialEvents: PartyPopperIcon,
-  sponsors: HandshakeIcon,
-  staticContent: FileTextIcon,
 };
 
 const PanelSidebar = ({
