@@ -8,35 +8,16 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
-import { Context, Effect, Layer, Redacted } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
+import { Console, Context, Effect, Layer, Redacted } from "effect";
 
-const importerDirectory = new URL("../../../../tools/import/", import.meta.url)
-  .pathname;
+import { importerDirectory, runToEnd } from "./command.ts";
 
 /** Runs the importer's `import:fixture` script into `url`: the fake legacy rows, through the real pipeline. */
 const importFixture = (url: Redacted.Redacted) =>
-  Effect.gen(function* importFixtureInto() {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-
-    const importer = yield* spawner.spawn(
-      ChildProcess.make("bun", ["run", "import:fixture"], {
-        cwd: importerDirectory,
-        env: { IMPORT_TARGET_DATABASE_URL: Redacted.value(url) },
-        extendEnv: true,
-        stderr: "inherit",
-        stdin: "ignore",
-        stdout: "inherit",
-      })
-    );
-
-    const exitCode = yield* importer.exitCode;
-
-    return yield* Effect.when(
-      Effect.die(`the fixture import exited with code ${exitCode}`),
-      Effect.succeed(exitCode !== ChildProcessSpawner.ExitCode(0))
-    ).pipe(Effect.asVoid);
-  }).pipe(Effect.scoped);
+  runToEnd("bun", ["run", "import:fixture"], {
+    cwd: importerDirectory,
+    env: { IMPORT_TARGET_DATABASE_URL: Redacted.value(url) },
+  }).pipe(Effect.flatMap(Console.log));
 
 /**
  * A migrated disposable database holding the imported fixture; returns its URL. The Layer is built in the

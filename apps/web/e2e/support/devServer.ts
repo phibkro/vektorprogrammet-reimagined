@@ -1,12 +1,16 @@
 /**
  * `vp dev` for the browser tests: the `local` deployment (a test actor chosen by cookie, a simulated R2 and
- * rate limiter, no mail), pointed at the disposable database, with the cron's `scheduled` handler run once
- * (the semester job). The dev server is a child process owned by the
- * scope that starts it: closing the scope stops its whole process group (`vp`, Vite and workerd).
+ * rate limiter, no mail), pointed at the disposable database and at the CMS (`cms.ts`), with Cloudflare's
+ * always-pass Turnstile keys, and with the cron's `scheduled` handler run once (the semester job). The dev
+ * server is a child process owned by the scope that starts it: closing the scope stops its whole process group
+ * (`vp`, Vite and workerd).
  */
 import { Effect, Redacted, Schedule, Schema } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
+
+import { TURNSTILE_TEST_KEYS } from "../../worker.config.ts";
+import type { Cms } from "./cms.ts";
 
 class DevServerFailed extends Schema.TaggedError<
   DevServerFailed,
@@ -21,13 +25,15 @@ const WARM_UP_PATHS = [
   "/kontrollpanel/avdelinger",
   "/kontrollpanel/semestre",
   "/kontrollpanel/linjer",
-  "/kontrollpanel/statisk-innhold",
-  "/kontrollpanel/artikler",
-  "/kontrollpanel/sponsorer",
   "/kontrollpanel/arrangementer",
-  "/omvektor",
+  "/",
+  "/om-oss",
+  "/assistenter",
+  "/team",
   "/foreldre",
+  "/skoler",
   "/nyheter",
+  "/nyhet/opptak-apner",
   "/kontakt",
 ];
 
@@ -42,6 +48,7 @@ export const startDevServer = Effect.fn("startDevServer")(
     readonly webDirectory: string;
     readonly port: number;
     readonly databaseUrl: Redacted.Redacted;
+    readonly cms: Cms;
   }) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const http = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
@@ -53,7 +60,13 @@ export const startDevServer = Effect.fn("startDevServer")(
         ["vp", "dev", "--port", String(options.port), "--strictPort"],
         {
           cwd: options.webDirectory,
-          env: { DATABASE_URL: Redacted.value(options.databaseUrl) },
+          env: {
+            CMS_TOKEN: Redacted.value(options.cms.token),
+            CMS_URL: options.cms.origin,
+            DATABASE_URL: Redacted.value(options.databaseUrl),
+            TURNSTILE_SECRET_KEY: TURNSTILE_TEST_KEYS.secretKey,
+            TURNSTILE_SITE_KEY: TURNSTILE_TEST_KEYS.siteKey,
+          },
           extendEnv: true,
           forceKillAfter: "10 seconds",
           killSignal: "SIGTERM",

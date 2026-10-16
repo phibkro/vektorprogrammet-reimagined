@@ -61,7 +61,7 @@ export const PERSONAL_SENTINELS = [
 ];
 
 /** Rich text of article 1: an image, a public file, a script, an unmapped asset and a missing image. */
-export const ARTICLE_1_BODY =
+const ARTICLE_1_BODY =
   '<p>Hei</p><img src="/images/article_images/bilde-1.jpg"><script>alert(1)</script>' +
   '<a href="/Offentlige%20filer/Dokumenter/info.pdf">info</a>' +
   '<img src="/images/team_images/x.png"><img src="/images/article_images/finnes-ikke.jpg">';

@@ -15,6 +15,7 @@
  * the last test counts the call sites in the source.
  */
 import { assert, layer } from "@effect/vitest";
+import type { CmsClient, CmsFailure } from "@vektorprogrammet/cms-client";
 import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
@@ -51,28 +52,32 @@ import { SqlClient } from "effect/sql";
 
 import { TEST_ACTORS } from "../src/server/actor";
 import {
-  articlePage,
-  contactPage,
-  footerSponsors,
-  homePage,
-  newsPage,
-  staticBlocks,
-} from "../src/server/pages";
-import {
-  articlesView,
   dashboardView,
   departmentsView,
   fieldsOfStudyView,
   semestersView,
   socialEventsView,
-  sponsorsView,
-  staticContentView,
 } from "../src/server/panel";
 import { legacyFileLocation } from "../src/server/redirects";
 import type { DatabaseServices } from "../src/server/runtime";
 import { shellView } from "../src/server/shell";
+import {
+  aboutPage,
+  articlePage,
+  assistantsPage,
+  contactPage,
+  departmentSlugById,
+  footerSponsors,
+  homePage,
+  newsPage,
+  parentsPage,
+  schoolsPage,
+  teamPage,
+} from "../src/server/site/pages";
+import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
+import type { CmsSeed } from "./support/cms";
 
-type ReadServices = DatabaseServices | CurrentActor | FileStore;
+type ReadServices = CmsClient | DatabaseServices | CurrentActor | FileStore;
 
 /** Every source file of the app, as text: the read paths are checked against its `runQuery` call sites. */
 const SOURCES = import.meta.glob<string>("../src/**/*.{ts,tsx}", {
@@ -87,7 +92,11 @@ type Expected = "ok" | "NotFound";
 interface ReadPath {
   /** The server function (or entry point) that runs it. */
   readonly site: string;
-  readonly program: Effect.Effect<unknown, Forbidden | NotFound, ReadServices>;
+  readonly program: Effect.Effect<
+    unknown,
+    CmsFailure | Forbidden | NotFound,
+    ReadServices
+  >;
   readonly empty: Expected;
   readonly seeded: Expected;
 }
@@ -98,23 +107,50 @@ const readPath = (
   expected: Partial<Pick<ReadPath, "empty" | "seeded">> = {}
 ): ReadPath => ({ empty: "ok", seeded: "ok", ...expected, program, site });
 
+/** The CMS stand-in: empty with the tables, and an article, a draft, a sponsor and a text once they are seeded. */
+const CMS_SEEDS = {
+  empty: {},
+  seeded: {
+    news: [
+      published("opptak-apner", {
+        content: paragraph("Søk nå"),
+        sticky: true,
+        title: "Opptak åpner",
+      }),
+      draft("utkast", { title: "Utkast" }),
+    ],
+    sponsors: [
+      published("sponsor", {
+        name: "Sponsor",
+        size: "medium",
+        url: "https://example.org",
+      }),
+    ],
+    texts: textsOf({ "home-tagline": paragraph("Hei") }),
+  },
+} satisfies Record<"empty" | "seeded", Partial<CmsSeed>>;
+
 const KEY_SMALL = `${"a".repeat(64)}.png`;
-const KEY_LARGE = `${"b".repeat(64)}.png`;
 const LEGACY_PATH = "Offentlige filer/logo.png";
 
 /** Every `runQuery` call site of the app, by the server function or entry point that holds it. */
 const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getHomePage", homePage),
-  readPath("public.functions getStaticPage omvektor", staticBlocks("omvektor")),
-  readPath("public.functions getStaticPage foreldre", staticBlocks("foreldre")),
+  readPath("public.functions getAboutPage", aboutPage),
+  readPath("public.functions getAssistantsPage", assistantsPage),
+  readPath("public.functions getTeamPage", teamPage(null)),
+  readPath("public.functions getTeamPage (department)", teamPage("alfaby"), {
+    empty: "NotFound",
+  }),
+  readPath("public.functions getParentsPage", parentsPage),
+  readPath("public.functions getSchoolsPage", schoolsPage),
   readPath(
     "public.functions getNewsPage",
     newsPage({ department: null, page: 1 })
   ),
   readPath(
     "public.functions getNewsPage (department)",
-    newsPage({ department: "alfa", page: 1 }),
-    { empty: "NotFound" }
+    newsPage({ department: "alfa", page: 1 })
   ),
   readPath("public.functions getArticlePage", articlePage("opptak-apner"), {
     empty: "NotFound",
@@ -124,16 +160,22 @@ const READ_PATHS: readonly ReadPath[] = [
     seeded: "NotFound",
   }),
   readPath("public.functions getFooter", footerSponsors),
-  readPath("public.functions getContactPage", contactPage(null)),
-  readPath("public.functions getContactPage (receipt)", contactPage(1)),
+  readPath("public.functions getContactPage", contactPage(null, false), {
+    empty: "NotFound",
+  }),
+  readPath(
+    "public.functions getContactPage (receipt)",
+    contactPage("alfaby", true),
+    { empty: "NotFound" }
+  ),
+  readPath("public.functions getDepartmentSlug", departmentSlugById(1), {
+    empty: "NotFound",
+  }),
   readPath("panel.functions getShell", shellView("local")),
   readPath("panel.functions getDashboard", dashboardView),
   readPath("panel.functions getDepartments", departmentsView),
   readPath("panel.functions getSemesters", semestersView),
   readPath("panel.functions getFieldsOfStudy", fieldsOfStudyView),
-  readPath("panel.functions getStaticContentAdmin", staticContentView),
-  readPath("panel.functions getArticlesAdmin", articlesView),
-  readPath("panel.functions getSponsorsAdmin", sponsorsView),
   readPath("panel.functions getSocialEvents", socialEventsView),
   readPath("routes/filer/$key GET", servePublicFile(KEY_SMALL), {
     empty: "NotFound",
@@ -143,8 +185,8 @@ const READ_PATHS: readonly ReadPath[] = [
 
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
-  "functions/panel.functions.ts": 9,
-  "functions/public.functions.ts": 6,
+  "functions/panel.functions.ts": 6,
+  "functions/public.functions.ts": 11,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,
 };
@@ -171,21 +213,14 @@ const requestServices = (url: Redacted.Redacted) =>
     Layer.orDie
   );
 
-/** The fixture: a department with a field of study, a published article and a draft, a sponsor, a file. */
+/** The fixture: a department with a field of study, and a file. */
 const SEED = [
   `insert into public_file (key, sha256, content_type, name, size, uploaded_at, legacy_path) values
-     ('${KEY_SMALL}', '${"a".repeat(64)}', 'image/png', 'liten.png', 1, now(), '${LEGACY_PATH}'),
-     ('${KEY_LARGE}', '${"b".repeat(64)}', 'image/png', 'stor.png', 1, now(), null)`,
+     ('${KEY_SMALL}', '${"a".repeat(64)}', 'image/png', 'liten.png', 1, now(), '${LEGACY_PATH}')`,
   `insert into department (id, city, email, name, short_name, active, logo_key) values
      (1, 'Alfaby', 'kontakt@alfa.example', 'Avdeling Alfa', 'ALFA', true, '${KEY_SMALL}'),
      (2, 'Betaby', 'kontakt@beta.example', 'Avdeling Beta', 'BETA', false, null)`,
   `insert into field_of_study (department_id, name, short_name) values (1, 'Fag Alfa', 'FA')`,
-  `insert into article (id, author_id, body, created_at, image_large_key, image_small_key, published, slug, sticky, title) values
-     (1, 42, '<p>Søk nå</p>', now(), '${KEY_LARGE}', '${KEY_SMALL}', true, 'opptak-apner', true, 'Opptak åpner'),
-     (2, 42, '<p>Kommer</p>', now(), '${KEY_LARGE}', '${KEY_SMALL}', false, 'utkast', false, 'Utkast')`,
-  `insert into article_department (article_id, department_id) values (1, 1)`,
-  `insert into static_content (key, html) values ('about-header', '<p>Om oss</p>'), ('home-tagline', '<p>Hei</p>')`,
-  `insert into sponsor (name, size, url, logo_key) values ('Sponsor', 'medium', 'https://example.org', '${KEY_SMALL}')`,
 ];
 
 /** The job's two rows, and an event in the current semester of the first department. */
@@ -200,6 +235,10 @@ const seedDatabase = Effect.gen(function* seedDatabase() {
   yield* sql.unsafe(
     `insert into social_event (department_id, description, ends_at, semester_id, starts_at, title)
        values (1, '', now() + interval '2 hours', ${current.id}, now() + interval '1 hour', 'Sosialt')`
+  );
+  yield* sql.unsafe(
+    `insert into admission_period (department_id, semester_id, starts_at, ends_at)
+       values (1, ${current.id}, now() - interval '1 day', now() + interval '1 day')`
   );
 }).pipe(
   Effect.provide(
@@ -218,10 +257,12 @@ const readerContext = Effect.gen(function* readerContext() {
 const runAs = <A, E>(
   context: Context.Context<DatabaseServices | FileStore>,
   actor: Actor,
-  program: Effect.Effect<A, E, ReadServices>
+  program: Effect.Effect<A, E, ReadServices>,
+  cms: Partial<CmsSeed> = {}
 ) =>
   program.pipe(
     Effect.provideService(CurrentActor, actor),
+    Effect.provide(memoryCms(cms)),
     Effect.provideContext(context),
     Effect.exit
   );
@@ -258,7 +299,7 @@ const readEveryPath = (phase: "empty" | "seeded") =>
       for (const [actorName, actor] of ACTORS) {
         assertVerdict(
           `${path.site} as ${actorName} (${phase})`,
-          yield* runAs(context, actor, path.program),
+          yield* runAs(context, actor, path.program, CMS_SEEDS[phase]),
           path[phase]
         );
       }

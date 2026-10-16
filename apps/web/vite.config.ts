@@ -27,6 +27,8 @@ const environment = Effect.runSync(
     ALCHEMY_CLOUDFLARE_VITE_INJECTED: Config.String(
       "ALCHEMY_CLOUDFLARE_VITE_INJECTED"
     ).pipe(Config.withDefault("")),
+    CMS_TOKEN: Config.String("CMS_TOKEN").pipe(Config.withDefault("")),
+    CMS_URL: Config.String("CMS_URL").pipe(Config.withDefault("")),
     DATABASE_URL: Config.option(Config.String("DATABASE_URL")),
     PGUSER: Config.option(Config.String("PGUSER")),
     TURNSTILE_SECRET_KEY: Config.String("TURNSTILE_SECRET_KEY").pipe(
@@ -104,6 +106,9 @@ const standaloneWorker = (devServer: boolean) => {
       ],
       triggers: { crons: [OUTBOX_SWEEP_CRON] },
       vars: {
+        // Dev only: a secret must never be baked into dist/server/wrangler.json.
+        CMS_TOKEN: devServer ? environment.CMS_TOKEN : "",
+        CMS_URL: environment.CMS_URL,
         DEPLOYMENT: devServer ? "local" : "preview",
         // Dev only: a secret must never be baked into dist/server/wrangler.json.
         TURNSTILE_SECRET_KEY: devServer ? environment.TURNSTILE_SECRET_KEY : "",
@@ -120,6 +125,7 @@ const standaloneWorker = (devServer: boolean) => {
  * hook call"). Listing them makes a fresh `vp dev` bundle them at start-up, so it is stable from the first request.
  */
 const LAZY_ROUTE_DEPENDENCIES = [
+  "@base-ui/react/accordion",
   "@base-ui/react/button",
   "@base-ui/react/dialog",
   "@base-ui/react/input",
@@ -129,6 +135,9 @@ const LAZY_ROUTE_DEPENDENCIES = [
   "@base-ui/react/switch",
   "@base-ui/react/tooltip",
   "@base-ui/react/use-render",
+  "@icons-pack/react-simple-icons",
+  "@marsidev/react-turnstile",
+  "@portabletext/react",
   "class-variance-authority",
   "clsx",
   "lucide-react",
@@ -150,6 +159,6 @@ export default defineConfig(({ command }) => ({
       ],
   resolve: { tsconfigPaths: true },
   test: {
-    include: ["test/**/*.test.ts"],
+    include: ["test/**/*.test.{ts,tsx}"],
   },
 }));

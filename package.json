@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "prepare": "vp config --no-agent && effect-tsgo patch --typescript --oxlint",
-    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build",
+    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run check:cms",
+    "check:cms": "bun run --cwd apps/cms check:bundle",
     "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
     "knip": "knip",
     "cpd": "jscpd --config .jscpd.json apps packages tools",
@@ -75,6 +76,17 @@
     "alchemy": "2.0.0-beta.83",
     "@effect/platform-bun": "4.0.5",
     "bcryptjs": "3.0.3",
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "astro": "7.4.0",
+    "@astrojs/react": "7.1.0",
+    "@astrojs/cloudflare": "14.4.0",
+    "emdash": "1.3.0",
+    "@emdash-cms/cloudflare": "1.3.0",
+    "@alchemy.run/frontend-frameworks": "2.0.0-beta.83",
+    "pg": "8.23.1",
+    "@effect/openapi-generator": "4.0.5",
+    "htmlparser2": "12.0.0",
+    "domhandler": "6.0.1",
+    "miniflare": "5.20261012.0-beta"
   }
 }

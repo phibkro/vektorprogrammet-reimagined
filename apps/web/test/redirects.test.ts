@@ -15,11 +15,11 @@ import { fakeKey, makeTables, memoryLayer } from "./support/memory";
 const { signal } = new AbortController();
 
 describe("legacy URLs answer permanent redirects (spec §4 URLs)", () => {
-  it("/om, /bedrifter and /faq → /omvektor", () => {
-    for (const path of ["/om", "/bedrifter", "/faq", "/om/"]) {
+  it("/om, /bedrifter, /faq and /omvektor → /om-oss", () => {
+    for (const path of ["/om", "/bedrifter", "/faq", "/om/", "/omvektor"]) {
       assert.deepStrictEqual(
         classifyLegacyPath(path, ""),
-        LegacyPathSchema.cases.Alias.make({ location: "/omvektor" })
+        LegacyPathSchema.cases.Alias.make({ location: "/om-oss" })
       );
     }
   });
@@ -33,18 +33,33 @@ describe("legacy URLs answer permanent redirects (spec §4 URLs)", () => {
     );
   });
 
+  it("/nyheter/{department} → /nyheter?avdeling={department}, the query joining it", () => {
+    assert.deepStrictEqual(
+      classifyLegacyPath("/nyheter/TRON", ""),
+      LegacyPathSchema.cases.Alias.make({ location: "/nyheter?avdeling=TRON" })
+    );
+    assert.deepStrictEqual(
+      classifyLegacyPath("/nyheter/TRON/", "?side=2"),
+      LegacyPathSchema.cases.Alias.make({
+        location: "/nyheter?avdeling=TRON&side=2",
+      })
+    );
+  });
+
   it("answers 301 with the location", () => {
-    const response = permanentRedirect("/omvektor");
+    const response = permanentRedirect("/om-oss");
     assert.strictEqual(response.status, 301);
-    assert.strictEqual(response.headers.get("Location"), "/omvektor");
+    assert.strictEqual(response.headers.get("Location"), "/om-oss");
   });
 
   it("current paths are not redirected", () => {
     for (const path of [
       "/",
-      "/omvektor",
+      "/om-oss",
       "/nyhet/opptak-apner",
+      "/nyheter",
       "/kontakt",
+      "/kontakt/avdeling/1",
       "/omx",
       "/artikkel",
     ]) {

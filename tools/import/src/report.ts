@@ -12,8 +12,13 @@
  * types, and consumers decode `reconciliation.json` with `ReportFromJson`.
  */
 import { Term } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, FileSystem, Path, Schema } from "effect";
+import { Array as Arr, Effect, Schema } from "effect";
 
+import {
+  ReportWriteError,
+  markdownTable,
+  writeReportFiles,
+} from "./reportFiles.ts";
 import { DROPPED_COLUMNS, TARGET_TABLES } from "./transform/plan.ts";
 import type {
   ImportPlan,
@@ -81,10 +86,6 @@ export const Normalisation = Schema.Struct({
 
 export type Normalisation = typeof Normalisation.Type;
 
-export const RowRef = Schema.Struct({ id: Schema.String, table: TargetTable });
-
-export type RowRef = typeof RowRef.Type;
-
 export const FileSource = Schema.Literals(["directory", "none"]);
 
 export type FileSource = typeof FileSource.Type;
@@ -104,18 +105,13 @@ export const ReconciliationReport = Schema.Struct({
   /** `none`: no legacy file copy was given, so every referenced file is missing. */
   fileSource: FileSource,
   files: Schema.Struct({ pathsSharingContent: Count, registered: Count }),
-  formatVersion: Schema.Literal(1),
+  formatVersion: Schema.Literal(2),
   missingFiles: Schema.Struct({
     distinctFiles: Count,
     references: Schema.Array(MissingFileReference),
   }),
   normalisations: Schema.Array(Normalisation),
   quarantine: Schema.Array(QuarantinedRow),
-  richText: Schema.Struct({
-    rewrittenReferences: Count,
-    /** Rows whose markup the sanitizer changed (RULE-133 replacement). */
-    sanitizedRows: Schema.Array(RowRef),
-  }),
   tables: Schema.Array(
     Schema.Struct({
       quarantined: Count,
@@ -136,8 +132,6 @@ const ReportJsonString = Schema.fromJsonString(ReconciliationReport, {
   space: 2,
 });
 
-const encodeReportJson = Schema.encodeEffect(ReportJsonString);
-
 /** Assembles the report from the plan and the row counts read back from the target. */
 export const buildReport = (
   plan: ImportPlan,
@@ -152,7 +146,7 @@ export const buildReport = (
     pathsSharingContent: plan.pathsSharingContent,
     registered: plan.rows.public_file.length,
   },
-  formatVersion: 1,
+  formatVersion: 2,
   missingFiles: {
     distinctFiles: new Set(
       Arr.map(plan.missingFiles, (reference) => reference.file)
@@ -161,10 +155,6 @@ export const buildReport = (
   },
   normalisations: plan.normalisations,
   quarantine: plan.quarantine,
-  richText: {
-    rewrittenReferences: plan.rewrittenReferences,
-    sanitizedRows: plan.sanitized,
-  },
   tables: Arr.map(TARGET_TABLES, ({ table, source }) => ({
     quarantined: Arr.filter(plan.quarantine, (row) => row.table === table)
       .length,
@@ -174,27 +164,6 @@ export const buildReport = (
     table,
   })),
 });
-
-const markdownTable = (
-  header: readonly string[],
-  rows: readonly (readonly (string | number)[])[]
-): string =>
-  rows.length === 0
-    ? "None.\n"
-    : `${Arr.join(
-        [
-          `| ${Arr.join(header, " | ")} |`,
-          `| ${Arr.join(
-            Arr.map(header, () => "---"),
-            " | "
-          )} |`,
-          ...Arr.map(
-            rows,
-            (row) => `| ${Arr.join(Arr.map(row, String), " | ")} |`
-          ),
-        ],
-        "\n"
-      )}\n`;
 
 const renderMarkdown = (report: ReconciliationReport): string =>
   Arr.join(
@@ -265,16 +234,6 @@ const renderMarkdown = (report: ReconciliationReport): string =>
           b.targetId ?? "",
         ])
       ),
-      "## Rich text",
-      "",
-      `References rewritten to \`/filer/{key}\`: ${report.richText.rewrittenReferences}.`,
-      "",
-      "Rows whose markup the sanitizer changed (RULE-133 replacement):",
-      "",
-      markdownTable(
-        ["Table", "Id"],
-        Arr.map(report.richText.sanitizedRows, (row) => [row.table, row.id])
-      ),
       "## Files",
       "",
       `Registered public files: ${report.files.registered}. Legacy paths whose bytes equal an earlier path (no redirect row of their own): ${report.files.pathsSharingContent}.`,
@@ -300,35 +259,19 @@ const renderMarkdown = (report: ReconciliationReport): string =>
     "\n"
   );
 
-class ReportWriteError extends Schema.TaggedError<
-  ReportWriteError,
-  { readonly brand: unique symbol }
->()("ReportWriteError", {
-  cause: Schema.Defect(),
-}) {}
+const encodeReportJson = Schema.encodeEffect(ReportJsonString);
 
 /** Writes `reconciliation.json` and `reconciliation.md` into `directory` (created if needed). */
 export const writeReport = Effect.fn("writeReport")(function* writeReport(
   directory: string,
   report: ReconciliationReport
 ) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-
-  const files = {
-    json: path.join(directory, "reconciliation.json"),
-    markdown: path.join(directory, "reconciliation.md"),
-  };
-
   const json = yield* encodeReportJson(report).pipe(
     Effect.mapError((cause) => new ReportWriteError({ cause }))
   );
 
-  yield* Effect.all([
-    fs.makeDirectory(directory, { recursive: true }),
-    fs.writeFileString(files.json, `${json}\n`),
-    fs.writeFileString(files.markdown, renderMarkdown(report)),
-  ]).pipe(Effect.mapError((cause) => new ReportWriteError({ cause })));
-
-  return files;
+  return yield* writeReportFiles(directory, "reconciliation", {
+    json,
+    markdown: renderMarkdown(report),
+  });
 });

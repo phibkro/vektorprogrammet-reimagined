@@ -53,12 +53,10 @@ export type { Window } from "./organisation/semester.ts";
 
 export * from "./organisation/services.ts";
 
-// content (C3, C4, C5, C6, C8)
+// content (C5 news rules, C6 sponsor order, C8)
 export * from "./content/article.ts";
 
 export * from "./content/commands.ts";
-
-export * from "./content/home.ts";
 
 export * from "./content/sanitizer.ts";
 
@@ -69,8 +67,6 @@ export * from "./content/slug.ts";
 export * from "./content/socialEvent.ts";
 
 export * from "./content/sponsor.ts";
-
-export * from "./content/staticContent.ts";
 
 // contact (C10)
 export * from "./contact/commands.ts";

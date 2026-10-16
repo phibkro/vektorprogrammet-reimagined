@@ -73,4 +73,12 @@ in
     PLAYWRIGHT_BROWSERS_PATH = "${playwrightBrowsers}";
     PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   };
+
+  # workerd (the Worker runtime under `vp dev`) verifies TLS against the file named by SSL_CERT_FILE. On NixOS it
+  # finds no system bundle and every HTTPS `fetch` fails with "unable to get local issuer certificate": that included
+  # the contact form's Turnstile verification (a POST to challenges.cloudflare.com), which the browser tests send.
+  # `env` cannot carry it: Nix leaves SSL_CERT_FILE out of the environment it exports.
+  enterShell = ''
+    export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+  '';
 }

@@ -8,7 +8,7 @@ Effect v4 domain core for Phase 1: pure rule functions, branded types, typed err
 | --- | --- | --- |
 | `shared` | all | ids, `Actor`/`CurrentActor`, `Capability`/`authorize`, errors, Oslo clock helpers, `Outbox`, `InTransaction`, input decoding |
 | `organisation` | C1, C2 | departments, fields of study, semesters (RULE-022/033/050/051/084/237), admission decisions (RULE-015/119), C1 commands, the semester job (`ensureScheduledSemesters`) and the pure semester reads (`currentSemester`, `findCurrentSemester`) |
-| `content` | C3, C4, C5, C6, C8 | rich-text sanitizer (RULE-133), slugs (RULE-096), articles (RULE-182/266/267/326/331), static content (RULE-296), sponsors (RULE-189), social events (RULE-085/188), countdown (RULE-070) |
+| `content` | C3, C5, C8 | the pure rules the public pages use (page size and order of news RULE-326/331, the sponsors' footer order), the rich-text sanitizer (RULE-133, run by the CMS importer), slugs, social events (RULE-085/188). Articles, static texts and sponsors live in the CMS since spec 0005 (RULE-296 is its role model, RULE-070's countdown retired) |
 | `contact` | C10 | support ticket (RULE-156/327) and its notifications (RULE-249) |
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |
 | `audit` | C12 | `AuditEntry`, `AuditLog`, `recordAudit` |
@@ -22,9 +22,7 @@ Effect v4 domain core for Phase 1: pure rule functions, branded types, typed err
 | `DepartmentRepository` | `list`, `findById`, `create`/`update` (`AlreadyExists` on unique city) |
 | `SemesterRepository` | `list`, `find`, atomic `ensure` (RULE-237; only the scheduled job calls it, spec 0003) |
 | `FieldOfStudyRepository` | `listByDepartment`, `findById`, `create`, `rename` |
-| `ArticleRepository` | `create` (`AlreadyExists` on slug), `findById`, `findBySlug`, `slugsLike`, `listPublished`, `setPublished` |
-| `StaticContentRepository` | `find`, `upsert` (creates the block if missing) |
-| `SponsorRepository` | `list`, `create` |
+| `AdmissionPeriodRepository` | `list` (read-only; the public pages ask which admission is open) |
 | `SocialEventRepository` | `list({ departmentId, semesterId })`, `create` |
 | `PublicFileRepository` | `findByKey`, `findByLegacyPath`, idempotent `register` |
 | `FileStore` | R2 `put` and `get` by content-addressed key |

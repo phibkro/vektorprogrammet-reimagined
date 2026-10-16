@@ -6,6 +6,7 @@
   "ignore": [
     "apps/web/src/components/ui/**",
     "**/routeTree.gen.ts",
+    "packages/cms-client/src/generated.ts",
     "packages/db/drizzle/**",
     "tools/db-path-spike/drizzle/**",
     "tools/oxlint/anti-slop/**"

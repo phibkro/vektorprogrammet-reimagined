@@ -1,8 +1,10 @@
 /**
- * C1/C2 repositories: departments, semesters (RULE-144, RULE-237) and fields of study.
+ * C1/C2 repositories: departments, semesters (RULE-144, RULE-237), fields of study and the read-only admission periods.
  * Rows decode through the domain schemas; infrastructure failures are defects.
  */
 import {
+  AdmissionPeriod,
+  AdmissionPeriodRepository,
   Department,
   DepartmentRepository,
   FieldOfStudy,
@@ -28,7 +30,12 @@ import {
   decodeWith,
   single,
 } from "../internal/drizzle.ts";
-import { department, fieldOfStudy, semester } from "../schema.ts";
+import {
+  admissionPeriod,
+  department,
+  fieldOfStudy,
+  semester,
+} from "../schema.ts";
 
 export const DepartmentRepositoryLive = Layer.effect(
   DepartmentRepository,
@@ -240,6 +247,39 @@ export const FieldOfStudyRepositoryLive = Layer.effect(
       findById,
       listByDepartment,
       rename,
+    });
+  })
+);
+
+/** An admission period as stored: the instants are `Date`s from the driver (the table's check keeps start before end). */
+const StoredAdmissionPeriod = Schema.Struct({
+  ...AdmissionPeriod.fields,
+  end: Schema.DateTimeUtcFromDate,
+  start: Schema.DateTimeUtcFromDate,
+});
+
+/** C2 admission periods, read-only: each row joined to its semester. */
+export const AdmissionPeriodRepositoryLive = Layer.effect(
+  AdmissionPeriodRepository,
+  Effect.gen(function* AdmissionPeriodRepositoryLive() {
+    const db = yield* Drizzle;
+    const decodeAll = decodeWith(Schema.Array(StoredAdmissionPeriod));
+
+    return AdmissionPeriodRepository.of({
+      list: db
+        .select({
+          departmentId: admissionPeriod.departmentId,
+          end: admissionPeriod.endsAt,
+          semester: { term: semester.term, year: semester.year },
+          start: admissionPeriod.startsAt,
+        })
+        .from(admissionPeriod)
+        .innerJoin(semester, eq(admissionPeriod.semesterId, semester.id))
+        .pipe(
+          Effect.orDie,
+          Effect.flatMap(decodeAll),
+          Effect.withSpan("AdmissionPeriodRepository.list")
+        ),
     });
   })
 );

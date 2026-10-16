@@ -19,8 +19,6 @@ import {
 import {
   Actor,
   AlreadyExists,
-  ArticleId,
-  ArticleRepository,
   AuditLog,
   CurrentActor,
   DepartmentId,
@@ -39,24 +37,16 @@ import {
   SlackChannel,
   SocialEventId,
   SocialEventRepository,
-  SponsorId,
-  SponsorRepository,
-  StaticContentRepository,
   UserId,
 } from "../../src/index.ts";
 import type {
-  Article,
   AuditEntry,
   Department,
   FieldOfStudy,
   FileKey,
   OutboxMessage,
   PublicFile,
-  SanitizedHtml,
   SocialEvent,
-  Sponsor,
-  StaticContent,
-  StaticContentKey,
   StoredContentType,
   StoredSemester,
   Staff,
@@ -74,9 +64,6 @@ export class TestDb extends Context.Service<
     readonly departments: Ref.Ref<readonly Department[]>;
     readonly semesters: Ref.Ref<readonly StoredSemester[]>;
     readonly fieldsOfStudy: Ref.Ref<readonly FieldOfStudy[]>;
-    readonly articles: Ref.Ref<readonly Article[]>;
-    readonly staticContent: Ref.Ref<readonly StaticContent[]>;
-    readonly sponsors: Ref.Ref<readonly Sponsor[]>;
     readonly socialEvents: Ref.Ref<readonly SocialEvent[]>;
     readonly publicFiles: Ref.Ref<readonly PublicFile[]>;
     readonly objects: Ref.Ref<ReadonlyMap<FileKey, StoredBytes>>;
@@ -89,7 +76,6 @@ export class TestDb extends Context.Service<
     TestDb,
     Effect.gen(function* layer() {
       return TestDb.of({
-        articles: yield* Ref.make<readonly Article[]>([]),
         audit: yield* Ref.make<readonly AuditEntry[]>([]),
         departments: yield* Ref.make<readonly Department[]>([]),
         fieldsOfStudy: yield* Ref.make<readonly FieldOfStudy[]>([]),
@@ -99,8 +85,6 @@ export class TestDb extends Context.Service<
         publicFiles: yield* Ref.make<readonly PublicFile[]>([]),
         semesters: yield* Ref.make<readonly StoredSemester[]>([]),
         socialEvents: yield* Ref.make<readonly SocialEvent[]>([]),
-        sponsors: yield* Ref.make<readonly Sponsor[]>([]),
-        staticContent: yield* Ref.make<readonly StaticContent[]>([]),
       });
     })
   );
@@ -145,9 +129,6 @@ const sameSemester = (
 
 const notFoundFieldOfStudy = (id: FieldOfStudyId) =>
   new NotFound({ entity: "FieldOfStudy", key: String(id) });
-
-const notFoundArticle = (id: ArticleId) =>
-  new NotFound({ entity: "Article", key: String(id) });
 
 const DepartmentRepositoryTest = Layer.effect(
   DepartmentRepository,
@@ -302,124 +283,6 @@ const FieldOfStudyRepositoryTest = Layer.effect(
   })
 );
 
-const ArticleRepositoryTest = Layer.effect(
-  ArticleRepository,
-  Effect.gen(function* ArticleRepositoryTest() {
-    const db = yield* TestDb;
-
-    return ArticleRepository.of({
-      create: (draft) =>
-        Effect.gen(function* create() {
-          const rows = yield* Ref.get(db.articles);
-
-          if (Arr.some(rows, (row) => row.slug === draft.slug)) {
-            return yield* new AlreadyExists({
-              entity: "Article",
-              key: draft.slug,
-              message: "slug taken",
-            });
-          }
-
-          const created: Article = {
-            id: ArticleId.make(yield* nextId(db)),
-            ...draft,
-          };
-
-          yield* Ref.set(db.articles, [...rows, created]);
-
-          return created;
-        }),
-      findById: (id) =>
-        Effect.flatMap(Ref.get(db.articles), (rows) =>
-          findOr(rows, (row) => row.id === id, notFoundArticle(id))
-        ),
-      findBySlug: (slug) =>
-        Effect.map(Ref.get(db.articles), (rows) =>
-          Option.fromNullishOr(
-            Option.getOrUndefined(
-              Arr.findFirst(rows, (row) => row.slug === slug)
-            )
-          )
-        ),
-      listPublished: Effect.map(Ref.get(db.articles), (rows) =>
-        Arr.filter(rows, (row) => row.published)
-      ),
-      setPublished: (id, published) =>
-        Effect.gen(function* setPublished() {
-          const rows = yield* Ref.get(db.articles);
-
-          const existing = yield* findOr(
-            rows,
-            (row) => row.id === id,
-            notFoundArticle(id)
-          );
-
-          const updated: Article = { ...existing, published };
-          yield* Ref.set(
-            db.articles,
-            Arr.map(rows, (row) => (row.id === id ? updated : row))
-          );
-
-          return updated;
-        }),
-      slugsLike: (base) =>
-        Effect.map(Ref.get(db.articles), (rows) =>
-          Arr.filter(
-            Arr.map(rows, (row) => row.slug),
-            (slug) => slug === base || slug.startsWith(`${base}-`)
-          )
-        ),
-    });
-  })
-);
-
-const StaticContentRepositoryTest = Layer.effect(
-  StaticContentRepository,
-  Effect.gen(function* StaticContentRepositoryTest() {
-    const db = yield* TestDb;
-
-    return StaticContentRepository.of({
-      find: (key: StaticContentKey) =>
-        Effect.map(Ref.get(db.staticContent), (rows) =>
-          Option.fromNullishOr(
-            Option.getOrUndefined(Arr.findFirst(rows, (row) => row.key === key))
-          )
-        ),
-      upsert: (key: StaticContentKey, html: SanitizedHtml) =>
-        Ref.modify(db.staticContent, (rows) => {
-          const saved: StaticContent = { html, key };
-
-          return [
-            saved,
-            [...Arr.filter(rows, (row) => row.key !== key), saved],
-          ];
-        }),
-    });
-  })
-);
-
-const SponsorRepositoryTest = Layer.effect(
-  SponsorRepository,
-  Effect.gen(function* SponsorRepositoryTest() {
-    const db = yield* TestDb;
-
-    return SponsorRepository.of({
-      create: (draft) =>
-        Effect.gen(function* create() {
-          const created: Sponsor = {
-            id: SponsorId.make(yield* nextId(db)),
-            ...draft,
-          };
-
-          yield* Ref.update(db.sponsors, (rows) => [...rows, created]);
-
-          return created;
-        }),
-      list: Ref.get(db.sponsors),
-    });
-  })
-);
-
 const SocialEventRepositoryTest = Layer.effect(
   SocialEventRepository,
   Effect.gen(function* SocialEventRepositoryTest() {
@@ -565,9 +428,6 @@ export const TestServices = Layer.mergeAll(
   DepartmentRepositoryTest,
   SemesterRepositoryTest,
   FieldOfStudyRepositoryTest,
-  ArticleRepositoryTest,
-  StaticContentRepositoryTest,
-  SponsorRepositoryTest,
   SocialEventRepositoryTest,
   PublicFileRepositoryTest,
   FileStoreTest,
@@ -600,13 +460,6 @@ export const admin = staff({
   userId: UserId.make(100),
 });
 
-export const boardMember = staff({
-  departmentId: TRONDHEIM,
-  executiveBoard: true,
-  role: "teamMember",
-  userId: UserId.make(101),
-});
-
 export const teamLeaderTrondheim = staff({
   departmentId: TRONDHEIM,
   executiveBoard: false,
@@ -623,8 +476,6 @@ export const teamMemberBergen = staff({
 
 /** Seeds rows directly, bypassing commands. */
 export const seed = {
-  article: (article: Article) =>
-    TestDb.use((db) => Ref.update(db.articles, (rows) => [...rows, article])),
   department: (department: Department) =>
     TestDb.use((db) =>
       Ref.update(db.departments, (rows) => [...rows, department])

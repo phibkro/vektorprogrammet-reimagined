@@ -21,7 +21,6 @@ import type { Deployment } from "./deployment";
 const SECTION_CAPABILITIES: Readonly<
   Record<SectionKey, (actor: Staff) => readonly Capability[]>
 > = {
-  articles: () => [Capability.ManageArticles()],
   departments: (actor) => [
     Capability.CreateDepartment(),
     Capability.UpdateDepartment({ departmentId: actor.departmentId }),
@@ -34,8 +33,6 @@ const SECTION_CAPABILITIES: Readonly<
   socialEvents: (actor) => [
     Capability.ManageSocialEvents({ departmentId: actor.departmentId }),
   ],
-  sponsors: () => [Capability.ManageSponsors()],
-  staticContent: () => [Capability.EditStaticContent()],
 };
 
 const mayUseSection = (actor: Staff, key: SectionKey): boolean => {

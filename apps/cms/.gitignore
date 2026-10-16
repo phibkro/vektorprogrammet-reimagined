@@ -1,0 +1,10 @@
+node_modules
+dist
+.astro
+.wrangler
+.emdash
+# Generated on every dev start from the live schema (`emdash types`).
+emdash-env.d.ts
+.dev.vars*
+.env
+.env.*

@@ -5,14 +5,11 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  CurrentActor,
   DepartmentRepository,
   OutboxMessage,
   ensureScheduledSemesters,
   submitContact,
-  updateStaticContent,
 } from "@vektorprogrammet/domain";
-import type { Actor } from "@vektorprogrammet/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   Array as Arr,
@@ -27,23 +24,7 @@ import { TestClock } from "effect/testing";
 
 import { schema, transactional } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
-import {
-  AT,
-  departmentDraft,
-  slackChannel,
-  staff,
-} from "./support/fixtures.ts";
-
-const admin = staff({ role: "admin" });
-
-const boardMember = staff({ executiveBoard: true, role: "teamMember" });
-
-const teamLeader = staff({ executiveBoard: false, role: "teamLeader" });
-
-const as =
-  (actor: Actor) =>
-  <A, E, R>(self: Effect.Effect<A, E, R>) =>
-    Effect.provideService(self, CurrentActor, actor);
+import { AT, departmentDraft, slackChannel } from "./support/fixtures.ts";
 
 const auditRows = Effect.fnUntraced(function* auditRows(
   entity: string,
@@ -175,98 +156,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             yield* ensureScheduledSemesters;
 
             assert.deepStrictEqual(labelsOf(yield* semesterRows), expected);
-          })
-      );
-
-      it.effect(
-        "RULE-296: an admin or board member replaces the block (created if missing) with sanitized HTML and an audit entry",
-        () =>
-          Effect.gen(function* effectProgram() {
-            yield* TestClock.setTime(DateTime.toEpochMillis(AT));
-            const db = yield* Drizzle;
-
-            const block = () =>
-              db
-                .select()
-                .from(schema.staticContent)
-                .where(eq(schema.staticContent.key, "about-intro"));
-
-            const created = yield* transactional(
-              updateStaticContent({
-                editorId: "about-intro",
-                html: `<p>Om oss</p><img src="x" onerror="alert(1)"><script>alert(2)</script>`,
-              })
-            ).pipe(as(admin));
-
-            assert.strictEqual(created.html, `<p>Om oss</p><img src="x" />`);
-            assert.deepStrictEqual(
-              pipe(
-                yield* block(),
-                Arr.map((row) => row.html)
-              ),
-              [`<p>Om oss</p><img src="x" />`]
-            );
-
-            yield* transactional(
-              updateStaticContent({
-                editorId: "about-intro",
-                html: "<p>Nytt</p>",
-              })
-            ).pipe(as(boardMember));
-            assert.deepStrictEqual(
-              pipe(
-                yield* block(),
-                Arr.map((row) => row.html)
-              ),
-              ["<p>Nytt</p>"]
-            );
-            assert.deepStrictEqual(
-              pipe(
-                yield* auditRows("StaticContent", "about-intro"),
-                Arr.map((row) => [row.action, row.actorId])
-              ),
-              [
-                ["staticContent.updated", admin.userId],
-                ["staticContent.updated", boardMember.userId],
-              ]
-            );
-          })
-      );
-
-      it.effect(
-        "RULE-296: a team leader outside the board is refused and nothing is written; a missing editorId is invalid",
-        () =>
-          Effect.gen(function* effectProgram() {
-            const refused = yield* Effect.flip(
-              transactional(
-                updateStaticContent({
-                  editorId: "parents-intro",
-                  html: "<p>x</p>",
-                })
-              ).pipe(as(teamLeader))
-            );
-
-            assert.strictEqual(refused._tag, "Forbidden");
-
-            const invalid = yield* Effect.flip(
-              transactional(updateStaticContent({ html: "<p>x</p>" })).pipe(
-                as(admin)
-              )
-            );
-
-            assert.strictEqual(invalid._tag, "ValidationFailed");
-            const db = yield* Drizzle;
-            assert.deepStrictEqual(
-              yield* db
-                .select()
-                .from(schema.staticContent)
-                .where(eq(schema.staticContent.key, "parents-intro")),
-              []
-            );
-            assert.deepStrictEqual(
-              yield* auditRows("StaticContent", "parents-intro"),
-              []
-            );
           })
       );
 

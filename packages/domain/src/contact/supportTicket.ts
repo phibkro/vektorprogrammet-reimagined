@@ -43,9 +43,9 @@ export const SupportTicket = Schema.Struct({
 export type SupportTicket = typeof SupportTicket.Type;
 
 /** Flash text after a successful submit (legacy wording). */
-export const contactReceiptNotice = (
-  department: Pick<Department, "email">
-): string =>
+export const contactReceiptNotice = (department: {
+  readonly email: string;
+}): string =>
   `Kontaktforespørsel sendt til ${department.email}, takk for henvendelsen!`;
 
 /**

@@ -32,10 +32,6 @@ const uniqueOutcomes: Record<UniqueConstraint, UniqueOutcome> = {
     entity: "Semester",
     message: (key) => `Semesteret ${key} finnes allerede`,
   },
-  [UniqueConstraint.articleSlug]: {
-    entity: "Article",
-    message: (key) => `Adressen ${key} er allerede i bruk.`,
-  },
 };
 
 const UniqueConstraintName = Schema.Literals(Rec.values(UniqueConstraint));

@@ -29,6 +29,10 @@ export interface WorkerEnv {
   readonly TURNSTILE_SITE_KEY: string;
   /** Turnstile secret (Worker secret). */
   readonly TURNSTILE_SECRET_KEY: string;
+  /** The CMS origin (`apps/cms`, EmDash): the public site reads its content from `/_emdash/api/`. A Preview reads its own PR's CMS. */
+  readonly CMS_URL: string;
+  /** A read-only personal access token of the CMS (scopes `content:read`; Worker secret). */
+  readonly CMS_TOKEN: string;
   /** Production only: Cloudflare Email Service binding. */
   readonly SEND_EMAIL?: SendEmail;
   /** Production only: sender address for outbox e-mail. */

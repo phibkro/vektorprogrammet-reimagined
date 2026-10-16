@@ -14,6 +14,8 @@
  *   `ctx.waitUntil`; the cron sweep picks up anything that fails.
  */
 import type { ExecutionContext } from "@cloudflare/workers-types";
+import type { CmsClient } from "@vektorprogrammet/cms-client";
+import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive } from "@vektorprogrammet/db";
 import type { OutboxDelivery } from "@vektorprogrammet/db";
 import {
@@ -23,7 +25,7 @@ import {
   semesterLabel,
 } from "@vektorprogrammet/domain";
 import type {
-  ArticleRepository,
+  AdmissionPeriodRepository,
   AuditLog,
   DepartmentRepository,
   FieldOfStudyRepository,
@@ -33,8 +35,6 @@ import type {
   PublicFileRepository,
   SemesterRepository,
   SocialEventRepository,
-  SponsorRepository,
-  StaticContentRepository,
 } from "@vektorprogrammet/domain";
 import { Cause, Effect, Layer, Predicate, Redacted, Ref } from "effect";
 import type { Crypto } from "effect";
@@ -72,12 +72,10 @@ export interface RequestScope {
 
 /** What `DatabaseLive` provides (packages/db contract). */
 export type DatabaseServices =
+  | AdmissionPeriodRepository
   | DepartmentRepository
   | SemesterRepository
   | FieldOfStudyRepository
-  | ArticleRepository
-  | StaticContentRepository
-  | SponsorRepository
   | SocialEventRepository
   | PublicFileRepository
   | Outbox
@@ -93,7 +91,8 @@ export type RequestServices =
   | CurrentActor
   | Crypto.Crypto
   | TurnstileVerifier
-  | ContactRateLimiter;
+  | ContactRateLimiter
+  | CmsClient;
 
 const databaseLayer = (env: WorkerEnv): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
@@ -113,7 +112,11 @@ export const liveRequestLayer = (
         Layer.succeed(CurrentActor, resolveActor(deployment, scope.testActor)),
         webCryptoLayer,
         turnstileLiveLayer(Redacted.make(scope.env.TURNSTILE_SECRET_KEY)),
-        contactRateLimiterLayer(scope.env.CONTACT_RATE_LIMIT)
+        contactRateLimiterLayer(scope.env.CONTACT_RATE_LIMIT),
+        cmsLayer({
+          token: Redacted.make(scope.env.CMS_TOKEN),
+          url: scope.env.CMS_URL,
+        })
       ).pipe(
         Layer.provideMerge(databaseLayer(scope.env)),
         Layer.provide(FetchHttpClient.layer)

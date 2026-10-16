@@ -13,14 +13,9 @@ import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { Drizzle } from "./internal/drizzle.ts";
-import {
-  ArticleRepositoryLive,
-  SocialEventRepositoryLive,
-  SponsorRepositoryLive,
-  StaticContentRepositoryLive,
-} from "./repositories/content.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
 import {
+  AdmissionPeriodRepositoryLive,
   DepartmentRepositoryLive,
   FieldOfStudyRepositoryLive,
   SemesterRepositoryLive,
@@ -30,6 +25,7 @@ import {
   OutboxDeliveryLive,
   OutboxLive,
 } from "./repositories/outbox.ts";
+import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
 
 /**
  * Every repository Layer over an abstract `Drizzle` and `SqlClient`. Internal:
@@ -37,11 +33,9 @@ import {
  */
 export const RepositoriesLayer = Layer.mergeAll(
   DepartmentRepositoryLive,
+  AdmissionPeriodRepositoryLive,
   SemesterRepositoryLive,
   FieldOfStudyRepositoryLive,
-  ArticleRepositoryLive,
-  StaticContentRepositoryLive,
-  SponsorRepositoryLive,
   SocialEventRepositoryLive,
   PublicFileRepositoryLive,
   OutboxLive,

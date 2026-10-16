@@ -1,25 +1,40 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { SanitizedHtmlBlock } from "@/components/forms";
-import { getStaticPage } from "@/functions/public.functions";
+import { Divider, TextPictureParagraph } from "@/components/site/pageParts";
+import { PortableTextView } from "@/components/site/portableTextView";
+import { getParentsPage } from "@/functions/public.functions";
 import { pageData } from "@/lib/outcome";
 
 const routeApi = getRouteApi("/foreldre");
 
 const ParentsPage = () => {
-  const blocks = routeApi.useLoaderData();
+  const { texts } = routeApi.useLoaderData();
 
   return (
-    <main className="page-wrap grid gap-8 px-4 py-12">
-      <SanitizedHtmlBlock html={blocks["parent-header"] ?? null} />
-      <SanitizedHtmlBlock html={blocks["parent-assistants-info"] ?? null} />
-      <SanitizedHtmlBlock html={blocks["parent-course"] ?? null} />
+    <main className="mt-20 mb-20 flex max-w-4xl flex-col items-center gap-10 self-center p-5 md:gap-28">
+      <div className="flex max-w-full flex-col gap-3 md:gap-5">
+        <PortableTextView value={texts["parent-header"] ?? null} />
+        <Divider />
+      </div>
+      <TextPictureParagraph
+        alt="Vektor samlet"
+        pictureOnLeft
+        src="/images/teacher2.png"
+        text={texts["parent-assistants-info"] ?? null}
+      />
+      <TextPictureParagraph
+        alt="Under møte"
+        pictureOnLeft={false}
+        src="/images/teacher2.png"
+        text={texts["parent-course"] ?? null}
+      />
     </main>
   );
 };
 
-/** C4 parents page. */
+/** Foreldre: three CMS texts around mono-web's pictures. */
 export const Route = createFileRoute("/foreldre")({
   component: ParentsPage,
-  loader: () => getStaticPage({ data: { page: "foreldre" } }).then(pageData),
+  head: () => ({ meta: [{ title: "For foreldre – Vektorprogrammet" }] }),
+  loader: () => getParentsPage().then(pageData),
 });

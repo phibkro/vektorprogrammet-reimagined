@@ -1,17 +1,17 @@
 # @vektorprogrammet/web
 
-The one deployable: TanStack Start on one Cloudflare Worker. Public pages, `/kontrollpanel`, server functions (the only write path besides the cron), legacy 301 redirects, `/filer/{key}`, the outbox sweep and the semester job. It holds no business rules; those live in `@vektorprogrammet/domain` and the database in `@vektorprogrammet/db`. This README covers the runtime model, the env and bindings, local development, the tests (Node and browser), and what slice 0000 left unproven.
+The one deployable: TanStack Start on one Cloudflare Worker. The public site (spec 0005: pages ported from mono-web, with their texts, FAQ, news and sponsors read from the CMS), `/kontrollpanel`, server functions (the only write path besides the cron), legacy 301 redirects, `/filer/{key}`, the outbox sweep and the semester job. It holds no business rules; those live in `@vektorprogrammet/domain` and the database in `@vektorprogrammet/db`; the editors' CMS is the separate Worker `apps/cms`. This README covers the runtime model, the public site, the env and bindings, local development, the tests (Node and browser), and what slice 0000 left unproven.
 
 ## Runtime model
 
 ```
 request ─► src/server.ts  fetch
-             ├─ legacy alias (/om, /bedrifter, /faq, /artikkel/{slug})  → 301   (server/redirects.ts, one table)
+             ├─ legacy alias (/om, /bedrifter, /faq, /omvektor → /om-oss; /artikkel/{slug} → /nyhet/{slug})  → 301   (server/redirects.ts, one table)
              ├─ legacy file path (Offentlige filer/…, images/…)         → 301 /filer/{key} via PublicFileRepository.findByLegacyPath
              └─ TanStack Start handler, context = { env, ctx }
                   ├─ CSRF middleware (src/start.ts): server functions + every non-GET page request
                   ├─ server functions (src/functions/*.functions.ts)
-                  ├─ server routes: /filer/$key (GET), /kontakt + /kontakt/avdeling/$id (POST, no-JS form)
+                  ├─ server routes: /filer/$key (GET), /kontakt + /kontakt/$department (POST, no-JS form), /kontakt/avdeling/$id (GET → 301)
                   └─ SSR routes (loaders call server functions)
 cron ────► src/server.ts  scheduled → ctx.waitUntil(runDelivery(env))           (outbox sweep)
                                      → ctx.waitUntil(runSemesterJob(env))       (semester job: the current and the next semester)
@@ -26,6 +26,7 @@ Each server function or server route:
    - `CurrentActor` (`server/actor.ts`)
    - Web Crypto `Crypto.Crypto` (`server/webCrypto.ts`)
    - `TurnstileVerifier` and `ContactRateLimiter`
+   - `CmsClient` (`packages/cms-client`) over `fetch` to `CMS_URL`, authorised with the read-only `CMS_TOKEN`: the public pages' texts, FAQ, news and sponsors
    - `Transactor`, which wraps a command in `@vektorprogrammet/db`'s `transactional` (the only provider of `InTransaction`)
 3. Runs the Effect with the request's `AbortSignal`. A prepared command runs `prepare` outside any transaction (provider I/O such as rate limit, Turnstile and R2 uploads), then the command inside one.
 4. Maps typed failures through **one table** (`server/errors.ts`):
@@ -53,21 +54,18 @@ Each server function or server route:
 
 | Path | Capability | Rules |
 | --- | --- | --- |
-| `/` | C3 | RULE-331 (news), RULE-075 offsets dropped |
-| `/omvektor`, `/foreldre` | C4 | static blocks (legacy `html_id`s) |
-| `/nyheter`, `/nyheter/{department}`, `?page=N` | C5 | RULE-326, RULE-267 |
+| `/` | C3 | RULE-331 (front-page news), RULE-119 (admission state); the tagline is the CMS text `home-tagline` |
+| `/om-oss`, `/assistenter`, `/team`, `/team/{department}`, `/foreldre`, `/skoler` | C4 | the CMS's texts and FAQ in mono-web's layout; `/om`, `/bedrifter`, `/faq` and `/omvektor` answer 301 to `/om-oss` |
+| `/nyheter`, `/nyheter?avdeling={department}&side=N` | C5 | RULE-326, RULE-267 |
 | `/nyhet/{slug}` | C5 | RULE-267 (draft → 404) |
-| `/kontakt`, `/kontakt/avdeling/{id}` (GET + no-JS POST → 303 / 422) | C10 | RULE-156, 167, 249; per-IP rate limit |
+| `/kontakt`, `/kontakt/{department}` (GET + no-JS POST → 303 / 422), `/kontakt/avdeling/{id}` (301 to the department's page) | C10 | RULE-156, 167, 249; per-IP rate limit |
 | `/filer/{key}` | C11 | RULE-290 replacement |
 | `/kontrollpanel` + `avdelinger`, `semestre`, `linjer` | C1, C2 | RULE-033/237, 084, 139 (spec 0001); `semestre` is a list only, no create form (spec 0003, RULE-144 and 190 retired) |
-| `/kontrollpanel/statisk-innhold` | C4 | RULE-296, RULE-133 |
-| `/kontrollpanel/artikler` | C5 | RULE-096, 182, 266 (fixed) |
-| `/kontrollpanel/sponsorer` | C6 | RULE-189 |
 | `/kontrollpanel/arrangementer` | C8 | RULE-085, 188 |
 
 `/filer/{key}` uses the domain's `servingHeaders` verbatim. Only JPEG, PNG, WebP, GIF and PDF are served inline; everything else is an attachment. Every response carries `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` and `Cache-Control: public, max-age=31536000, immutable`. Error responses also carry `nosniff` and the sandbox CSP.
 
-Departments and fields of study (spec 0001) have their full control-panel journey: a table, a Sheet form per create or edit, field-level messages, and a form-level alert for a refusal. A team leader sees and changes only their own department's fields of study, and on another department's row gets its details (a read-only Sheet), not an edit form. Semesters (spec 0003) have no form: the list shows them newest first with the current one marked. The other control-panel pages have a table and a Sheet form per capability (create; articles also publish or unpublish by id; static content edits a block). A staff listing of draft articles is not built: the domain has no query for it yet (`ArticleRepository.listPublished` only). Publish or unpublish a draft by id.
+Departments and fields of study (spec 0001) have their full control-panel journey: a table, a Sheet form per create or edit, field-level messages, and a form-level alert for a refusal. A team leader sees and changes only their own department's fields of study, and on another department's row gets its details (a read-only Sheet), not an edit form. Semesters (spec 0003) have no form: the list shows them newest first with the current one marked. Events have a table and one Sheet form. Static texts, articles and sponsors have no control-panel page since spec 0005: the editors work in the CMS (`apps/cms`).
 
 ### The control panel shell (spec 0004)
 
@@ -85,6 +83,21 @@ What an actor sees is computed on the server from the domain's capability functi
 
 A visitor who is not signed in gets a plain "Ikke innlogget" page: no sidebar, no navigation, no link to a control-panel page. The public header and footer have no control-panel link for anyone; once sign-in exists (Phase 2) the same function decides whether a staff member gets one. The sidebar's open or collapsed state is not kept across a reload.
 
+### The public site (spec 0005)
+
+Every public page is a TanStack Start route ported from mono-web's homepage (`apps/homepage`, commit `2aa6ce97`): Hjem, Om oss, Assistenter, Team, Foreldre, Skoler, Nyheter with its article page, and Kontakt. The pictures (`public/images/`) and the palette (the `vektor-*` tokens in `src/styles.css`) are mono-web's, and its Radix-based shadcn components are the `base-nova` (Base UI) ones the control panel already uses, so the app has one primitive library. Mono-web's homepage was a synthetic development build (`DEV CONTENT` banners, invented statistics and sponsors, and a team API behind it): its layout is ported, its content is not.
+
+| What a page shows | Where it comes from |
+| --- | --- |
+| a text (`about-header`, `home-tagline`, …) | the CMS collection `texts`, one entry per slot, by slug. `src/lib/textSlots.ts` names each page's slots; `test/textSlots.test.ts` checks them against the default copy in `apps/cms/seed/seed.json`. A slot with no published entry renders nothing |
+| the FAQ of `/assistenter` and `/team` | the CMS collection `faq` (`page`, `position`) |
+| news | the CMS collection `news`, published entries only: sticky first on the front page (RULE-331), ten a page (RULE-326), filtered by a department's city |
+| the sponsors in the footer | the CMS collection `sponsors`: large, medium, small, then by name |
+| the teams of `/team` | the CMS collection `teams`; empty until an editor adds one, because the seed holds no fake people |
+| departments, the admission state, the contact targets | PostgreSQL (`@vektorprogrammet/db`); the contact form is the existing C10 command |
+
+The pages read the CMS in `server/site/pages.ts`, in the same per-request program as their database reads. A text is Portable Text, rendered by `components/site/portableTextView.tsx` as the design's elements: a block is data, a link is rendered only for an address the page may link to (RULE-133), and nothing is ever inserted as HTML. The CMS client lists published entries only (`status=published`, checked again in the client), so a token that can read drafts never makes a draft public. A CMS that cannot be reached is a 503, and a refusal or an entry that does not match its collection is a 502 (`server/errors.ts`): no page falls back to made-up content. The page theme (the light blue page, the default border) is the `.public-site` block of `src/styles.css`; it is the only place that sets element colours, because an unlayered rule would beat every Tailwind utility on the ported markup.
+
 ## Env and bindings
 
 The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` asserts at compile time that the bindings it declares match. A negative control (renaming one binding) fails the type check.
@@ -100,8 +113,10 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 | `SEND_EMAIL` | `send_email` | **production only**; sender restricted to `MAIL_FROM` |
 | `MAIL_FROM` | var | production only, `${MAIL_FROM}` |
 | `SLACK_WEBHOOK_URL` | secret | production only, `${SLACK_WEBHOOK_URL}` |
+| `CMS_URL` | var | the CMS Worker's origin: the stage's own `apps/cms` Worker (a Preview reads its own pull request's CMS Preview) |
+| `CMS_TOKEN` | secret | a read-only personal access token of the CMS (scope `content:read`); `${CMS_READ_TOKEN}` at deploy |
 
-Deploy-time env (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON_USER`, `NEON_APP_PASSWORD`, and, for production only, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `MAIL_FROM` and `SLACK_WEBHOOK_URL`. Shared Worker settings (compatibility date, entry, bucket naming, Turnstile test keys, rate limit, cron, base stage) live once in `worker.config.ts`, which both `alchemy.run.ts` and `vite.config.ts` import.
+Deploy-time env (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON_USER`, `NEON_APP_PASSWORD`, the CMS's `NEON_EMDASH_USER`, `NEON_EMDASH_PASSWORD`, `EMDASH_ENCRYPTION_KEY` and `CMS_READ_TOKEN`, and, for production only, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `MAIL_FROM` and `SLACK_WEBHOOK_URL`. Shared Worker settings (compatibility date and flags, entry, bucket naming, Turnstile test keys, rate limit, cron, base stage) live once in `worker.config.ts`, which both `alchemy.run.ts` and `vite.config.ts` import. The flag `global_fetch_strictly_public` lets this Worker `fetch` the CMS Worker by URL (without it Cloudflare answers error 1042); it changes `fetch()` only, so the Hyperdrive binding is unaffected, which the first Preview confirms.
 
 ### Stages and previews (spec 0002)
 
@@ -113,6 +128,8 @@ Deploy-time env (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON_USER`, `
 
 Base and previews are the `preview` deployment: no mail or Slack binding, and no test actor, so the control panel refuses every staff write (403). Preview URLs are public; they serve fake data only. A Preview runs no cron, so its semester rows are the ones its Neon branch forked from `dev`, where the base stage's cron wrote them. If the current semester has no row there yet, the Semestre and Arrangementer pages say so and write nothing.
 
+**The CMS Worker (spec 0005)** is declared in the same stack (`alchemy.run.ts`: `Cms` and `Web`), so it has the same two kinds of stage: the base `main` and a Worker Preview per pull request. Each has its own Hyperdrive configuration for the role `emdash_app` (cache off) and its own R2 media bucket (`vp-cms-media-<stage>`). A Preview of the web app reads its own pull request's CMS Preview through `CMS_URL`, so content stays isolated per pull request. The CMS's database is the schema `emdash` of the same Neon database, so a Preview's Neon branch carries its own CMS content, forked from `dev`; a Preview has no editor access, because EmDash's passkeys are bound to a hostname. Deploy `main` before any Preview: a Preview is a Worker Preview of the base Worker.
+
 Deploy a stage by hand (base example; `CI` is unset because Alchemy reads only environment credentials when `CI` is set):
 
 ```sh
@@ -120,12 +137,13 @@ SECRETSPEC_REASON="deploy stage main" devenv shell -- secretspec run -- env -u C
   tools/with-neon-env.sh app bash -c 'cd apps/web && bunx alchemy deploy --stage main --profile production --yes'
 ```
 
-CI secrets: `CLOUDFLARE_API_TOKEN` is the account-owned token `vektorprogrammet-reimagined-ci` (Workers Scripts Write, Hyperdrive Write, Workers R2 Storage Write, Secrets Store Write, Account Settings Read, Workers Tail Read), minted with the `admin` profile's token-management token and written with `gh secret set` from stdin; `CLOUDFLARE_ACCOUNT_ID`; `NEON_APP_PASSWORD` (from SecretSpec). Neon's GitHub integration owns `NEON_API_KEY` and the `NEON_PROJECT_ID` variable. Rotate the Cloudflare token by creating a new one with the same permission groups, setting the secret, and deleting the old token.
+CI secrets: `CLOUDFLARE_API_TOKEN` is the account-owned token `vektorprogrammet-reimagined-ci` (Workers Scripts Write, Hyperdrive Write, Workers R2 Storage Write, Workers KV Storage Write (the CMS Worker's session namespace, provisioned by `Website.Astro`; added 2026-10-16), Secrets Store Write, Account Settings Read, Workers Tail Read), minted with the `admin` profile's token-management token and written with `gh secret set` from stdin; `CLOUDFLARE_ACCOUNT_ID`; `NEON_APP_PASSWORD` (from SecretSpec). Neon's GitHub integration owns `NEON_API_KEY` and the `NEON_PROJECT_ID` variable. Rotate the Cloudflare token by creating a new one with the same permission groups, setting the secret, and deleting the old token. The CMS adds `NEON_EMDASH_PASSWORD` (the role `emdash_app`; `NEON_EMDASH_USER` is a workflow variable), `EMDASH_ENCRYPTION_KEY` (from `emdash secrets generate`) and `CMS_READ_TOKEN` (a personal access token with `content:read`, created in the EmDash admin after the first base deploy).
 
 ### Not covered by Alchemy
 
 - Neon branches come from Neon's GitHub actions (pull requests) and from the project itself (`dev`, `production`), not from `Neon.Branch`: drizzle-kit owns the migrations, and a branch must be migrated before the Worker that reads it is deployed.
 - No custom domain or zone route is declared yet: production hostname cut-over is a separate decision.
+- EmDash's own setup is done in its admin, not by Alchemy: the first visitor to an empty `emdash` schema becomes its administrator, who registers a passkey and creates the read-only token that `CMS_READ_TOKEN` carries (`apps/cms/README.md`).
 
 ## Local development (devenv)
 
@@ -145,6 +163,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 - **A standalone `vp build` is labelled `preview`** (no test actor, no secrets in `dist/server/wrangler.json`). Real deployments go through Alchemy, which injects its own Cloudflare plugin (`ALCHEMY_CLOUDFLARE_VITE_INJECTED=1`); this config's plugin then stands down.
 - Under `vp test` (Vitest 5, Node) no Vite plugins load. The tests run in Node with in-memory Layers (`test/support/memory.ts`). workerd tests cannot run under Vite+ (architecture, Checkpoint 2: `vitest-pool-workers` needs Vitest 4).
 - **Semesters in `vp dev`.** No page creates a semester (spec 0003). Run the cron once and the current and the next semester exist: `curl http://localhost:3000/cdn-cgi/handler/scheduled`. It also runs the outbox sweep. The browser tests do this for you.
+- **The CMS in `vp dev`.** The content pages read the CMS named by `CMS_URL` with `CMS_TOKEN`. Start `apps/cms` first (`apps/cms/README.md`: `bun run dev` listens on 4321), take a token from `POST http://localhost:4321/_emdash/api/setup/dev-bypass?token=1`, and run `CMS_URL=http://localhost:4321 CMS_TOKEN=… bunx vp dev`. Without a reachable CMS the content pages answer 503 and the rest of the app works. `global_fetch_strictly_public` does not stop `vp dev` from fetching a `localhost` CMS (the browser tests rely on it).
 
 ## Tests
 
@@ -155,13 +174,18 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `test/publicFiles.test.ts` | RULE-290: `/filer` header policy, unregistered key → 404, no paths |
 | `test/redirects.test.ts` | legacy aliases → 301, legacy file paths → `/filer/{key}`, traversal never looked up |
 | `test/contact.test.ts` | RULE-167: no or invalid token → rejected, no outbox rows, no commit; RULE-156; RULE-249; rate limit |
-| `test/news.test.ts` | RULE-267 (draft → `notFound` at the loader), RULE-326 (35 → 10/10/10/5) |
 | `test/outboxDelivery.test.ts` | delivered, ids-only claim, backoff, dead after `MAX_ATTEMPTS` |
 | `test/organisationPanel.test.ts` | spec 0001: the departments, semesters and fields-of-study programs a server function runs: create, edit, refusals (repeated city, another department's field of study), what the views return; spec 0003: the semester views are reads (a missing row stays missing and is shown as such) |
 | `test/readsNeverWrite.postgres.test.ts` | spec 0003, falsifier 3 (real PostgreSQL): every read program behind a `runQuery` call site (public pages, control-panel views, `/filer/{key}`, the legacy file redirect) runs as anonymous, admin and team leader through a database role with `SELECT` only, on empty and on seeded tables; a negative control (a read that writes) dies in the same harness; a source scan keeps the list of read paths complete and shows that no create-semester command or server function exists |
-| `test/shell.test.ts` | spec 0004, falsifier 6: the sidebar follows the actor's capabilities (the board flag, the role and the department each change what it lists), the shell view carries it (and the test-actor switch only in `local`), and every page control (department create and edit, fields of study, static content, articles, sponsors, the departments an event form offers) is shown exactly when its command would not refuse the actor |
+| `test/shell.test.ts` | spec 0004, falsifier 6: the sidebar follows the actor's capabilities (the role and the department each change what it lists), the shell view carries it (and the test-actor switch only in `local`), and every page control (department create and edit, fields of study, the departments an event form offers) is shown exactly when its command would not refuse the actor |
+| `test/site.test.ts` | spec 0005: the public pages' programs over an in-memory CMS: RULE-267 (a draft or an unknown slug is 404, drafts are not in the list), RULE-326 (newest first, ten a page, a page past the end is empty), RULE-331 and RULE-119 on the home page, the text slots, the footer's sponsor order, the team and contact pages, a department's URL segment (Å is `aa`) |
+| `test/portableTextView.test.tsx` | RULE-133: a `javascript:` address is plain text, only http(s), mailto and tel addresses are links, raw HTML never reaches the page; every block type the design renders |
+| `test/navigation.test.ts` | the header's active tab, and the search of the news and contact pages |
+| `test/textSlots.test.ts` | every text slot a page shows has default copy in the CMS seed, and the copy is valid content for the client |
+| `test/panel.test.ts` | RULE-033 through the panel's view program (the semester of the Oslo calendar month); the read writes no row |
 | `e2e/journey.spec.ts` | specs 0001 and 0003 in a real browser (below), in Sheets: steps 1 to 4 and falsifier 5 |
 | `e2e/shell.spec.ts` | spec 0004 in a real browser (below): falsifiers 1 to 5, per actor |
+| `e2e/public.spec.ts` | spec 0005 in a real browser against the real CMS (below): every page, an edit published without a deploy, the contact form's transaction, the 301 redirects |
 
 Real-database behaviour (transactions, constraints, `FOR UPDATE SKIP LOCKED`) is tested in `packages/db`.
 
@@ -170,21 +194,23 @@ Real-database behaviour (transactions, constraints, `FOR UPDATE SKIP LOCKED`) is
 `bun run e2e` (from the repository root or from `apps/web`, inside devenv) runs the browser tests in a real browser, on migrated data: the journey (specs 0001 and 0003) and the dashboard (spec 0004). One Effect program, `e2e/run.ts`, owns everything the run starts in a single scope and releases it in reverse order on success, failure and Ctrl-C. Arguments go to Playwright (`bun run e2e shell.spec.ts`, `bun run e2e -g "falsifier 5"`):
 
 ```
-disposable PostgreSQL database (migrated, filled by the real importer)  →  vp dev on a free port  →  playwright test
+disposable PostgreSQL database (migrated, filled by the real importer)  →  the CMS (`astro dev`, its seed copy, the importer's fixture twice)  →  vp dev on a free port  →  playwright test
 ```
 
 - **Database:** `vp_db_test_<random>` on the devenv server (`TEST_DATABASE_ADMIN_URL`), from `@vektorprogrammet/db/testing`: the one migrated-disposable-database helper that `packages/db`'s tests and the importer's round trip use too. It is created, migrated with `packages/db`'s generated `drizzle/` migrations, and then filled by `tools/import`'s `import:fixture` script: the real importer pipeline on the importer's fake legacy fixture (a throwaway MySQL database, dropped again). The data is therefore migrated data with the importer's own quirks: the fixture's third department is quarantined (an invalid e-mail address), five duplicate semester rows are collapsed to two, and the orphan fields of study are left out. The database is dropped (forcibly) at the end; the developer's `vektorprogrammet` database is never touched. It needs the devenv MySQL service, as the importer's own tests do.
 - **App:** the real `vp dev` (the `local` deployment: the test actor chosen by the `vp-test-actor` cookie, a simulated R2 and rate limiter) with `DATABASE_URL` pointing at that database. The harness waits for `http://localhost:<port>` (Vite binds `localhost`, which is `::1` on some hosts), then runs the Worker's `scheduled` handler once (`GET /cdn-cgi/handler/scheduled`, which the Cloudflare Vite plugin forwards to it), so the semester job has written the current and the next semester, and fetches every page the specs open once, so the server has compiled them before the browser asks.
+- **CMS:** the real EmDash (`apps/cms` under `astro dev` with `CMS_STANDALONE=1`) on the same database, in its schema `emdash`. The harness runs `apps/cms/db/emdash-role.sql` with `psql` (the script a deployment runs once), starts the server with a local Hyperdrive string for the role `emdash_app` and a generated `EMDASH_ENCRYPTION_KEY`, waits for `/_emdash/api/setup/status` (the first request runs EmDash's migrations and creates the collections of the seed), and calls the development bypass (`POST /_emdash/api/setup/dev-bypass?token=1`), which applies the default copy of `seed/seed.json` and mints a token. `tools/import`'s `import:fixture:cms` then moves the fixture's articles, texts and sponsors in, and runs a second time: the harness fails unless the second run creates nothing (spec 0005, falsifier 4). `vp dev` gets `CMS_URL`, `CMS_TOKEN` and Cloudflare's always-pass Turnstile keys, so the contact form is exercised with the real widget (this needs outbound network).
 - **Browser:** Playwright 1.63.0 driving the Chromium that devenv provides. `devenv.nix` sets `PLAYWRIGHT_BROWSERS_PATH` to a Chromium-only build of nixpkgs' `playwright-driver.browsers` (no Firefox or WebKit, which keeps the closure small) and `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS`. Playwright never downloads a browser.
 - **Specs:** `e2e/journey.spec.ts` is one serial story over one database (`workers: 1`). Each test selects its actor with the cookie, finds elements by role and label as a person reads the page, and reads database effects back through typed probes (`e2e/support/probes.ts`, Effect Schema decoded). The refusals are asserted on the HTTP status the server sent (403, 409), not only on the message the page shows. Falsifier 5 changes a hidden form field in the browser (the field of study's id, then the department id) and expects a 403 and no change in the database. Step 2 (spec 0003) opens the Semestre page: the current and the next semester are listed because the harness ran the cron once, there is no create form, and opening the page changes no row.
 - **Spec 0004:** `e2e/shell.spec.ts` runs after the journey (Playwright takes the files in name order) and checks, as the administrator, a team leader of department 1 and an anonymous visitor: the sidebar lists exactly the sections the actor may use and each opens its page, and an anonymous visitor gets the not-signed-in page with no control-panel link on it or on any public page (falsifier 1); every control a capability gates is absent from the DOM for an actor without it (falsifier 2); a forged request for a capability the page does not offer gets the domain's 403 and changes nothing, while the same bytes from an administrator are accepted (falsifier 3); create and edit open in a right-hand Sheet, a saved edit shows in the table without a page reload, and Escape and Cancel return focus to the opener (falsifier 4); at 1280 px the sidebar collapses to icons and back, and at 390 px it opens as an off-canvas panel (falsifier 5). The screenshots the pull request carries are written when `E2E_SCREENSHOT_DIRECTORY` names a directory: `E2E_SCREENSHOT_DIRECTORY=$PWD/docs/specs/0004-screenshots bun run e2e shell.spec.ts`, from the repository root.
+- **Spec 0005:** `e2e/public.spec.ts` runs second (files go in name order; what it must list about departments it reads from the database, because the journey changes them). Falsifier 1: each page renders its headings and texts from the CMS, the FAQ counts are the `faq` entries', the home page shows only the published article (the importer's two drafts are not news, and `/nyhet/kladd` is 404), the footer's sponsor is the CMS's, and the department tabs are the database's. Falsifier 2: a text saved in the CMS (a draft of a published entry) is not public until it is published, and after `publish` the page shows it on the next request with nothing built or deployed (`e2e/support/editor.ts` is the editor, through the REST API). Falsifier 3: a post without a Turnstile answer is 422 and queues nothing; a valid post, sent after a client-side move to another department's tab and with the real widget, queues exactly the RULE-249 messages, all with one creation instant (`enqueue` writes them in one INSERT), and no audit row. Falsifier 5: every alias, and a registered legacy file path, answers 301 with the right `Location`. The widget needs outbound network from the browser and from workerd (a fetch to Cloudflare's siteverify); `devenv.nix` exports `SSL_CERT_FILE` so that workerd has a CA bundle on NixOS.
 - **Teardown and CI.** The scope closes the Playwright process, then `vp dev` (its whole process group), then drops the database. The drop goes through `withClient` (`@vektorprogrammet/db/testing`): a client with one connection, opened for that statement. Before that, the drop used an admin pool opened at the start; the pool retired its idle connection after 60 to 120 seconds and could not open another while its scope was closing, so a run longer than two minutes (the 24 tests take 2 to 3 minutes on a CI runner, one minute here) passed its tests and then never exited, silently, and the CI step hung until it was cancelled. The CI step has `timeout-minutes: 15` as a bound. To reproduce a CI run's shape locally, make a run longer than two minutes: `bun run e2e -g "falsifier 2" --repeat-each 10` takes three minutes and must exit within a second of its summary line.
 
 **Why `@playwright/test` and not Vitest browser mode.** Vitest's browser mode runs the test code inside the page and serves the module graph itself. This journey needs the opposite: a separately started application, real HTTP cookies, real server-function round trips, and the status of each response, observed from outside. Playwright's own runner does exactly that; Vitest's Playwright provider would add a second runner and its page-side execution model for no gain here.
 
 **Why exactly 1.63.0.** The browsers come from nixpkgs (`playwright-driver` 1.63.0, Chromium build 1243). A different `@playwright/test` looks for a different browser build and fails at launch, so the catalog pins `@playwright/test`, `playwright` and `playwright-core` to 1.63.0, `overrides` keeps the two inner packages on that pin, and Renovate does not bump them. Move them together with the nixpkgs pin in `devenv.lock`.
 
-**Check the machine first.** A run starts Vite, workerd and Chromium. Look at CPU load and `MemAvailable` before starting it, and do not start a second one beside it. It is not part of `bun run ready`, which stays fast; CI runs it.
+**Check the machine first.** A run starts Vite, workerd, the CMS's Astro server and Chromium. Look at CPU load and `MemAvailable` before starting it, and do not start a second one beside it. It is not part of `bun run ready`, which stays fast; CI runs it.
 
 ## What slice 0000 proved, and what it left unproven on a deployed Worker
 

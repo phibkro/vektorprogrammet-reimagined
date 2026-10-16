@@ -2,21 +2,9 @@
  * Fake, same-shape fixtures. No real names, e-mail addresses or credentials:
  * e-mail domains are `.example`, ids are arbitrary.
  */
-import {
-  Actor,
-  DepartmentId,
-  EmailAddress,
-  FileKey,
-  PublicFileRepository,
-  SlackChannel,
-  UserId,
-} from "@vektorprogrammet/domain";
-import type {
-  DepartmentDraft,
-  PublicFile,
-  Staff,
-} from "@vektorprogrammet/domain";
-import { DateTime, Effect } from "effect";
+import { EmailAddress, FileKey, SlackChannel } from "@vektorprogrammet/domain";
+import type { DepartmentDraft, PublicFile } from "@vektorprogrammet/domain";
+import { DateTime } from "effect";
 
 export const departmentDraft = (
   city: string,
@@ -59,22 +47,3 @@ export const publicFileFixture = (
   uploadedBy: null,
   ...overrides,
 });
-
-/** Registers image files so article and sponsor foreign keys resolve. */
-export const registerImages = Effect.fnUntraced(function* registerImages(
-  ...keys: readonly FileKey[]
-) {
-  const files = yield* PublicFileRepository;
-  yield* Effect.forEach(keys, (key) => files.register(publicFileFixture(key)), {
-    discard: true,
-  });
-});
-
-export const staff = (overrides: Partial<Omit<Staff, "_tag">> = {}): Staff =>
-  Actor.cases.Staff.make({
-    departmentId: DepartmentId.make(1),
-    executiveBoard: false,
-    role: "admin",
-    userId: UserId.make(9001),
-    ...overrides,
-  });

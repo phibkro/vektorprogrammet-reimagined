@@ -1,9 +1,16 @@
+import {
+  CmsInvalidContent,
+  CmsRejected,
+  CmsUnavailable,
+} from "@vektorprogrammet/cms-client";
+import type { CmsFailure } from "@vektorprogrammet/cms-client";
 /**
  * The one table that maps the domain's closed error set (plus the web's own
- * `RateLimited`) to HTTP statuses. Every server function, server route and
+ * `RateLimited` and the CMS client's three failures) to HTTP statuses. Every server function, server route and
  * loader goes through `failureOf`; nothing else chooses a status for a typed
  * failure. Defects are not in this table: the runtime logs them and answers
- * 500.
+ * 500. A CMS that cannot be reached is a 503, and one that refuses or sends content that does not match
+ * its collection is a 502: the page is the web's, the failure is upstream.
  */
 import {
   AlreadyExists,
@@ -23,7 +30,7 @@ export class RateLimited extends Schema.TaggedError<
   { readonly brand: unique symbol }
 >()("RateLimited", {}) {}
 
-export type RequestError = DomainError | RateLimited;
+export type RequestError = DomainError | RateLimited | CmsFailure;
 
 export const RequestErrorSchema = Schema.Union([
   NotFound,
@@ -31,6 +38,9 @@ export const RequestErrorSchema = Schema.Union([
   AlreadyExists,
   ValidationFailed,
   RateLimited,
+  CmsUnavailable,
+  CmsRejected,
+  CmsInvalidContent,
 ]);
 
 /** The serializable (plain-object) form sent to the browser. */
@@ -45,6 +55,9 @@ export type RequestErrorTag = RequestError["_tag"];
  */
 export const ERROR_TABLE = {
   AlreadyExists: { formStatus: 409, status: 409 },
+  CmsInvalidContent: { formStatus: 502, status: 502 },
+  CmsRejected: { formStatus: 502, status: 502 },
+  CmsUnavailable: { formStatus: 503, status: 503 },
   Forbidden: { formStatus: 403, status: 403 },
   NotFound: { formStatus: 404, status: 404 },
   RateLimited: { formStatus: 429, status: 429 },
@@ -63,6 +76,12 @@ const messageOf = (error: EncodedRequestError): string =>
   Match.value(error).pipe(
     Match.tagsExhaustive({
       AlreadyExists: (failure) => failure.message,
+      CmsInvalidContent: () =>
+        "Innholdet på siden er ugyldig. Prøv igjen senere.",
+      CmsRejected: () =>
+        "Innholdstjenesten avviste forespørselen. Prøv igjen senere.",
+      CmsUnavailable: () =>
+        "Innholdet er midlertidig utilgjengelig. Prøv igjen om litt.",
       Forbidden: () => "Du har ikke tilgang til dette.",
       NotFound: () => "Fant ikke siden eller elementet.",
       RateLimited: () => "For mange forsøk. Vent litt og prøv igjen.",

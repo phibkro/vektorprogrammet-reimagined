@@ -12,13 +12,6 @@ export const AuditAction = Schema.Literals([
   "department.updated",
   "fieldOfStudy.created",
   "fieldOfStudy.updated",
-  "staticContent.updated",
-  /** RULE-266 fixed: a draft is recorded as a draft, never as "published". */
-  "article.createdDraft",
-  "article.createdPublished",
-  "article.published",
-  "article.unpublished",
-  "sponsor.created",
   "socialEvent.created",
   "publicFile.registered",
 ]);

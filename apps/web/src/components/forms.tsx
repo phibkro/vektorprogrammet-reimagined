@@ -161,25 +161,5 @@ export const CommandForm = ({
   );
 };
 
-/** Sanitized HTML from the domain (sanitized on save and again on read, RULE-133 replacement). */
-export const SanitizedHtmlBlock = ({
-  html,
-  className,
-}: {
-  html: string | null;
-  className?: string;
-}) => {
-  if (html === null || html === "") {
-    return null;
-  }
-
-  return (
-    <div
-      className={className ?? "prose max-w-none"}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
-};
-
 export const nativeSelectClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";

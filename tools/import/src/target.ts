@@ -53,15 +53,11 @@ const step =
 /** The Drizzle table of each target table name. */
 const TABLES = {
   admission_period: schema.admissionPeriod,
-  article: schema.article,
-  article_department: schema.articleDepartment,
   department: schema.department,
   field_of_study: schema.fieldOfStudy,
   public_file: schema.publicFile,
   semester: schema.semester,
   social_event: schema.socialEvent,
-  sponsor: schema.sponsor,
-  static_content: schema.staticContent,
 } as const;
 
 /** Tables whose integer `id` is an identity column; their sequences follow the kept legacy ids. */
@@ -70,8 +66,6 @@ const IDENTITY_TABLES = [
   schema.semester,
   schema.fieldOfStudy,
   schema.admissionPeriod,
-  schema.article,
-  schema.sponsor,
   schema.socialEvent,
 ] as const;
 
@@ -149,25 +143,6 @@ export class ImportTarget extends Context.Service<
             "admission_period",
             Arr.map(rows.admission_period, toDatabaseWindow),
             (chunk) => db.insert(schema.admissionPeriod).values(chunk)
-          );
-          yield* inBatches(
-            "article",
-            Arr.map(rows.article, (row) => ({
-              ...row,
-              createdAt: date(row.createdAt),
-            })),
-            (chunk) => db.insert(schema.article).values(chunk)
-          );
-          yield* inBatches(
-            "article_department",
-            rows.article_department,
-            (chunk) => db.insert(schema.articleDepartment).values(chunk)
-          );
-          yield* inBatches("static_content", rows.static_content, (chunk) =>
-            db.insert(schema.staticContent).values(chunk)
-          );
-          yield* inBatches("sponsor", rows.sponsor, (chunk) =>
-            db.insert(schema.sponsor).values(chunk)
           );
           yield* inBatches(
             "social_event",

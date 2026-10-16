@@ -1,6 +1,6 @@
 # @vektorprogrammet/import
 
-Imports the Phase 1 tables of the legacy MySQL backup into a PostgreSQL target (a Neon branch) and writes a reconciliation report. It is deterministic and reruns from scratch: every run replaces the target's Phase 1 data in one transaction. Design: `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §6 and spec `docs/specs/0001-departments-and-semesters.md` ("Data and migration").
+Imports the organisation tables of the legacy MySQL backup (departments, semesters, fields of study, admission periods, social events and the departments' logos) into a PostgreSQL target (a Neon branch) and writes a reconciliation report (format version 2). It is deterministic and reruns from scratch: every run replaces the target's data in one transaction. Design: `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §6 and spec `docs/specs/0001-departments-and-semesters.md` ("Data and migration"). Articles, static texts and sponsors are not loaded here since spec 0005: a second program (`src/cms.ts`) loads them into the CMS; see "Into the CMS" below.
 
 ```
 legacy MySQL (SELECT-only legacy_reader, one snapshot)
@@ -13,7 +13,7 @@ legacy MySQL (SELECT-only legacy_reader, one snapshot)
 ## Authority
 
 - **Loading rows derived from the 2024-08-22 backup into Neon branches is authorised** (operator, Checkpoint 2, 2026-10-15). Production Neon is written only at the final import.
-- **Copying the production file directories is NOT authorised yet** (Checkpoint 2: the file-copy entry item stays open). Run without `LEGACY_FILES_DIR`; the report then lists every referenced file as missing, and articles (whose images are required) are quarantined.
+- **Copying the production file directories is NOT authorised yet** (Checkpoint 2: the file-copy entry item stays open). Run without `LEGACY_FILES_DIR`; the report then lists every referenced file (the departments' logos) as missing.
 - The backup holds personal data. Keep it, the restored `legacy` database and any Neon branch out of the repository, issue trackers and chat. The report holds ids, counts, column names and upload areas only, so it may be attached to a pull request.
 
 ## Operator runbook
@@ -77,8 +77,7 @@ The run prints rows in/out per table and the report paths. It exits non-zero and
 | Collapsed semesters | identical (term, year) rows merged into the lowest id; references were remapped |
 | Missing files | references to upload files that were not found, grouped as `missing-file-N` with their upload area |
 | Broken references | references to absent or quarantined rows, and file references that cannot be mapped |
-| Rich text | rows the sanitizer changed (RULE-133 replacement) and references rewritten to `/filer/{key}` |
-| Normalisations | value changes that are not guesses (blank optional text → NULL; `published` NULL → draft) |
+| Normalisations | value changes that are not guesses (blank optional text → NULL) |
 | Dropped legacy columns | columns with no target, by decision (`event.role_id`: RULE-188) |
 
 A quarantined row is never repaired by the importer. Decide the fix with the operator, correct it in the source (or record the decision), and rerun.
@@ -87,7 +86,41 @@ A quarantined row is never repaired by the importer. Decide the fix with the ope
 
 Delete the Neon branch when the rehearsal is done, and drop or keep the local `legacy` database according to the backup's handling rules.
 
-## Mapping rules
+## Into the CMS (spec 0005, D5)
+
+Articles, static texts and sponsors do not go to PostgreSQL any more: they belong to the editors, so they go into EmDash (`apps/cms`). This is a second program with its own lifecycle, because the two targets differ: the PostgreSQL import truncates and reloads, while this one only creates what the CMS lacks.
+
+```
+legacy MySQL (the same SELECT-only snapshot)
+  → plan (pure: sanitize, convert to Portable Text, quarantine)
+  → CMS REST API through @vektorprogrammet/cms-client: create (draft, original dates), then publish
+  → read the collections back → emdash-reconciliation.json + emdash-reconciliation.md
+```
+
+```sh
+devenv shell -- bash -c 'cd tools/import && IMPORT_CMS_URL="$CMS_URL" IMPORT_CMS_TOKEN="$(cat "$CMS_TOKEN_FILE")" bun src/cms.ts --report-dir "$IMPORT_REPORT_DIR"'
+```
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `LEGACY_MYSQL_URL` | yes | set by devenv: `legacy_reader` on the `legacy` database |
+| `IMPORT_CMS_URL` | yes | the CMS origin (`apps/cms`): its `/_emdash/api/` is called |
+| `IMPORT_CMS_TOKEN` | yes | a personal access token with the scopes `content:read`, `content:write` and `schema:write`, created in the EmDash admin by an administrator (writing the original dates needs the `content:publish_any` permission, which an administrator has; `schema:write` lets the import add department cities as options of `news.departments`) |
+
+- **Create-only, so a rerun changes nothing.** An entry whose slug exists is left as it is, which also means an editor's later change is never overwritten. The second run reports `created` 0 and `unchanged` everything.
+- **Create, then publish.** An entry is created as a draft with the legacy `created` date as both its creation and publication date, then published when the legacy row was live (`published = 1`). A legacy draft stays a draft (RULE-267). If the CMS refuses an entry (for example a department city that is not an option of the `departments` field of `news`), the run goes on, counts the refusal with the CMS's error code and exits non-zero at the end; fix the cause and run again. A CMS that cannot be reached stops the run.
+- **Images are left out.** The legacy files are not copied (see Authority), so an image has nothing to point at: `<img>` in rich text and the article and sponsor image columns are dropped and counted. The article is imported without its image; add images in the admin.
+- **Rich text** goes through the domain sanitizer, then into Portable Text (`src/emdash/portableText.ts`: paragraphs, h2–h4, bold, italic, underline, strike, sub/superscript, code, links, lists with levels, blockquote, preformatted text, rules, tables). Links to legacy upload paths stay as they are: `apps/web` redirects them (301) to `/filer/{key}` once the files are registered.
+
+| CMS collection | Legacy | Rule |
+| --- | --- | --- |
+| `news` | `article` | slug kept (unique); title required; `created` is the creation and publication date; `sticky`; department tags become city names (`departments`, empty = every department; a tag for an absent department is counted, not imported); the legacy author id is dropped (EmDash authors are CMS users) |
+| `texts` | `static_content` | the `html_id` is the slug (`[a-z0-9_-]`); the editor title comes from the legacy template (`TEXT_TITLES` in `src/emdash/plan.ts`); a repeated `html_id` is quarantined (the first id wins); created at the import time |
+| `sponsors` | `sponsor` | name, absolute http(s) URL and size required (RULE-189); slug `sponsor-{id}`; created at the import time |
+
+`emdash-reconciliation.md` and `.json` (decode with `EmDashReportFromJson` from `src/emdash/report.ts`) hold, per collection: rows in, quarantined, created as drafts, created and published, already there, refused by the CMS, and the published and draft counts read back from the CMS. Like the PostgreSQL report they hold counts, legacy ids, column names and CMS error codes only.
+
+## Mapping rules (PostgreSQL)
 
 | Target | Legacy | Rule |
 | --- | --- | --- |
@@ -95,12 +128,8 @@ Delete the Neon branch when the rehearsal is done, and drop or keep the local `l
 | `semester` | `semester` | `semesterTime` exactly `Vår`/`Høst` → `VAR`/`HOST`; four-digit numeric year (RULE-050); duplicates collapse into the lowest id (RULE-144, RULE-237) |
 | `field_of_study` | `field_of_study` | a NULL, absent or quarantined department quarantines the row |
 | `admission_period` | `AdmissionPeriod` | semester remapped through collapses; end after start; `infoMeeting_id` dropped (Phase 3) |
-| `article` | `article` | slug kept (unique); body sanitized and rewritten; both images must be registered files; the legacy author id kept in `author_id` (the architecture's `legacy_author_id`) with no foreign key; `published` NULL → draft (RULE-267) |
-| `article_department` | `articles_departments` | kept when both ends were imported |
-| `static_content` | `static_content` | keyed by `html_id`; a repeated `html_id` is quarantined (the first id wins); html sanitized and rewritten |
-| `sponsor` | `sponsor` | name, absolute http(s) URL and size (`small`/`medium`/`large`) required (RULE-189); logo optional |
 | `social_event` | `event` | title required, end after start, link ≤ 250; `role_id` dropped (RULE-188) |
-| `public_file` | files on disk | one row per content key (SHA-256 + type by magic bytes, RULE-130); `legacy_path` is the decoded path below the web root, e.g. `Offentlige filer/x.pdf` (RULE-290 redirects) |
+| `public_file` | the departments' logos on disk | one row per content key (SHA-256 + type by magic bytes, RULE-130); `legacy_path` is the decoded path below the web root, e.g. `images/Logo images/x.png` (RULE-290 redirects). Article images and sponsor logos belong to the CMS program, which does not copy files |
 
 - Legacy `DATETIME` values are Oslo wall-clock time ([INFERENCE] from spec 0001: legacy used server-local time) and are stored as UTC instants.
 - Only `Offentlige filer/`, `images/article_images/` and `images/Logo images/` are upload roots. Site paths, percent-encoded paths and absolute URLs on `vektorprogrammet.no` are recognised. Other `images/` assets and unsafe paths (`..`, empty segments, malformed encoding) are reported as unmappable.
@@ -116,5 +145,7 @@ devenv shell -- bash -c 'cd tools/import && bunx vp check'   # format, lint, typ
 The round trip creates a uniquely named MySQL database with `mysql -uroot` over `$MYSQL_UNIX_PORT`, loads the Phase 1 `CREATE TABLE` statements from `test/fixtures/legacy-phase1-schema.sql` (vendored verbatim from the production structure-only dump; source and checksum in its header) plus FAKE rows (`test/support/fixture.ts`), and grants `legacy_reader` SELECT on it, so the importer reads through the same SELECT-only user as in production. The PostgreSQL target is the migrated disposable database of `@vektorprogrammet/db/testing` (`vp_db_test_<random>`, created through `$TEST_DATABASE_ADMIN_URL` and migrated from `packages/db/drizzle/`). Both are dropped afterwards. The first test runs the CLI (`bun src/main.ts`) exactly as the runbook does.
 
 `bun run import:fixture` (`test/support/importFixture.ts`) imports that same FAKE fixture into an already migrated database named by `IMPORT_TARGET_DATABASE_URL`, with the same `runImport` and `importLayer`, and drops the throwaway MySQL database again. It refuses the development database like the CLI does. The `apps/web` browser tests use it to start on migrated data.
+
+`bun run import:fixture:cms` (`test/support/importFixtureCms.ts`) does the same for the CMS: it loads the fake fixture into a throwaway MySQL database and runs `runCmsImport` against the CMS named by `IMPORT_CMS_URL`, with the token `IMPORT_CMS_TOKEN`. The browser tests and the Preview data setup (`apps/cms/README.md`) use it, so the public pages are checked on content that went through the importer. `test/cmsRoundTrip.test.ts` runs the same program on the same fixture against an in-memory CMS (`test/support/fakeCms.ts`), and `test/emdash/` has the unit tests of the converter, the plan and the writer.
 
 No lint suppression or registered exception exists in this package.

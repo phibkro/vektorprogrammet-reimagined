@@ -21,14 +21,6 @@ export const FieldOfStudyId = PositiveInt.pipe(Schema.brand("FieldOfStudyId"));
 
 export type FieldOfStudyId = typeof FieldOfStudyId.Type;
 
-export const ArticleId = PositiveInt.pipe(Schema.brand("ArticleId"));
-
-export type ArticleId = typeof ArticleId.Type;
-
-export const SponsorId = PositiveInt.pipe(Schema.brand("SponsorId"));
-
-export type SponsorId = typeof SponsorId.Type;
-
 export const SocialEventId = PositiveInt.pipe(Schema.brand("SocialEventId"));
 
 export type SocialEventId = typeof SocialEventId.Type;
@@ -72,8 +64,6 @@ export const EntityName = Schema.Literals([
   "Semester",
   "FieldOfStudy",
   "Article",
-  "StaticContent",
-  "Sponsor",
   "SocialEvent",
   "PublicFile",
 ]);

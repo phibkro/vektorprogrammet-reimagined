@@ -91,3 +91,62 @@ export const semesterCount = countOf(
 export const auditEntryCount = countOf(
   (sql) => sql`select count(*)::int as n from audit_log`
 );
+
+/** Every row of `statement`, decoded with `Row`. */
+const rowsOf = <S extends Schema.Constraint>(Row: S, statement: Statement) =>
+  Effect.flatMap(SqlClient, (sql) =>
+    Effect.flatMap(
+      statement(sql),
+      Schema.decodeUnknownEffect(Schema.Array(Row))
+    )
+  );
+
+const OutboxRow = Schema.Struct({
+  kind: Schema.String,
+  queuedAt: Schema.String,
+});
+
+/**
+ * The queued messages, oldest first, each with the instant it was queued. `enqueue` writes all the messages of one
+ * command in one INSERT with one instant, so rows of one post share it (a row's `xmin` would not do: delivery
+ * updates every row afterwards, in its own transaction).
+ */
+export const outboxRows = rowsOf(
+  OutboxRow,
+  (sql) =>
+    sql`select kind, created_at::text as "queuedAt" from outbox order by id`
+);
+
+const ActiveDepartment = Schema.Struct({
+  city: Schema.String,
+  email: Schema.String,
+  id: Schema.Int,
+  name: Schema.String,
+  shortName: Schema.String,
+  slackChannel: Schema.NullOr(Schema.String),
+});
+
+/** The departments the public pages list: the active ones. */
+export const activeDepartments = rowsOf(
+  ActiveDepartment,
+  (sql) =>
+    sql`select id, name, short_name as "shortName", city, email, slack_channel as "slackChannel" from department where active order by id`
+);
+
+const LEGACY_FILE_HASH = "e".repeat(64);
+
+export const LEGACY_FILE_KEY = `${LEGACY_FILE_HASH}.png`;
+
+/** Registers one file under its legacy upload path, as the importer does when it copies the uploads. */
+export const registerLegacyFile = (legacyPath: string) =>
+  Effect.flatMap(
+    SqlClient,
+    (sql) =>
+      sql`insert into public_file (key, sha256, content_type, name, size, uploaded_at, legacy_path)
+        values (${LEGACY_FILE_KEY}, ${LEGACY_FILE_HASH}, 'image/png', 'e2e.png', 10, now(), ${legacyPath})`
+  );
+
+export const forgetLegacyFile = Effect.flatMap(
+  SqlClient,
+  (sql) => sql`delete from public_file where key = ${LEGACY_FILE_KEY}`
+);

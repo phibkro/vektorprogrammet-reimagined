@@ -33,10 +33,11 @@ export const screenshot = async (page: Page, name: string) => {
 /**
  * Runs in the page, where Effect is not loaded, so it is a source string rather than a function. React marks
  * every DOM node it has hydrated with a `__reactFiber$…` key; the page is interactive when every control in
- * `main` has one.
+ * `main` has one. The elements inside Turnstile's widget are Cloudflare's script's, not React's, so they never
+ * have one.
  */
 const INTERACTIVE_CONTENT_IS_HYDRATED =
-  "[...document.querySelectorAll('main :is(a, button, form, input, select, textarea)')].every((element) => Object.keys(element).some((key) => key.startsWith('__reactFiber$')))";
+  "[...document.querySelectorAll('main :is(a, button, form, input, select, textarea):not([data-turnstile] *)')].every((element) => Object.keys(element).some((key) => key.startsWith('__reactFiber$')))";
 
 /**
  * Opens a page and waits until its controls are hydrated. The server renders every control the specs use,

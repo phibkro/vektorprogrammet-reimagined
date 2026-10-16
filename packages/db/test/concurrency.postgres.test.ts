@@ -4,23 +4,15 @@
  * - RULE-237: 20 concurrent `ensure` calls yield exactly one row.
  * - Negative control: the same check against a schema without the unique
  *   (term, year) constraint must fail, proving the constraint carries it.
- * - RULE-096: concurrent article creates with the same slug both succeed with distinct slugs.
  */
 import { assert, layer } from "@effect/vitest";
-import {
-  ArticleRepository,
-  SemesterRepository,
-  Slug,
-  UserId,
-  sanitizeRichText,
-} from "@vektorprogrammet/domain";
+import { SemesterRepository } from "@vektorprogrammet/domain";
 import type { Semester } from "@vektorprogrammet/domain";
 import { and, eq, sql } from "drizzle-orm";
-import { Array as Arr, Deferred, Effect, Exit, Order, pipe } from "effect";
+import { Array as Arr, Deferred, Effect, Exit, pipe } from "effect";
 
-import { schema, transactional } from "../src/index.ts";
+import { schema } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
-import { AT, fileKey, registerImages } from "./support/fixtures.ts";
 
 const CALLERS = 20;
 
@@ -91,50 +83,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           assert.strictEqual(yield* db.$count(schema.semester), 1);
           assert.isTrue(pipe(outcome.exits, Arr.every(Exit.isSuccess)));
           assert.isTrue(outcome.holds);
-        })
-    );
-
-    it.effect(
-      "RULE-096: concurrent creates of the same slug in separate transactions get distinct slugs",
-      () =>
-        Effect.gen(function* effectProgram() {
-          yield* registerImages(fileKey("1"), fileKey("2"));
-          const articles = yield* ArticleRepository;
-
-          const draft = {
-            authorId: UserId.make(42),
-            body: sanitizeRichText("<p>Søk nå</p>"),
-            createdAt: AT,
-            departmentIds: [],
-            imageLargeKey: fileKey("2"),
-            imageSmallKey: fileKey("1"),
-            published: true,
-            slug: Slug.make("opptak-apner"),
-            sticky: false,
-            title: "Opptak åpner",
-          };
-
-          // Two editors pick "opptak-apner" from the same read; the constraint and one retry settle it.
-          const exits = yield* Effect.all(
-            [
-              transactional(articles.create(draft)),
-              transactional(articles.create(draft)),
-            ],
-            { concurrency: "unbounded" }
-          ).pipe(Effect.exit);
-
-          assert.isTrue(Exit.isSuccess(exits));
-
-          if (Exit.isSuccess(exits)) {
-            assert.deepStrictEqual(
-              pipe(
-                exits.value,
-                Arr.map((article) => article.slug),
-                Arr.sortBy<readonly string[]>(Order.String)
-              ),
-              ["opptak-apner", "opptak-apner-2"]
-            );
-          }
         })
     );
   }

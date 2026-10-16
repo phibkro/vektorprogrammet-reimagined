@@ -8,6 +8,7 @@ import type { Effect, Option } from "effect";
 
 import type { AlreadyExists, NotFound } from "../shared/errors.ts";
 import type { DepartmentId, FieldOfStudyId } from "../shared/ids.ts";
+import type { AdmissionPeriod } from "./admission.ts";
 import type { Department, DepartmentDraft } from "./department.ts";
 import type { FieldOfStudy, FieldOfStudyDraft } from "./fieldOfStudy.ts";
 import type { Semester, StoredSemester } from "./semester.ts";
@@ -64,3 +65,15 @@ export class FieldOfStudyRepository extends Context.Service<
     ) => Effect.Effect<FieldOfStudy, NotFound>;
   }
 >()("@vektorprogrammet/domain/organisation/FieldOfStudyRepository") {}
+
+/**
+ * The admission periods of every department. Read-only: Phase 1 imports them and the public site reads
+ * whether admission is open (`hasOpenAdmission`); the editor and the writes are Phase 3.
+ */
+export class AdmissionPeriodRepository extends Context.Service<
+  AdmissionPeriodRepository,
+  {
+    /** Unordered; the caller groups them by department. */
+    readonly list: Effect.Effect<readonly AdmissionPeriod[]>;
+  }
+>()("@vektorprogrammet/domain/organisation/AdmissionPeriodRepository") {}

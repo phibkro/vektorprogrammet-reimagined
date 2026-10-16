@@ -26,19 +26,20 @@ export const runInTransaction = <A, E, R>(program: Effect.Effect<A, E, R>) =>
 | Needs `InTransaction` (wrap with the runner) | Runs outside a transaction |
 | --- | --- |
 | `createDepartment`, `updateDepartment`, `createFieldOfStudy`, `renameFieldOfStudy` | `ensureScheduledSemesters` (the cron job: two atomic upserts; not a staff write, no audit), `currentSemester` and `findCurrentSemester` (reads) |
-| `updateStaticContent`, `createArticle`, `setArticlePublished`, `createSponsor`, `createSocialEvent` | `storeUpload` (R2 put; **must not** be in a transaction) |
-| `registerPublicFile`, `submitContact` | queries: `listSemestersNewestFirst`, `listFieldsOfStudy`, `getStaticContent`, `getPublicArticle`, `loadFrontPageNews`, `loadNewsPage`, `listSponsorsForFooter`, `servePublicFile`, `resolveLegacyFilePath` |
+| `createSocialEvent`, `registerPublicFile`, `submitContact` | `storeUpload` (R2 put; **must not** be in a transaction); queries: `listSemestersNewestFirst`, `listFieldsOfStudy`, `servePublicFile`, `resolveLegacyFilePath` |
+
+The pure rules of the public pages (`selectFrontPageNews`, `paginate`, `sortSponsorsForFooter`, `slugify`) take already-read rows: the news, texts and sponsors come from the CMS (spec 0005), not from a repository.
 
 Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; pass it to `registerPublicFile` inside the runner. Keys are content hashes, so an orphaned or repeated put is harmless.
 
 ## Repository contract
 
 - Methods require nothing and fail only with the listed domain errors. Everything else (lost connection, unexpected SQL state) is a defect (`Effect.orDie` after `classifySqlFailure`).
-- Unique constraints map to `AlreadyExists` (entity, key, Norwegian message): department `city`, article `slug`. Commands may replace the message.
+- Unique constraints map to `AlreadyExists` (entity, key, Norwegian message): department `city`. Commands may replace the message.
 - `SemesterRepository.ensure` is `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`, one statement that returns the existing row too, so concurrent callers all get the one row (RULE-237, spec 0001 R1). Only `ensureScheduledSemesters`, run by the Worker's `scheduled` handler, calls it (spec 0003): the current semester and its successor `nextSemester` (RULE-050). A read asks `currentSemester` (pure: calendar and `Clock`) or `findCurrentSemester` (the row, `None` until the job has written it); it never inserts.
 - `PublicFileRepository.register` is idempotent on `key`.
-- Repositories do not order rows; rule functions do (`sortNewestFirst`, `selectFrontPageNews`, `sortSponsorsForFooter`).
-- Decode rows with the domain schemas (`Department`, `StoredSemester`, `Article`, `StaticContent`, `Sponsor`, `SocialEvent`, `PublicFile`, `OutboxMessage`, `AuditEntry`). `Article.body` and `StaticContent.html` use `SanitizedHtmlFromString`, which re-sanitizes stored HTML on every read (RULE-133 replacement: sanitize on save and on render).
+- Repositories do not order rows; rule functions do (`sortNewestFirst`).
+- Decode rows with the domain schemas (`Department`, `StoredSemester`, `SocialEvent`, `PublicFile`, `OutboxMessage`, `AuditEntry`).
 - `timestamptz` ↔ `DateTime.Utc`. The calendar zone (Europe/Oslo) is applied by the rule functions, never by the database.
 
 ## Per-request services `apps/web` provides

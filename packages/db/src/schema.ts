@@ -2,8 +2,8 @@
  * The Phase 1 PostgreSQL schema: the single source for the tables. Migrations in
  * `drizzle/` are generated from this file by `drizzle-kit generate`.
  *
- * Closed value sets (semester terms, sponsor sizes, content types, audit
- * actions, entity names, outbox kinds) are read from `@vektorprogrammet/domain`,
+ * Closed value sets (semester terms, content types, audit actions, entity
+ * names, outbox kinds) are read from `@vektorprogrammet/domain`,
  * so the database constraints and the domain schemas cannot disagree.
  *
  * Conventions:
@@ -18,7 +18,6 @@ import {
   EntityName,
   FileExtension,
   OutboxMessage,
-  SponsorSize,
   StoredContentType,
   Term,
 } from "@vektorprogrammet/domain";
@@ -33,7 +32,6 @@ import {
   jsonb,
   pgEnum,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   unique,
@@ -54,8 +52,6 @@ const instant = (name: string) =>
 
 export const semesterTerm = pgEnum("semester_term", Term.literals);
 
-export const sponsorSize = pgEnum("sponsor_size", SponsorSize.literals);
-
 export const outboxStatus = pgEnum("outbox_status", [
   "pending",
   "delivered",
@@ -64,7 +60,6 @@ export const outboxStatus = pgEnum("outbox_status", [
 
 /** Unique constraint names; `classifySqlFailure` maps each to `AlreadyExists`. */
 export const UniqueConstraint = {
-  articleSlug: "article_slug_unique",
   departmentCity: "department_city_unique",
   semesterTermYear: "semester_term_year_unique",
 } as const;
@@ -177,76 +172,6 @@ export const admissionPeriod = pgTable(
   (t) => [
     index("admission_period_department_idx").on(t.departmentId, t.semesterId),
     check("admission_period_window", sql`${t.endsAt} > ${t.startsAt}`),
-  ]
-);
-
-/** C5 news articles. The slug is unique (RULE-096); images are registered files. */
-export const article = pgTable(
-  "article",
-  {
-    /** Legacy user id; no foreign key until Phase 2 adds users. */
-    authorId: integer("author_id"),
-    body: text("body").notNull(),
-    createdAt: instant("created_at").notNull(),
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    imageLargeKey: text("image_large_key")
-      .notNull()
-      .references(() => publicFile.key),
-    imageSmallKey: text("image_small_key")
-      .notNull()
-      .references(() => publicFile.key),
-    published: boolean("published").notNull().default(false),
-    slug: varchar("slug", { length: 255 }).notNull(),
-    sticky: boolean("sticky").notNull().default(false),
-    title: text("title").notNull(),
-  },
-  (t) => [
-    unique(UniqueConstraint.articleSlug).on(t.slug),
-    check("article_slug_format", sql`${t.slug} ~ '^[a-z0-9-]+$'`),
-    check("article_title", sql`length(${t.title}) > 0`),
-  ]
-);
-
-/** C5 article tags. No rows means "all departments". */
-export const articleDepartment = pgTable(
-  "article_department",
-  {
-    articleId: integer("article_id")
-      .notNull()
-      .references(() => article.id, { onDelete: "cascade" }),
-    departmentId: integer("department_id")
-      .notNull()
-      .references(() => department.id),
-  },
-  (t) => [
-    primaryKey({ columns: [t.articleId, t.departmentId] }),
-    index("article_department_department_idx").on(t.departmentId),
-  ]
-);
-
-/** C4 editable static text blocks, keyed by the legacy `html_id`. */
-export const staticContent = pgTable(
-  "static_content",
-  {
-    html: text("html").notNull(),
-    key: varchar("key", { length: 50 }).primaryKey(),
-  },
-  (t) => [check("static_content_key", sql`length(${t.key}) > 0`)]
-);
-
-/** C6 sponsors (RULE-189). */
-export const sponsor = pgTable(
-  "sponsor",
-  {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    logoKey: text("logo_key").references(() => publicFile.key),
-    name: text("name").notNull(),
-    size: sponsorSize("size").notNull(),
-    url: text("url").notNull(),
-  },
-  (t) => [
-    check("sponsor_name", sql`length(${t.name}) > 0`),
-    check("sponsor_url", sql`${t.url} ~ '^https?://'`),
   ]
 );
 
