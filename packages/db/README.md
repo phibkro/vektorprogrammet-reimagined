@@ -1,56 +1,35 @@
 # @vektorprogrammet/db
 
-PostgreSQL for Phase 1: the Drizzle schema (single source), the generated
-migrations, and the Layers that implement `@vektorprogrammet/domain`'s
-repository services, the outbox and the audit log. Built on `@effect/sql-pg`
-and Drizzle `effect-postgres`. Consumers import only from the package root.
+PostgreSQL for Phase 1: the Drizzle schema (single source), the generated migrations, and the Layers that implement `@vektorprogrammet/domain`'s repository services, the outbox and the audit log. Built on `@effect/sql-pg` and Drizzle `effect-postgres`. Consumers import only from the package root.
 
 ## Public API (`src/index.ts`)
 
-| Export                                                  | What it is                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `schema`                                                | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `article`, `articleDepartment`, `staticContent`, `sponsor`, `socialEvent`, `publicFile`, `outbox`, `auditLog`, and the enums `semesterTerm`, `sponsorSize`, `outboxStatus`. TS names are camelCase, SQL names snake_case.   |
-| `UniqueConstraint`                                      | The unique constraint names (`department_city_unique`, `semester_term_year_unique`, `article_slug_unique`).                                                                                                                                                                                                        |
-| `DatabaseLive({ url, maxConnections? })`                | `Layer<DepartmentRepository \| SemesterRepository \| FieldOfStudyRepository \| ArticleRepository \| StaticContentRepository \| SponsorRepository \| SocialEventRepository \| PublicFileRepository \| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
-| `transactional(effect)`                                 | Runs the effect in `SqlClient.withTransaction` (a savepoint when nested) and provides `InTransaction`. The only provider of `InTransaction`. A typed failure, a defect or an interruption rolls back every row, including audit and outbox rows. A failing BEGIN/COMMIT is a defect.                               |
-| `OutboxDelivery`                                        | `claimDue({ limit, leaseSeconds, ids? })`, `markDelivered(id, claimToken)`, `markFailed(id, claimToken, error, nextAttemptAt \| "dead")`. Acknowledgements return `"recorded"` or `"claimLost"`.                                                                                                                   |
-| `ClaimedOutboxMessage`, `OutboxClaimToken`, `OutboxAck` | The delivery-side schemas and types.                                                                                                                                                                                                                                                                               |
-| `classifySqlFailure(failure, key)`                      | `Exit.fail(AlreadyExists)` for a unique violation of a known constraint, `Exit.die(failure)` for anything else. It unwraps Drizzle's `EffectDrizzleQueryError` to the `SqlError`.                                                                                                                                  |
-| `violatedUniqueConstraint(failure)`                     | The violated unique constraint name, if any (for the importer's quarantine report).                                                                                                                                                                                                                                |
+| Export | What it is |
+| --- | --- |
+| `schema` | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `article`, `articleDepartment`, `staticContent`, `sponsor`, `socialEvent`, `publicFile`, `outbox`, `auditLog`, and the enums `semesterTerm`, `sponsorSize`, `outboxStatus`. TS names are camelCase, SQL names snake_case. |
+| `UniqueConstraint` | The unique constraint names (`department_city_unique`, `semester_term_year_unique`, `article_slug_unique`). |
+| `DatabaseLive({ url, maxConnections? })` | `Layer<DepartmentRepository \| SemesterRepository \| FieldOfStudyRepository \| ArticleRepository \| StaticContentRepository \| SponsorRepository \| SocialEventRepository \| PublicFileRepository \| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
+| `transactional(effect)` | Runs the effect in `SqlClient.withTransaction` (a savepoint when nested) and provides `InTransaction`. The only provider of `InTransaction`. A typed failure, a defect or an interruption rolls back every row, including audit and outbox rows. A failing BEGIN/COMMIT is a defect. |
+| `OutboxDelivery` | `claimDue({ limit, leaseSeconds, ids? })`, `markDelivered(id, claimToken)`, `markFailed(id, claimToken, error, nextAttemptAt \| "dead")`. Acknowledgements return `"recorded"` or `"claimLost"`. |
+| `ClaimedOutboxMessage`, `OutboxClaimToken`, `OutboxAck` | The delivery-side schemas and types. |
+| `classifySqlFailure(failure, key)` | `Exit.fail(AlreadyExists)` for a unique violation of a known constraint, `Exit.die(failure)` for anything else. It unwraps Drizzle's `EffectDrizzleQueryError` to the `SqlError`. |
+| `violatedUniqueConstraint(failure)` | The violated unique constraint name, if any (for the importer's quarantine report). |
 
 ### Repository behaviour
 
-- Every method fails only with the domain errors its interface lists.
-  Infrastructure failures, check or foreign-key violations, and stored rows that
-  fail to decode are defects.
-- Rows decode through the domain schemas. Stored rich text is sanitized again on
-  every read (RULE-133 replacement).
-- `SemesterRepository.create` (RULE-144) is one `INSERT … ON CONFLICT (term,
-  year) DO NOTHING RETURNING`. No row means `AlreadyExists` with
-  "Semesteret Høst 2026 finnes allerede".
-- `SemesterRepository.ensure` (RULE-237) is one `INSERT … ON CONFLICT (term,
-  year) DO UPDATE SET term = EXCLUDED.term RETURNING`, so it always returns the
-  single row.
-- `ArticleRepository.create` (RULE-096): if the unique slug constraint refuses
-  the insert, the method reads the taken slugs again and retries once with the
-  next suffix. Each attempt runs in a savepoint, so the caller's transaction
-  survives. A second collision is `AlreadyExists`.
-- `PublicFileRepository.register` is idempotent on `key`, and the stored row
-  wins. Deleted files (`deleted_at`) never resolve.
-- Outbox delivery is at least once. Rows are claimed in id order with
-  `FOR UPDATE SKIP LOCKED` inside one `UPDATE … RETURNING`. A claim token fences
-  every acknowledgement. The caller chooses the retry schedule and when a row is
-  dead. Every timestamp comes from Effect's `Clock`.
+- Every method fails only with the domain errors its interface lists. Infrastructure failures, check or foreign-key violations, and stored rows that fail to decode are defects.
+- Rows decode through the domain schemas. Stored rich text is sanitized again on every read (RULE-133 replacement).
+- `SemesterRepository.create` (RULE-144) is one `INSERT … ON CONFLICT (term, year) DO NOTHING RETURNING`. No row means `AlreadyExists` with "Semesteret Høst 2026 finnes allerede".
+- `SemesterRepository.ensure` (RULE-237) is one `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING`, so it always returns the single row.
+- `ArticleRepository.create` (RULE-096): if the unique slug constraint refuses the insert, the method reads the taken slugs again and retries once with the next suffix. Each attempt runs in a savepoint, so the caller's transaction survives. A second collision is `AlreadyExists`.
+- `PublicFileRepository.register` is idempotent on `key`, and the stored row wins. Deleted files (`deleted_at`) never resolve.
+- Outbox delivery is at least once. Rows are claimed in id order with `FOR UPDATE SKIP LOCKED` inside one `UPDATE … RETURNING`. A claim token fences every acknowledgement. The caller chooses the retry schedule and when a row is dead. Every timestamp comes from Effect's `Clock`.
 
 ## Hyperdrive rules
 
-- `PgClient` runs with `prepare: false` (Hyperdrive pools in transaction mode),
-  `multiplex: false`, and a small `maxConnections`. The settings live in
-  `DatabaseLive`.
-- This package uses no advisory locks, no LISTEN/NOTIFY and no session `SET`.
-  Invariants come from constraints, `ON CONFLICT … RETURNING` and row locks.
-- Transactions are short and never contain provider I/O. Commands enqueue
-  outbox rows, and delivery happens after commit.
+- `PgClient` runs with `prepare: false` (Hyperdrive pools in transaction mode), `multiplex: false`, and a small `maxConnections`. The settings live in `DatabaseLive`.
+- This package uses no advisory locks, no LISTEN/NOTIFY and no session `SET`. Invariants come from constraints, `ON CONFLICT … RETURNING` and row locks.
+- Transactions are short and never contain provider I/O. Commands enqueue outbox rows, and delivery happens after commit.
 - Turn Hyperdrive query caching off (architecture §4).
 
 ## Migrations
@@ -63,9 +42,7 @@ devenv shell -- bash -c 'cd packages/db && bunx drizzle-kit check'              
 devenv shell -- bash -c 'cd packages/db && bunx drizzle-kit migrate'                   # applies to $DATABASE_URL
 ```
 
-`drizzle.config.ts` reads the target only from `DATABASE_URL`. For a Neon
-branch, export that branch's direct (non-Hyperdrive) URL in your shell. Never
-store it in a file.
+`drizzle.config.ts` reads the target only from `DATABASE_URL`. For a Neon branch, export that branch's direct (non-Hyperdrive) URL in your shell. Never store it in a file.
 
 ## Tests
 
@@ -74,43 +51,18 @@ devenv shell -- bash -c 'cd packages/db && bunx vp test'   # PGlite and real Pos
 devenv shell -- bash -c 'cd packages/db && bunx vp check'  # format, lint, type check
 ```
 
-- `*.pglite.test.ts`: the production `RepositoriesLayer` and the generated
-  migrations on an in-memory PGlite (`drizzle-orm/effect-pglite` and
-  `@effect/sql-pglite`).
-- `*.postgres.test.ts`: devenv's PostgreSQL 17 through `DatabaseLive`. Each
-  suite creates `vp_db_test_<random>` through `TEST_DATABASE_ADMIN_URL`,
-  applies the migrations, and drops the database when the suite ends. The
-  suite never uses the `vektorprogrammet` database. A missing
-  `TEST_DATABASE_ADMIN_URL` fails the suite and does not skip it. A run that
-  is killed before cleanup leaves its database behind. Drop leftovers with:
-  `psql "$TEST_DATABASE_ADMIN_URL" -Atc "select datname from pg_database where datname like 'vp_db_test_%'"`.
-- Build the PostgreSQL layer with `excludeTestServices: true`. The pool reads
-  the Clock it was built with to track connection age. When a test moved a
-  shared `TestClock`, the suite hung. Tests that need fixed time nest
-  `it.layer(TestClock.layer())`.
+- `*.pglite.test.ts`: the production `RepositoriesLayer` and the generated migrations on an in-memory PGlite (`drizzle-orm/effect-pglite` and `@effect/sql-pglite`).
+- `*.postgres.test.ts`: devenv's PostgreSQL 17 through `DatabaseLive`. Each suite creates `vp_db_test_<random>` through `TEST_DATABASE_ADMIN_URL`, applies the migrations, and drops the database when the suite ends. The suite never uses the `vektorprogrammet` database. A missing `TEST_DATABASE_ADMIN_URL` fails the suite and does not skip it. A run that is killed before cleanup leaves its database behind. Drop leftovers with: `psql "$TEST_DATABASE_ADMIN_URL" -Atc "select datname from pg_database where datname like 'vp_db_test_%'"`.
+- Build the PostgreSQL layer with `excludeTestServices: true`. The pool reads the Clock it was built with to track connection age. When a test moved a shared `TestClock`, the suite hung. Tests that need fixed time nest `it.layer(TestClock.layer())`.
 
-Each Behavior Contract rule that the database enforces is covered by a test
-whose name contains the rule id. These rules are RULE-096, 133, 144, 188, 189,
-237, 249, 290 and 296.
+Each Behavior Contract rule that the database enforces is covered by a test whose name contains the rule id. These rules are RULE-096, 133, 144, 188, 189, 237, 249, 290 and 296.
 
 ## Version pin: Drizzle `1.0.0-rc.5-5935859` (registered exception DB-001)
 
-- **Scope:** `drizzle-orm` and `drizzle-kit` are pinned to the preview build
-  `1.0.0-rc.5-5935859` (npm dist-tag `rc5`) in the root catalog.
-- **Missing capability:** the published `1.0.0-rc.4` does not load
-  `drizzle-orm/effect-postgres` or `effect-pglite` with effect 4.0.5. It fails
-  with `TypeError: Schema$1.TaggedErrorClass is not a function`, because
-  effect 4.0 GA renamed the API to `Schema.TaggedError`. The rc5 build uses
-  `Schema.TaggedError`.
-- **Remaining defect:** the `.d.ts` files in rc5 still import
-  `effect/unstable/sql/SqlError`. That path no longer exists, so Drizzle's
-  `transaction` and `migrate` error types resolve to `any`. This package uses
-  neither in production code. Transactions go through `SqlClient.withTransaction`.
-- **Verification:** `bunx vp test` in this package. Both Drizzle drivers load
-  and run against PGlite and PostgreSQL 17.
-- **Retirement trigger:** a published Drizzle 1.0.0 that supports effect 4.0 GA.
-  When it ships, move the catalog to it and run this suite.
+- **Scope:** `drizzle-orm` and `drizzle-kit` are pinned to the preview build `1.0.0-rc.5-5935859` (npm dist-tag `rc5`) in the root catalog.
+- **Missing capability:** the published `1.0.0-rc.4` does not load `drizzle-orm/effect-postgres` or `effect-pglite` with effect 4.0.5. It fails with `TypeError: Schema$1.TaggedErrorClass is not a function`, because effect 4.0 GA renamed the API to `Schema.TaggedError`. The rc5 build uses `Schema.TaggedError`.
+- **Remaining defect:** the `.d.ts` files in rc5 still import `effect/unstable/sql/SqlError`. That path no longer exists, so Drizzle's `transaction` and `migrate` error types resolve to `any`. This package uses neither in production code. Transactions go through `SqlClient.withTransaction`.
+- **Verification:** `bunx vp test` in this package. Both Drizzle drivers load and run against PGlite and PostgreSQL 17.
+- **Retirement trigger:** a published Drizzle 1.0.0 that supports effect 4.0 GA. When it ships, move the catalog to it and run this suite.
 
-A related Drizzle behaviour shapes the schema: Drizzle selects `bigint` columns
-as `::text`. That breaks `id IN (subquery)` in the outbox claim. For this
-reason the outbox and audit ids are `integer` identities.
+A related Drizzle behaviour shapes the schema: Drizzle selects `bigint` columns as `::text`. That breaks `id IN (subquery)` in the outbox claim. For this reason the outbox and audit ids are `integer` identities.

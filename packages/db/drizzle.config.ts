@@ -1,11 +1,15 @@
 import { defineConfig } from "drizzle-kit";
+import { Config, Effect, Option } from "effect";
 
 // `generate` needs no connection; `migrate` reads the target from the environment only.
-const url = process.env.DATABASE_URL;
+const url = Effect.runSync(Config.option(Config.String("DATABASE_URL")));
 
-export default defineConfig({
+const base = {
   dialect: "postgresql",
-  schema: "./src/schema.ts",
   out: "./drizzle",
-  ...(url === undefined ? {} : { dbCredentials: { url } }),
-});
+  schema: "./src/schema.ts",
+} as const;
+
+export default defineConfig(
+  Option.isSome(url) ? { ...base, dbCredentials: { url: url.value } } : base
+);
