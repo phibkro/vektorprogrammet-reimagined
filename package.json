@@ -9,10 +9,28 @@
   ],
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run @vektorprogrammet/web#dev"
+    "prepare": "vp config --no-agent && effect-tsgo patch --typescript --oxlint",
+    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build",
+    "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
+    "knip": "knip",
+    "cpd": "jscpd --config .jscpd.json apps packages tools",
+    "secrets": "gitleaks git --config .gitleaks.toml --redact",
+    "dev": "vp run @vektorprogrammet/web#dev",
+    "commitlint": "commitlint"
   },
   "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "@effect/language-service": "catalog:",
+    "@effect/tsgo": "0.53.1",
+    "@phibkro/oxlint-effect-plugin": "0.2.0",
+    "@shadcn/lint": "0.2.1",
+    "jscpd": "5.4.1",
+    "knip": "6.41.0",
+    "oxc-parser": "catalog:",
+    "oxlint-plugin-complexity": "4.0.0",
+    "typescript": "catalog:",
+    "ultracite": "8.0.1",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },
@@ -40,6 +58,7 @@
     "@effect/sql-mysql2": "4.0.5",
     "@effect/platform-node": "4.0.5",
     "@effect/vitest": "4.0.5",
+    "@effect/language-service": "0.87.4",
     "@electric-sql/pglite": "0.5.10",
     "drizzle-orm": "1.0.0-rc.5-5935859",
     "drizzle-kit": "1.0.0-rc.5-5935859",
@@ -51,6 +70,7 @@
     "@types/sanitize-html": "2.16.2",
     "@cloudflare/vite-plugin": "1.64.0",
     "@cloudflare/workers-types": "5.20261015.1",
+    "oxc-parser": "0.153.0",
     "alchemy": "2.0.0-beta.83"
   }
 }

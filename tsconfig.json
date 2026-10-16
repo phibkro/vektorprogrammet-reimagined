@@ -4,6 +4,58 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
-    "esModuleInterop": true
-  }
+    "esModuleInterop": true,
+    "strict": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnostics": false,
+        "allowedUnstableApis": [
+          "@effect/platform-node/NodeRuntime#runMain",
+          "@effect/platform-node/NodeServices#layer",
+          "@effect/sql-mysql2/MysqlClient#MysqlClient",
+          "@effect/sql-mysql2/MysqlClient#layer",
+          "@effect/sql-pg/PgClient#PgClient",
+          "@effect/sql-pg/PgClient#layer",
+          "@effect/sql-pg/PgClient#make",
+          "@effect/sql-pglite/PgliteClient#layer",
+          "@effect/vitest#it",
+          "@effect/vitest#layer",
+          "effect/Crypto#Crypto",
+          "effect/Crypto#make",
+          "effect/FileSystem#FileSystem",
+          "effect/Path#Path",
+          "effect/cli/Command#make",
+          "effect/cli/Command#run",
+          "effect/cli/Command#withDescription",
+          "effect/cli/Flag#Boolean",
+          "effect/cli/Flag#Directory",
+          "effect/cli/Flag#withDefault",
+          "effect/cli/Flag#withDescription",
+          "effect/http/FetchHttpClient#layer",
+          "effect/http/HttpClient#HttpClient",
+          "effect/http/HttpClient#filterStatusOk",
+          "effect/http/HttpClient#make",
+          "effect/http/HttpClientRequest#bodyJsonUnsafe",
+          "effect/http/HttpClientRequest#bodyUrlParams",
+          "effect/http/HttpClientRequest#post",
+          "effect/http/HttpClientResponse#fromWeb",
+          "effect/http/HttpClientResponse#schemaBodyJson",
+          "effect/process/ChildProcess#make",
+          "effect/process/ChildProcessSpawner#ChildProcessSpawner",
+          "effect/process/ChildProcessSpawner#ExitCode",
+          "effect/reactivity/Reactivity#layer",
+          "effect/sql/SqlClient#SqlClient",
+          "effect/sql/SqlError#SqlError",
+          "effect/sql/SqlError#isSqlError"
+        ]
+      }
+    ]
+  },
+  "include": [
+    "vite.config.ts",
+    "commitlint.config.ts",
+    "tools/oxlint/**/*.ts",
+    "tools/quality/**/*.ts"
+  ]
 }

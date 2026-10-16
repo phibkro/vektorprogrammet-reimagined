@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
     "module": "nodenext",
@@ -16,5 +17,10 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test", "vite.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "vite.config.ts",
+    "../../packages/db/src/drizzleSqlErrorCompat.d.ts"
+  ]
 }

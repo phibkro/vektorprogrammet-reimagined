@@ -1,0 +1,7 @@
+#!/bin/sh
+# commitlint runs with the repository's pinned Node/Bun toolchain inside devenv.
+set -eu
+if [ -z "${DEVENV_ROOT:-}" ]; then
+  exec devenv shell -- sh "$0" "$@"
+fi
+bun run commitlint --edit "$1"

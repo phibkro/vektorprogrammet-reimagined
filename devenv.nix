@@ -6,9 +6,13 @@ let
 in
 {
   # Toolchain. Vite+ needs Node >= 22.18 (root package.json engines).
+  # gitleaks scans staged changes (pre-commit hook) and the full history (CI) for secrets and
+  # personal data; its rules live in .gitleaks.toml. The git hooks and CI resolve every tool
+  # (vp, gitleaks, commitlint) from this shell's PATH, so they run in the same pinned toolchain.
   packages = [
     pkgs.bun
     pkgs.nodejs_24
+    pkgs.gitleaks
   ];
 
   # Local stand-in for Neon (PostgreSQL 17). Port 54321 avoids a system PostgreSQL on 5432.

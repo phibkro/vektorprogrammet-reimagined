@@ -1,0 +1,19 @@
+{
+  "source": "https://github.com/vektorprogrammet/mono-web",
+  "commit": "2aa6ce9733cf6255bd330ff2f23ea958d939c57d",
+  "path": "tools/oxlint/anti-slop",
+  "upstream": {
+    "source": "https://github.com/dmmulroy/anti-slop",
+    "commit": "c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b"
+  },
+  "deviations": [
+    "Retained upstream UPSTREAM.txt, MIT license, and upstream rule sources; local plugins use Vite+' s bundled vite-plus/lint/plugins API instead of separately pinned oxlint.",
+    "Dropped mono-web-specific no-leadership-reach: its unit-leadership domain semantics do not exist in this project.",
+    "Dropped mono-web-specific no-git-history: this project has no depth-1 hosted journey contract.",
+    "Dropped mono-web-specific no-literal-window-instant: this project does not use mono-web's journey clock/window fixture conventions.",
+    "Dropped mono-web-specific no-raw-advisory-lock-sql: this project's architecture forbids advisory locks outright; the rule is tied to mono-web's lockAdvisory construct.",
+    "Dropped mono-web-specific no-json-text-parameter: this rule is tied to mono-web's canonicalJsonValue and Database encoding APIs.",
+    "Dropped mono-web-specific no-hand-rolled-postgres: this rule is tied to mono-web's startDisposablePostgres construct.",
+    "Dropped mono-web-specific no-port-probe: this rule is tied to mono-web's reserveLoopbackPorts harness."
+  ]
+}
