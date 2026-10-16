@@ -44,6 +44,7 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/routes/kontrollpanel/linjer.tsx",
         "apps/web/src/routes/kontrollpanel/arrangementer.tsx",
         "apps/web/src/routes/kontrollpanel/artikler.tsx",
+        "apps/web/src/routes/kontrollpanel/index.tsx",
         "apps/web/src/routes/kontrollpanel/route.tsx",
         "apps/web/src/routes/nyhet/**",
         "apps/web/src/routes/filer/**",
@@ -61,6 +62,7 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/server/webCrypto.ts",
         "apps/web/src/server/rateLimit.ts",
         "apps/web/src/server/panel.ts",
+        "apps/web/src/server/shell.ts",
         "apps/web/src/server/pages.ts",
         "apps/web/src/server/turnstile.ts",
         "apps/web/src/server/outboxDelivery.ts",
@@ -77,7 +79,7 @@ const effectConfig: EffectConfigInput = {
     },
     {
       files: [
-        "apps/web/src/routes/kontrollpanel/index.tsx",
+        "apps/web/src/components/panel/testActorSwitch.tsx",
         "apps/web/src/components/ui/sidebar.tsx",
         "apps/web/src/hooks/**",
       ],
@@ -316,6 +318,7 @@ export default defineConfig({
           "apps/web/src/routes/index.tsx",
           "apps/web/src/routes/kontrollpanel/arrangementer.tsx",
           "apps/web/src/routes/kontrollpanel/index.tsx",
+          "apps/web/src/routes/kontrollpanel/route.tsx",
           "apps/web/src/routes/kontrollpanel/avdelinger.tsx",
           "apps/web/src/routes/kontrollpanel/linjer.tsx",
           "apps/web/src/routes/kontrollpanel/artikler.tsx",
@@ -459,6 +462,7 @@ export default defineConfig({
           "apps/web/src/routes/nyheter/$department.tsx",
           "apps/web/src/routes/nyheter/index.tsx",
           "apps/web/src/routes/kontrollpanel/index.tsx",
+          "apps/web/src/routes/kontrollpanel/route.tsx",
           "apps/web/src/routes/filer/$key.ts",
           "apps/web/src/routes/kontrollpanel/statisk-innhold.tsx",
           "apps/web/src/routes/kontrollpanel/avdelinger.tsx",
@@ -468,6 +472,7 @@ export default defineConfig({
           "apps/web/src/routes/kontrollpanel/sponsorer.tsx",
           "apps/web/src/routes/kontakt/index.tsx",
           "apps/web/src/components/forms.tsx",
+          "apps/web/src/components/panel/testActorSwitch.tsx",
           "apps/web/src/server/outcomeStatus.ts",
           "tools/db-path-spike/src/worker.ts",
           "apps/web/e2e/support/probes.ts",
@@ -516,6 +521,7 @@ export default defineConfig({
           "tools/db-path-spike/test/worker.postgres.test.ts",
           "tools/db-path-spike/test/pure.test.ts",
           "apps/web/e2e/journey.spec.ts",
+          "apps/web/e2e/shell.spec.ts",
           "apps/web/e2e/support/panel.ts",
         ],
         rules: { "effecttsgo/async-function": "off" },
@@ -567,8 +573,8 @@ export default defineConfig({
         rules: { "unicorn/prefer-structured-clone": "off" },
       },
       {
-        // Playwright actions on one page must run in order: every `fill` moves the focus, so filling fields concurrently types into the wrong ones.
-        files: ["apps/web/e2e/support/panel.ts"],
+        // Playwright actions on one page must run in order: every `fill` moves the focus, so filling fields concurrently types into the wrong ones, and a spec visits its pages one after another.
+        files: ["apps/web/e2e/support/panel.ts", "apps/web/e2e/shell.spec.ts"],
         rules: { "no-await-in-loop": "off" },
       },
     ],

@@ -8,6 +8,7 @@
  */
 import {
   ArticleRepository,
+  Capability,
   CurrentActor,
   DepartmentId,
   DepartmentRepository,
@@ -16,6 +17,7 @@ import {
   SemesterOrder,
   SocialEventRepository,
   StaticContentKey,
+  authorize,
   createDepartment,
   createFieldOfStudy,
   currentSemester,
@@ -52,6 +54,7 @@ import {
 } from "effect";
 
 import { STATIC_BLOCKS } from "./pages";
+import { actorSummary } from "./shell";
 
 // ---------------------------------------------------------------- form text
 
@@ -202,12 +205,21 @@ export interface DepartmentRow {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly logoKey: string | null;
+  /** Whether the actor holds `UpdateDepartment` for this department: the page offers the edit form only then. */
+  readonly canEdit: boolean;
 }
 
 /** Everything the edit form needs, so saving a department never blanks a field it did not show. */
-const departmentRow = (department: Department): DepartmentRow => ({
+const departmentRow = (
+  actor: Actor,
+  department: Department
+): DepartmentRow => ({
   active: department.active,
   address: department.address,
+  canEdit: authorize(
+    actor,
+    Capability.UpdateDepartment({ departmentId: department.id })
+  ),
   city: department.city,
   email: department.email,
   id: department.id,
@@ -218,16 +230,6 @@ const departmentRow = (department: Department): DepartmentRow => ({
   shortName: department.shortName,
   slackChannel: department.slackChannel,
 });
-
-/** Who is acting, for the buttons the page offers; the commands decide (the buttons are UX only). */
-const actorSummary = (actor: Actor) =>
-  Predicate.isTagged("Staff")(actor)
-    ? {
-        departmentId: actor.departmentId,
-        executiveBoard: actor.executiveBoard,
-        role: actor.role,
-      }
-    : null;
 
 const byDepartmentName = Order.mapInput(
   Order.make((left: string, right: string): -1 | 0 | 1 => {
@@ -261,15 +263,17 @@ export const dashboardView = Effect.gen(function* dashboardView() {
   };
 });
 
-/** C1 departments (all, including inactive), by name. */
+/** C1 departments (all, including inactive), by name; the create button and each edit form follow the actor's capabilities. */
 export const departmentsView = Effect.gen(function* departmentsView() {
   const actor = yield* CurrentActor;
   const departments = yield* DepartmentRepository;
 
   return {
-    actor: actorSummary(actor),
+    canCreate: authorize(actor, Capability.CreateDepartment()),
     departments: Arr.sort(
-      Arr.map(yield* departments.list, departmentRow),
+      Arr.map(yield* departments.list, (department) =>
+        departmentRow(actor, department)
+      ),
       byDepartmentName
     ),
   };
@@ -300,12 +304,21 @@ export const semestersView = Effect.gen(function* semestersView() {
   };
 });
 
-/** C1 fields of study of the actor's own department (RULE-139), with its name. */
+/**
+ * C1 fields of study of the actor's own department (RULE-139), with its name. An actor who may not manage
+ * them (`ManageFieldsOfStudy`) gets no list: `canManage` is false and the page says so.
+ */
 export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
   const actor = yield* CurrentActor;
 
-  if (!Predicate.isTagged("Staff")(actor)) {
-    return { department: null, fieldsOfStudy: [] };
+  if (
+    !Predicate.isTagged("Staff")(actor) ||
+    !authorize(
+      actor,
+      Capability.ManageFieldsOfStudy({ departmentId: actor.departmentId })
+    )
+  ) {
+    return { canManage: false as const, department: null, fieldsOfStudy: [] };
   }
 
   const departments = yield* DepartmentRepository;
@@ -319,6 +332,7 @@ export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
   );
 
   return {
+    canManage: true as const,
     department: { id: actor.departmentId, name: department },
     fieldsOfStudy: Arr.map(fields, (field) => ({
       id: field.id,
@@ -341,21 +355,27 @@ export const staticContentInput = (form: FormData) => {
   return { ...input, editorId };
 };
 
-/** Every block the public pages embed, with its current HTML. */
-export const staticContentView = Effect.forEach(
-  Arr.flatMap(Rec.toEntries(STATIC_BLOCKS), ([page, keys]) =>
-    Arr.map(keys, (key) => ({ key, page }))
-  ),
-  ({ page, key }) =>
-    Effect.map(getStaticContent(StaticContentKey.make(key)), (block) => ({
-      html: Option.match(block, {
-        onNone: () => "",
-        onSome: (found): string => found.html,
-      }),
-      key,
-      page,
-    }))
-);
+/** Every block the public pages embed, with its current HTML; `canEdit` is `EditStaticContent` (RULE-296). */
+export const staticContentView = Effect.gen(function* staticContentView() {
+  const actor = yield* CurrentActor;
+
+  const blocks = yield* Effect.forEach(
+    Arr.flatMap(Rec.toEntries(STATIC_BLOCKS), ([page, keys]) =>
+      Arr.map(keys, (key) => ({ key, page }))
+    ),
+    ({ page, key }) =>
+      Effect.map(getStaticContent(StaticContentKey.make(key)), (block) => ({
+        html: Option.match(block, {
+          onNone: () => "",
+          onSome: (found): string => found.html,
+        }),
+        key,
+        page,
+      }))
+  );
+
+  return { blocks, canEdit: authorize(actor, Capability.EditStaticContent()) };
+});
 
 // ---------------------------------------------------------------- C5 / C6 uploads
 
@@ -429,17 +449,21 @@ export const articleInput = (
   return article;
 };
 
-/** Published articles, newest first (drafts have no staff listing query yet; see README). */
+/** Published articles, newest first (drafts have no staff listing query yet; see README); `canManage` is `ManageArticles`. */
 export const articlesView = Effect.gen(function* articlesView() {
+  const actor = yield* CurrentActor;
   const articles = yield* ArticleRepository;
   const published = yield* articles.listPublished;
 
-  return Arr.map(Arr.sort(published, newestArticleOrder), (article) => ({
-    id: article.id,
-    slug: article.slug,
-    sticky: article.sticky,
-    title: article.title,
-  }));
+  return {
+    articles: Arr.map(Arr.sort(published, newestArticleOrder), (article) => ({
+      id: article.id,
+      slug: article.slug,
+      sticky: article.sticky,
+      title: article.title,
+    })),
+    canManage: authorize(actor, Capability.ManageArticles()),
+  };
 });
 
 export const sponsorInput = (form: FormData, logoKey: string | null) => ({
@@ -449,14 +473,21 @@ export const sponsorInput = (form: FormData, logoKey: string | null) => ({
   url: text(form, "url"),
 });
 
-export const sponsorsView = Effect.map(listSponsorsForFooter, (sponsors) =>
-  Arr.map(sponsors, (sponsor) => ({
-    id: sponsor.id,
-    name: sponsor.name,
-    size: sponsor.size,
-    url: sponsor.url,
-  }))
-);
+/** Sponsors by size; `canManage` is `ManageSponsors`. */
+export const sponsorsView = Effect.gen(function* sponsorsView() {
+  const actor = yield* CurrentActor;
+  const sponsors = yield* listSponsorsForFooter;
+
+  return {
+    canManage: authorize(actor, Capability.ManageSponsors()),
+    sponsors: Arr.map(sponsors, (sponsor) => ({
+      id: sponsor.id,
+      name: sponsor.name,
+      size: sponsor.size,
+      url: sponsor.url,
+    })),
+  };
+});
 
 // ---------------------------------------------------------------- C8
 
@@ -474,6 +505,8 @@ export const socialEventInput = (form: FormData) => ({
  * The actor's department's events this semester, with the RULE-085 badge. The events need the current
  * semester's row; until the scheduled job has written it (spec 0003) the page says so
  * (`currentSemesterId` is null) and lists none. A read: it never inserts.
+ * The departments the form offers are the ones the actor may create events in (`ManageSocialEvents`);
+ * `canCreate` is whether there is one.
  */
 export const socialEventsView = Effect.gen(function* socialEventsView() {
   const actor = yield* CurrentActor;
@@ -491,13 +524,21 @@ export const socialEventsView = Effect.gen(function* socialEventsView() {
         })
       : [];
 
+  const creatable = Arr.filter(yield* departments.list, (department) =>
+    authorize(
+      actor,
+      Capability.ManageSocialEvents({ departmentId: department.id })
+    )
+  );
+
   return {
+    canCreate: creatable.length > 0,
     currentSemesterId: currentRow?.id ?? null,
     currentSemesterLabel: semesterLabel(current.semester),
     departmentId: Predicate.isTagged("Staff")(actor)
       ? actor.departmentId
       : null,
-    departments: Arr.map(yield* departments.list, (department) => ({
+    departments: Arr.map(creatable, (department) => ({
       id: department.id,
       name: department.name,
     })),

@@ -1,15 +1,10 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
-import { Array as Arr, pipe } from "effect";
+import { Array as Arr } from "effect";
 
+import { PageHeader } from "@/components/panel/pageHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -27,8 +22,11 @@ const SemestersPage = () => {
   const { current, semesters } = routeApi.useLoaderData();
 
   return (
-    <section className="grid gap-6">
-      <h1 className="text-2xl font-bold">Semestre</h1>
+    <>
+      <PageHeader
+        title="Semestre"
+        description="Det nyeste står øverst. Det nåværende og det neste semesteret opprettes automatisk."
+      />
       {!current.stored && (
         <Alert>
           <AlertTitle>{current.label} er ikke opprettet ennå</AlertTitle>
@@ -39,13 +37,6 @@ const SemestersPage = () => {
         </Alert>
       )}
       <Card>
-        <CardHeader>
-          <CardTitle>Alle semestre</CardTitle>
-          <CardDescription>
-            Det nyeste står øverst. Det nåværende og det neste semesteret
-            opprettes automatisk.
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -54,24 +45,21 @@ const SemestersPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pipe(
-                semesters,
-                Arr.map((semester) => (
-                  <TableRow key={semester.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {semester.label}
-                        {semester.current && <Badge>Nåværende</Badge>}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              {Arr.map(semesters, (semester) => (
+                <TableRow key={semester.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {semester.label}
+                      {semester.current && <Badge>Nåværende</Badge>}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-    </section>
+    </>
   );
 };
 

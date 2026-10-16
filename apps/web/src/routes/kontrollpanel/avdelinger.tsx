@@ -1,18 +1,12 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
-import { Array as Arr, pipe } from "effect";
+import { Array as Arr } from "effect";
 
-import { CommandDialog } from "@/components/commandDialog";
 import { Field } from "@/components/forms";
+import { PageHeader } from "@/components/panel/pageHeader";
+import { CommandSheet, InspectSheet } from "@/components/panel/panelSheets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -83,68 +77,96 @@ const DepartmentFields = ({ department }: { department?: DepartmentRow }) => (
   </>
 );
 
-const DepartmentRowView = ({ department }: { department: DepartmentRow }) => (
-  <TableRow>
-    <TableCell>
-      <span className="font-medium">{department.name}</span>
-    </TableCell>
-    <TableCell>{department.shortName}</TableCell>
-    <TableCell>{department.city}</TableCell>
-    <TableCell>{department.email}</TableCell>
-    <TableCell>
-      <Badge variant={department.active ? "default" : "secondary"}>
-        {department.active ? "Aktiv" : "Inaktiv"}
-      </Badge>
-    </TableCell>
-    <TableCell className="text-right">
-      <CommandDialog
-        trigger={
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label={`Rediger ${department.name}`}
-          />
-        }
-        triggerLabel="Rediger"
-        title={`Rediger ${department.name}`}
-        action={saveDepartment}
-        submitLabel="Lagre"
-      >
-        <DepartmentFields department={department} />
-      </CommandDialog>
-    </TableCell>
-  </TableRow>
+/** A department's stored details, read only. */
+const DepartmentDetails = ({ department }: { department: DepartmentRow }) => (
+  <dl className="grid gap-3 text-sm">
+    {Arr.map(
+      [
+        ["Navn", department.name],
+        ["Kortnavn", department.shortName],
+        ["By", department.city],
+        ["E-post", department.email],
+        ["Adresse", department.address ?? "–"],
+        ["Slack-kanal", department.slackChannel ?? "–"],
+        [
+          "Posisjon",
+          department.latitude === null || department.longitude === null
+            ? "–"
+            : `${department.latitude}, ${department.longitude}`,
+        ],
+        ["Status", department.active ? "Aktiv" : "Inaktiv"],
+      ] as const,
+      ([label, value]) => (
+        <div key={label} className="grid gap-0.5">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      )
+    )}
+  </dl>
 );
+
+/** The row's one action: the edit form for an actor who may edit the department, its details for everyone else. */
+const DepartmentRowAction = ({ department }: { department: DepartmentRow }) =>
+  department.canEdit ? (
+    <CommandSheet
+      trigger={
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`Rediger ${department.name}`}
+        />
+      }
+      triggerLabel="Rediger"
+      title={`Rediger ${department.name}`}
+      action={saveDepartment}
+      submitLabel="Lagre"
+    >
+      <DepartmentFields department={department} />
+    </CommandSheet>
+  ) : (
+    <InspectSheet
+      trigger={
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`Vis ${department.name}`}
+        />
+      }
+      triggerLabel="Vis"
+      title={department.name}
+      description="Du kan se avdelingen, men ikke endre den."
+    >
+      <DepartmentDetails department={department} />
+    </InspectSheet>
+  );
 
 const routeApi = getRouteApi("/kontrollpanel/avdelinger");
 
 const DepartmentsPage = () => {
-  const { actor, departments } = routeApi.useLoaderData();
+  const { canCreate, departments } = routeApi.useLoaderData();
 
   return (
-    <section className="grid gap-6">
-      <h1 className="text-2xl font-bold">Avdelinger</h1>
+    <>
+      <PageHeader
+        title="Avdelinger"
+        description="Hver by har én avdeling. Inaktive avdelinger vises også."
+        actions={
+          canCreate && (
+            <CommandSheet
+              trigger={<Button size="sm" />}
+              triggerLabel="Ny avdeling"
+              title="Ny avdeling"
+              description="By må være unik."
+              action={saveDepartment}
+              submitLabel="Opprett"
+            >
+              <DepartmentFields />
+            </CommandSheet>
+          )
+        }
+      />
       <Card>
-        <CardHeader>
-          <CardTitle>Alle avdelinger</CardTitle>
-          <CardDescription>
-            Hver by har én avdeling. Inaktive avdelinger vises også.
-          </CardDescription>
-          {actor?.role === "admin" && (
-            <CardAction>
-              <CommandDialog
-                trigger={<Button size="sm" />}
-                triggerLabel="Ny avdeling"
-                title="Ny avdeling"
-                description="By må være unik."
-                action={saveDepartment}
-                submitLabel="Opprett"
-              >
-                <DepartmentFields />
-              </CommandDialog>
-            </CardAction>
-          )}
-        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -160,15 +182,26 @@ const DepartmentsPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pipe(
-                departments,
-                Arr.map((department) => (
-                  <DepartmentRowView
-                    key={department.id}
-                    department={department}
-                  />
-                ))
-              )}
+              {Arr.map(departments, (department) => (
+                <TableRow key={department.id}>
+                  <TableCell>
+                    <span className="font-medium">{department.name}</span>
+                  </TableCell>
+                  <TableCell>{department.shortName}</TableCell>
+                  <TableCell>{department.city}</TableCell>
+                  <TableCell>{department.email}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={department.active ? "default" : "secondary"}
+                    >
+                      {department.active ? "Aktiv" : "Inaktiv"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DepartmentRowAction department={department} />
+                  </TableCell>
+                </TableRow>
+              ))}
               {departments.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6}>Ingen avdelinger ennå.</TableCell>
@@ -178,7 +211,7 @@ const DepartmentsPage = () => {
           </Table>
         </CardContent>
       </Card>
-    </section>
+    </>
   );
 };
 

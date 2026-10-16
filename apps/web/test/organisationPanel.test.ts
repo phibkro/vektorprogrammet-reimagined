@@ -148,6 +148,7 @@ describe("C1 departments through the panel", () => {
           {
             active: true,
             address: "Torggata 1",
+            canEdit: true,
             city: "Bergen",
             email: "bergen@example.org",
             id: DepartmentId.make(1),
@@ -159,7 +160,7 @@ describe("C1 departments through the panel", () => {
             slackChannel: "#bergen",
           },
         ]);
-        assert.strictEqual(listed.actor?.role, "admin");
+        assert.isTrue(listed.canCreate);
       })
   );
 
@@ -539,6 +540,7 @@ describe("C1 fields of study through the panel", () => {
           [FieldOfStudyId.make(10)]
         );
         assert.deepStrictEqual(asAnonymous, {
+          canManage: false,
           department: null,
           fieldsOfStudy: [],
         });
