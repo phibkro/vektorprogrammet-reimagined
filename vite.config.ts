@@ -167,6 +167,7 @@ export default defineConfig({
           "apps/web/src/components/NewsList.tsx",
           "apps/web/src/components/Header.tsx",
           "packages/db/test/repositories.pglite.test.ts",
+          "packages/domain/src/files/fileType.ts",
           "packages/domain/src/files/commands.ts",
           "apps/web/test/publicFiles.test.ts",
           "apps/web/src/components/forms.tsx",
@@ -190,6 +191,8 @@ export default defineConfig({
           "tools/import/src/transform/plan.ts",
           "apps/web/alchemy.run.ts",
           "apps/web/test/news.test.ts",
+          "packages/domain/src/shared/validation.ts",
+          "tools/quality/check-effect-exceptions.ts",
         ],
         rules: {
           "unicorn/no-array-method-this-argument": "off",
@@ -262,11 +265,53 @@ export default defineConfig({
         },
       },
       {
-        // Schema.TaggedError class definitions are falsely treated as throw sites by Unicorn.
-        files: ["tools/import/src/config.ts"],
+        // unicorn/throw-new-error treats Schema.TaggedError class definitions as throw sites; they contain no throw.
+        files: [
+          "packages/domain/src/shared/errors.ts",
+          "tools/import/src/config.ts",
+        ],
         rules: {
           "unicorn/throw-new-error": "off",
         },
+      },
+      {
+        // max-classes-per-file conflicts with the single closed typed-error set owned here.
+        files: ["packages/domain/src/shared/errors.ts"],
+        rules: { "max-classes-per-file": "off" },
+      },
+      {
+        // Effect Data tagged variants use this exact empty payload representation; the type rule resolves it to {}.
+        files: ["packages/domain/src/shared/capabilities.ts"],
+        rules: { "typescript/no-generated-empty-object-type": "off" },
+      },
+      {
+        // promise/prefer-await-to-then misreads Effect.catch as Promise.catch; Effect.catch is native error recovery.
+        files: ["packages/db/src/repositories/content.ts"],
+        rules: { "promise/prefer-await-to-then": "off" },
+      },
+      {
+        // Domain commands own untrusted request decoding through their schemas; this rule cannot see decodeInput inside the command boundary.
+        files: [
+          "packages/domain/src/contact/commands.ts",
+          "packages/domain/src/content/commands.ts",
+          "packages/domain/src/organisation/commands.ts",
+          "packages/domain/src/shared/validation.ts",
+        ],
+        rules: { "anti-slop/no-unknown-parameters": "off" },
+      },
+      {
+        // Context.Service contracts are grouped by bounded context; max-classes-per-file would fragment these service modules.
+        files: [
+          "packages/domain/src/content/services.ts",
+          "packages/domain/src/files/services.ts",
+          "packages/domain/src/organisation/services.ts",
+        ],
+        rules: { "max-classes-per-file": "off" },
+      },
+      {
+        // The workspace package entrypoint is intentionally a barrel to expose its public API.
+        files: ["packages/domain/src/index.ts"],
+        rules: { "oxc/no-barrel-file": "off" },
       },
       {
         // Effect Array.sort is pure; Unicorn misclassifies the namespace call as native Array#sort.
