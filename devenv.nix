@@ -15,11 +15,13 @@ in
     pkgs.gitleaks
   ];
 
-  # Local stand-in for Neon (PostgreSQL 17). Port 54321 avoids a system PostgreSQL on 5432.
+  # Local stand-in for Neon, matching its version (project bold-poetry-64036846 runs PostgreSQL 18).
+  # Port 54321 avoids a system PostgreSQL on 5432. devenv exports PGHOST/PGPORT for this server:
+  # unset them before using a Neon URL (Neon URLs carry no port, so libpq would dial Neon on 54321).
   # Trust auth on localhost only; no password exists for local development.
   services.postgres = {
     enable = true;
-    package = pkgs.postgresql_17;
+    package = pkgs.postgresql_18;
     listen_addresses = "127.0.0.1";
     port = 54321;
     initialDatabases = [ { name = "vektorprogrammet"; } ];
