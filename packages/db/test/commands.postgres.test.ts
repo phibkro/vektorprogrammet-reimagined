@@ -170,7 +170,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
       );
 
       it.effect(
-        "RULE-237: 20 concurrent ensureCurrentSemester calls create exactly one current semester row",
+        "RULE-237: 20 concurrent ensureCurrentSemester calls on an empty table create exactly one row",
         () =>
           Effect.gen(function* effectProgram() {
             // 2028-03-01 in Oslo is Vår 2028 (RULE-033); no audit entry (not a staff write).
@@ -180,6 +180,11 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               )
             );
 
+            const db = yield* Drizzle;
+            // The earlier tests of this suite created semesters: the race starts from an empty table.
+            yield* db.delete(schema.semester);
+            assert.strictEqual(yield* db.$count(schema.semester), 0);
+
             const results = yield* Effect.all(
               Arr.makeBy(20, () => ensureCurrentSemester),
               {
@@ -187,19 +192,15 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               }
             );
 
-            const db = yield* Drizzle;
+            const rows = yield* db.select().from(schema.semester);
 
-            const rows = yield* db
-              .select()
-              .from(schema.semester)
-              .where(
-                and(
-                  eq(schema.semester.term, "VAR"),
-                  eq(schema.semester.year, 2028)
-                )
-              );
-
-            assert.strictEqual(rows.length, 1);
+            assert.deepStrictEqual(
+              pipe(
+                rows,
+                Arr.map((row) => [row.term, row.year])
+              ),
+              [["VAR", 2028]]
+            );
             assert.isTrue(
               pipe(
                 results,
