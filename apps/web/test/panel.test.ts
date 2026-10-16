@@ -29,6 +29,7 @@ import {
 import { runCommandOutcome, runOutcome } from "../src/server/runtime";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { form, makeTables, memoryLayer } from "./support/memory";
+import { assertValidationFailure } from "./support/outcomes";
 
 const { signal } = new AbortController();
 
@@ -182,20 +183,12 @@ describe("C11 uploads through the web path", () => {
             )
         );
 
-        assert.isTrue(Predicate.isTagged(outcome, "Failure"));
+        const error = assertValidationFailure(outcome);
 
-        if (Predicate.isTagged(outcome, "Failure")) {
-          assert.strictEqual(outcome.status, 400);
-          assert.strictEqual(outcome.formStatus, 422);
-          assert.isTrue(Predicate.isTagged(outcome.error, "ValidationFailed"));
-
-          if (Predicate.isTagged(outcome.error, "ValidationFailed")) {
-            assert.deepStrictEqual(
-              Arr.map(outcome.error.issues, (issue) => issue.message),
-              ["Filtypen må være et bilde eller PDF."]
-            );
-          }
-        }
+        assert.deepStrictEqual(
+          Arr.map(error.issues, (issue) => issue.message),
+          ["Filtypen må være et bilde eller PDF."]
+        );
 
         assert.strictEqual(tables.objects.size, 0);
         assert.strictEqual(tables.publicFiles.length, 0);

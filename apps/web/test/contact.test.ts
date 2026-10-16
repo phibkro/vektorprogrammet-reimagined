@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { SlackChannel } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Predicate, Record as Rec } from "effect";
+import { Array as Arr, Effect, Layer, Predicate } from "effect";
 
 import {
   contactCommand,
@@ -14,21 +14,17 @@ import {
   TURNSTILE_RESPONSE_FIELD,
   turnstileTestLayer,
 } from "../src/server/turnstile";
-import { fakeDepartment, makeTables, memoryLayer } from "./support/memory";
+import {
+  form,
+  fakeDepartment,
+  makeTables,
+  memoryLayer,
+} from "./support/memory";
+import { assertValidationFailure } from "./support/outcomes";
 
 const { signal } = new AbortController();
 
 const VALID_TOKEN = "fake-turnstile-token";
-
-const form = (fields: Record<string, string>): FormData => {
-  const data = new FormData();
-
-  for (const [name, value] of Rec.toEntries(fields)) {
-    data.set(name, value);
-  }
-
-  return data;
-};
 
 const ticket = {
   departmentId: "1",
@@ -80,19 +76,9 @@ describe("C10 /kontakt", () => {
     () =>
       Effect.gen(function* contactWithoutToken() {
         const { outcome, tables } = yield* post(ticket);
-        assert.isTrue(Predicate.isTagged(outcome, "Failure"));
+        const error = assertValidationFailure(outcome);
 
-        if (Predicate.isTagged(outcome, "Failure")) {
-          assert.strictEqual(outcome.status, 400);
-          assert.strictEqual(outcome.formStatus, 422);
-          assert.isTrue(Predicate.isTagged(outcome.error, "ValidationFailed"));
-
-          if (Predicate.isTagged(outcome.error, "ValidationFailed")) {
-            assert.deepStrictEqual(outcome.error.issues[0]?.path, [
-              CAPTCHA_FIELD,
-            ]);
-          }
-        }
+        assert.deepStrictEqual(error.issues[0]?.path, [CAPTCHA_FIELD]);
 
         assert.deepStrictEqual(tables.outbox, []);
         assert.strictEqual(tables.commits, 0);
