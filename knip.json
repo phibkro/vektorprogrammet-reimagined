@@ -26,6 +26,15 @@
         "**/*.css"
       ]
     },
+    "apps/cms": {
+      "entry": ["astro.config.ts", "src/live.config.ts", "scripts/build.ts"],
+      "project": ["**/*.ts"]
+    },
+    "packages/cms-client": {
+      "entry": ["scripts/generate.ts"],
+      "ignore": ["src/generated.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
+    },
     "packages/domain": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
