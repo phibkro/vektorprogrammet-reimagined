@@ -1,3 +1,5 @@
+import { Array as Arr, pipe } from "effect";
+
 import {
   Field,
   FieldErrorsProvider,
@@ -11,14 +13,15 @@ import { fieldErrors } from "@/lib/outcome";
 import type { ContactFormState } from "@/server/contactPost";
 import type { ContactPageView } from "@/server/pages";
 
-export const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+export const TURNSTILE_SCRIPT =
+  "https://challenges.cloudflare.com/turnstile/v0/api.js";
 
 /**
  * C10 contact form. A plain HTML form post to the current URL, so it works
  * without the app's JavaScript; Turnstile's own widget script is the only
  * script it needs (RULE-167: no token → rejected).
  */
-export function ContactPage({
+export const ContactPage = ({
   view,
   departmentId,
   formState,
@@ -26,19 +29,26 @@ export function ContactPage({
   view: ContactPageView & { readonly turnstileSiteKey: string };
   departmentId: number | null;
   formState: ContactFormState | null;
-}) {
+}) => {
   const values = formState?.values;
-  const selected = values?.departmentId ?? (departmentId === null ? "" : String(departmentId));
+
+  const selected =
+    values?.departmentId ?? (departmentId === null ? "" : String(departmentId));
+
   return (
     <main className="page-wrap grid gap-8 px-4 py-12">
       <SanitizedHtmlBlock html={view.blocks["contact-header"] ?? null} />
       {view.notice !== null && (
-        <p role="status" className="rounded-lg bg-emerald-50 p-4 text-emerald-800">
+        <p role="status" className="bg-sidebar text-chart-3 rounded-lg p-4">
           {view.notice}
         </p>
       )}
       {formState !== null && (
-        <p role="alert" id="kontaktskjema-feil" className="rounded-lg bg-red-50 p-4 text-red-800">
+        <p
+          role="alert"
+          id="kontaktskjema-feil"
+          className="bg-muted text-destructive rounded-lg p-4"
+        >
           {formState.failure.message}
         </p>
       )}
@@ -55,18 +65,33 @@ export function ContactPage({
               <option value="" disabled>
                 Velg avdeling
               </option>
-              {view.departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
+              {pipe(
+                view.departments,
+                Arr.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))
+              )}
             </select>
           </Field>
           <Field name="name" label="Ditt navn">
-            <Input id="name" name="name" defaultValue={values?.name} required maxLength={255} />
+            <Input
+              id="name"
+              name="name"
+              defaultValue={values?.name}
+              required
+              maxLength={255}
+            />
           </Field>
           <Field name="email" label="Din e-post">
-            <Input id="email" name="email" type="email" defaultValue={values?.email} required />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={values?.email}
+              required
+            />
           </Field>
           <Field name="subject" label="Emne">
             <Input
@@ -88,11 +113,15 @@ export function ContactPage({
           </Field>
           <Field name="captcha" label="Bekreft at du ikke er en robot">
             {view.turnstileSiteKey === "" ? (
-              <p className="text-sm text-[var(--sea-ink-soft)]">
+              <p className="text-sea-ink-soft text-sm">
                 Spambeskyttelse er ikke konfigurert.
               </p>
             ) : (
-              <div id="captcha" className="cf-turnstile" data-sitekey={view.turnstileSiteKey} />
+              <div
+                id="captcha"
+                className="cf-turnstile"
+                data-sitekey={view.turnstileSiteKey}
+              />
             )}
           </Field>
         </FieldErrorsProvider>
@@ -100,4 +129,4 @@ export function ContactPage({
       </form>
     </main>
   );
-}
+};

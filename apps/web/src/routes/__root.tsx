@@ -1,34 +1,25 @@
-import { HeadContent, Link, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
+import {
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+  createRootRoute,
+  getRouteApi,
+} from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import Footer from "@/components/Footer";
-import Header from "@/components/Header";
+
+import Footer from "@/components/footer";
+import Header from "@/components/header";
 import { getFooter } from "@/functions/public.functions";
 import { pageData } from "@/lib/outcome";
+
 import appCss from "../styles.css?url";
 
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Vektorprogrammet" },
-    ],
-    links: [{ rel: "stylesheet", href: appCss }],
-  }),
-  loader: () => getFooter().then(pageData),
-  component: RootComponent,
-  notFoundComponent: NotFoundPage,
-  errorComponent: ({ error }) => (
-    <main className="page-wrap px-4 py-12">
-      <h1 className="text-2xl font-bold">Noe gikk galt</h1>
-      <p>{error instanceof Error ? error.message : "Ukjent feil."}</p>
-    </main>
-  ),
-  shellComponent: RootDocument,
-});
+const routeApi = getRouteApi("__root__");
 
-function RootComponent() {
-  const sponsors = Route.useLoaderData();
+const RootComponent = () => {
+  const sponsors = routeApi.useLoaderData();
+
   return (
     <>
       <Header />
@@ -36,29 +27,47 @@ function RootComponent() {
       <Footer sponsors={sponsors} />
     </>
   );
-}
+};
 
-function NotFoundPage() {
-  return (
+const NotFoundPage = () => (
+  <main className="page-wrap px-4 py-12">
+    <h1 className="text-2xl font-bold">Fant ikke siden</h1>
+    <p>
+      Siden finnes ikke, eller er ikke publisert.{" "}
+      <Link to="/">Til forsiden</Link>
+    </p>
+  </main>
+);
+
+const RootDocument = ({ children }: { children: ReactNode }) => (
+  <html lang="nb">
+    <head>
+      <HeadContent />
+    </head>
+    <body className="font-sans [overflow-wrap:anywhere] antialiased">
+      {children}
+      <Scripts />
+    </body>
+  </html>
+);
+
+export const Route = createRootRoute({
+  component: RootComponent,
+  errorComponent: ({ error }) => (
     <main className="page-wrap px-4 py-12">
-      <h1 className="text-2xl font-bold">Fant ikke siden</h1>
-      <p>
-        Siden finnes ikke, eller er ikke publisert. <Link to="/">Til forsiden</Link>
-      </p>
+      <h1 className="text-2xl font-bold">Noe gikk galt</h1>
+      <p>{error instanceof Error ? error.message : "Ukjent feil."}</p>
     </main>
-  );
-}
-
-function RootDocument({ children }: { children: ReactNode }) {
-  return (
-    <html lang="nb">
-      <head>
-        <HeadContent />
-      </head>
-      <body className="font-sans antialiased [overflow-wrap:anywhere]">
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
+  ),
+  head: () => ({
+    links: [{ href: appCss, rel: "stylesheet" }],
+    meta: [
+      { charSet: "utf-8" },
+      { content: "width=device-width, initial-scale=1", name: "viewport" },
+      { title: "Vektorprogrammet" },
+    ],
+  }),
+  loader: () => getFooter().then(pageData),
+  notFoundComponent: NotFoundPage,
+  shellComponent: RootDocument,
+});

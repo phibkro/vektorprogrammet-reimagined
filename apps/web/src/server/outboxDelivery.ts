@@ -5,19 +5,25 @@
  * claim token), send OUTSIDE any transaction, then mark the row delivered or
  * failed with exponential backoff, and dead after `MAX_ATTEMPTS`.
  */
-import { OutboxDelivery, type ClaimedOutboxMessage } from "@vektorprogrammet/db";
+import { OutboxDelivery } from "@vektorprogrammet/db";
+import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
 import type { OutboxMessageId } from "@vektorprogrammet/domain";
-import { DateTime, Duration, Effect } from "effect";
+import { DateTime, Duration, Effect, Predicate } from "effect";
+
 import { MessageSender } from "./senders";
 
 /** Attempts (including the first) before a row is marked dead. */
 export const MAX_ATTEMPTS = 8;
+
 /** Delay after the first failure; doubles per attempt. */
 export const BASE_RETRY_DELAY = Duration.minutes(5);
+
 /** Upper bound on one retry delay. */
 export const MAX_RETRY_DELAY = Duration.hours(12);
+
 /** How long a claim is held before another sweeper may take the row. */
 export const LEASE_SECONDS = 120;
+
 /** Rows one sweep handles; low volume, so one batch per cron tick. */
 export const SWEEP_LIMIT = 50;
 
@@ -27,49 +33,81 @@ export const SWEEP_LIMIT = 50;
  */
 export const nextAttemptAfterFailure = (
   attempts: number,
-  failedAt: DateTime.Utc,
+  failedAt: DateTime.Utc
 ): DateTime.Utc | "dead" => {
-  if (attempts >= MAX_ATTEMPTS) return "dead";
+  if (attempts >= MAX_ATTEMPTS) {
+    return "dead";
+  }
+
   const delay = Duration.min(
     Duration.times(BASE_RETRY_DELAY, 2 ** Math.max(0, attempts - 1)),
-    MAX_RETRY_DELAY,
+    MAX_RETRY_DELAY
   );
+
   return DateTime.addDuration(failedAt, delay);
 };
 
-const deliverOne = Effect.fnUntraced(function* (row: ClaimedOutboxMessage) {
+const deliverOne = Effect.fnUntraced(function* deliverOne(
+  row: ClaimedOutboxMessage
+) {
   const delivery = yield* OutboxDelivery;
   const sender = yield* MessageSender;
   const sent = yield* Effect.result(sender.send(row.message));
-  if (sent._tag === "Success") {
+
+  if (Predicate.isTagged(sent, "Success")) {
     const ack = yield* delivery.markDelivered(row.id, row.claimToken);
+
     return {
       id: row.id,
-      outcome: ack === "recorded" ? ("delivered" as const) : ("claimLost" as const),
+      outcome:
+        ack === "recorded" ? ("delivered" as const) : ("claimLost" as const),
     };
   }
+
   const next = nextAttemptAfterFailure(row.attempts, yield* DateTime.now);
-  const ack = yield* delivery.markFailed(row.id, row.claimToken, sent.failure.reason, next);
-  yield* Effect.logWarning("outbox delivery failed").pipe(
-    Effect.annotateLogs({ outboxId: row.id, attempts: row.attempts, dead: next === "dead" }),
+
+  const ack = yield* delivery.markFailed(
+    row.id,
+    row.claimToken,
+    sent.failure.reason,
+    next
   );
-  if (ack === "claimLost") return { id: row.id, outcome: "claimLost" as const };
-  return { id: row.id, outcome: next === "dead" ? ("dead" as const) : ("retrying" as const) };
+
+  yield* Effect.logWarning("outbox delivery failed").pipe(
+    Effect.annotateLogs({
+      attempts: row.attempts,
+      dead: next === "dead",
+      outboxId: row.id,
+    })
+  );
+
+  if (ack === "claimLost") {
+    return { id: row.id, outcome: "claimLost" as const };
+  }
+
+  return {
+    id: row.id,
+    outcome: next === "dead" ? ("dead" as const) : ("retrying" as const),
+  };
 });
 
 /**
  * Claims due rows (optionally only `ids`) and delivers them one at a time.
  * Never runs inside a transaction: each claim and mark is its own statement.
  */
-export const deliverOutbox = Effect.fn("deliverOutbox")(function* (options: {
-  readonly ids?: ReadonlyArray<OutboxMessageId>;
-  readonly limit: number;
-}) {
-  const delivery = yield* OutboxDelivery;
-  const claimed = yield* delivery.claimDue({
-    limit: options.limit,
-    leaseSeconds: LEASE_SECONDS,
-    ids: options.ids,
-  });
-  return yield* Effect.forEach(claimed, deliverOne, { concurrency: 1 });
-});
+export const deliverOutbox = Effect.fn("deliverOutbox")(
+  function* deliverOutbox(options: {
+    readonly ids?: readonly OutboxMessageId[];
+    readonly limit: number;
+  }) {
+    const delivery = yield* OutboxDelivery;
+
+    const claimed = yield* delivery.claimDue({
+      ids: options.ids,
+      leaseSeconds: LEASE_SECONDS,
+      limit: options.limit,
+    });
+
+    return yield* Effect.forEach(claimed, deliverOne, { concurrency: 1 });
+  }
+);

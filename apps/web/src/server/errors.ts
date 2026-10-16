@@ -10,13 +10,18 @@ import {
   Forbidden,
   NotFound,
   ValidationFailed,
-  type DomainError,
 } from "@vektorprogrammet/domain";
-import { Schema } from "effect";
-import type { Failure, Outcome } from "../lib/outcome";
+import type { DomainError } from "@vektorprogrammet/domain";
+import { Array as Arr, Match, Schema } from "effect";
+
+import { failureOutcome } from "../lib/outcome";
+import type { Failure } from "../lib/outcome";
 
 /** `/kontakt` per-IP limit exceeded (Cloudflare Rate Limiting binding). */
-export class RateLimited extends Schema.TaggedError<RateLimited>()("RateLimited", {}) {}
+export class RateLimited extends Schema.TaggedError<
+  RateLimited,
+  { readonly brand: unique symbol }
+>()("RateLimited", {}) {}
 
 export type RequestError = DomainError | RateLimited;
 
@@ -30,6 +35,7 @@ export const RequestErrorSchema = Schema.Union([
 
 /** The serializable (plain-object) form sent to the browser. */
 export type EncodedRequestError = typeof RequestErrorSchema.Encoded;
+
 export type RequestErrorTag = RequestError["_tag"];
 
 /**
@@ -38,44 +44,47 @@ export type RequestErrorTag = RequestError["_tag"];
  * (spec §3: 422 for validation errors).
  */
 export const ERROR_TABLE = {
-  NotFound: { status: 404, formStatus: 404 },
-  Forbidden: { status: 403, formStatus: 403 },
-  AlreadyExists: { status: 409, formStatus: 409 },
-  ValidationFailed: { status: 400, formStatus: 422 },
-  RateLimited: { status: 429, formStatus: 429 },
+  AlreadyExists: { formStatus: 409, status: 409 },
+  Forbidden: { formStatus: 403, status: 403 },
+  NotFound: { formStatus: 404, status: 404 },
+  RateLimited: { formStatus: 429, status: 429 },
+  ValidationFailed: { formStatus: 422, status: 400 },
 } as const satisfies {
-  readonly [Tag in RequestErrorTag]: { readonly status: number; readonly formStatus: number };
+  readonly [Tag in RequestErrorTag]: {
+    readonly status: number;
+    readonly formStatus: number;
+  };
 };
 
 const encode = Schema.encodeSync(RequestErrorSchema);
 
 /** User-facing Norwegian text for a failure (the domain's own text where it has one). */
-const messageOf = (error: EncodedRequestError): string => {
-  switch (error._tag) {
-    case "NotFound":
-      return "Fant ikke siden eller elementet.";
-    case "Forbidden":
-      return "Du har ikke tilgang til dette.";
-    case "AlreadyExists":
-      return error.message;
-    case "ValidationFailed":
-      return error.issues.map((issue) => issue.message).join(" ");
-    case "RateLimited":
-      return "For mange forsøk. Vent litt og prøv igjen.";
-  }
-};
+const messageOf = (error: EncodedRequestError): string =>
+  Match.value(error).pipe(
+    Match.tagsExhaustive({
+      AlreadyExists: (failure) => failure.message,
+      Forbidden: () => "Du har ikke tilgang til dette.",
+      NotFound: () => "Fant ikke siden eller elementet.",
+      RateLimited: () => "For mange forsøk. Vent litt og prøv igjen.",
+      ValidationFailed: (failure) =>
+        Arr.join(
+          Arr.map(failure.issues, (issue) => issue.message),
+          " "
+        ),
+    })
+  );
 
 /** Maps a typed failure through the table into a serializable `Failure`. */
 export const failureOf = (error: RequestError): Failure => {
   const encoded = encode(error);
   const row = ERROR_TABLE[encoded._tag];
-  return {
-    _tag: "Failure",
-    status: row.status,
+
+  return failureOutcome({
+    error: encoded,
     formStatus: row.formStatus,
     message: messageOf(encoded),
-    error: encoded,
-  };
+    status: row.status,
+  });
 };
 
-export const success = <A>(value: A): Outcome<A> => ({ _tag: "Success", value });
+export { success } from "../lib/outcome";

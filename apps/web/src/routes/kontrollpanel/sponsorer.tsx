@@ -1,26 +1,29 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { Array as Arr, pipe } from "effect";
+
 import { CommandForm, Field, nativeSelectClass } from "@/components/forms";
 import { Input } from "@/components/ui/input";
 import { getSponsorsAdmin, saveSponsor } from "@/functions/panel.functions";
 import { pageData } from "@/lib/outcome";
 
-/** C6 sponsors: name, website and size required (RULE-189); the logo must be an image. */
-export const Route = createFileRoute("/kontrollpanel/sponsorer")({
-  loader: () => getSponsorsAdmin().then(pageData),
-  component: SponsorsPage,
-});
+const routeApi = getRouteApi("/kontrollpanel/sponsorer");
 
-function SponsorsPage() {
-  const sponsors = Route.useLoaderData();
+const SponsorsPage = () => {
+  const sponsors = routeApi.useLoaderData();
+
   return (
     <section className="grid gap-6">
       <h1 className="text-2xl font-bold">Sponsorer</h1>
       <ul className="grid gap-1">
-        {sponsors.map((sponsor) => (
-          <li key={sponsor.id}>
-            {sponsor.name} · {sponsor.size} · <a href={sponsor.url}>{sponsor.url}</a>
-          </li>
-        ))}
+        {pipe(
+          sponsors,
+          Arr.map((sponsor) => (
+            <li key={sponsor.id}>
+              {sponsor.name} · {sponsor.size} ·{" "}
+              <a href={sponsor.url}>{sponsor.url}</a>
+            </li>
+          ))
+        )}
       </ul>
       <h2 className="text-xl font-semibold">Ny sponsor</h2>
       <CommandForm action={saveSponsor} submitLabel="Opprett">
@@ -31,7 +34,12 @@ function SponsorsPage() {
           <Input id="url" name="url" type="url" />
         </Field>
         <Field name="size" label="Størrelse">
-          <select id="size" name="size" className={nativeSelectClass} defaultValue="">
+          <select
+            id="size"
+            name="size"
+            className={nativeSelectClass}
+            defaultValue=""
+          >
             <option value="" disabled>
               Velg størrelse
             </option>
@@ -51,4 +59,10 @@ function SponsorsPage() {
       </CommandForm>
     </section>
   );
-}
+};
+
+/** C6 sponsors: name, website and size required (RULE-189); the logo must be an image. */
+export const Route = createFileRoute("/kontrollpanel/sponsorer")({
+  component: SponsorsPage,
+  loader: () => getSponsorsAdmin().then(pageData),
+});

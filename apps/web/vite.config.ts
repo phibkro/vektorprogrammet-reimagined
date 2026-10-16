@@ -2,7 +2,9 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import { Config, Effect, Option } from "effect";
 import { defineConfig } from "vite-plus";
+
 import {
   COMPATIBILITY_DATE,
   COMPATIBILITY_FLAGS,
@@ -20,8 +22,27 @@ import {
 //   simulated R2 bucket and rate limiter, no send_email binding, test actor on.
 // - a standalone `vp build` is labelled `preview` (no test actor, capture sink),
 //   so its output can never ship a staff test actor; real deployments go through Alchemy.
-const alchemyInjected = process.env.ALCHEMY_CLOUDFLARE_VITE_INJECTED === "1";
-const testing = process.env.VITEST !== undefined;
+const environment = Effect.runSync(
+  Config.all({
+    ALCHEMY_CLOUDFLARE_VITE_INJECTED: Config.String(
+      "ALCHEMY_CLOUDFLARE_VITE_INJECTED"
+    ).pipe(Config.withDefault("")),
+    DATABASE_URL: Config.option(Config.String("DATABASE_URL")),
+    PGUSER: Config.option(Config.String("PGUSER")),
+    TURNSTILE_SECRET_KEY: Config.String("TURNSTILE_SECRET_KEY").pipe(
+      Config.withDefault("")
+    ),
+    TURNSTILE_SITE_KEY: Config.String("TURNSTILE_SITE_KEY").pipe(
+      Config.withDefault("")
+    ),
+    USER: Config.option(Config.String("USER")),
+    VITEST: Config.option(Config.String("VITEST")),
+  })
+);
+
+const alchemyInjected = environment.ALCHEMY_CLOUDFLARE_VITE_INJECTED === "1";
+
+const testing = Option.isSome(environment.VITEST);
 
 /**
  * Miniflare's local Hyperdrive insists on `user:password@` in the URL. devenv's
@@ -29,50 +50,71 @@ const testing = process.env.VITEST !== undefined;
  * the OS user and a placeholder password that trust auth ignores.
  */
 const localDatabaseUrl = (raw: string | undefined): string | undefined => {
-  if (raw === undefined) return undefined;
+  if (raw === undefined) {
+    return undefined;
+  }
+
   const url = new URL(raw);
-  if (url.username === "") url.username = process.env.PGUSER ?? process.env.USER ?? "postgres";
-  if (url.password === "") url.password = "trust-auth-ignores-this";
+
+  if (url.username === "") {
+    url.username =
+      Option.getOrUndefined(environment.PGUSER) ??
+      Option.getOrUndefined(environment.USER) ??
+      "postgres";
+  }
+
+  if (url.password === "") {
+    url.password = "trust-auth-ignores-this";
+  }
+
   return url.toString();
 };
 
-const standaloneWorker = (devServer: boolean) =>
-  cloudflare({
-    viteEnvironment: { name: "ssr" },
+const standaloneWorker = (devServer: boolean) => {
+  const hyperdrive = {
+    binding: "HYPERDRIVE" as const,
+    id: "standalone" as const,
+  };
+
+  if (devServer && Option.isSome(environment.DATABASE_URL)) {
+    Object.assign(hyperdrive, {
+      localConnectionString: localDatabaseUrl(environment.DATABASE_URL.value),
+    });
+  }
+
+  return cloudflare({
     config: {
-      name: "vektorprogrammet-web-standalone",
-      main: WORKER_MAIN,
       compatibility_date: COMPATIBILITY_DATE,
       compatibility_flags: COMPATIBILITY_FLAGS,
-      vars: {
-        DEPLOYMENT: devServer ? "local" : "preview",
-        TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY ?? "",
-        // Dev only: a secret must never be baked into dist/server/wrangler.json.
-        TURNSTILE_SECRET_KEY: devServer ? (process.env.TURNSTILE_SECRET_KEY ?? "") : "",
-      },
-      hyperdrive: [
-        {
-          binding: "HYPERDRIVE",
-          id: "standalone",
-          ...(devServer && process.env.DATABASE_URL !== undefined
-            ? { localConnectionString: localDatabaseUrl(process.env.DATABASE_URL) }
-            : {}),
-        },
+      hyperdrive: [hyperdrive],
+      main: WORKER_MAIN,
+      name: "vektorprogrammet-web-standalone",
+      r2_buckets: [
+        { binding: "PUBLIC_FILES", bucket_name: PUBLIC_FILES_BUCKET },
       ],
-      r2_buckets: [{ binding: "PUBLIC_FILES", bucket_name: PUBLIC_FILES_BUCKET }],
       ratelimits: [
         {
           name: "CONTACT_RATE_LIMIT",
           namespace_id: String(CONTACT_RATE_LIMIT.namespaceId),
-          simple: { limit: CONTACT_RATE_LIMIT.limit, period: CONTACT_RATE_LIMIT.period },
+          simple: {
+            limit: CONTACT_RATE_LIMIT.limit,
+            period: CONTACT_RATE_LIMIT.period,
+          },
         },
       ],
       triggers: { crons: [OUTBOX_SWEEP_CRON] },
+      vars: {
+        DEPLOYMENT: devServer ? "local" : "preview",
+        // Dev only: a secret must never be baked into dist/server/wrangler.json.
+        TURNSTILE_SECRET_KEY: devServer ? environment.TURNSTILE_SECRET_KEY : "",
+        TURNSTILE_SITE_KEY: environment.TURNSTILE_SITE_KEY,
+      },
     },
+    viteEnvironment: { name: "ssr" },
   });
+};
 
 export default defineConfig(({ command }) => ({
-  resolve: { tsconfigPaths: true },
   plugins: testing
     ? []
     : [
@@ -81,6 +123,7 @@ export default defineConfig(({ command }) => ({
         tanstackStart(),
         viteReact(),
       ],
+  resolve: { tsconfigPaths: true },
   test: {
     include: ["test/**/*.test.ts"],
   },

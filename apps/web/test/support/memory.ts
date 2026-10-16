@@ -4,7 +4,8 @@
  * service contracts just far enough for the web runtime, routes and outbox
  * delivery to be exercised. Every value is a fake same-shape value.
  */
-import { OutboxClaimToken, OutboxDelivery, type ClaimedOutboxMessage } from "@vektorprogrammet/db";
+import { OutboxClaimToken, OutboxDelivery } from "@vektorprogrammet/db";
+import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
 import {
   AlreadyExists,
   ArticleId,
@@ -21,21 +22,33 @@ import {
   Outbox,
   OutboxMessageId,
   PublicFileRepository,
-  SanitizedHtmlFromString,
+  sanitizeRichText,
   Slug,
   StaticContentRepository,
   anonymous,
-  type Article,
-  type AuditEntry,
-  type Department,
-  type OutboxMessage,
-  type PublicFile,
-  type StaticContent,
 } from "@vektorprogrammet/domain";
-import { Context, DateTime, Effect, Layer, Option, Schema, Stream } from "effect";
+import type {
+  Article,
+  AuditEntry,
+  Department,
+  EntityName,
+  OutboxMessage,
+  PublicFile,
+  StaticContent,
+} from "@vektorprogrammet/domain";
+import {
+  Array as Arr,
+  Context,
+  DateTime,
+  Effect,
+  Layer,
+  Option,
+  Stream,
+} from "effect";
+
 import { Transactor } from "../../src/server/transactor";
 
-export interface OutboxRow {
+interface OutboxRow {
   readonly id: OutboxMessageId;
   readonly message: OutboxMessage;
   attempts: number;
@@ -47,68 +60,100 @@ export interface OutboxRow {
 
 /** The fake tables; tests seed and inspect them directly. */
 export interface MemoryTables {
-  departments: Array<Department>;
-  articles: Array<Article>;
-  staticContent: Array<StaticContent>;
-  publicFiles: Array<PublicFile>;
+  departments: Department[];
+  articles: Article[];
+  staticContent: StaticContent[];
+  publicFiles: PublicFile[];
   objects: Map<string, Uint8Array>;
-  outbox: Array<OutboxRow>;
-  audit: Array<AuditEntry>;
+  outbox: OutboxRow[];
+  audit: AuditEntry[];
   /** Number of `Transactor.run` calls that committed. */
   commits: number;
 }
 
-export class Memory extends Context.Service<Memory, MemoryTables>()("test/Memory") {}
+export class Memory extends Context.Service<Memory, MemoryTables>()(
+  "test/Memory"
+) {}
 
 /** Fresh tables; tests keep the reference to inspect what was (not) written. */
 export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
-  departments: [],
   articles: [],
-  staticContent: [],
-  publicFiles: [],
-  objects: new Map(),
-  outbox: [],
   audit: [],
   commits: 0,
+  departments: [],
+  objects: new Map(),
+  outbox: [],
+  publicFiles: [],
+  staticContent: [],
   ...seed,
 });
 
+const findById =
+  <A extends { readonly id: number }>(rows: readonly A[], entity: EntityName) =>
+  (id: number) =>
+    Effect.suspend(() => {
+      const found = Option.getOrUndefined(
+        Arr.findFirst(rows, (row) => row.id === id)
+      );
+
+      return found === undefined
+        ? Effect.fail(new NotFound({ entity, key: String(id) }))
+        : Effect.succeed(found);
+    });
+
 const repositories = Layer.effectContext(
-  Effect.gen(function* () {
+  Effect.gen(function* repositories() {
     const db = yield* Memory;
+
     let nextId = 1;
 
+    const takeId = () => {
+      const id = nextId;
+      nextId += 1;
+
+      return id;
+    };
+
     const departments = DepartmentRepository.of({
-      list: Effect.sync(() => db.departments),
-      findById: (id) =>
-        Effect.suspend(() => {
-          const found = db.departments.find((row) => row.id === id);
-          return found === undefined
-            ? Effect.fail(new NotFound({ entity: "Department", key: String(id) }))
-            : Effect.succeed(found);
-        }),
       create: (draft) =>
         Effect.suspend(() => {
-          if (db.departments.some((row) => row.city === draft.city)) {
+          if (Arr.some(db.departments, (row) => row.city === draft.city)) {
             return Effect.fail(
               new AlreadyExists({
                 entity: "Department",
                 key: draft.city,
                 message: "Byen finnes allerede.",
-              }),
+              })
             );
           }
-          const created: Department = { id: DepartmentId.make(nextId++), ...draft };
+
+          const created: Department = {
+            id: DepartmentId.make(takeId()),
+            ...draft,
+          };
+
           db.departments.push(created);
+
           return Effect.succeed(created);
         }),
+      findById: findById(db.departments, "Department"),
+      list: Effect.sync(() => db.departments),
       update: (id, draft) =>
         Effect.suspend(() => {
-          const index = db.departments.findIndex((row) => row.id === id);
-          if (index < 0)
-            return Effect.fail(new NotFound({ entity: "Department", key: String(id) }));
+          const index = Option.getOrElse(
+            Arr.findFirstIndex(db.departments, (row) => row.id === id),
+            () => -1
+          );
+
+          if (index === -1) {
+            return Effect.fail(
+              new NotFound({ entity: "Department", key: String(id) })
+            );
+          }
+
           const updated: Department = { id, ...draft };
           db.departments[index] = updated;
+
           return Effect.succeed(updated);
         }),
     });
@@ -116,98 +161,148 @@ const repositories = Layer.effectContext(
     const articles = ArticleRepository.of({
       create: (draft) =>
         Effect.suspend(() => {
-          if (db.articles.some((row) => row.slug === draft.slug)) {
+          if (Arr.some(db.articles, (row) => row.slug === draft.slug)) {
             return Effect.fail(
-              new AlreadyExists({ entity: "Article", key: draft.slug, message: "Slug finnes." }),
+              new AlreadyExists({
+                entity: "Article",
+                key: draft.slug,
+                message: "Slug finnes.",
+              })
             );
           }
-          const created: Article = { id: ArticleId.make(nextId++), ...draft };
+
+          const created: Article = { id: ArticleId.make(takeId()), ...draft };
           db.articles.push(created);
+
           return Effect.succeed(created);
         }),
-      findById: (id) =>
-        Effect.suspend(() => {
-          const found = db.articles.find((row) => row.id === id);
-          return found === undefined
-            ? Effect.fail(new NotFound({ entity: "Article", key: String(id) }))
-            : Effect.succeed(found);
-        }),
+      findById: findById(db.articles, "Article"),
       findBySlug: (slug) =>
-        Effect.sync(() => Option.fromNullishOr(db.articles.find((row) => row.slug === slug))),
-      slugsLike: (base) =>
         Effect.sync(() =>
-          db.articles
-            .map((row) => row.slug)
-            .filter((slug) => slug === base || slug.startsWith(`${base}-`)),
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(db.articles, (row) => row.slug === slug)
+            )
+          )
         ),
-      listPublished: Effect.sync(() => db.articles.filter((row) => row.published)),
+      listPublished: Effect.sync(() =>
+        Arr.filter(db.articles, (row) => row.published)
+      ),
       setPublished: (id, published) =>
         Effect.suspend(() => {
-          const index = db.articles.findIndex((row) => row.id === id);
-          if (index < 0) return Effect.fail(new NotFound({ entity: "Article", key: String(id) }));
-          const updated: Article = { ...db.articles[index]!, published };
+          const index = Option.getOrElse(
+            Arr.findFirstIndex(db.articles, (row) => row.id === id),
+            () => -1
+          );
+
+          if (index === -1) {
+            return Effect.fail(
+              new NotFound({ entity: "Article", key: String(id) })
+            );
+          }
+
+          const updated: Article = { ...db.articles[index], published };
           db.articles[index] = updated;
+
           return Effect.succeed(updated);
         }),
+      slugsLike: (base) =>
+        Effect.sync(() =>
+          Arr.filter(
+            Arr.map(db.articles, (row) => row.slug),
+            (slug) => slug === base || slug.startsWith(`${base}-`)
+          )
+        ),
     });
 
     const staticContent = StaticContentRepository.of({
       find: (key) =>
-        Effect.sync(() => Option.fromNullishOr(db.staticContent.find((row) => row.key === key))),
+        Effect.sync(() =>
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(db.staticContent, (row) => row.key === key)
+            )
+          )
+        ),
       upsert: (key, html) =>
         Effect.sync(() => {
-          const block: StaticContent = { key, html };
-          db.staticContent = [...db.staticContent.filter((row) => row.key !== key), block];
+          const block: StaticContent = { html, key };
+          db.staticContent = [
+            ...Arr.filter(db.staticContent, (row) => row.key !== key),
+            block,
+          ];
+
           return block;
         }),
     });
 
     const publicFiles = PublicFileRepository.of({
       findByKey: (key) =>
-        Effect.sync(() => Option.fromNullishOr(db.publicFiles.find((row) => row.key === key))),
+        Effect.sync(() =>
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(db.publicFiles, (row) => row.key === key)
+            )
+          )
+        ),
       findByLegacyPath: (legacyPath) =>
         Effect.sync(() =>
-          Option.fromNullishOr(db.publicFiles.find((row) => row.legacyPath === legacyPath)),
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(
+                db.publicFiles,
+                (row) => row.legacyPath === legacyPath
+              )
+            )
+          )
         ),
       register: (file) =>
         Effect.sync(() => {
-          const existing = db.publicFiles.find((row) => row.key === file.key);
-          if (existing !== undefined) return existing;
+          const existing = Option.getOrUndefined(
+            Arr.findFirst(db.publicFiles, (row) => row.key === file.key)
+          );
+
+          if (existing !== undefined) {
+            return existing;
+          }
+
           db.publicFiles.push(file);
+
           return file;
         }),
     });
 
     const fileStore = FileStore.of({
+      get: (key) =>
+        Effect.sync(() =>
+          Option.map(Option.fromNullishOr(db.objects.get(key)), (bytes) => ({
+            body: Stream.make(bytes),
+            size: bytes.byteLength,
+          }))
+        ),
       put: ({ key, bytes }) =>
         Effect.sync(() => {
           db.objects.set(key, bytes);
         }),
-      get: (key) =>
-        Effect.sync(() =>
-          Option.map(Option.fromNullishOr(db.objects.get(key)), (bytes) => ({
-            size: bytes.byteLength,
-            body: Stream.make(bytes),
-          })),
-        ),
     });
 
     const outbox = Outbox.of({
       enqueue: (messages) =>
         Effect.sync(() =>
-          messages.map((message) => {
-            const id = OutboxMessageId.make(`outbox-${nextId++}`);
+          Arr.map(messages, (message) => {
+            const id = OutboxMessageId.make(`outbox-${takeId()}`);
             db.outbox.push({
-              id,
-              message,
               attempts: 0,
-              status: "pending",
               claimToken: null,
-              nextAttemptAt: null,
+              id,
               lastError: null,
+              message,
+              nextAttemptAt: null,
+              status: "pending",
             });
+
             return id;
-          }),
+          })
         ),
     });
 
@@ -218,47 +313,67 @@ const repositories = Layer.effectContext(
         }),
     });
 
+    const updateClaim = (
+      id: OutboxMessageId,
+      claimToken: OutboxClaimToken,
+      update: (row: OutboxRow) => void
+    ) =>
+      Effect.sync(() => {
+        const row = Option.getOrUndefined(
+          Arr.findFirst(db.outbox, (candidate) => candidate.id === id)
+        );
+
+        if (row === undefined || row.claimToken !== claimToken) {
+          return "claimLost" as const;
+        }
+
+        update(row);
+
+        return "recorded" as const;
+      });
+
     const delivery = OutboxDelivery.of({
       claimDue: ({ limit, ids }) =>
         Effect.map(DateTime.now, (now) =>
-          db.outbox
-            .filter(
+          Arr.map(
+            Arr.filter(
+              db.outbox,
               (row) =>
                 row.status === "pending" &&
                 row.claimToken === null &&
-                (row.nextAttemptAt === null || !DateTime.isGreaterThan(row.nextAttemptAt, now)) &&
-                (ids === undefined || ids.includes(row.id)),
-            )
-            .slice(0, limit)
-            .map((row): ClaimedOutboxMessage => {
+                (row.nextAttemptAt === null ||
+                  !DateTime.isGreaterThan(row.nextAttemptAt, now)) &&
+                (ids === undefined || ids.includes(row.id))
+            ).slice(0, limit),
+            (row): ClaimedOutboxMessage => {
               row.attempts += 1;
-              row.claimToken = OutboxClaimToken.make(`claim-${nextId++}`);
+              row.claimToken = OutboxClaimToken.make(`claim-${takeId()}`);
+
               return {
-                id: row.id,
-                claimToken: row.claimToken,
                 attempts: row.attempts,
-                message: row.message,
+                claimToken: row.claimToken,
                 createdAt: now,
+                id: row.id,
+                message: row.message,
               };
-            }),
+            }
+          )
         ),
       markDelivered: (id, claimToken) =>
-        Effect.sync(() => {
-          const row = db.outbox.find((candidate) => candidate.id === id);
-          if (row === undefined || row.claimToken !== claimToken) return "claimLost" as const;
+        updateClaim(id, claimToken, (row) => {
           row.status = "delivered";
           row.claimToken = null;
-          return "recorded" as const;
         }),
       markFailed: (id, claimToken, error, next) =>
-        Effect.sync(() => {
-          const row = db.outbox.find((candidate) => candidate.id === id);
-          if (row === undefined || row.claimToken !== claimToken) return "claimLost" as const;
+        updateClaim(id, claimToken, (row) => {
           row.claimToken = null;
           row.lastError = error;
-          if (next === "dead") row.status = "dead";
-          else row.nextAttemptAt = next;
-          return "recorded" as const;
+
+          if (next === "dead") {
+            row.status = "dead";
+          } else {
+            row.nextAttemptAt = next;
+          }
         }),
     });
 
@@ -269,9 +384,9 @@ const repositories = Layer.effectContext(
       Context.add(FileStore, fileStore),
       Context.add(Outbox, outbox),
       Context.add(AuditLog, auditLog),
-      Context.add(OutboxDelivery, delivery),
+      Context.add(OutboxDelivery, delivery)
     );
-  }),
+  })
 );
 
 /**
@@ -281,70 +396,73 @@ const repositories = Layer.effectContext(
  */
 const transactor = Layer.effect(
   Transactor,
-  Effect.gen(function* () {
+  Effect.gen(function* transactor() {
     const db = yield* Memory;
+
     return Transactor.of({
       run: (program) =>
         Effect.suspend(() => {
           const before: Omit<MemoryTables, "commits"> = {
-            departments: [...db.departments],
             articles: [...db.articles],
-            staticContent: [...db.staticContent],
-            publicFiles: [...db.publicFiles],
-            objects: new Map(db.objects),
-            outbox: db.outbox.map((row) => ({ ...row })),
             audit: [...db.audit],
+            departments: [...db.departments],
+            objects: new Map(db.objects),
+            outbox: Arr.map(db.outbox, (row) => ({ ...row })),
+            publicFiles: [...db.publicFiles],
+            staticContent: [...db.staticContent],
           };
+
           return Effect.provideService(program, InTransaction, {
             kind: "database-transaction",
           }).pipe(
             Effect.tap(() =>
               Effect.sync(() => {
                 db.commits += 1;
-              }),
+              })
             ),
             Effect.onError(() =>
               Effect.sync(() => {
                 Object.assign(db, before);
-              }),
-            ),
+              })
+            )
           );
         }),
     });
-  }),
+  })
 );
 
 /** Every in-memory service over `tables` (fresh by default), with an anonymous actor. */
 export const memoryLayer = (tables: MemoryTables = makeTables()) =>
-  Layer.mergeAll(repositories, transactor, Layer.succeed(CurrentActor, anonymous)).pipe(
-    Layer.provideMerge(Layer.succeed(Memory, tables)),
-  );
+  Layer.mergeAll(
+    repositories,
+    transactor,
+    Layer.succeed(CurrentActor, anonymous)
+  ).pipe(Layer.provideMerge(Layer.succeed(Memory, tables)));
 
 // ---------------------------------------------------------------- fake fixtures
 
 export const fakeDepartment = (
   id: number,
   city: string,
-  overrides: Partial<Department> = {},
+  overrides: Partial<Department> = {}
 ): Department => ({
+  active: true,
+  address: null,
+  city,
+  email: EmailAddress.make(`${city.toLowerCase()}@example.org`),
   id: DepartmentId.make(id),
+  latitude: null,
+  logoKey: null,
+  longitude: null,
   name: `Vektor ${city}`,
   shortName: city.slice(0, 4).toUpperCase(),
-  email: EmailAddress.make(`${city.toLowerCase()}@example.org`),
-  city,
-  address: null,
-  active: true,
   slackChannel: null,
-  logoKey: null,
-  latitude: null,
-  longitude: null,
   ...overrides,
 });
 
-const decodeHtml = Schema.decodeSync(SanitizedHtmlFromString);
 export const fakeKey = (
   seed: number,
-  extension: "png" | "jpg" | "bin" | "pdf" | "gif" | "webp" = "png",
+  extension: "png" | "jpg" | "bin" | "pdf" | "gif" | "webp" = "png"
 ) => FileKey.make(`${seed.toString(16).padStart(64, "0")}.${extension}`);
 
 export const fakeArticle = (
@@ -352,18 +470,20 @@ export const fakeArticle = (
   options: {
     readonly published: boolean;
     readonly createdAt: DateTime.Utc;
-    readonly departmentIds?: ReadonlyArray<number>;
-  },
+    readonly departmentIds?: readonly number[];
+  }
 ): Article => ({
-  id: ArticleId.make(id),
-  title: `Nyhet ${id}`,
-  slug: Slug.make(`nyhet-${id}`),
-  body: decodeHtml(`<p>Tekst ${id}</p>`),
-  imageSmallKey: fakeKey(id),
-  imageLargeKey: fakeKey(id + 10_000),
-  sticky: false,
-  published: options.published,
-  departmentIds: (options.departmentIds ?? []).map((value) => DepartmentId.make(value)),
   authorId: null,
+  body: sanitizeRichText(`<p>Tekst ${id}</p>`),
   createdAt: options.createdAt,
+  departmentIds: Arr.map(options.departmentIds ?? [], (value) =>
+    DepartmentId.make(value)
+  ),
+  id: ArticleId.make(id),
+  imageLargeKey: fakeKey(id + 10_000),
+  imageSmallKey: fakeKey(id),
+  published: options.published,
+  slug: Slug.make(`nyhet-${id}`),
+  sticky: false,
+  title: `Nyhet ${id}`,
 });

@@ -1,36 +1,45 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { Array as Arr, pipe } from "effect";
+
 import { CommandForm, Field } from "@/components/forms";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { getArticlesAdmin, publishArticle, saveArticle } from "@/functions/panel.functions";
+import {
+  getArticlesAdmin,
+  publishArticle,
+  saveArticle,
+} from "@/functions/panel.functions";
 import { pageData } from "@/lib/outcome";
 
-/**
- * C5 articles: create (both images required, RULE-182; unique slug, RULE-096;
- * the notice says "kladd" for drafts, RULE-266 fixed) and publish/unpublish.
- */
-export const Route = createFileRoute("/kontrollpanel/artikler")({
-  loader: () => getArticlesAdmin().then(pageData),
-  component: ArticlesPage,
-});
+const routeApi = getRouteApi("/kontrollpanel/artikler");
 
-function ArticlesPage() {
-  const articles = Route.useLoaderData();
+const ArticlesPage = () => {
+  const articles = routeApi.useLoaderData();
+
   return (
     <section className="grid gap-6">
       <h1 className="text-2xl font-bold">Artikler</h1>
       <ul className="grid gap-2">
-        {articles.map((article) => (
-          <li key={article.id} className="flex flex-wrap items-center gap-3">
-            <a href={`/nyhet/${article.slug}`}>{article.title}</a>
-            {article.sticky && <span className="text-xs">(festet)</span>}
-            <CommandForm action={publishArticle} submitLabel="Avpubliser" className="flex gap-2">
-              <input type="hidden" name="id" value={article.id} />
-            </CommandForm>
-          </li>
-        ))}
+        {pipe(
+          articles,
+          Arr.map((article) => (
+            <li key={article.id} className="flex flex-wrap items-center gap-3">
+              <a href={`/nyhet/${article.slug}`}>{article.title}</a>
+              {article.sticky && <span className="text-xs">(festet)</span>}
+              <CommandForm
+                action={publishArticle}
+                submitLabel="Avpubliser"
+                className="flex gap-2"
+              >
+                <input type="hidden" name="id" value={article.id} />
+              </CommandForm>
+            </li>
+          ))
+        )}
       </ul>
-      <h2 className="text-xl font-semibold">Publiser eller avpubliser etter id</h2>
+      <h2 className="text-xl font-semibold">
+        Publiser eller avpubliser etter id
+      </h2>
       <CommandForm action={publishArticle} submitLabel="Lagre">
         <Field name="id" label="Artikkel-id">
           <Input id="article-id" name="id" inputMode="numeric" required />
@@ -64,7 +73,9 @@ function ArticlesPage() {
           />
         </Field>
         <Field name="file" label="Filtype">
-          <span className="text-xs text-[var(--sea-ink-soft)]">JPEG, PNG, WebP eller GIF.</span>
+          <span className="text-sea-ink-soft text-xs">
+            JPEG, PNG, WebP eller GIF.
+          </span>
         </Field>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="sticky" /> Fest øverst
@@ -75,4 +86,10 @@ function ArticlesPage() {
       </CommandForm>
     </section>
   );
-}
+};
+
+/** C5 articles: create (both images required, RULE-182; unique slug, RULE-096; drafts say kladd, RULE-266 fixed) and publish/unpublish. */
+export const Route = createFileRoute("/kontrollpanel/artikler")({
+  component: ArticlesPage,
+  loader: () => getArticlesAdmin().then(pageData),
+});

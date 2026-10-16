@@ -5,34 +5,51 @@
  * `production` can never yield a staff actor, so every staff command there is
  * `Forbidden` by construction.
  */
-import { DepartmentId, UserId, anonymous, type Actor, type Staff } from "@vektorprogrammet/domain";
-import { TEST_ACTOR_NAMES, type TestActorName } from "../lib/testActor";
+import {
+  Actor,
+  DepartmentId,
+  UserId,
+  anonymous,
+} from "@vektorprogrammet/domain";
+import type { Actor as ActorType, Staff } from "@vektorprogrammet/domain";
+import { Array as Arr, Option } from "effect";
+
+import { TEST_ACTOR_NAMES } from "../lib/testActor";
+import type { TestActorName } from "../lib/testActor";
 import type { Deployment } from "./deployment";
 
 /** Fake ids (no legacy user); department 1 is whatever the local database holds as id 1. */
 export const TEST_ACTORS: Readonly<Record<TestActorName, Staff>> = {
-  admin: {
-    _tag: "Staff",
-    userId: UserId.make(900_001),
+  admin: Actor.cases.Staff.make({
     departmentId: DepartmentId.make(1),
-    role: "admin",
     executiveBoard: true,
-  },
-  teamLeader: {
-    _tag: "Staff",
-    userId: UserId.make(900_002),
+    role: "admin",
+    userId: UserId.make(900_001),
+  }),
+  teamLeader: Actor.cases.Staff.make({
     departmentId: DepartmentId.make(1),
-    role: "teamLeader",
     executiveBoard: false,
-  },
+    role: "teamLeader",
+    userId: UserId.make(900_002),
+  }),
 };
 
 /**
  * `selection` is the raw cookie value, read before the Effect program starts.
  * Local default: the admin test actor; `anonymous` selects no actor.
  */
-export const resolveActor = (deployment: Deployment, selection: string | undefined): Actor => {
-  if (deployment !== "local" || selection === "anonymous") return anonymous;
-  const name = TEST_ACTOR_NAMES.find((candidate) => candidate === selection) ?? "admin";
+export const resolveActor = (
+  deployment: Deployment,
+  selection: string | undefined
+): ActorType => {
+  if (deployment !== "local" || selection === "anonymous") {
+    return anonymous;
+  }
+
+  const name =
+    Option.getOrUndefined(
+      Arr.findFirst(TEST_ACTOR_NAMES, (candidate) => candidate === selection)
+    ) ?? "admin";
+
   return TEST_ACTORS[name];
 };

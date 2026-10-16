@@ -6,32 +6,35 @@
  */
 import type { R2Bucket } from "@cloudflare/workers-types";
 import { FileStore } from "@vektorprogrammet/domain";
-import { Effect, Layer, Option, Stream } from "effect";
+import { Effect, Layer, Option, Schema, Stream } from "effect";
+
+const decodeR2Chunk = Schema.decodeUnknownEffect(Schema.instanceOf(Uint8Array));
 
 export const r2FileStoreLayer = (bucket: R2Bucket): Layer.Layer<FileStore> =>
   Layer.succeed(
     FileStore,
     FileStore.of({
-      put: ({ key, bytes, contentType }) =>
-        Effect.promise(() => bucket.put(key, bytes, { httpMetadata: { contentType } })).pipe(
-          Effect.asVoid,
-          Effect.withSpan("FileStore.put"),
-        ),
       get: (key) =>
         Effect.promise(() => bucket.get(key)).pipe(
           Effect.map((object) =>
             object === null
               ? Option.none()
               : Option.some({
+                  body: Stream.fromAsyncIterable(
+                    object.body,
+                    (cause) => cause
+                  ).pipe(
+                    Stream.mapEffect((chunk) => decodeR2Chunk(chunk)),
+                    Stream.orDie
+                  ),
                   size: object.size,
-                  body: Stream.fromReadableStream({
-                    // Same runtime object; workers-types and lib.dom declare ReadableStream separately.
-                    evaluate: () => object.body as unknown as ReadableStream<Uint8Array>,
-                    onError: (cause) => cause,
-                  }).pipe(Stream.orDie),
-                }),
+                })
           ),
-          Effect.withSpan("FileStore.get"),
+          Effect.withSpan("FileStore.get")
         ),
-    }),
+      put: ({ key, bytes, contentType }) =>
+        Effect.promise(() =>
+          bucket.put(key, bytes, { httpMetadata: { contentType } })
+        ).pipe(Effect.asVoid, Effect.withSpan("FileStore.put")),
+    })
   );

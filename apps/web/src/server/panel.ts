@@ -23,10 +23,23 @@ import {
   selectableYears,
   semesterLabel,
   storeUpload,
-  type StoredUpload,
-  type UploadAccept,
 } from "@vektorprogrammet/domain";
-import { DateTime, Effect, Option } from "effect";
+import type {
+  Article,
+  StoredUpload,
+  UploadAccept,
+} from "@vektorprogrammet/domain";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Order,
+  Predicate,
+  Record as Rec,
+  Schema,
+} from "effect";
+
 import { STATIC_BLOCKS } from "./pages";
 
 // ---------------------------------------------------------------- form text
@@ -34,27 +47,38 @@ import { STATIC_BLOCKS } from "./pages";
 /** A form field as text; absent or a file → "". */
 export const text = (form: FormData, name: string): string => {
   const value = form.get(name);
-  return typeof value === "string" ? value : "";
+
+  return Schema.is(Schema.String)(value) ? value : "";
 };
 
 /** Blank → null. */
 export const optionalText = (form: FormData, name: string): string | null => {
   const value = text(form, name).trim();
+
   return value === "" ? null : value;
 };
 
 /** A checkbox: present → true. */
-export const checkbox = (form: FormData, name: string): boolean => form.has(name);
+export const checkbox = (form: FormData, name: string): boolean =>
+  form.has(name);
 
 /** Digits → number; anything else passes through so the domain reports it. */
 export const integer = (raw: string): number | string =>
-  /^-?\d+$/.test(raw.trim()) ? Number(raw) : raw;
+  /^-?\d+$/u.test(raw.trim()) ? Number(raw) : raw;
 
 /** Optional decimal (latitude/longitude): blank → null. */
-const optionalNumber = (form: FormData, name: string): number | string | null => {
+const optionalNumber = (
+  form: FormData,
+  name: string
+): number | string | null => {
   const raw = optionalText(form, name);
-  if (raw === null) return null;
+
+  if (raw === null) {
+    return null;
+  }
+
   const parsed = Number(raw.replace(",", "."));
+
   return Number.isFinite(parsed) ? parsed : raw;
 };
 
@@ -63,25 +87,33 @@ const optionalNumber = (form: FormData, name: string): number | string | null =>
  * UTC ISO instant. Unparseable input passes through so the domain reports it.
  */
 export const osloLocalToIso = (raw: string): string => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(raw);
-  if (match === null) return raw;
-  const [, year, month, day, hour, minute] = match.map(Number);
-  return DateTime.formatIso(osloWallClock({ year, month, day, hour, minute }));
+  const match =
+    /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2})$/u.exec(
+      raw
+    );
+
+  if (match === null) {
+    return raw;
+  }
+
+  const [, year, month, day, hour, minute] = Arr.map(match, Number);
+
+  return DateTime.formatIso(osloWallClock({ day, hour, minute, month, year }));
 };
 
 // ---------------------------------------------------------------- C1 / C2
 
 export const departmentInput = (form: FormData) => ({
+  active: checkbox(form, "active"),
+  address: optionalText(form, "address"),
+  city: text(form, "city"),
+  email: text(form, "email"),
+  latitude: optionalNumber(form, "latitude"),
+  logoKey: optionalText(form, "logoKey"),
+  longitude: optionalNumber(form, "longitude"),
   name: text(form, "name"),
   shortName: text(form, "shortName"),
-  email: text(form, "email"),
-  city: text(form, "city"),
-  address: optionalText(form, "address"),
-  active: checkbox(form, "active"),
   slackChannel: optionalText(form, "slackChannel"),
-  logoKey: optionalText(form, "logoKey"),
-  latitude: optionalNumber(form, "latitude"),
-  longitude: optionalNumber(form, "longitude"),
 });
 
 export const semesterInput = (form: FormData) => ({
@@ -91,11 +123,17 @@ export const semesterInput = (form: FormData) => ({
 
 export const fieldOfStudyInput = (form: FormData) => {
   const departmentId = optionalText(form, "departmentId");
-  return {
+
+  const input = {
     name: text(form, "name"),
     shortName: text(form, "shortName"),
-    ...(departmentId === null ? {} : { departmentId: integer(departmentId) }),
   };
+
+  if (departmentId === null) {
+    return input;
+  }
+
+  return { ...input, departmentId: integer(departmentId) };
 };
 
 export const fieldOfStudyRename = (form: FormData) => ({
@@ -114,52 +152,87 @@ export interface DepartmentRow {
   readonly slackChannel: string | null;
 }
 
+const byDepartmentName = Order.mapInput(
+  Order.make((left: string, right: string): -1 | 0 | 1 => {
+    const comparison = left.localeCompare(right, "nb");
+
+    if (comparison < 0) {
+      return -1;
+    }
+
+    if (comparison > 0) {
+      return 1;
+    }
+
+    return 0;
+  }),
+  (row: DepartmentRow) => row.name
+);
+
+const newestArticleOrder = Order.mapInput(
+  Order.Number,
+  (article: Article) => -DateTime.toEpochMillis(article.createdAt)
+);
+
 /** C1 departments (all, including inactive) and C2 the current semester (RULE-033/237). */
-export const dashboardView = Effect.gen(function* () {
+export const dashboardView = Effect.gen(function* dashboardView() {
   const actor = yield* CurrentActor;
   const departments = yield* DepartmentRepository;
   const current = yield* ensureCurrentSemester;
-  const rows = (yield* departments.list).map((department): DepartmentRow => ({
-    id: department.id,
-    name: department.name,
-    shortName: department.shortName,
-    city: department.city,
-    email: department.email,
-    address: department.address,
-    active: department.active,
-    slackChannel: department.slackChannel,
-  }));
+
+  const rows = Arr.map(
+    yield* departments.list,
+    (department): DepartmentRow => ({
+      active: department.active,
+      address: department.address,
+      city: department.city,
+      email: department.email,
+      id: department.id,
+      name: department.name,
+      shortName: department.shortName,
+      slackChannel: department.slackChannel,
+    })
+  );
+
   return {
-    actor:
-      actor._tag === "Staff"
-        ? {
-            role: actor.role,
-            departmentId: actor.departmentId,
-            executiveBoard: actor.executiveBoard,
-          }
-        : null,
+    actor: Predicate.isTagged("Staff")(actor)
+      ? {
+          departmentId: actor.departmentId,
+          executiveBoard: actor.executiveBoard,
+          role: actor.role,
+        }
+      : null,
     currentSemester: semesterLabel(current),
-    departments: rows.sort((a, b) => a.name.localeCompare(b.name, "nb")),
+    departments: Arr.sort(rows, byDepartmentName),
   };
 });
 
 /** C1 semesters newest first (RULE-084) and the selectable years (RULE-190). */
-export const semestersView = Effect.gen(function* () {
+export const semestersView = Effect.gen(function* semestersView() {
   const semesters = yield* listSemestersNewestFirst;
+
   return {
-    semesters: semesters.map((semester) => ({ id: semester.id, label: semesterLabel(semester) })),
+    semesters: Arr.map(semesters, (semester) => ({
+      id: semester.id,
+      label: semesterLabel(semester),
+    })),
     years: selectableYears(yield* DateTime.now),
   };
 });
 
 /** C1 fields of study of the actor's own department (RULE-139). */
-export const fieldsOfStudyView = Effect.gen(function* () {
+export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
   const actor = yield* CurrentActor;
-  if (actor._tag !== "Staff") return { departmentId: null, fieldsOfStudy: [] };
+
+  if (!Predicate.isTagged("Staff")(actor)) {
+    return { departmentId: null, fieldsOfStudy: [] };
+  }
+
   const fields = yield* listFieldsOfStudy(actor.departmentId);
+
   return {
     departmentId: actor.departmentId,
-    fieldsOfStudy: fields.map((field) => ({
+    fieldsOfStudy: Arr.map(fields, (field) => ({
       id: field.id,
       name: field.name,
       shortName: field.shortName,
@@ -171,21 +244,29 @@ export const fieldsOfStudyView = Effect.gen(function* () {
 
 export const staticContentInput = (form: FormData) => {
   const editorId = optionalText(form, "editorId");
-  return {
-    ...(editorId === null ? {} : { editorId }),
-    html: text(form, "html"),
-  };
+  const input = { html: text(form, "html") };
+
+  if (editorId === null) {
+    return input;
+  }
+
+  return { ...input, editorId };
 };
 
 /** Every block the public pages embed, with its current HTML. */
 export const staticContentView = Effect.forEach(
-  Object.entries(STATIC_BLOCKS).flatMap(([page, keys]) => keys.map((key) => ({ page, key }))),
+  Arr.flatMap(Rec.toEntries(STATIC_BLOCKS), ([page, keys]) =>
+    Arr.map(keys, (key) => ({ key, page }))
+  ),
   ({ page, key }) =>
     Effect.map(getStaticContent(StaticContentKey.make(key)), (block) => ({
-      page,
+      html: Option.match(block, {
+        onNone: () => "",
+        onSome: (found): string => found.html,
+      }),
       key,
-      html: Option.match(block, { onNone: () => "", onSome: (found): string => found.html }),
-    })),
+      page,
+    }))
 );
 
 // ---------------------------------------------------------------- C5 / C6 uploads
@@ -196,113 +277,144 @@ export interface UploadedFile {
   readonly bytes: Uint8Array;
 }
 
-/** Reads a file field; an empty file input → null. Async because `File.arrayBuffer` is. */
-export const readFile = (form: FormData, name: string): Promise<UploadedFile | null> => {
+/** Reads a form file through its native Promise API; interruption discards the result. */
+export const readFile = Effect.fnUntraced(function* readFile(
+  form: FormData,
+  name: string
+) {
   const value = form.get(name);
-  if (value === null || typeof value === "string" || value.size === 0) {
-    return Promise.resolve(null);
+
+  if (value === null || Schema.is(Schema.String)(value) || value.size === 0) {
+    return null;
   }
-  return value
-    .arrayBuffer()
-    .then((buffer) => ({ name: value.name, bytes: new Uint8Array(buffer) }));
-};
+
+  const buffer = yield* Effect.orDie(
+    Effect.tryPromise(() => value.arrayBuffer())
+  );
+
+  return { bytes: new Uint8Array(buffer), name: value.name };
+});
 
 /** Step 1 of an upload (outside the transaction): RULE-130 typing, content-addressed R2 put. */
-export const storeOptional = (file: UploadedFile | null, accept: UploadAccept) =>
+export const storeOptional = (
+  file: UploadedFile | null,
+  accept: UploadAccept
+) =>
   file === null
     ? Effect.succeed<StoredUpload | null>(null)
     : Effect.map(
-        storeUpload({ name: file.name, bytes: file.bytes, accept }),
-        (stored): StoredUpload | null => stored,
+        storeUpload({ accept, bytes: file.bytes, name: file.name }),
+        (stored): StoredUpload | null => stored
       );
 
 export const articleInput = (
   form: FormData,
-  images: { readonly small: string | undefined; readonly large: string | undefined },
-) => ({
-  title: text(form, "title"),
-  body: text(form, "body"),
-  ...(images.small === undefined ? {} : { imageSmallKey: images.small }),
-  ...(images.large === undefined ? {} : { imageLargeKey: images.large }),
-  sticky: checkbox(form, "sticky"),
-  published: checkbox(form, "published"),
-  departmentIds: form
-    .getAll("departmentIds")
-    .flatMap((value) => (typeof value === "string" ? [integer(value)] : [])),
-});
+  images: {
+    readonly large: string | undefined;
+    readonly small: string | undefined;
+  }
+) => {
+  const article = {
+    body: text(form, "body"),
+    departmentIds: Arr.flatMap(form.getAll("departmentIds"), (value) =>
+      Schema.is(Schema.String)(value) ? [integer(value)] : []
+    ),
+    published: checkbox(form, "published"),
+    sticky: checkbox(form, "sticky"),
+    title: text(form, "title"),
+  };
+
+  if (images.large !== undefined) {
+    const withLargeImage = { ...article, imageLargeKey: images.large };
+
+    if (images.small !== undefined) {
+      return { ...withLargeImage, imageSmallKey: images.small };
+    }
+
+    return withLargeImage;
+  }
+
+  if (images.small !== undefined) {
+    return { ...article, imageSmallKey: images.small };
+  }
+
+  return article;
+};
 
 /** Published articles, newest first (drafts have no staff listing query yet; see README). */
-export const articlesView = Effect.gen(function* () {
+export const articlesView = Effect.gen(function* articlesView() {
   const articles = yield* ArticleRepository;
   const published = yield* articles.listPublished;
-  return [...published]
-    .sort((a, b) => DateTime.toEpochMillis(b.createdAt) - DateTime.toEpochMillis(a.createdAt))
-    .map((article) => ({
-      id: article.id,
-      title: article.title,
-      slug: article.slug,
-      sticky: article.sticky,
-    }));
+
+  return Arr.map(Arr.sort(published, newestArticleOrder), (article) => ({
+    id: article.id,
+    slug: article.slug,
+    sticky: article.sticky,
+    title: article.title,
+  }));
 });
 
 export const sponsorInput = (form: FormData, logoKey: string | null) => ({
-  name: text(form, "name"),
-  url: text(form, "url"),
-  size: text(form, "size"),
   logoKey,
+  name: text(form, "name"),
+  size: text(form, "size"),
+  url: text(form, "url"),
 });
 
 export const sponsorsView = Effect.map(listSponsorsForFooter, (sponsors) =>
-  sponsors.map((sponsor) => ({
+  Arr.map(sponsors, (sponsor) => ({
     id: sponsor.id,
     name: sponsor.name,
-    url: sponsor.url,
     size: sponsor.size,
-  })),
+    url: sponsor.url,
+  }))
 );
 
 // ---------------------------------------------------------------- C8
 
 export const socialEventInput = (form: FormData) => ({
-  title: text(form, "title"),
+  departmentId: integer(text(form, "departmentId")),
   description: text(form, "description"),
-  startsAt: osloLocalToIso(text(form, "startsAt")),
   endsAt: osloLocalToIso(text(form, "endsAt")),
   link: optionalText(form, "link"),
-  departmentId: integer(text(form, "departmentId")),
   semesterId: integer(text(form, "semesterId")),
+  startsAt: osloLocalToIso(text(form, "startsAt")),
+  title: text(form, "title"),
 });
 
 /** The actor's department's events this semester, with the RULE-085 badge. */
-export const socialEventsView = Effect.gen(function* () {
+export const socialEventsView = Effect.gen(function* socialEventsView() {
   const actor = yield* CurrentActor;
   const departments = yield* DepartmentRepository;
   const current = yield* ensureCurrentSemester;
   const now = yield* DateTime.now;
   const allSemesters = yield* listSemestersNewestFirst;
-  const events =
-    actor._tag === "Staff"
-      ? yield* (yield* SocialEventRepository).list({
-          departmentId: actor.departmentId,
-          semesterId: current.id,
-        })
-      : [];
+
+  const events = Predicate.isTagged("Staff")(actor)
+    ? yield* (yield* SocialEventRepository).list({
+        departmentId: actor.departmentId,
+        semesterId: current.id,
+      })
+    : [];
+
   return {
-    departmentId: actor._tag === "Staff" ? actor.departmentId : null,
     currentSemesterId: current.id,
-    semesters: allSemesters.map((semester) => ({
-      id: semester.id,
-      label: semesterLabel(semester),
-    })),
-    departments: (yield* departments.list).map((department) => ({
+    departmentId: Predicate.isTagged("Staff")(actor)
+      ? actor.departmentId
+      : null,
+    departments: Arr.map(yield* departments.list, (department) => ({
       id: department.id,
       name: department.name,
     })),
-    events: events.map((event) => ({
-      id: event.id,
-      title: event.title,
-      startsAt: DateTime.formatIso(event.startsAt),
+    events: Arr.map(events, (event) => ({
       badge: EVENT_BADGE_LABEL[eventBadge(event, now)],
+      id: event.id,
+      startsAt: DateTime.formatIso(event.startsAt),
+      title: event.title,
+    })),
+    semesters: Arr.map(allSemesters, (semester) => ({
+      id: semester.id,
+      label: semesterLabel(semester),
     })),
   };
 });

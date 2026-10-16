@@ -14,6 +14,8 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 
+import type { ContactFormState } from "./contactPost";
+
 export interface WorkerEnv {
   /** `local` | `preview` | `production`; decoded by `deployment.ts`, never compared as a raw string elsewhere. */
   readonly DEPLOYMENT: string;
@@ -39,6 +41,7 @@ export interface WorkerEnv {
 export interface RequestContext {
   readonly env: WorkerEnv;
   readonly ctx: ExecutionContext;
+  readonly contactForm?: ContactFormState;
 }
 
 declare module "@tanstack/react-router" {

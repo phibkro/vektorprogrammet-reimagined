@@ -15,14 +15,17 @@ import {
   loadFrontPageNews,
   loadNewsPage,
   osloParts,
-  type Article,
-  type Department,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
+import type { Article, Department } from "@vektorprogrammet/domain";
+import type { DateTime } from "effect";
+import { Array as Arr, Effect, Option, Order, Record as Rec } from "effect";
 
 /** Legacy `html_id`s of the editable blocks each public page embeds (from the legacy templates). */
 export const STATIC_BLOCKS = {
+  foreldre: ["parent-header", "parent-assistants-info", "parent-course"],
   home: ["home-tagline"],
+  kontakt: ["contact-header"],
+  nyheter: ["vektor_i_media"],
   omvektor: [
     "about-header",
     "about-motivate-children",
@@ -30,9 +33,6 @@ export const STATIC_BLOCKS = {
     "about-try-teaching",
     "about-faq",
   ],
-  foreldre: ["parent-header", "parent-assistants-info", "parent-course"],
-  kontakt: ["contact-header"],
-  nyheter: ["vektor_i_media"],
 } as const;
 
 export type StaticPage = keyof typeof STATIC_BLOCKS;
@@ -65,15 +65,16 @@ export interface ArticleView extends ArticleSummary {
 
 const osloDate = (instant: DateTime.DateTime): string => {
   const { day, month, year } = osloParts(instant);
+
   return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`;
 };
 
 const summary = (article: Article): ArticleSummary => ({
-  slug: article.slug,
-  title: article.title,
-  sticky: article.sticky,
-  imageSmallKey: article.imageSmallKey,
   date: osloDate(article.createdAt),
+  imageSmallKey: article.imageSmallKey,
+  slug: article.slug,
+  sticky: article.sticky,
+  title: article.title,
 });
 
 export const staticBlocks = (page: StaticPage) =>
@@ -83,63 +84,76 @@ export const staticBlocks = (page: StaticPage) =>
       (block) =>
         [
           key,
-          Option.match(block, { onNone: () => null, onSome: (found): string | null => found.html }),
-        ] as const,
-    ),
-  ).pipe(Effect.map((entries): StaticBlocks => Object.fromEntries(entries)));
+          Option.match(block, {
+            onNone: () => null,
+            onSome: (found): string | null => found.html,
+          }),
+        ] as const
+    )
+  ).pipe(Effect.map((entries): StaticBlocks => Rec.fromEntries(entries)));
 
 const departmentSummary = (department: Department): DepartmentSummary => ({
+  city: department.city,
+  email: department.email,
   id: department.id,
   name: department.name,
   shortName: department.shortName,
-  city: department.city,
-  email: department.email,
 });
 
-const activeDepartmentRows = Effect.gen(function* () {
+const activeDepartmentRows = Effect.gen(function* activeDepartmentRows() {
   const departments = yield* DepartmentRepository;
+
   return Arr.sort(
     Arr.filter(yield* departments.list, (department) => department.active),
-    Order.mapInput(Order.String, (department: Department) => department.name),
+    Order.mapInput(Order.String, (department: Department) => department.name)
   );
 });
 
 /** Active departments, by name; the visitor picks one (RULE-327 replacement). */
-export const activeDepartments = Effect.map(activeDepartmentRows, Arr.map(departmentSummary));
+export const activeDepartments = Effect.map(
+  activeDepartmentRows,
+  Arr.map(departmentSummary)
+);
 
 export interface ContactPageView {
-  readonly departments: ReadonlyArray<DepartmentSummary>;
+  readonly departments: readonly DepartmentSummary[];
   readonly blocks: StaticBlocks;
   /** The receipt notice after a successful post (legacy wording, from the domain). */
   readonly notice: string | null;
 }
 
 /** C10 `/kontakt` and `/kontakt/avdeling/{id}`; `sentTo` is the department of a just-sent ticket. */
-export const contactPage = Effect.fn("contactPage")(function* (sentTo: number | null) {
+export const contactPage = Effect.fn("contactPage")(function* contactPage(
+  sentTo: number | null
+) {
   const departments = yield* activeDepartmentRows;
-  const receiver = departments.find((department) => department.id === sentTo);
+
+  const receiver = Option.getOrUndefined(
+    Arr.findFirst(departments, (department) => department.id === sentTo)
+  );
+
   return {
-    departments: departments.map(departmentSummary),
     blocks: yield* staticBlocks("kontakt"),
+    departments: Arr.map(departments, departmentSummary),
     notice: receiver === undefined ? null : contactReceiptNotice(receiver),
   } satisfies ContactPageView;
 });
 
 /** C3 home: departments, recent or sticky news (RULE-331), the tagline block. */
 export const homePage = Effect.all({
+  blocks: staticBlocks("home"),
   departments: activeDepartments,
   news: Effect.map(loadFrontPageNews(), Arr.map(summary)),
-  blocks: staticBlocks("home"),
 });
 
 export interface NewsPageView {
-  readonly items: ReadonlyArray<ArticleSummary>;
+  readonly items: readonly ArticleSummary[];
   readonly page: number;
   readonly totalPages: number;
   readonly totalItems: number;
   /** Set on `/nyheter/{department}`. */
   readonly department: DepartmentSummary | null;
-  readonly departments: ReadonlyArray<DepartmentSummary>;
+  readonly departments: readonly DepartmentSummary[];
   readonly blocks: StaticBlocks;
 }
 
@@ -147,42 +161,54 @@ export interface NewsPageView {
  * C5 `/nyheter` and `/nyheter/{department}` (RULE-326: 10 per page, newest
  * first). `department` is a short name (legacy URL); unknown → `NotFound`.
  */
-export const newsPage = Effect.fn("newsPage")(function* (query: {
+export const newsPage = Effect.fn("newsPage")(function* newsPage(query: {
   readonly page: number;
   readonly department: string | null;
 }) {
   const departments = yield* activeDepartmentRows;
   const wanted = query.department?.toLowerCase();
+
   const department =
     wanted === undefined
       ? undefined
-      : departments.find((candidate) => candidate.shortName.toLowerCase() === wanted);
+      : Option.getOrUndefined(
+          Arr.findFirst(
+            departments,
+            (candidate) => candidate.shortName.toLowerCase() === wanted
+          )
+        );
+
   if (query.department !== null && department === undefined) {
     return yield* new NotFound({ entity: "Department", key: query.department });
   }
+
   const page = yield* loadNewsPage(
     department === undefined
       ? { page: query.page }
-      : { page: query.page, departmentId: department.id },
+      : { departmentId: department.id, page: query.page }
   );
+
   return {
-    items: page.items.map(summary),
-    page: page.page,
-    totalPages: page.totalPages,
-    totalItems: page.totalItems,
-    department: department === undefined ? null : departmentSummary(department),
-    departments: departments.map(departmentSummary),
     blocks: yield* staticBlocks("nyheter"),
+    department: department === undefined ? null : departmentSummary(department),
+    departments: Arr.map(departments, departmentSummary),
+    items: Arr.map(page.items, summary),
+    page: page.page,
+    totalItems: page.totalItems,
+    totalPages: page.totalPages,
   } satisfies NewsPageView;
 });
 
 /** C5 `/nyhet/{slug}`: drafts and unknown slugs are `NotFound` (RULE-267). */
-export const articlePage = Effect.fn("articlePage")(function* (slug: string) {
+export const articlePage = Effect.fn("articlePage")(function* articlePage(
+  slug: string
+) {
   const article = yield* getPublicArticle(slug);
+
   return {
     ...summary(article),
-    imageLargeKey: article.imageLargeKey,
     bodyHtml: article.body,
+    imageLargeKey: article.imageLargeKey,
   } satisfies ArticleView;
 });
 
@@ -195,10 +221,10 @@ export interface SponsorView {
 
 /** C6 footer sponsors, large first. */
 export const footerSponsors = Effect.map(listSponsorsForFooter, (sponsors) =>
-  sponsors.map((sponsor): SponsorView => ({
-    name: sponsor.name,
-    url: sponsor.url,
-    size: sponsor.size,
+  Arr.map(sponsors, (sponsor): SponsorView => ({
     logoKey: sponsor.logoKey,
-  })),
+    name: sponsor.name,
+    size: sponsor.size,
+    url: sponsor.url,
+  }))
 );

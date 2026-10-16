@@ -5,13 +5,15 @@
  * the rate limit) with the visitor's values and the field messages.
  */
 import { setResponseStatus } from "@tanstack/react-start/server";
+import { Predicate } from "effect";
+
 import type { Failure } from "../lib/outcome";
 import {
   contactCommand,
   prepareContact,
   readContactSubmission,
-  type ContactValues,
 } from "./contact";
+import type { ContactValues } from "./contact";
 import type { RequestContext } from "./env";
 import { runPreparedCommand } from "./runtime";
 import { requestScope } from "./scope";
@@ -25,22 +27,33 @@ export interface ContactFormState {
 export const handleContactPost = <Next>(options: {
   readonly request: Request;
   readonly context: RequestContext;
-  readonly next: (options: { context: { contactForm: ContactFormState } }) => Next;
+  readonly next: (options: {
+    context: { contactForm: ContactFormState };
+  }) => Next;
 }): Promise<Response | Next> =>
   options.request.formData().then((form) => {
     const submission = readContactSubmission(form, options.request.headers);
-    return runPreparedCommand(requestScope(options.context), prepareContact(submission), () =>
-      contactCommand(submission),
+
+    return runPreparedCommand(
+      requestScope(options.context),
+      prepareContact(submission),
+      () => contactCommand(submission)
     ).then((outcome) => {
-      if (outcome._tag === "Success") {
+      if (Predicate.isTagged(outcome, "Success")) {
         return new Response(null, {
+          headers: {
+            Location: `/kontakt/avdeling/${outcome.value.departmentId}?sendt=1`,
+          },
           status: 303,
-          headers: { Location: `/kontakt/avdeling/${outcome.value.departmentId}?sendt=1` },
         });
       }
+
       setResponseStatus(outcome.formStatus);
+
       return options.next({
-        context: { contactForm: { values: submission.values, failure: outcome } },
+        context: {
+          contactForm: { failure: outcome, values: submission.values },
+        },
       });
     });
   });

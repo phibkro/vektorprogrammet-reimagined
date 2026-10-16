@@ -1,3 +1,4 @@
+import { createServerFn } from "@tanstack/react-start";
 /**
  * Server functions for `/kontrollpanel`. Every write is a domain command run
  * through `runCommand` (one transaction: authorize, validate, write, audit).
@@ -22,8 +23,8 @@ import {
   updateDepartment,
   updateStaticContent,
 } from "@vektorprogrammet/domain";
-import { createServerFn } from "@tanstack/react-start";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
+
 import {
   articleInput,
   articlesView,
@@ -50,43 +51,42 @@ import { requestScope } from "../server/scope";
 
 const SAVED = "Lagret.";
 
-const formData = (data: unknown): FormData => {
-  if (!(data instanceof FormData)) throw new Error("Forventet skjemadata.");
-  return data;
-};
+const formData = Schema.toStandardSchemaV1(Schema.FormData);
 
 const decodeDepartmentId = decodeInput(DepartmentId);
+
 const decodeFieldOfStudyId = decodeInput(FieldOfStudyId);
+
 const decodeArticleId = decodeInput(ArticleId);
 
 // ---------------------------------------------------------------- views
 
-export const getDashboard = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), dashboardView),
+export const getDashboard = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), dashboardView)
 );
 
-export const getSemesters = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), semestersView),
+export const getSemesters = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), semestersView)
 );
 
-export const getFieldsOfStudy = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), fieldsOfStudyView),
+export const getFieldsOfStudy = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), fieldsOfStudyView)
 );
 
-export const getStaticContentAdmin = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), staticContentView),
+export const getStaticContentAdmin = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), staticContentView)
 );
 
-export const getArticlesAdmin = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), articlesView),
+export const getArticlesAdmin = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), articlesView)
 );
 
-export const getSponsorsAdmin = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), sponsorsView),
+export const getSponsorsAdmin = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), sponsorsView)
 );
 
-export const getSocialEvents = createServerFn({ method: "GET" }).handler(({ context }) =>
-  runQuery(requestScope(context), socialEventsView),
+export const getSocialEvents = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), socialEventsView)
 );
 
 // ---------------------------------------------------------------- C1
@@ -96,35 +96,40 @@ export const saveDepartment = createServerFn({ method: "POST" })
   .handler(({ context, data }) => {
     const id = text(data, "id");
     const input = departmentInput(data);
+
     return runCommand(
       requestScope(context),
       (id === ""
         ? createDepartment(input)
         : Effect.flatMap(decodeDepartmentId(Number(id)), (departmentId) =>
-            updateDepartment(departmentId, input),
+            updateDepartment(departmentId, input)
           )
-      ).pipe(Effect.as(SAVED)),
+      ).pipe(Effect.as(SAVED))
     );
   });
 
 export const saveSemester = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
-    runCommand(requestScope(context), Effect.as(createSemester(semesterInput(data)), SAVED)),
+    runCommand(
+      requestScope(context),
+      Effect.as(createSemester(semesterInput(data)), SAVED)
+    )
   );
 
 export const saveFieldOfStudy = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) => {
     const id = text(data, "id");
+
     return runCommand(
       requestScope(context),
       (id === ""
         ? createFieldOfStudy(fieldOfStudyInput(data))
         : Effect.flatMap(decodeFieldOfStudyId(Number(id)), (fieldOfStudyId) =>
-            renameFieldOfStudy(fieldOfStudyId, fieldOfStudyRename(data)),
+            renameFieldOfStudy(fieldOfStudyId, fieldOfStudyRename(data))
           )
-      ).pipe(Effect.as(SAVED)),
+      ).pipe(Effect.as(SAVED))
     );
   });
 
@@ -135,8 +140,8 @@ export const saveStaticContent = createServerFn({ method: "POST" })
   .handler(({ context, data }) =>
     runCommand(
       requestScope(context),
-      Effect.as(updateStaticContent(staticContentInput(data)), SAVED),
-    ),
+      Effect.as(updateStaticContent(staticContentInput(data)), SAVED)
+    )
   );
 
 // ---------------------------------------------------------------- C5
@@ -144,25 +149,39 @@ export const saveStaticContent = createServerFn({ method: "POST" })
 export const saveArticle = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
-    Promise.all([readFile(data, "imageSmall"), readFile(data, "imageLarge")]).then(
-      ([small, large]) =>
-        runPreparedCommand(
-          requestScope(context),
+    runPreparedCommand(
+      requestScope(context),
+      Effect.flatMap(
+        Effect.all({
+          large: readFile(data, "imageLarge"),
+          small: readFile(data, "imageSmall"),
+        }),
+        ({ small, large }) =>
           Effect.all({
-            small: storeOptional(small, "image"),
             large: storeOptional(large, "image"),
-          }),
-          (stored) =>
-            Effect.gen(function* () {
-              if (stored.small !== null) yield* registerPublicFile(stored.small);
-              if (stored.large !== null) yield* registerPublicFile(stored.large);
-              const created = yield* createArticle(
-                articleInput(data, { small: stored.small?.key, large: stored.large?.key }),
-              );
-              return created.notice;
-            }),
-        ),
-    ),
+            small: storeOptional(small, "image"),
+          })
+      ),
+      (stored) =>
+        Effect.gen(function* saveArticleEffect() {
+          if (stored.small !== null) {
+            yield* registerPublicFile(stored.small);
+          }
+
+          if (stored.large !== null) {
+            yield* registerPublicFile(stored.large);
+          }
+
+          const created = yield* createArticle(
+            articleInput(data, {
+              large: stored.large?.key,
+              small: stored.small?.key,
+            })
+          );
+
+          return created.notice;
+        })
+    )
   );
 
 export const publishArticle = createServerFn({ method: "POST" })
@@ -171,9 +190,9 @@ export const publishArticle = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.flatMap(decodeArticleId(Number(text(data, "id"))), (articleId) =>
-        setArticlePublished(articleId, checkbox(data, "published")),
-      ).pipe(Effect.as(SAVED)),
-    ),
+        setArticlePublished(articleId, checkbox(data, "published"))
+      ).pipe(Effect.as(SAVED))
+    )
   );
 
 // ---------------------------------------------------------------- C6
@@ -181,15 +200,22 @@ export const publishArticle = createServerFn({ method: "POST" })
 export const saveSponsor = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
-    readFile(data, "logo").then((logo) =>
-      runPreparedCommand(requestScope(context), storeOptional(logo, "image"), (stored) =>
-        Effect.gen(function* () {
-          if (stored !== null) yield* registerPublicFile(stored);
-          yield* createSponsor(sponsorInput(data, stored?.key ?? null));
-          return SAVED;
-        }),
+    runPreparedCommand(
+      requestScope(context),
+      Effect.flatMap(readFile(data, "logo"), (logo) =>
+        storeOptional(logo, "image")
       ),
-    ),
+      (stored) =>
+        Effect.gen(function* saveSponsorEffect() {
+          if (stored !== null) {
+            yield* registerPublicFile(stored);
+          }
+
+          yield* createSponsor(sponsorInput(data, stored?.key ?? null));
+
+          return SAVED;
+        })
+    )
   );
 
 // ---------------------------------------------------------------- C8
@@ -197,5 +223,8 @@ export const saveSponsor = createServerFn({ method: "POST" })
 export const saveSocialEvent = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
-    runCommand(requestScope(context), Effect.as(createSocialEvent(socialEventInput(data)), SAVED)),
+    runCommand(
+      requestScope(context),
+      Effect.as(createSocialEvent(socialEventInput(data)), SAVED)
+    )
   );

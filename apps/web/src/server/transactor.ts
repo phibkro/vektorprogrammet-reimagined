@@ -12,17 +12,26 @@ import { SqlClient } from "effect/sql";
 export class Transactor extends Context.Service<
   Transactor,
   {
-    run<A, E, R>(program: Effect.Effect<A, E, R>): Effect.Effect<A, E, Exclude<R, InTransaction>>;
+    run: <A, E, R>(
+      program: Effect.Effect<A, E, R>
+    ) => Effect.Effect<A, E, Exclude<R, InTransaction>>;
   }
 >()("@vektorprogrammet/web/server/Transactor") {}
 
-export const transactorLayer: Layer.Layer<Transactor, never, SqlClient.SqlClient> = Layer.effect(
+export const transactorLayer: Layer.Layer<
   Transactor,
-  Effect.gen(function* () {
+  never,
+  SqlClient.SqlClient
+> = Layer.effect(
+  Transactor,
+  Effect.gen(function* transactorLayer() {
     const sql = yield* SqlClient.SqlClient;
+
     return Transactor.of({
       run: (program) =>
-        transactional(program).pipe(Effect.provideService(SqlClient.SqlClient, sql)),
+        transactional(program).pipe(
+          Effect.provideService(SqlClient.SqlClient, sql)
+        ),
     });
-  }),
+  })
 );

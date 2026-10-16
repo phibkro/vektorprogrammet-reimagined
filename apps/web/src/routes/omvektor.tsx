@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+
 import { SanitizedHtmlBlock } from "@/components/forms";
 import { getStaticPage } from "@/functions/public.functions";
 import { pageData } from "@/lib/outcome";
 
-/** C4 about page; `/om`, `/bedrifter` and `/faq` answer 301 here (`server/redirects.ts`). */
-export const Route = createFileRoute("/omvektor")({
-  loader: () => getStaticPage({ data: { page: "omvektor" } }).then(pageData),
-  component: AboutPage,
-});
+const routeApi = getRouteApi("/omvektor");
 
-function AboutPage() {
-  const blocks = Route.useLoaderData();
+const AboutPage = () => {
+  const blocks = routeApi.useLoaderData();
+
   return (
     <main className="page-wrap grid gap-8 px-4 py-12">
       <SanitizedHtmlBlock html={blocks["about-header"] ?? null} />
@@ -25,4 +23,10 @@ function AboutPage() {
       </section>
     </main>
   );
-}
+};
+
+/** C4 about page; /om, /bedrifter and /faq answer 301 here (server/redirects.ts). */
+export const Route = createFileRoute("/omvektor")({
+  component: AboutPage,
+  loader: () => getStaticPage({ data: { page: "omvektor" } }).then(pageData),
+});

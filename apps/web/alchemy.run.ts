@@ -13,6 +13,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Config, Effect } from "effect";
+
 import type { WorkerEnv } from "./src/server/env";
 import {
   COMPATIBILITY_DATE,
@@ -23,63 +24,73 @@ import {
   WORKER_MAIN,
 } from "./worker.config";
 
-const web = Effect.gen(function* () {
+const web = Effect.gen(function* web() {
   const stage = yield* Alchemy.Stage;
   const deployment = stage === "production" ? "production" : "preview";
 
   // Neon through Hyperdrive. Query caching is OFF: Hyperdrive does not invalidate
   // cached reads on writes, so a cached read after a write would be a bug.
   const database = yield* Cloudflare.Hyperdrive.Connection("Database", {
-    origin: {
-      scheme: "postgres",
-      host: yield* Config.NonEmptyString("NEON_HOST"),
-      database: yield* Config.NonEmptyString("NEON_DATABASE"),
-      user: yield* Config.NonEmptyString("NEON_USER"),
-      password: yield* Config.Redacted("NEON_PASSWORD"),
-    },
     caching: { disabled: true },
+    origin: {
+      database: yield* Config.NonEmptyString("NEON_DATABASE"),
+      host: yield* Config.NonEmptyString("NEON_HOST"),
+      password: yield* Config.Redacted("NEON_PASSWORD"),
+      scheme: "postgres",
+      user: yield* Config.NonEmptyString("NEON_USER"),
+    },
   });
 
   // Public files: EU jurisdiction, no public r2.dev access; read only through /filer/{key}.
   const publicFiles = yield* Cloudflare.R2.Bucket("PublicFiles", {
-    name: PUBLIC_FILES_BUCKET,
     jurisdiction: "eu",
+    name: PUBLIC_FILES_BUCKET,
     publicAccess: false,
   });
 
   const common = {
+    CONTACT_RATE_LIMIT: Cloudflare.RateLimit("CONTACT_RATE_LIMIT", {
+      namespaceId: CONTACT_RATE_LIMIT.namespaceId,
+      simple: {
+        limit: CONTACT_RATE_LIMIT.limit,
+        period: CONTACT_RATE_LIMIT.period,
+      },
+    }),
     DEPLOYMENT: deployment,
     HYPERDRIVE: database,
     PUBLIC_FILES: publicFiles,
-    CONTACT_RATE_LIMIT: Cloudflare.RateLimit("CONTACT_RATE_LIMIT", {
-      namespaceId: CONTACT_RATE_LIMIT.namespaceId,
-      simple: { limit: CONTACT_RATE_LIMIT.limit, period: CONTACT_RATE_LIMIT.period },
-    }),
-    TURNSTILE_SITE_KEY: yield* Config.NonEmptyString("TURNSTILE_SITE_KEY"),
     TURNSTILE_SECRET_KEY: Config.Redacted("TURNSTILE_SECRET_KEY"),
+    TURNSTILE_SITE_KEY: yield* Config.NonEmptyString("TURNSTILE_SITE_KEY"),
   };
 
   // Only production binds the real mail and Slack transports; a preview has no
   // send_email binding at all, and its runtime builds the capture sink.
-  const mailFrom = deployment === "production" ? yield* Config.NonEmptyString("MAIL_FROM") : null;
+  const mailFrom =
+    deployment === "production"
+      ? yield* Config.NonEmptyString("MAIL_FROM")
+      : null;
+
   const env =
     mailFrom === null
       ? common
       : {
           ...common,
+          MAIL_FROM: mailFrom,
           SEND_EMAIL: yield* Cloudflare.Email.SendEmail("SEND_EMAIL", {
             allowedSenderAddresses: [mailFrom],
           }),
-          MAIL_FROM: mailFrom,
           SLACK_WEBHOOK_URL: Config.Redacted("SLACK_WEBHOOK_URL"),
         };
 
   return yield* Cloudflare.Website.Vite("Web", {
-    main: WORKER_MAIN,
     compatibility: { date: COMPATIBILITY_DATE, flags: COMPATIBILITY_FLAGS },
-    env,
     crons: [OUTBOX_SWEEP_CRON],
-    observability: { enabled: true, logs: { enabled: true, invocationLogs: true } },
+    env,
+    main: WORKER_MAIN,
+    observability: {
+      enabled: true,
+      logs: { enabled: true, invocationLogs: true },
+    },
   });
 });
 
@@ -88,11 +99,15 @@ const web = Effect.gen(function* () {
  * reads (`src/server/env.ts`): a renamed or missing binding fails the type check.
  */
 type DeclaredEnv = Cloudflare.InferEnv<typeof web>;
-export type BindingsMatchWorkerEnv = DeclaredEnv extends WorkerEnv ? true : never;
+
+export type BindingsMatchWorkerEnv = DeclaredEnv extends WorkerEnv
+  ? true
+  : never;
+
 const bindingsMatch: BindingsMatchWorkerEnv = true;
 
 export default Alchemy.Stack(
   "vektorprogrammet",
   { providers: Cloudflare.providers(), state: Cloudflare.state() },
-  Effect.map(web, (worker) => ({ url: worker.url, bindingsMatch })),
+  Effect.map(web, (worker) => ({ bindingsMatch, url: worker.url }))
 );

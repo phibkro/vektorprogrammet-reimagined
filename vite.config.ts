@@ -533,6 +533,11 @@ export default defineConfig({
           "unicorn/filename-case": "off",
         },
       },
+      {
+        // This test pins the JSON wire form of a failure. JSON.parse(JSON.stringify(...)) drops and coerces values that structuredClone keeps, so unicorn/prefer-structured-clone would replace the wire check with a weaker one.
+        files: ["apps/web/test/errors.test.ts"],
+        rules: { "unicorn/prefer-structured-clone": "off" },
+      },
     ],
     rules: {
       ...effectConfigResult.rules,
