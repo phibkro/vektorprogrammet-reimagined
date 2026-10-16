@@ -1,13 +1,14 @@
 /**
- * Spec 0004, the control panel as a dashboard, in a browser: falsifiers 1, 2, 4 and 5, per actor (the
- * administrator, a team leader of department 1, an anonymous visitor), against `vp dev` and the same migrated
- * database as `journey.spec.ts`. Falsifier 3 (a forged request for a hidden capability still gets 403) is that
- * file's last test. Playwright takes the spec files in name order, so this one runs after the journey and may
- * change what the journey leaves behind. Screenshots go to the directory in `E2E_SCREENSHOT_DIRECTORY`, when set.
+ * Spec 0004, the control panel as a dashboard, in a browser: falsifiers 1 to 5, per actor (the administrator,
+ * a team leader of department 1, an anonymous visitor), against `vp dev` and the same migrated database as
+ * `journey.spec.ts`. Falsifier 3 (a forged request for a capability the page hides still gets 403) is also that
+ * file's last test, the one of spec 0001. Playwright takes the spec files in name order, so this one runs after
+ * the journey and may change what the journey leaves behind. Screenshots go to the directory in
+ * `E2E_SCREENSHOT_DIRECTORY`, when set.
  */
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
-import { Array as Arr } from "effect";
+import { Array as Arr, Record as Rec } from "effect";
 
 import {
   expectPageNotReloaded,
@@ -21,6 +22,12 @@ import {
   signInAs,
   submitSheet,
 } from "./support/panel.ts";
+import {
+  auditEntryCount,
+  departmentRow,
+  departmentsInCity,
+  runDatabase,
+} from "./support/probes.ts";
 
 /** The sections the sidebar lists, by actor: what each one's capabilities allow (domain `authorize`). */
 const SECTIONS_BY_ACTOR = {
@@ -190,6 +197,95 @@ for (const actor of STAFF) {
   }
 }
 
+/** Headers the transport owns: a replay lets its own client set them. */
+const TRANSPORT_HEADERS = new Set([
+  "accept-encoding",
+  "connection",
+  "content-length",
+  "content-type",
+  "cookie",
+  "host",
+]);
+
+test("falsifier 3: a forged request for a capability the page does not offer gets 403 and changes nothing", async ({
+  page,
+  context,
+}) => {
+  await signInAs(context, "teamLeader");
+  await openPage(page, DEPARTMENTS);
+
+  // One real save of the leader's own department, to learn where the department form sends its data.
+  const sent = page.waitForRequest(
+    (request) =>
+      request.url().includes("/_serverFn/") && request.method() === "POST"
+  );
+
+  await page.getByRole("button", { name: "Rediger Avdeling Alfa" }).click();
+  expect(await submitSheet(page, "Lagre")).toBe(200);
+
+  const real = await sent;
+
+  const headers = Rec.filter(
+    await real.allHeaders(),
+    (_value, name) => !TRANSPORT_HEADERS.has(name)
+  );
+
+  const betaBefore = await runDatabase(departmentRow(2));
+  const audited = await runDatabase(auditEntryCount);
+
+  // The same session sends, by hand, what the page has no button for: another department's edit, and a new
+  // department. The server decides, so both are refused.
+  const forged: readonly Readonly<Record<string, string>>[] = [
+    {
+      active: "on",
+      city: "Betaby",
+      email: "kontakt@beta.example",
+      id: "2",
+      name: "Kapret",
+      shortName: "KAP",
+    },
+    {
+      active: "on",
+      city: "Snikby",
+      email: "sni@example.org",
+      name: "Snikopprettet",
+      shortName: "SNI",
+    },
+  ];
+
+  for (const fields of forged) {
+    const response = await context.request.post(real.url(), {
+      headers,
+      multipart: fields,
+    });
+
+    // The domain's refusal, with its own message: not a rejected transport (a CSRF refusal is a 403 too).
+    expect(response.status()).toBe(403);
+    expect(await response.text()).toContain("Du har ikke tilgang til dette.");
+  }
+
+  expect(await runDatabase(departmentRow(2))).toEqual(betaBefore);
+  expect(await runDatabase(departmentsInCity("Snikby"))).toBe(0);
+  expect(await runDatabase(auditEntryCount)).toBe(audited);
+
+  // Control: the same request from an administrator is accepted, so the refusals above were about the actor.
+  await signInAs(context, "admin");
+
+  const accepted = await context.request.post(real.url(), {
+    headers,
+    multipart: {
+      active: "on",
+      city: "Betaby",
+      email: "kontakt@beta.example",
+      id: "2",
+      name: "Avdeling Beta",
+      shortName: "BETA",
+    },
+  });
+
+  expect(accepted.status()).toBe(200);
+});
+
 test("falsifier 4: create and edit happen in a right-hand Sheet; a saved edit shows in the table without a page reload; Escape and Cancel close it and return focus to the opener", async ({
   page,
   context,
@@ -282,7 +378,9 @@ test("falsifier 5 (1280 px): the sidebar collapses to icons and back", async ({
 
   // Icons only, and each entry still names itself, by tooltip and for a screen reader.
   await sidebarOf(page).getByRole("link", { name: "Avdelinger" }).hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Avdelinger");
+  await expect(page.locator("[data-slot='tooltip-content']")).toHaveText(
+    "Avdelinger"
+  );
   await page.mouse.move(700, 500);
   await screenshot(page, "shell-1280-collapsed");
 

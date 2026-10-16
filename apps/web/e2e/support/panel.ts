@@ -5,13 +5,7 @@
  */
 import { expect } from "@playwright/test";
 import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
-import {
-  Array as Arr,
-  Config,
-  Effect,
-  Option,
-  Record as Rec,
-} from "effect";
+import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
 /** The cookie `apps/web/src/server/actor.ts` reads in a `local` deployment (`TEST_ACTOR_COOKIE`). */
 const TEST_ACTOR_COOKIE = "vp-test-actor";
