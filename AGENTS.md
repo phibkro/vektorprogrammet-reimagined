@@ -10,7 +10,7 @@ A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organ
 | Capabilities, domain model, interface contracts, Behavior Contract | `../../analysis/vektorprogrammet/AI_NATIVE_SPEC.md` |
 | Architecture, decisions and their sources | `../../analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` |
 | Business rules (RULE-nnn) with legacy citations | `../../analysis/vektorprogrammet/BUSINESS_RULES.md` |
-| Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`, `0002-worker-previews.md`, `0003-semesters-by-schedule.md`) |
+| Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`, `0002-worker-previews.md`, `0003-semesters-by-schedule.md`, `0004-dashboard-shell.md` with its screenshots) |
 | Mission state | `STATE.md` |
 | Package details | each package's `README.md` |
 
@@ -90,7 +90,8 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 - Native Effect v4: read `<package>/node_modules/effect/AGENTS.md` before writing Effect code. Total calculations stay plain functions.
 - Tests are named by rule id (`RULE-022: …`). An unimplemented rule is `it.fails` with its id, never skipped.
 - Exact dependency pins live in the root `package.json` `catalog`. Drizzle is pinned to `1.0.0-rc.5-5935859`, because rc.4 can't load with Effect 4.0.5.
-- UI is shadcn/ui on Base UI (`base-nova`). Add components with `shadcn add`, then `bun add` any dependency it names (its npm install fails silently under the Bun `devEngines` rule).
+- UI is shadcn/ui on Base UI (`base-nova`). Add components with `shadcn add`, then `bun add` any dependency it names (its npm install fails silently under the Bun `devEngines` rule). A component that imports `cn` from `"cn"` gets `@/lib/utils` instead (and no `cn` dependency), and a generated file is fixed until it passes lint; a component the shell does not use is not kept. Answer `n` to its prompt to overwrite `button.tsx` and `input.tsx`, which are the lint-fixed versions of the same registry files.
+- What the control panel shows derives from the domain's `authorize` (the function every command's `requireCapability` calls), computed on the server: `apps/web/src/server/shell.ts` for the sidebar, the page views in `server/panel.ts` for page controls. A role check in `apps/web` is a second who-may-do-what list: do not write one. A control the actor lacks is not rendered, and `apps/web/test/shell.test.ts` compares each control with its command.
 - Lint, format and staged-file checks are configured once, in the root `vite.config.ts`.
 
 ## Legacy → modern traceability (Phase 1)
@@ -101,6 +102,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | `Controller/SemesterController.php`, `Form/Type/CreateSemesterType.php` | 144 and 190 retired (spec 0003) | no manual creation: `domain` `ensureScheduledSemesters` (the cron job, `nextSemester` for the one after the current), `currentSemester`/`findCurrentSemester` (reads); `web` `/kontrollpanel/semestre` is a list only |
 | `Entity/Department.php` (admission helpers) | 015ʳ, 119ʳ | `domain/src/organisation/admission.ts` |
 | `Controller/FieldOfStudyController.php` | 139 | `domain/src/organisation/fieldOfStudy.ts` + capabilities; `web` `/kontrollpanel/linjer` |
+| `app/Resources/views/adminBase.html.twig`, `base/admin/main_navigation.html.twig`, `base/admin/mobile_navigation.html.twig` (menu entries hidden by `is_granted_team_leader()` and `is_granted_admin()`, a role list beside the security rules) | — (brief §7, spec 0004) | `web` shell: `server/shell.ts` derives the sidebar from `authorize`; `components/panel/` |
 | `Controller/StaticContentController.php` | 296 | `domain/src/content/staticContent.ts`; `web` `/kontrollpanel/statisk-innhold` |
 | `Twig/Extension/SafeHtmlExtension.php` | 133ʳ | `domain/src/content/sanitizer.ts` (`SanitizedHtml`) |
 | `Controller/ArticleController.php`, `ArticleAdminController.php`, `Service/SlugMaker.php`, `Repository/ArticleRepository.php` | 096, 182, 266 (bug fixed), 267, 326, 331 | `domain/src/content/{article,slug}.ts`; `web` `/nyheter`, `/nyhet/$slug`, `/kontrollpanel/artikler` |

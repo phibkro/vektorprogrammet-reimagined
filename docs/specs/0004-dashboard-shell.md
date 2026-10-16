@@ -32,3 +32,35 @@
 7. CI is green (checks and browser tests), and the pull request's Worker Preview is deployed.
 
 ## Revisions
+
+The spec is frozen when its pull request opens. Each entry below names the old text, the new text and the reason; a later change needs a new dated entry.
+
+### R1 — Spec 0003 landed first: the Semestre page is a list (2026-10-16)
+
+- **Was:** "Spec 0003 (semesters by schedule) removes the semester create form on a parallel branch. Leave the Semestre page's create form as it is; whichever branch lands second rebases."
+- **Now:** spec 0003 merged first (`72e5be3`). There is no create form, no `createSemester` and no `ManageSemesters` capability. This branch rebased onto it and took 0003's list-only page into the shell. Semestre appears in the sidebar for every staff member, because no capability gates it, and its page has no gated control.
+- **Why:** the rebase the spec asked for. The `ManageSemesters` entry the sidebar had for that section is gone with the capability, so "a section that lists no capability is for any staff member" is now the rule for Oversikt and Semestre.
+
+### R2 — Inspect is a read-only Sheet for what the actor may not edit (2026-10-16)
+
+- **Was:** "Inspecting or editing a record opens a Sheet … with the record's details or its form", without saying who gets which.
+- **Now:** on a department's row, an actor who holds `UpdateDepartment` for it gets the edit form ("Rediger"); any other staff member gets the department's details in a read-only Sheet ("Vis"). Every other table's records show all their fields in the row, so they have no read-only Sheet.
+- **Why:** the details Sheet is how a team leader inspects another department, which the page lists but the leader may not change. Which of the two opens is derived from the same `authorize` call as every other control.
+
+### R3 — The control panel owns the page; the public site stays unchanged (2026-10-16)
+
+- **Was:** not stated: the shell could have sat inside the public header and footer, and "no link to it anywhere" assumed there might be links to remove.
+- **Now:** `/kontrollpanel` renders without the public header and footer (the route sets `staticData.ownsPage`, which the root layout reads). The not-signed-in page is plain: no header, no footer, no sidebar, no link to a control-panel page. The public header and footer had no control-panel link and get none, for any actor.
+- **Why:** a generic dashboard owns the whole viewport. No public page changed (`a` styles are scoped away from shadcn components with `:where(:not([data-slot]))`, which keeps the specificity of plain `a`).
+
+### R4 — The sidebar's state is not kept across a reload (2026-10-16)
+
+- **Was:** "collapsible to icons" only.
+- **Now:** the sidebar collapses and expands while the layout stays mounted. shadcn's cookie (written, never read by this app) was removed, so a full reload starts expanded.
+- **Why:** a cookie nobody reads is dead code. Persisting it is a server read of that cookie before first paint; no falsifier needs it.
+
+### R5 — The test-actor switch moved with the not-signed-in page (2026-10-16)
+
+- **Was:** the switch lived on the overview.
+- **Now:** it appears on the overview and on the not-signed-in page, and only when `DEPLOYMENT` is `local` (the shell data carries that fact). Without it, an anonymous test actor on a local deployment would have no way back.
+- **Why:** the plain not-signed-in page has no other control, and the switch has no meaning outside `local`.

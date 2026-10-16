@@ -33,6 +33,8 @@ Effect v4 domain core for Phase 1: pure rule functions, branded types, typed err
 
 `storeUpload` also needs Effect's `Crypto.Crypto` (SHA-256); `apps/web` provides a Web Crypto implementation.
 
+`authorize` is the one answer to "may this actor do this?". Every command asks it through `requireCapability` (and refuses with `Forbidden`); `apps/web` asks the same function for the control panel's sidebar and for every control a page offers (spec 0004), so a control the actor may not use is not rendered. A role check in `apps/web` is a second list, and `apps/web/test/shell.test.ts` fails when a control and its command disagree.
+
 ## Errors
 
 A closed set: `NotFound`, `Forbidden`, `AlreadyExists`, `ValidationFailed` (`DomainError`). Infrastructure failures are defects.
