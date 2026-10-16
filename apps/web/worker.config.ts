@@ -5,7 +5,11 @@
  */
 export const COMPATIBILITY_DATE = "2026-10-01";
 
-export const COMPATIBILITY_FLAGS = ["nodejs_compat"];
+/**
+ * `enable_request_signal` has no default date: without it `request.signal` never aborts, so a
+ * cancelled request ran its transaction to COMMIT (slice 0000, check 3b; `docs/specs/0000-results.md`).
+ */
+export const COMPATIBILITY_FLAGS = ["nodejs_compat", "enable_request_signal"];
 
 /** The Worker's own entry: `fetch` + `scheduled` (Cloudflare's custom-entry pattern for TanStack Start). */
 export const WORKER_MAIN = "src/server.ts";

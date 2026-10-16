@@ -1,0 +1,256 @@
+{
+  "id": "3383c6c4-d4d7-4b3b-bc27-ef7990ea9880",
+  "prevIds": ["8707c32a-fedc-4f2f-aa30-5f12e4fc2d22"],
+  "version": "8",
+  "dialect": "postgres",
+  "ddl": [
+    {
+      "name": "spike_0000",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "spike_codec",
+      "entityType": "tables",
+      "schema": "spike_0000"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "spike_counter",
+      "entityType": "tables",
+      "schema": "spike_0000"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "spike_row",
+      "entityType": "tables",
+      "schema": "spike_0000"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "spike_semester",
+      "entityType": "tables",
+      "schema": "spike_0000"
+    },
+    {
+      "type": "numeric(12,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "at",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "day",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "doc",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "slot",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_counter"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "value",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_counter"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "label",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_row"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_row"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "spike_semester_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_semester"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "term",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_semester"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "year",
+      "entityType": "columns",
+      "schema": "spike_0000",
+      "table": "spike_semester"
+    },
+    {
+      "columns": ["run", "slot"],
+      "nameExplicit": false,
+      "name": "spike_codec_pkey",
+      "entityType": "pks",
+      "schema": "spike_0000",
+      "table": "spike_codec"
+    },
+    {
+      "columns": ["run", "label"],
+      "nameExplicit": false,
+      "name": "spike_row_pkey",
+      "entityType": "pks",
+      "schema": "spike_0000",
+      "table": "spike_row"
+    },
+    {
+      "columns": ["run"],
+      "nameExplicit": false,
+      "name": "spike_counter_pkey",
+      "schema": "spike_0000",
+      "table": "spike_counter",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "spike_semester_pkey",
+      "schema": "spike_0000",
+      "table": "spike_semester",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["term", "year"],
+      "nullsNotDistinct": false,
+      "name": "semester_term_year_unique",
+      "entityType": "uniques",
+      "schema": "spike_0000",
+      "table": "spike_semester"
+    }
+  ],
+  "renames": []
+}

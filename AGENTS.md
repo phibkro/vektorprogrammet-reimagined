@@ -10,7 +10,7 @@ A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organ
 | Capabilities, domain model, interface contracts, Behavior Contract | `../../analysis/vektorprogrammet/AI_NATIVE_SPEC.md` |
 | Architecture, decisions and their sources | `../../analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` |
 | Business rules (RULE-nnn) with legacy citations | `../../analysis/vektorprogrammet/BUSINESS_RULES.md` |
-| Slice specs | `docs/specs/` (`0001-departments-and-semesters.md`) |
+| Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`) |
 | Mission state | `STATE.md` |
 | Package details | each package's `README.md` |
 
@@ -33,6 +33,7 @@ flowchart LR
 - **`domain` is pure Effect** and imports nothing from `db` or `web`. Atomic commands require `InTransaction`, which only `db`'s `transactional` provides, so an unwrapped command doesn't type-check.
 - **Only production can send real mail or Slack.** Local and preview deployments get a capture sink (structural, tested).
 - **Database rules for every phase:** no advisory locks, LISTEN/NOTIFY or session `SET` (Hyperdrive). Invariants live in constraints and `INSERT … ON CONFLICT … RETURNING`.
+- **A cancelled request interrupts its program** (and rolls back an open transaction) only because `apps/web/worker.config.ts` sets `enable_request_signal`, which has no default compatibility date. Slice 0000 check 3b measured both sides: without the flag the transaction committed after the client had gone.
 
 ## Units
 
@@ -42,6 +43,7 @@ flowchart LR
 | `packages/db` | Drizzle schema (single source) → `drizzle/` migrations, `DatabaseLive`, `transactional`, `OutboxDelivery`, `classifySqlFailure` | PGlite + real PostgreSQL (concurrency, transactions, negative controls) |
 | `apps/web` | routes, server functions, per-request Effect runtime, error table, `/filer` header policy, redirects, `alchemy.run.ts` | Node tests + `vp build` |
 | `tools/import` | deterministic, rerunnable legacy import with a reconciliation report holding no personal data | real MySQL → PostgreSQL round trip |
+| `tools/db-path-spike` | slice 0000: a throwaway Worker and a smoke command that check Worker → Hyperdrive → Neon → `@effect/sql-pg` → Drizzle on the real platform; also the deployed preview smoke test | local PostgreSQL rehearsal with negative controls; the deployed run in `docs/specs/0000-results.md` |
 
 ## Run it
 
@@ -111,6 +113,5 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 
 ## Not done yet (Phase 1 gates)
 
-- **Slice 0000:** prove the deployed Worker → Hyperdrive → Neon path (architecture §5) before freezing spec 0001. It needs Cloudflare and Neon credentials and operator authority to deploy.
 - **File migration:** copying the production upload directories is not authorised yet, so the importer reports every file as missing.
 - Phase 1 exit criteria in the brief §3: the page-by-page diff against legacy, and CI on every pull request once the repository has a remote.
