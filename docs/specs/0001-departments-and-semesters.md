@@ -103,3 +103,15 @@ The spec is frozen when its pull request opens. Everything below was decided bef
 - **Was:** "a test-only actor, which only the test composition may construct".
 - **Now:** the test actor is built only when `DEPLOYMENT=local` (`vp dev` and the browser tests), selected by the `vp-test-actor` cookie. `preview` and `production` can never yield a staff actor, so every staff command there is `Forbidden`. `apps/web/test/sandbox.test.ts` proves it.
 - **Why:** a cookie-selected actor is a local development aid, and the deployment decoded at the composition root is the one switch that makes it unreachable elsewhere.
+
+### R7 — A refusal is the HTTP status of the server function's reply (2026-10-16)
+
+- **Was:** falsifier 5 says "refused (403) … in a browser test and at the server function" and does not say where the 403 is visible. A TanStack server function answers 200 with a serialized `Outcome`, so a refusal was a 200 that carried a failure.
+- **Now:** a function middleware (`apps/web/src/server/outcomeStatus.ts`) sets the failure's status, chosen once by the error table (`server/errors.ts`), as the HTTP status of the reply: 403 `Forbidden`, 409 `AlreadyExists`, 400 `ValidationFailed`, 404 `NotFound`. The client still decodes the `Outcome` body, so no caller changed. The browser test asserts the status on the wire and the message on the page; the server-function tests assert the typed `Forbidden` outcome.
+- **Why:** a refusal that is only visible to our own client is not a 403. Proxies, logs and monitoring see the status.
+
+### R8 — The browser journey runs Playwright on importer-migrated data (2026-10-16)
+
+- **Was:** "steps 1-3 work in the browser on migrated data", with no runner and no data source named.
+- **Now:** `@playwright/test` 1.63.0 drives the Chromium that devenv provides, against the real `vp dev` (the `local` deployment) and a disposable PostgreSQL database that `packages/db` migrates and the real importer fills from its fake legacy fixture (`tools/import`, script `import:fixture`). The data has the importer's own quirks (a quarantined department, collapsed duplicate semesters). The real-backup rehearsal (falsifier 4) is separate evidence on a Neon branch.
+- **Why:** Vitest's browser mode runs the test code inside the page and cannot observe a separately started application's cookies, server-function round trips and response statuses; Playwright's own runner can. The version is pinned to the nixpkgs `playwright-driver` build that devenv provides.
