@@ -45,6 +45,9 @@ jobs:
       - name: Workspace tests
         shell: bash
         run: devenv shell -- bunx vp run -r test
+      - name: Browser tests
+        shell: bash
+        run: devenv shell -- bun run e2e
       - name: Knip
         shell: bash
         run: devenv shell -- bun run knip

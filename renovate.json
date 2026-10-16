@@ -16,6 +16,15 @@
     {
       "matchPackageNames": ["vite-plus"],
       "groupName": "Vite+ toolchain"
+    },
+    {
+      "description": "The browser binaries come from nixpkgs (playwright-driver in devenv.lock). A different Playwright version cannot launch them. Move all three together with the nixpkgs pin, by hand.",
+      "matchPackageNames": [
+        "@playwright/test",
+        "playwright",
+        "playwright-core"
+      ],
+      "enabled": false
     }
   ]
 }
