@@ -220,47 +220,6 @@ export default defineConfig({
         },
       },
       {
-        // Effect's data-first Array/Option/Effect calls (Arr.map(xs, fn)) are misread as native array methods
-        // with a thisArg. Pipe-form rewrite is the real fix (open decision, see report); these 18 files are the
-        // only ones still flagged after the allowlist was narrowed.
-        files: [
-          "packages/domain/src/shared/validation.ts",
-          "packages/domain/src/files/fileType.ts",
-          "packages/domain/src/files/commands.ts",
-          "packages/domain/test/organisation/admission.test.ts",
-          "packages/domain/test/content/staticContent.test.ts",
-          "packages/domain/test/content/article.test.ts",
-          "packages/db/test/repositories.pglite.test.ts",
-          "packages/db/src/repositories/outbox.ts",
-          "tools/import/test/support/fixture.ts",
-          "tools/import/src/transform/legacyPath.ts",
-          "tools/quality/checkEffectExceptions.ts",
-          "apps/web/src/server/pages.ts",
-          "apps/web/src/server/errors.ts",
-          "apps/web/src/server/redirects.ts",
-          "apps/web/src/routes/index.tsx",
-          "apps/web/test/sandbox.test.ts",
-          "apps/web/test/contact.test.ts",
-          "apps/web/test/support/memory.ts",
-          "tools/import/src/report.ts",
-          "tools/import/src/target.ts",
-          "tools/import/src/files.ts",
-          "tools/import/src/transform/plan.ts",
-          "tools/import/test/roundTrip.test.ts",
-          "tools/import/test/support/databases.ts",
-          "apps/web/src/server/panel.ts",
-          "apps/web/src/server/runtime.ts",
-          "apps/web/src/components/forms.tsx",
-          "apps/web/test/news.test.ts",
-          "apps/web/test/publicFiles.test.ts",
-          "apps/web/alchemy.run.ts",
-          "packages/domain/test/support/inMemory.ts",
-        ],
-        rules: {
-          "unicorn/no-array-method-this-argument": "off",
-        },
-      },
-      {
         // These Effect Schema declarations intentionally export both a runtime value and same-named type.
         files: [
           "packages/domain/src/content/sanitizer.ts",
@@ -550,6 +509,11 @@ export default defineConfig({
       ],
       // Workspace modules consistently use lower camelCase filenames.
       "unicorn/filename-case": ["error", { case: "camelCase" }],
+      // Preset contradiction: effecttsgo(prefer-effect-array) requires Effect's data-first Array module
+      // (`Arr.map(xs, fn)`), which unicorn/no-array-method-this-argument misreads as a native
+      // `.map(fn, thisArg)` call. Native array methods are already steered to Effect Array, so the rule
+      // adds only false positives here. One global switch instead of a per-file list that drifts.
+      "unicorn/no-array-method-this-argument": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
     },
   },
