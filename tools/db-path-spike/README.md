@@ -16,7 +16,9 @@ The Worker only runs a check and answers with facts. The verdicts (`src/verdicts
 devenv shell -- bun run --cwd tools/db-path-spike smoke --url https://<worker-host>   # or SPIKE_URL=https://<worker-host>
 ```
 
-One `PASS`/`FAIL` line per check with its evidence beneath; exit 0 only if every check passes. The same command is the smoke test for a deployed preview.
+One `PASS`/`FAIL` line per check with its evidence beneath; exit 0 only if every check passes.
+
+**Not deployed.** The operator had the spike Worker and its Hyperdrive config torn down on 2026-10-16 (the `spike_0000` tables too); the app's own per-PR Worker Previews (spec 0002) now exercise Worker → Hyperdrive → Neon on every pull request. To re-run these checks, deploy it again (below), run them, and tear it down.
 
 Check 1 names the Worker script version it ran against. After a deploy, run `GET /checks/connect` until it returns the new `workerVersion` every time, then run the checks: for about 30 s the old version still answered some requests, and a run that mixes versions proves nothing about either.
 
@@ -26,20 +28,20 @@ Check 1 names the Worker script version it ran against. After a deploy, run `GET
 
 ## Deploy
 
-`with-neon-env.sh` derives the Neon values from SecretSpec's `NEON_API_KEY` and runs the command that follows it. Nothing is printed or written.
+`tools/with-neon-env.sh` derives the Neon values from SecretSpec's `NEON_API_KEY` and runs the command that follows it. Nothing is printed or written.
 
 The spike tables come first, applied as `neondb_owner` over a direct connection, outside the Worker (`vp_app` keeps DML-only rights):
 
 ```sh
 SECRETSPEC_REASON="apply the spike_0000 migrations" devenv shell -- secretspec run -- \
-  tools/db-path-spike/with-neon-env.sh owner bun run --cwd tools/db-path-spike db:migrate
+  tools/with-neon-env.sh owner bun run --cwd tools/db-path-spike db:migrate
 ```
 
 Then the Worker and the Hyperdrive config, with Alchemy v2 (stage `spike`, profile `production`); add `--yes` to run it without a terminal:
 
 ```sh
 SECRETSPEC_REASON="deploy the vp-spike-0000 Worker" devenv shell -- secretspec run -- \
-  tools/db-path-spike/with-neon-env.sh app bun run --cwd tools/db-path-spike deploy
+  tools/with-neon-env.sh app bun run --cwd tools/db-path-spike deploy
 ```
 
 | How the Hyperdrive origin password reaches Cloudflare |  |
@@ -71,7 +73,7 @@ Removes the Worker, the Hyperdrive config (Alchemy, stage `spike`) and the spike
 
 ```sh
 SECRETSPEC_REASON="tear down the slice 0000 spike" devenv shell -- secretspec run -- \
-  tools/db-path-spike/with-neon-env.sh both bun run --cwd tools/db-path-spike teardown
+  tools/with-neon-env.sh both bun run --cwd tools/db-path-spike teardown
 ```
 
 `alchemy destroy … --dry-run` lists exactly two deletions (the Hyperdrive config and the Worker). Both steps are safe to repeat.

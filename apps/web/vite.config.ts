@@ -10,7 +10,7 @@ import {
   COMPATIBILITY_FLAGS,
   CONTACT_RATE_LIMIT,
   OUTBOX_SWEEP_CRON,
-  PUBLIC_FILES_BUCKET,
+  publicFilesBucket,
   WORKER_MAIN,
 } from "./worker.config";
 
@@ -90,7 +90,7 @@ const standaloneWorker = (devServer: boolean) => {
       main: WORKER_MAIN,
       name: "vektorprogrammet-web-standalone",
       r2_buckets: [
-        { binding: "PUBLIC_FILES", bucket_name: PUBLIC_FILES_BUCKET },
+        { binding: "PUBLIC_FILES", bucket_name: publicFilesBucket("local") },
       ],
       ratelimits: [
         {

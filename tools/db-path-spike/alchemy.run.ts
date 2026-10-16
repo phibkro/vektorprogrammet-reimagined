@@ -13,11 +13,12 @@
  */
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Config, Effect } from "effect";
+import { Effect } from "effect";
 
 import {
   COMPATIBILITY_DATE,
   COMPATIBILITY_FLAGS,
+  neonOrigin,
 } from "../../apps/web/worker.config.ts";
 
 const PREFIX = "vp-spike-0000";
@@ -27,13 +28,7 @@ const spike = Effect.gen(function* spike() {
   const database = yield* Cloudflare.Hyperdrive.Connection("Database", {
     caching: { disabled: true },
     name: `${PREFIX}-neon-dev`,
-    origin: {
-      database: yield* Config.NonEmptyString("NEON_DATABASE"),
-      host: yield* Config.NonEmptyString("NEON_HOST"),
-      password: yield* Config.Redacted("NEON_APP_PASSWORD"),
-      scheme: "postgres",
-      user: yield* Config.NonEmptyString("NEON_USER"),
-    },
+    origin: yield* neonOrigin,
   });
 
   return yield* Cloudflare.Worker("Worker", {

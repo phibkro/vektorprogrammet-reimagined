@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Runs a command with the Neon values slice 0000 needs, derived from SecretSpec's NEON_API_KEY.
+# Runs a command with the values for Neon `dev` (the base stage's database), derived from SecretSpec's NEON_API_KEY.
 # Run it under `secretspec run --` (it needs NEON_API_KEY, and NEON_APP_PASSWORD for a deploy).
 #
-#   app    NEON_HOST, NEON_DATABASE, NEON_USER: what the Alchemy stack declaration reads
-#   owner  DATABASE_URL: `neondb_owner` over a direct connection (migrations, dropping the tables)
+#   app    NEON_HOST, NEON_DATABASE, NEON_USER: what the Alchemy stacks (apps/web, tools/db-path-spike) read
+#   owner  DATABASE_URL: `neondb_owner` over a direct connection (migrations, seeding, dropping tables)
 #   both   both of the above
 #
 # Nothing is printed or written: the URL holds a password and lives only in the command's environment.

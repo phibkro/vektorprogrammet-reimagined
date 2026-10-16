@@ -43,7 +43,7 @@ flowchart LR
 | `packages/db` | Drizzle schema (single source) → `drizzle/` migrations, `DatabaseLive`, `transactional`, `OutboxDelivery`, `classifySqlFailure` | PGlite + real PostgreSQL (concurrency, transactions, negative controls) |
 | `apps/web` | routes, server functions, per-request Effect runtime, error table, `/filer` header policy, redirects, `alchemy.run.ts` | Node tests + `vp build`; Playwright browser tests (`apps/web/e2e`) against `vp dev` |
 | `tools/import` | deterministic, rerunnable legacy import with a reconciliation report holding no personal data | real MySQL → PostgreSQL round trip |
-| `tools/db-path-spike` | slice 0000: a throwaway Worker and a smoke command that check Worker → Hyperdrive → Neon → `@effect/sql-pg` → Drizzle on the real platform; also the deployed preview smoke test | local PostgreSQL rehearsal with negative controls; the deployed run in `docs/specs/0000-results.md` |
+| `tools/db-path-spike` | slice 0000: a throwaway Worker and a smoke command that check Worker → Hyperdrive → Neon → `@effect/sql-pg` → Drizzle on the real platform (torn down 2026-10-16; redeployable) | local PostgreSQL rehearsal with negative controls; the deployed run in `docs/specs/0000-results.md` |
 
 ## Run it
 
@@ -116,4 +116,5 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 ## Not done yet (Phase 1 gates)
 
 - **File migration:** copying the production upload directories is not authorised yet, so the importer reports every file as missing.
-- Phase 1 exit criteria in the brief §3: the page-by-page diff against legacy, and CI on every pull request once the repository has a remote.
+- Phase 1 exit criterion in the brief §3: the page-by-page diff against legacy.
+- **Deployments:** the base stage `main` and per-PR Worker Previews run on fake data (spec 0002, `apps/web/README.md` § Stages and previews). Production is not deployed.

@@ -1,8 +1,7 @@
 /**
  * The smoke command of spec 0000: `bun src/smoke.ts --url https://<worker>` (or `SPIKE_URL`)
  * sends HTTP requests to the deployed spike Worker, prints one line per check (PASS or
- * FAIL, with evidence) and exits 0 only if every check passes. The same command becomes the
- * smoke test against a deployed preview.
+ * FAIL, with evidence) and exits 0 only if every check passes.
  */
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Config, Console, DateTime, Effect, Random, Schema } from "effect";
