@@ -47,7 +47,10 @@ const directivePattern =
   /(?:oxlint-disable(?:-next-line|-line)?|eslint-disable(?:-next-line|-line)?|@ts-expect-error|@ts-ignore|@ts-nocheck)/gu;
 
 const sourcePattern = /\.[cm]?[jt]sx?$/u;
-const registryPath = "docs/effect-exceptions.json";
+
+/** The registry sits next to this checker; the source paths inside it stay repo-relative. */
+const registryPath = new URL("effect-exceptions.json", import.meta.url)
+  .pathname;
 
 interface Site {
   readonly directive: string;

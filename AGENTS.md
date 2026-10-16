@@ -72,7 +72,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Pre-commit | `vp staged` (`vp check --fix` on staged files) + gitleaks on staged changes (secrets, Norwegian national ids, SQL user dumps) | automatic (`.vite-hooks/pre-commit`) |
 | Commit message | commitlint, Conventional Commits | automatic (`.vite-hooks/commit-msg`) |
 | Pre-push | `vp run -r test` | automatic (`.vite-hooks/pre-push`) |
-| Suppressions | every `oxlint-disable` / `@ts-expect-error` needs an entry in `docs/effect-exceptions.json` | `devenv shell -- bun run check:exceptions` |
+| Suppressions | every `oxlint-disable` / `@ts-expect-error` needs an entry in `tools/quality/effect-exceptions.json` | `devenv shell -- bun run check:exceptions` |
 | CI | the same gates on every pull request | `.github/workflows/checks.yml` |
 
 - Hooks are installed by `vp config` (the `prepare` script, which also runs `effect-tsgo patch`). Never use `--no-verify`.
