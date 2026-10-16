@@ -7,6 +7,7 @@ import {
   Fiber,
   Layer,
   Option,
+  Predicate,
   Redacted,
 } from "effect";
 import type { Schema } from "effect";
@@ -61,6 +62,7 @@ const failure = (status: number, code: string, message: string) =>
 
 interface Sent {
   readonly authorization: Option.Option<string>;
+  readonly body: string;
   readonly method: string;
   readonly url: URL;
 }
@@ -74,6 +76,9 @@ const fakeCms = (handler: (url: URL) => Response) => {
     HttpClient.make((request, url) => {
       sent.push({
         authorization: Headers.get(request.headers, "authorization"),
+        body: Predicate.isTagged(request.body, "Uint8Array")
+          ? new TextDecoder().decode(request.body.body)
+          : "",
         method: request.method,
         url,
       });
@@ -471,6 +476,106 @@ describe("CmsClient media", () => {
       assert.strictEqual(
         cmsClient.absoluteUrl("/_emdash/api/media/file/01ABC.jpg"),
         `${BASE}/_emdash/api/media/file/01ABC.jpg`
+      );
+    }).pipe(Effect.provide(cms.layer));
+  });
+});
+
+/** A select field as EmDash answers `GET …/fields/{field}`: every key of its `Field`; the values are fake. */
+const field = (validation: Readonly<Record<string, Schema.Json>> | null) => ({
+  collectionId: "01COLLECTION",
+  createdAt: "2024-01-01T00:00:00.000Z",
+  defaultValue: null,
+  id: "01FIELD",
+  indexed: false,
+  label: "Avdelinger",
+  options: null,
+  required: false,
+  searchable: false,
+  slug: "departments",
+  sortOrder: 2,
+  translatable: false,
+  type: "multiSelect",
+  unique: false,
+  updatedAt: "2024-01-01T00:00:00.000Z",
+  validation,
+  widget: null,
+});
+
+const fieldResponse = (
+  validation: Readonly<Record<string, Schema.Json>> | null
+) => Response.json({ data: { item: field(validation) }, success: true });
+
+describe("CmsClient select options", () => {
+  it.effect(
+    "adds the options a select lacks, keeps the ones it has, and says how many were new",
+    () => {
+      const cms = fakeCms(() => fieldResponse({ options: ["Trondheim"] }));
+
+      return Effect.gen(function* addsOptions() {
+        const { ensureOptions } = yield* CmsClient;
+
+        const added = yield* ensureOptions("news", "departments", [
+          "Bergen",
+          "Trondheim",
+          "Bergen",
+        ]);
+
+        const [read, write] = cms.sent;
+
+        assert.strictEqual(added, 1);
+        assert.deepStrictEqual(
+          [
+            read?.method,
+            read?.url.pathname,
+            write?.method,
+            write?.url.pathname,
+          ],
+          [
+            "GET",
+            "/_emdash/api/schema/collections/news/fields/departments",
+            "PUT",
+            "/_emdash/api/schema/collections/news/fields/departments",
+          ]
+        );
+        assert.strictEqual(
+          write?.body,
+          '{"validation":{"options":["Trondheim","Bergen"]}}'
+        );
+      }).pipe(Effect.provide(cms.layer));
+    }
+  );
+
+  it.effect("writes nothing when every value is an option already", () => {
+    const cms = fakeCms(() =>
+      fieldResponse({ options: ["Trondheim", "Bergen"] })
+    );
+
+    return Effect.gen(function* leavesOptions() {
+      const { ensureOptions } = yield* CmsClient;
+      const added = yield* ensureOptions("news", "departments", ["Bergen"]);
+
+      assert.strictEqual(added, 0);
+      assert.deepStrictEqual(
+        Arr.map(cms.sent, ({ method }) => method),
+        ["GET"]
+      );
+    }).pipe(Effect.provide(cms.layer));
+  });
+
+  it.effect("treats a field with no validation as having no options", () => {
+    const cms = fakeCms(() => fieldResponse(null));
+
+    return Effect.gen(function* startsOptions() {
+      const { ensureOptions } = yield* CmsClient;
+
+      assert.strictEqual(
+        yield* ensureOptions("teams", "department", ["Ås"]),
+        1
+      );
+      assert.strictEqual(
+        cms.sent[1]?.body,
+        '{"validation":{"options":["Ås"]}}'
       );
     }).pipe(Effect.provide(cms.layer));
   });

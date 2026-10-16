@@ -12,8 +12,13 @@
  * types, and consumers decode `reconciliation.json` with `ReportFromJson`.
  */
 import { Term } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, FileSystem, Path, Schema } from "effect";
+import { Array as Arr, Effect, Schema } from "effect";
 
+import {
+  ReportWriteError,
+  markdownTable,
+  writeReportFiles,
+} from "./reportFiles.ts";
 import { DROPPED_COLUMNS, TARGET_TABLES } from "./transform/plan.ts";
 import type {
   ImportPlan,
@@ -136,8 +141,6 @@ const ReportJsonString = Schema.fromJsonString(ReconciliationReport, {
   space: 2,
 });
 
-const encodeReportJson = Schema.encodeEffect(ReportJsonString);
-
 /** Assembles the report from the plan and the row counts read back from the target. */
 export const buildReport = (
   plan: ImportPlan,
@@ -174,27 +177,6 @@ export const buildReport = (
     table,
   })),
 });
-
-const markdownTable = (
-  header: readonly string[],
-  rows: readonly (readonly (string | number)[])[]
-): string =>
-  rows.length === 0
-    ? "None.\n"
-    : `${Arr.join(
-        [
-          `| ${Arr.join(header, " | ")} |`,
-          `| ${Arr.join(
-            Arr.map(header, () => "---"),
-            " | "
-          )} |`,
-          ...Arr.map(
-            rows,
-            (row) => `| ${Arr.join(Arr.map(row, String), " | ")} |`
-          ),
-        ],
-        "\n"
-      )}\n`;
 
 const renderMarkdown = (report: ReconciliationReport): string =>
   Arr.join(
@@ -300,35 +282,19 @@ const renderMarkdown = (report: ReconciliationReport): string =>
     "\n"
   );
 
-class ReportWriteError extends Schema.TaggedError<
-  ReportWriteError,
-  { readonly brand: unique symbol }
->()("ReportWriteError", {
-  cause: Schema.Defect(),
-}) {}
+const encodeReportJson = Schema.encodeEffect(ReportJsonString);
 
 /** Writes `reconciliation.json` and `reconciliation.md` into `directory` (created if needed). */
 export const writeReport = Effect.fn("writeReport")(function* writeReport(
   directory: string,
   report: ReconciliationReport
 ) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-
-  const files = {
-    json: path.join(directory, "reconciliation.json"),
-    markdown: path.join(directory, "reconciliation.md"),
-  };
-
   const json = yield* encodeReportJson(report).pipe(
     Effect.mapError((cause) => new ReportWriteError({ cause }))
   );
 
-  yield* Effect.all([
-    fs.makeDirectory(directory, { recursive: true }),
-    fs.writeFileString(files.json, `${json}\n`),
-    fs.writeFileString(files.markdown, renderMarkdown(report)),
-  ]).pipe(Effect.mapError((cause) => new ReportWriteError({ cause })));
-
-  return files;
+  return yield* writeReportFiles(directory, "reconciliation", {
+    json,
+    markdown: renderMarkdown(report),
+  });
 });

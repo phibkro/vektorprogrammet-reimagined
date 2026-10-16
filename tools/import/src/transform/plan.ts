@@ -46,7 +46,7 @@ import {
 } from "effect";
 
 import type { FileIndex } from "../files.ts";
-import type { LegacySnapshot } from "../legacy/rows.ts";
+import type { LegacyArticle, LegacySnapshot } from "../legacy/rows.ts";
 import type {
   BrokenReference,
   CollapsedSemester,
@@ -325,13 +325,13 @@ const getLegacyTerm = (value: string): Term | undefined =>
 const isEmail = Schema.is(EmailAddress);
 const isSlackChannel = Schema.is(SlackChannel);
 
-const isHttpUrl = Schema.is(HttpUrl);
+export const isHttpUrl = Schema.is(HttpUrl);
 
-const isSlug = Schema.is(Slug);
+export const isSlug = Schema.is(Slug);
 
-const isSponsorSize = Schema.is(SponsorSize);
+export const isSponsorSize = Schema.is(SponsorSize);
 
-const isStaticContentKey = Schema.is(StaticContentKey);
+export const isStaticContentKey = Schema.is(StaticContentKey);
 
 const isSemesterYear = Schema.is(SemesterYear);
 
@@ -342,7 +342,7 @@ const byLegacyPath = Order.mapInput(
   (file: { readonly legacyPath: string }) => file.legacyPath
 );
 
-const addEmptyTextReason = (
+export const addEmptyTextReason = (
   reasons: string[],
   field: string,
   value: string
@@ -374,7 +374,7 @@ const addEventTimeReasons = (
   }
 };
 
-const addReason = (
+export const addReason = (
   reasons: string[],
   condition: boolean,
   reason: string
@@ -382,6 +382,43 @@ const addReason = (
   if (condition) {
     reasons.push(reason);
   }
+};
+
+/** Why a legacy article cannot be imported into any target: column names and ids only, never values. */
+export const articleReasons = (
+  row: LegacyArticle,
+  firstWithSlug: number | undefined
+): string[] => {
+  const reasons: string[] = [];
+
+  addEmptyTextReason(reasons, "title", row.title);
+  addReason(
+    reasons,
+    !isSlug(row.slug),
+    "slug is not a URL slug ([a-z0-9-], at most 255)"
+  );
+  addReason(
+    reasons,
+    firstWithSlug !== undefined,
+    `slug duplicates article ${firstWithSlug}`
+  );
+  addReason(
+    reasons,
+    parseLegacyDateTime(row.created) === undefined,
+    "created is not a valid date-time"
+  );
+  addReason(
+    reasons,
+    row.sticky !== 0 && row.sticky !== 1,
+    "sticky is not 0 or 1"
+  );
+  addReason(
+    reasons,
+    row.published !== null && row.published !== 0 && row.published !== 1,
+    "published is not 0, 1 or NULL"
+  );
+
+  return reasons;
 };
 
 /** Builds the plan. Pure: no I/O, no clock, no randomness. */
@@ -886,38 +923,8 @@ export const planImport = (
 
   const addArticle = (row: LegacySnapshot["articles"][number]) => {
     const id = String(row.id);
-    const reasons: string[] = [];
-
-    addEmptyTextReason(reasons, "title", row.title);
-    addReason(
-      reasons,
-      !isSlug(row.slug),
-      "slug is not a URL slug ([a-z0-9-], at most 255)"
-    );
-
-    const firstWithSlug = slugs.get(row.slug);
-    addReason(
-      reasons,
-      firstWithSlug !== undefined,
-      `slug duplicates article ${firstWithSlug}`
-    );
-
+    const reasons = [...articleReasons(row, slugs.get(row.slug))];
     const createdAt = parseLegacyDateTime(row.created);
-    addReason(
-      reasons,
-      createdAt === undefined,
-      "created is not a valid date-time"
-    );
-    addReason(
-      reasons,
-      row.sticky !== 0 && row.sticky !== 1,
-      "sticky is not 0 or 1"
-    );
-    addReason(
-      reasons,
-      row.published !== null && row.published !== 0 && row.published !== 1,
-      "published is not 0, 1 or NULL"
-    );
     addReason(
       reasons,
       row.authorId !== null && row.authorId < 1,

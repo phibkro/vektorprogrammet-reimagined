@@ -28,6 +28,7 @@ import type { HttpClientError } from "effect/http";
 
 import { COLLECTIONS } from "./collections.ts";
 import type {
+  CollectionName,
   FaqData,
   NewsData,
   SponsorData,
@@ -134,6 +135,16 @@ export class CmsClient extends Context.Service<
     readonly teams: Collection<TeamData>;
     /** A media path from an entry (`/_emdash/api/media/file/…`) as an absolute URL on the CMS. */
     readonly absoluteUrl: (path: string) => string;
+    /**
+     * Adds `values` to the options of a select or multi-select field, keeping the options it has; answers how many
+     * were new. The importer uses it so that every department city it tags articles with is a choice for editors.
+     * Needs the `schema:write` scope.
+     */
+    readonly ensureOptions: (
+      collection: CollectionName,
+      field: string,
+      values: readonly string[]
+    ) => Effect.Effect<number, CmsFailure>;
   }
 >()("@vektorprogrammet/cms-client/CmsClient") {}
 
@@ -414,8 +425,49 @@ export const layer = (
         };
       };
 
+      /** The options a select field already has, whatever else its validation says. */
+      const decodeOptions = Schema.decodeUnknownOption(
+        Schema.Struct({ options: Schema.Array(Schema.String) })
+      );
+
+      const ensureOptions = Effect.fn("CmsClient.ensureOptions")(
+        function* ensureOptions(
+          collection: CollectionName,
+          field: string,
+          values: readonly string[]
+        ) {
+          const current = yield* reads
+            .getField(collection, field, {})
+            .pipe(Effect.mapError((error) => failureOf("getField", error)));
+
+          const known = Option.match(
+            decodeOptions(current.data.item.validation),
+            { onNone: () => [], onSome: (validation) => validation.options }
+          );
+
+          const missing = Arr.filter(
+            Arr.dedupe(values),
+            (value) => !Arr.contains(known, value)
+          );
+
+          if (missing.length > 0) {
+            // The field's validation is only its options (the seed sets nothing else on these fields).
+            yield* writes
+              .updateField(collection, field, {
+                payload: { validation: { options: [...known, ...missing] } },
+              })
+              .pipe(
+                Effect.mapError((error) => failureOf("updateField", error))
+              );
+          }
+
+          return missing.length;
+        }
+      );
+
       return CmsClient.of({
         absoluteUrl: (path) => new URL(path, config.url).toString(),
+        ensureOptions,
         faq: collectionOf("faq", COLLECTIONS.faq),
         news: collectionOf("news", COLLECTIONS.news),
         sponsors: collectionOf("sponsors", COLLECTIONS.sponsors),

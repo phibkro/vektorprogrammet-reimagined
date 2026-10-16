@@ -323,6 +323,8 @@ export default defineConfig({
           "packages/cms-client/src/collections.ts",
           "packages/cms-client/src/client.ts",
           "packages/cms-client/scripts/subset.ts",
+          "tools/import/src/emdash/report.ts",
+          "tools/import/src/emdash/write.ts",
         ],
         rules: {
           "no-redeclare": "off",
@@ -379,6 +381,8 @@ export default defineConfig({
           "apps/web/e2e/support/devServer.ts",
           "packages/cms-client/src/client.ts",
           "packages/cms-client/scripts/generate.ts",
+          "tools/import/src/reportFiles.ts",
+          "tools/import/src/emdash/pipeline.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",

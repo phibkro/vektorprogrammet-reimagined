@@ -27,12 +27,12 @@ import { OpenApiDocument, subsetOfOpenApi } from "./subset.ts";
 
 /** The operations `apps/web` (read) and `tools/import` (write) call. */
 const OPERATIONS = [
-  "listCollections",
   "listContent",
   "getContent",
   "createContent",
-  "updateContent",
   "publishContent",
+  "getField",
+  "updateField",
 ] as const;
 
 class GenerateFailed extends Schema.TaggedError<

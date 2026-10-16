@@ -14,6 +14,7 @@ export {
 export type {
   CmsConfig,
   CmsFailure,
+  Collection,
   Entry,
   Listing,
   NewEntry,

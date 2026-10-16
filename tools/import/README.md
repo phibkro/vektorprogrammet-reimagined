@@ -1,6 +1,6 @@
 # @vektorprogrammet/import
 
-Imports the Phase 1 tables of the legacy MySQL backup into a PostgreSQL target (a Neon branch) and writes a reconciliation report. It is deterministic and reruns from scratch: every run replaces the target's Phase 1 data in one transaction. Design: `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §6 and spec `docs/specs/0001-departments-and-semesters.md` ("Data and migration").
+Imports the Phase 1 tables of the legacy MySQL backup into a PostgreSQL target (a Neon branch) and writes a reconciliation report. It is deterministic and reruns from scratch: every run replaces the target's Phase 1 data in one transaction. Design: `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §6 and spec `docs/specs/0001-departments-and-semesters.md` ("Data and migration"). A second program (`src/cms.ts`, spec 0005) loads the legacy articles, static texts and sponsors into the CMS; see "Into the CMS" below.
 
 ```
 legacy MySQL (SELECT-only legacy_reader, one snapshot)
@@ -87,7 +87,41 @@ A quarantined row is never repaired by the importer. Decide the fix with the ope
 
 Delete the Neon branch when the rehearsal is done, and drop or keep the local `legacy` database according to the backup's handling rules.
 
-## Mapping rules
+## Into the CMS (spec 0005, D5)
+
+Articles, static texts and sponsors do not go to PostgreSQL any more: they belong to the editors, so they go into EmDash (`apps/cms`). This is a second program with its own lifecycle, because the two targets differ: the PostgreSQL import truncates and reloads, while this one only creates what the CMS lacks.
+
+```
+legacy MySQL (the same SELECT-only snapshot)
+  → plan (pure: sanitize, convert to Portable Text, quarantine)
+  → CMS REST API through @vektorprogrammet/cms-client: create (draft, original dates), then publish
+  → read the collections back → emdash-reconciliation.json + emdash-reconciliation.md
+```
+
+```sh
+devenv shell -- bash -c 'cd tools/import && IMPORT_CMS_URL="$CMS_URL" IMPORT_CMS_TOKEN="$(cat "$CMS_TOKEN_FILE")" bun src/cms.ts --report-dir "$IMPORT_REPORT_DIR"'
+```
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `LEGACY_MYSQL_URL` | yes | set by devenv: `legacy_reader` on the `legacy` database |
+| `IMPORT_CMS_URL` | yes | the CMS origin (`apps/cms`): its `/_emdash/api/` is called |
+| `IMPORT_CMS_TOKEN` | yes | a personal access token with the scopes `content:read` and `content:write`, created in the EmDash admin by an administrator (writing the original dates needs the `content:publish_any` permission, which an administrator has) |
+
+- **Create-only, so a rerun changes nothing.** An entry whose slug exists is left as it is, which also means an editor's later change is never overwritten. The second run reports `created` 0 and `unchanged` everything.
+- **Create, then publish.** An entry is created as a draft with the legacy `created` date as both its creation and publication date, then published when the legacy row was live (`published = 1`). A legacy draft stays a draft (RULE-267). If the CMS refuses an entry (for example a department city that is not an option of the `departments` field of `news`), the run goes on, counts the refusal with the CMS's error code and exits non-zero at the end; fix the cause and run again. A CMS that cannot be reached stops the run.
+- **Images are left out.** The legacy files are not copied (see Authority), so an image has nothing to point at: `<img>` in rich text and the article and sponsor image columns are dropped and counted. The article is imported without its image; add images in the admin.
+- **Rich text** goes through the domain sanitizer, then into Portable Text (`src/emdash/portableText.ts`: paragraphs, h2–h4, bold, italic, underline, strike, sub/superscript, code, links, lists with levels, blockquote, preformatted text, rules, tables). Links to legacy upload paths stay as they are: `apps/web` redirects them (301) to `/filer/{key}` once the files are registered.
+
+| CMS collection | Legacy | Rule |
+| --- | --- | --- |
+| `news` | `article` | slug kept (unique); title required; `created` is the creation and publication date; `sticky`; department tags become city names (`departments`, empty = every department; a tag for an absent department is counted, not imported); the legacy author id is dropped (EmDash authors are CMS users) |
+| `texts` | `static_content` | the `html_id` is the slug (`[a-z0-9_-]`); the editor title comes from the legacy template (`TEXT_TITLES` in `src/emdash/plan.ts`); a repeated `html_id` is quarantined (the first id wins); created at the import time |
+| `sponsors` | `sponsor` | name, absolute http(s) URL and size required (RULE-189); slug `sponsor-{id}`; created at the import time |
+
+`emdash-reconciliation.md` and `.json` (decode with `EmDashReportFromJson` from `src/emdash/report.ts`) hold, per collection: rows in, quarantined, created as drafts, created and published, already there, refused by the CMS, and the published and draft counts read back from the CMS. Like the PostgreSQL report they hold counts, legacy ids, column names and CMS error codes only.
+
+## Mapping rules (PostgreSQL)
 
 | Target | Legacy | Rule |
 | --- | --- | --- |
@@ -116,5 +150,7 @@ devenv shell -- bash -c 'cd tools/import && bunx vp check'   # format, lint, typ
 The round trip creates a uniquely named MySQL database with `mysql -uroot` over `$MYSQL_UNIX_PORT`, loads the Phase 1 `CREATE TABLE` statements from `test/fixtures/legacy-phase1-schema.sql` (vendored verbatim from the production structure-only dump; source and checksum in its header) plus FAKE rows (`test/support/fixture.ts`), and grants `legacy_reader` SELECT on it, so the importer reads through the same SELECT-only user as in production. The PostgreSQL target is the migrated disposable database of `@vektorprogrammet/db/testing` (`vp_db_test_<random>`, created through `$TEST_DATABASE_ADMIN_URL` and migrated from `packages/db/drizzle/`). Both are dropped afterwards. The first test runs the CLI (`bun src/main.ts`) exactly as the runbook does.
 
 `bun run import:fixture` (`test/support/importFixture.ts`) imports that same FAKE fixture into an already migrated database named by `IMPORT_TARGET_DATABASE_URL`, with the same `runImport` and `importLayer`, and drops the throwaway MySQL database again. It refuses the development database like the CLI does. The `apps/web` browser tests use it to start on migrated data.
+
+`bun run import:fixture:cms` (`test/support/importFixtureCms.ts`) does the same for the CMS: it loads the fake fixture into a throwaway MySQL database and runs `runCmsImport` against the CMS named by `IMPORT_CMS_URL`, with the token `IMPORT_CMS_TOKEN`. The browser tests and the Preview data setup (`apps/cms/README.md`) use it, so the public pages are checked on content that went through the importer. `test/cmsRoundTrip.test.ts` runs the same program on the same fixture against an in-memory CMS (`test/support/fakeCms.ts`), and `test/emdash/` has the unit tests of the converter, the plan and the writer.
 
 No lint suppression or registered exception exists in this package.
