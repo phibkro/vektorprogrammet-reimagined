@@ -353,10 +353,7 @@ export default defineConfig({
           "apps/web/src/routes/kontrollpanel/route.tsx",
           "apps/web/src/routes/kontrollpanel/avdelinger.tsx",
           "apps/web/src/routes/kontrollpanel/linjer.tsx",
-          "apps/web/src/routes/kontrollpanel/artikler.tsx",
           "apps/web/src/routes/kontrollpanel/semestre.tsx",
-          "apps/web/src/routes/kontrollpanel/sponsorer.tsx",
-          "apps/web/src/routes/kontrollpanel/statisk-innhold.tsx",
           "apps/web/src/server.ts",
         ],
         rules: {
@@ -380,6 +377,7 @@ export default defineConfig({
           "tools/db-path-spike/src/smoke/refused.ts",
           "apps/web/e2e/run.ts",
           "apps/web/e2e/support/devServer.ts",
+          "apps/web/e2e/support/command.ts",
           "packages/cms-client/src/client.ts",
           "packages/cms-client/scripts/generate.ts",
           "tools/import/src/reportFiles.ts",
@@ -403,15 +401,9 @@ export default defineConfig({
         rules: { "typescript/no-generated-empty-object-type": "off" },
       },
       {
-        // promise/prefer-await-to-then misreads Effect.catch as Promise.catch; Effect.catch is native error recovery.
-        files: ["packages/db/src/repositories/content.ts"],
-        rules: { "promise/prefer-await-to-then": "off" },
-      },
-      {
         // Promise lint misreads Effect.catch, Effect.flatMap and Effect.catchIf callbacks as native Promise chains.
         files: [
           "packages/db/src/classifySqlFailure.ts",
-          "packages/db/src/repositories/content.ts",
           "packages/db/src/transactional.ts",
           "tools/db-path-spike/src/worker/checks.ts",
           "tools/db-path-spike/src/worker/http.ts",
@@ -498,17 +490,14 @@ export default defineConfig({
           "apps/web/src/routes/*.tsx",
           "apps/web/src/routes/team/**",
           "apps/web/src/routes/kontrollpanel/linjer.tsx",
-          "apps/web/src/routes/kontrollpanel/artikler.tsx",
           "apps/web/src/routes/kontrollpanel/arrangementer.tsx",
           "apps/web/src/routes/nyheter/index.tsx",
           "apps/web/src/routes/kontrollpanel/index.tsx",
           "apps/web/src/routes/kontrollpanel/route.tsx",
           "apps/web/src/routes/filer/$key.ts",
-          "apps/web/src/routes/kontrollpanel/statisk-innhold.tsx",
           "apps/web/src/routes/kontrollpanel/avdelinger.tsx",
           "apps/web/src/routes/nyhet/$slug.tsx",
           "apps/web/src/routes/kontrollpanel/semestre.tsx",
-          "apps/web/src/routes/kontrollpanel/sponsorer.tsx",
           "apps/web/src/routes/kontakt/*.tsx",
           "apps/web/src/components/forms.tsx",
           "apps/web/src/components/panel/testActorSwitch.tsx",
@@ -566,6 +555,8 @@ export default defineConfig({
           "apps/web/e2e/journey.spec.ts",
           "apps/web/e2e/shell.spec.ts",
           "apps/web/e2e/support/panel.ts",
+          "apps/web/e2e/public.spec.ts",
+          "apps/web/e2e/support/editor.ts",
         ],
         rules: { "effecttsgo/async-function": "off" },
       },
@@ -622,7 +613,11 @@ export default defineConfig({
       },
       {
         // Playwright actions on one page must run in order: every `fill` moves the focus, so filling fields concurrently types into the wrong ones, and a spec visits its pages one after another.
-        files: ["apps/web/e2e/support/panel.ts", "apps/web/e2e/shell.spec.ts"],
+        files: [
+          "apps/web/e2e/support/panel.ts",
+          "apps/web/e2e/shell.spec.ts",
+          "apps/web/e2e/public.spec.ts",
+        ],
         rules: { "no-await-in-loop": "off" },
       },
     ],

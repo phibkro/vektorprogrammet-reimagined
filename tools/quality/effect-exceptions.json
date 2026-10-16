@@ -18,23 +18,6 @@
         "typescript": "7.0.2"
       },
       "retirementTrigger": "Retire when TanStack Router stops emitting these directives or the generated route tree is no longer part of the workspace source."
-    },
-    {
-      "id": "EX-0003",
-      "scope": {
-        "files": ["packages/domain/test/content/sponsorAndEvents.test.ts"],
-        "directives": ["oxlint-disable-next-line"]
-      },
-      "reason": "A test fixture must contain the literal javascript: URL to assert that the sponsor URL validator rejects script URLs; the lint rule forbids that literal.",
-      "nativeAlternativesExamined": [
-        "Constructing the scheme at runtime would hide the fixture's intent from readers, so the literal stays and only the single line is suppressed.",
-        "Removing the test case would drop RULE-189 coverage (URL check added in the reimagined sponsor entity)."
-      ],
-      "owner": "packages/domain",
-      "versions": {
-        "oxlint": "1.2.0 (vite-plus)"
-      },
-      "retirementTrigger": "Retire when the validator test no longer needs a literal script URL, for example when the fixture is generated from a shared rejected-URL table covered by a non-literal rule."
     }
   ],
   "typeBridges": [
