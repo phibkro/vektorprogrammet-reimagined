@@ -515,6 +515,10 @@ function SidebarMenuButton({
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
 
+  // On a phone the entries are labelled in the open panel, so there is no tooltip: a focused entry's tooltip
+  // would take the first Escape, and the panel would stay open.
+  const withTooltip = tooltip !== undefined && !isMobile;
+
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -523,7 +527,7 @@ function SidebarMenuButton({
       },
       props
     ),
-    render: tooltip === undefined ? render : <TooltipTrigger render={render} />,
+    render: withTooltip ? <TooltipTrigger render={render} /> : render,
     state: {
       active: isActive,
       sidebar: "menu-button",
@@ -532,7 +536,7 @@ function SidebarMenuButton({
     },
   });
 
-  if (tooltip === undefined) {
+  if (!withTooltip) {
     return comp;
   }
 
@@ -546,7 +550,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== "collapsed" || isMobile}
+        hidden={state !== "collapsed"}
         {...tooltipContent}
       />
     </Tooltip>
