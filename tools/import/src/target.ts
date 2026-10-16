@@ -13,27 +13,55 @@
 import { PgClient } from "@effect/sql-pg";
 import { schema } from "@vektorprogrammet/db";
 import { getTableName, sql } from "drizzle-orm";
+import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core";
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
-import { Array as Arr, Context, DateTime, Effect, Layer, Redacted, Schema } from "effect";
-import { TARGET_TABLES, type TargetRows, type TargetTable } from "./transform/plan.ts";
+import type { Redacted } from "effect";
+import {
+  Array as Arr,
+  Context,
+  DateTime,
+  Effect,
+  Layer,
+  Record as Rec,
+  Schema,
+} from "effect";
+import type { SqlError } from "effect/sql/SqlError";
 
-export class TargetWriteError extends Schema.TaggedError<TargetWriteError>()("TargetWriteError", {
-  step: Schema.String,
+import { TARGET_TABLES } from "./transform/plan.ts";
+import type { TargetRows, TargetTable } from "./transform/plan.ts";
+
+type InsertError = EffectDrizzleQueryError | SqlError;
+
+export class TargetWriteError extends Schema.TaggedError<
+  TargetWriteError,
+  { readonly brand: unique symbol }
+>()("TargetWriteError", {
   cause: Schema.Defect(),
+  step: Schema.String,
 }) {}
+
+const step =
+  (name: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>
+  ): Effect.Effect<A, TargetWriteError, R> =>
+    Effect.mapError(
+      effect,
+      (cause) => new TargetWriteError({ cause, step: name })
+    );
 
 /** The Drizzle table of each target table name. */
 const TABLES = {
-  public_file: schema.publicFile,
-  department: schema.department,
-  semester: schema.semester,
-  field_of_study: schema.fieldOfStudy,
   admission_period: schema.admissionPeriod,
   article: schema.article,
   article_department: schema.articleDepartment,
-  static_content: schema.staticContent,
-  sponsor: schema.sponsor,
+  department: schema.department,
+  field_of_study: schema.fieldOfStudy,
+  public_file: schema.publicFile,
+  semester: schema.semester,
   social_event: schema.socialEvent,
+  sponsor: schema.sponsor,
+  static_content: schema.staticContent,
 } as const;
 
 /** Tables whose integer `id` is an identity column; their sequences follow the kept legacy ids. */
@@ -50,131 +78,152 @@ const IDENTITY_TABLES = [
 /** Rows per `INSERT` statement, far below PostgreSQL's 65 535 bind parameters. */
 const BATCH = 500;
 
+/** Writes table rows in batches through the supplied Drizzle insert. */
+const inBatches = <A>(
+  table: TargetTable,
+  values: readonly A[],
+  write: (chunk: A[]) => Effect.Effect<unknown, InsertError>
+) =>
+  Effect.forEach(Arr.chunksOf(values, BATCH), write, {
+    discard: true,
+  }).pipe(step(`insert ${table}`));
+
 export class ImportTarget extends Context.Service<
   ImportTarget,
   {
-    /** Replaces the target's Phase 1 data with `rows`; returns the stored row count per table. */
-    replaceAll(
-      rows: TargetRows,
-    ): Effect.Effect<Readonly<Record<TargetTable, number>>, TargetWriteError>;
+    /** Replaces the target's Phase 1 data with rows; returns the stored row count per table. */
+    readonly replaceAll: (
+      rows: TargetRows
+    ) => Effect.Effect<Readonly<Record<TargetTable, number>>, TargetWriteError>;
   }
 >()("@vektorprogrammet/import/ImportTarget") {
   /** Writes through the ambient `PgClient`. */
   static readonly layer = Layer.effect(
     ImportTarget,
-    Effect.gen(function* () {
+    Effect.gen(function* layer() {
       const pg = yield* PgClient.PgClient;
       const db = yield* PgDrizzle.makeWithDefaults();
 
-      const step =
-        (name: string) =>
-        <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, TargetWriteError, R> =>
-          Effect.mapError(effect, (cause) => new TargetWriteError({ step: name, cause }));
-
-      /** Writes `values` in batches; `write` is one typed Drizzle insert per table. */
-      const inBatches = <A>(
-        table: TargetTable,
-        values: ReadonlyArray<A>,
-        write: (chunk: Array<A>) => Effect.Effect<unknown, unknown>,
-      ) =>
-        Effect.forEach(Arr.chunksOf(values, BATCH), write, { discard: true }).pipe(
-          step(`insert ${table}`),
-        );
-
       const date = DateTime.toDateUtc;
 
-      const replaceAll = Effect.fn("ImportTarget.replaceAll")(function* (rows: TargetRows) {
-        const tables = TARGET_TABLES.map(({ table }) => TABLES[table]);
-        yield* db
-          .execute(sql`truncate table ${sql.join(tables, sql`, `)} restart identity`)
-          .pipe(step("truncate"));
+      const toDatabaseWindow = <
+        A extends {
+          readonly endsAt: DateTime.Utc;
+          readonly startsAt: DateTime.Utc;
+        },
+      >(
+        row: A
+      ) => ({
+        ...row,
+        endsAt: date(row.endsAt),
+        startsAt: date(row.startsAt),
+      });
 
-        yield* inBatches(
-          "public_file",
-          rows.public_file.map((row) => ({ ...row, uploadedAt: date(row.uploadedAt) })),
-          (chunk) => db.insert(schema.publicFile).values(chunk),
-        );
-        yield* inBatches("department", rows.department, (chunk) =>
-          db.insert(schema.department).values(chunk),
-        );
-        yield* inBatches("semester", rows.semester, (chunk) =>
-          db.insert(schema.semester).values(chunk),
-        );
-        yield* inBatches("field_of_study", rows.field_of_study, (chunk) =>
-          db.insert(schema.fieldOfStudy).values(chunk),
-        );
-        yield* inBatches(
-          "admission_period",
-          rows.admission_period.map((row) => ({
-            ...row,
-            startsAt: date(row.startsAt),
-            endsAt: date(row.endsAt),
-          })),
-          (chunk) => db.insert(schema.admissionPeriod).values(chunk),
-        );
-        yield* inBatches(
-          "article",
-          rows.article.map((row) => ({ ...row, createdAt: date(row.createdAt) })),
-          (chunk) => db.insert(schema.article).values(chunk),
-        );
-        yield* inBatches("article_department", rows.article_department, (chunk) =>
-          db.insert(schema.articleDepartment).values(chunk),
-        );
-        yield* inBatches("static_content", rows.static_content, (chunk) =>
-          db.insert(schema.staticContent).values(chunk),
-        );
-        yield* inBatches("sponsor", rows.sponsor, (chunk) =>
-          db.insert(schema.sponsor).values(chunk),
-        );
-        yield* inBatches(
-          "social_event",
-          rows.social_event.map((row) => ({
-            ...row,
-            startsAt: date(row.startsAt),
-            endsAt: date(row.endsAt),
-          })),
-          (chunk) => db.insert(schema.socialEvent).values(chunk),
-        );
+      const replaceAll = Effect.fn("ImportTarget.replaceAll")(
+        function* replaceAll(rows: TargetRows) {
+          const tables = Arr.map(TARGET_TABLES, ({ table }) => TABLES[table]);
+          yield* db
+            .execute(
+              sql`truncate table ${sql.join(tables, sql`, `)} restart identity`
+            )
+            .pipe(step("truncate"));
 
-        yield* Effect.forEach(
-          IDENTITY_TABLES,
-          (table) =>
-            db.execute(
-              sql`select setval(pg_get_serial_sequence(${getTableName(table)}, 'id'),
+          yield* inBatches(
+            "public_file",
+            Arr.map(rows.public_file, (row) => ({
+              ...row,
+              uploadedAt: date(row.uploadedAt),
+            })),
+            (chunk) => db.insert(schema.publicFile).values(chunk)
+          );
+          yield* inBatches("department", rows.department, (chunk) =>
+            db.insert(schema.department).values(chunk)
+          );
+          yield* inBatches("semester", rows.semester, (chunk) =>
+            db.insert(schema.semester).values(chunk)
+          );
+          yield* inBatches("field_of_study", rows.field_of_study, (chunk) =>
+            db.insert(schema.fieldOfStudy).values(chunk)
+          );
+          yield* inBatches(
+            "admission_period",
+            Arr.map(rows.admission_period, toDatabaseWindow),
+            (chunk) => db.insert(schema.admissionPeriod).values(chunk)
+          );
+          yield* inBatches(
+            "article",
+            Arr.map(rows.article, (row) => ({
+              ...row,
+              createdAt: date(row.createdAt),
+            })),
+            (chunk) => db.insert(schema.article).values(chunk)
+          );
+          yield* inBatches(
+            "article_department",
+            rows.article_department,
+            (chunk) => db.insert(schema.articleDepartment).values(chunk)
+          );
+          yield* inBatches("static_content", rows.static_content, (chunk) =>
+            db.insert(schema.staticContent).values(chunk)
+          );
+          yield* inBatches("sponsor", rows.sponsor, (chunk) =>
+            db.insert(schema.sponsor).values(chunk)
+          );
+          yield* inBatches(
+            "social_event",
+            Arr.map(rows.social_event, toDatabaseWindow),
+            (chunk) => db.insert(schema.socialEvent).values(chunk)
+          );
+
+          yield* Effect.forEach(
+            IDENTITY_TABLES,
+            (table) =>
+              db.execute(
+                sql`select setval(pg_get_serial_sequence(${getTableName(table)}, 'id'),
                                 coalesce(max(${table.id}), 1), max(${table.id}) is not null)
-                  from ${table}`,
-            ),
-          { discard: true },
-        ).pipe(step("advance identity sequences"));
+                  from ${table}`
+              ),
+            { discard: true }
+          ).pipe(step("advance identity sequences"));
 
-        const counts = yield* Effect.forEach(TARGET_TABLES, ({ table }) =>
-          db.$count(TABLES[table]).pipe(
-            Effect.map((count) => [table, count] as const),
-            step(`count ${table}`),
-          ),
-        );
-        const rowsOut = Object.fromEntries(counts) as Record<TargetTable, number>;
-        const mismatched = TARGET_TABLES.filter(
-          ({ table }) => rowsOut[table] !== rows[table].length,
-        );
-        if (mismatched.length > 0) {
-          return yield* new TargetWriteError({
-            step: "reconcile",
-            cause: `stored row counts differ from the plan: ${mismatched.map((t) => t.table).join(", ")}`,
-          });
-        }
-        return rowsOut;
-      }, pg.withTransaction);
+          const counts = yield* Effect.forEach(TARGET_TABLES, ({ table }) =>
+            db.$count(TABLES[table]).pipe(
+              Effect.map((count) => [table, count] as const),
+              step(`count ${table}`)
+            )
+          );
+
+          const rowsOut: Record<TargetTable, number> = Rec.fromEntries(counts);
+
+          const mismatched = Arr.filter(
+            TARGET_TABLES,
+            ({ table }) => rowsOut[table] !== rows[table].length
+          );
+
+          if (mismatched.length > 0) {
+            return yield* new TargetWriteError({
+              cause: `stored row counts differ from the plan: ${Arr.join(
+                Arr.map(mismatched, (t) => t.table),
+                ", "
+              )}`,
+              step: "reconcile",
+            });
+          }
+
+          return rowsOut;
+        },
+        pg.withTransaction
+      );
 
       return ImportTarget.of({
         replaceAll: (rows) =>
           replaceAll(rows).pipe(
             Effect.catchTag("SqlError", (cause) =>
-              Effect.fail(new TargetWriteError({ step: "transaction", cause })),
-            ),
+              Effect.fail(new TargetWriteError({ cause, step: "transaction" }))
+            )
           ),
       });
-    }),
+    })
   );
 }
 
@@ -182,5 +231,9 @@ export class ImportTarget extends Context.Service<
  * The target client: a direct connection (not Hyperdrive), so prepared
  * statements stay on; two connections are plenty for a sequential import.
  */
-export const targetPgLayer = (url: Redacted.Redacted<string>) =>
-  PgClient.layer({ url, maxConnections: 2, applicationName: "vektorprogrammet-import" });
+export const targetPgLayer = (url: Redacted.Redacted) =>
+  PgClient.layer({
+    applicationName: "vektorprogrammet-import",
+    maxConnections: 2,
+    url,
+  });

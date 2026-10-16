@@ -12,31 +12,34 @@
  * the permanent redirect: the decoded path relative to the web root, without a
  * leading slash (`Offentlige filer/Styret/referat.pdf`).
  */
+import { Array as Arr, Data, Schema } from "effect";
 
 /** Upload directories whose files become registered public files. */
-const FILE_ROOTS = ["Offentlige filer/", "images/article_images/", "images/Logo images/"] as const;
+const FILE_ROOTS = [
+  "Offentlige filer/",
+  "images/article_images/",
+  "images/Logo images/",
+] as const;
 
 /** Other web-root paths that held legacy assets; references to them cannot be mapped. */
 const OTHER_ASSET_ROOT = "images/";
 
 /** Hosts that served legacy files. A reference on another host is not a legacy file. */
-const LEGACY_HOSTS: Record<string, true> = {
-  "vektorprogrammet.no": true,
-  "www.vektorprogrammet.no": true,
-};
+const LEGACY_HOSTS = Schema.Literals([
+  "vektorprogrammet.no",
+  "www.vektorprogrammet.no",
+]);
 
 /** What a URL in legacy content refers to. */
-export type LegacyReference =
-  | { readonly _tag: "NotLegacy" }
-  /** A file under an upload root; `path` is the normalised `legacy_path`. */
-  | { readonly _tag: "File"; readonly path: string }
-  /**
-   * A legacy web-root asset the importer cannot map: outside the upload roots,
-   * or unsafe (`.`/`..`/empty segments, NUL, malformed percent-encoding).
-   */
-  | { readonly _tag: "Unmappable"; readonly area: string };
+export type LegacyReference = Data.TaggedEnum<{
+  NotLegacy: Record<never, never>;
+  File: { readonly path: string };
+  Unmappable: { readonly area: string };
+}>;
 
-const NOT_LEGACY: LegacyReference = { _tag: "NotLegacy" };
+const legacyReference = Data.taggedEnum<LegacyReference>();
+
+const NOT_LEGACY: LegacyReference = legacyReference.NotLegacy();
 
 /**
  * The report's coarse location of a legacy file: its directory under the web
@@ -44,7 +47,8 @@ const NOT_LEGACY: LegacyReference = { _tag: "NotLegacy" };
  * file name, which may carry personal data.
  */
 export const fileArea = (path: string): string => {
-  const segments = path.split("/").filter((segment) => segment !== "");
+  const segments = Arr.filter(path.split("/"), (segment) => segment !== "");
+
   return segments[0] === "images" && segments.length > 2
     ? `images/${segments[1] ?? ""}`
     : (segments[0] ?? "");
@@ -60,32 +64,68 @@ const decodeOrUndefined = (path: string): string | undefined => {
 };
 
 /** Classifies a URL found in legacy data (an attribute value or a path column). */
+const sitePathFromUrl = (url: string): string | undefined => {
+  const absolute = /^https?:\/\/(?<host>[^/]+)(?<pathname>.*)$/isu.exec(url);
+
+  if (absolute === null) {
+    if (url.startsWith("/") && !url.startsWith("//")) {
+      return url;
+    }
+
+    return undefined;
+  }
+
+  const host = absolute.groups?.host?.toLowerCase();
+
+  if (!Schema.is(LEGACY_HOSTS)(host)) {
+    return undefined;
+  }
+
+  const pathname = absolute.groups?.pathname;
+
+  if (pathname === undefined || pathname === "") {
+    return "/";
+  }
+
+  return pathname;
+};
+
+const isSafeRelativePath = (path: string | undefined): path is string => {
+  if (path === undefined) {
+    return false;
+  }
+
+  return Arr.every(
+    path.split("/"),
+    (segment) =>
+      segment !== "" &&
+      segment !== "." &&
+      segment !== ".." &&
+      !segment.includes("\0")
+  );
+};
+
+/** Classifies a URL found in legacy data (an attribute value or a path column). */
 export const classifyReference = (raw: string): LegacyReference => {
-  const url = raw.trim().replace(/[?#].*$/s, "");
-  const absolute = /^https?:\/\/([^/]+)(.*)$/is.exec(url);
-  const sitePath =
-    absolute === null
-      ? url.startsWith("/") && !url.startsWith("//")
-        ? url
-        : undefined
-      : LEGACY_HOSTS[(absolute[1] ?? "").toLowerCase()] === true
-        ? absolute[2] || "/"
-        : undefined;
-  if (sitePath === undefined) return NOT_LEGACY;
+  const url = raw.trim().replace(/[?#].*$/su, "");
+  const sitePath = sitePathFromUrl(url);
+
+  if (sitePath === undefined) {
+    return NOT_LEGACY;
+  }
+
   const relative = sitePath.slice(1);
   const decoded = decodeOrUndefined(relative);
   const candidate = decoded ?? relative;
-  const isFileRoot = FILE_ROOTS.some((root) => candidate.startsWith(root));
-  if (!isFileRoot && !candidate.startsWith(OTHER_ASSET_ROOT)) return NOT_LEGACY;
-  const unsafe =
-    decoded === undefined ||
-    decoded
-      .split("/")
-      .some(
-        (segment) =>
-          segment === "" || segment === "." || segment === ".." || segment.includes("\0"),
-      );
-  return isFileRoot && !unsafe
-    ? { _tag: "File", path: candidate }
-    : { _tag: "Unmappable", area: fileArea(candidate) };
+  const isFileRoot = Arr.some(FILE_ROOTS, (root) => candidate.startsWith(root));
+
+  if (!isFileRoot && !candidate.startsWith(OTHER_ASSET_ROOT)) {
+    return NOT_LEGACY;
+  }
+
+  if (isFileRoot && isSafeRelativePath(decoded)) {
+    return legacyReference.File({ path: candidate });
+  }
+
+  return legacyReference.Unmappable({ area: fileArea(candidate) });
 };

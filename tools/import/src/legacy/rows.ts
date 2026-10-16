@@ -11,27 +11,32 @@
 import { Schema } from "effect";
 
 const Id = Schema.Int;
+
 const NullableId = Schema.NullOr(Schema.Int);
+
 const NullableText = Schema.NullOr(Schema.String);
+
 /** `tinyint(1)`: 0/1, read by mysql2 as a number. */
 const TinyInt = Schema.Int;
+
 /** `DATETIME` selected with `DATE_FORMAT(col, '%Y-%m-%d %H:%i:%s')`. */
 const WallClock = Schema.String;
 
 /** `department` (`Entity/Department.php`); `city` is unique in legacy too. */
 export const LegacyDepartment = Schema.Struct({
-  id: Id,
-  name: Schema.String,
-  shortName: Schema.String,
-  email: Schema.String,
+  active: TinyInt,
   address: NullableText,
   city: Schema.String,
-  slackChannel: NullableText,
-  logoPath: NullableText,
+  email: Schema.String,
+  id: Id,
   latitude: NullableText,
+  logoPath: NullableText,
   longitude: NullableText,
-  active: TinyInt,
+  name: Schema.String,
+  shortName: Schema.String,
+  slackChannel: NullableText,
 });
+
 export type LegacyDepartment = typeof LegacyDepartment.Type;
 
 /** `semester` (`Entity/Semester.php`): `semesterTime` is 'Vår' or 'Høst'; no unique key. */
@@ -40,25 +45,28 @@ export const LegacySemester = Schema.Struct({
   semesterTime: Schema.String,
   year: Schema.String,
 });
+
 export type LegacySemester = typeof LegacySemester.Type;
 
 /** `field_of_study` (`Entity/FieldOfStudy.php`): `department_id` is nullable in legacy. */
 export const LegacyFieldOfStudy = Schema.Struct({
-  id: Id,
   departmentId: NullableId,
+  id: Id,
   name: Schema.String,
   shortName: Schema.String,
 });
+
 export type LegacyFieldOfStudy = typeof LegacyFieldOfStudy.Type;
 
 /** `AdmissionPeriod` (`Entity/AdmissionPeriod.php`); `infoMeeting_id` belongs to Phase 3. */
 export const LegacyAdmissionPeriod = Schema.Struct({
-  id: Id,
   departmentId: NullableId,
+  endDate: WallClock,
+  id: Id,
   semesterId: NullableId,
   startDate: WallClock,
-  endDate: WallClock,
 });
+
 export type LegacyAdmissionPeriod = typeof LegacyAdmissionPeriod.Type;
 
 /**
@@ -67,17 +75,18 @@ export type LegacyAdmissionPeriod = typeof LegacyAdmissionPeriod.Type;
  * `imageLarge`/`imageSmall` are web paths returned by `FileUploader`.
  */
 export const LegacyArticle = Schema.Struct({
-  id: Id,
   authorId: NullableId,
-  title: Schema.String,
   body: Schema.String,
+  created: WallClock,
+  id: Id,
   imageLarge: Schema.String,
   imageSmall: Schema.String,
-  created: WallClock,
-  sticky: TinyInt,
   published: Schema.NullOr(TinyInt),
   slug: Schema.String,
+  sticky: TinyInt,
+  title: Schema.String,
 });
+
 export type LegacyArticle = typeof LegacyArticle.Type;
 
 /** `articles_departments`: the article's department tags (none = all departments). */
@@ -85,24 +94,27 @@ export const LegacyArticleDepartment = Schema.Struct({
   articleId: Id,
   departmentId: Id,
 });
+
 export type LegacyArticleDepartment = typeof LegacyArticleDepartment.Type;
 
 /** `static_content` (`Entity/StaticContent.php`): `html_id` is the block key; no unique key. */
 export const LegacyStaticContent = Schema.Struct({
-  id: Id,
-  htmlId: Schema.String,
   html: Schema.String,
+  htmlId: Schema.String,
+  id: Id,
 });
+
 export type LegacyStaticContent = typeof LegacyStaticContent.Type;
 
 /** `sponsor` (`Entity/Sponsor.php`): every column nullable; `size` is small/medium/large. */
 export const LegacySponsor = Schema.Struct({
   id: Id,
-  name: NullableText,
-  url: NullableText,
   logoImagePath: NullableText,
+  name: NullableText,
   size: NullableText,
+  url: NullableText,
 });
+
 export type LegacySponsor = typeof LegacySponsor.Type;
 
 /**
@@ -110,26 +122,27 @@ export type LegacySponsor = typeof LegacySponsor.Type;
  * that the sign-up role was only displayed and never enforced, so it is dropped.
  */
 export const LegacySocialEvent = Schema.Struct({
-  id: Id,
   departmentId: NullableId,
-  semesterId: NullableId,
-  title: Schema.String,
   description: Schema.String,
-  startTime: WallClock,
   endTime: WallClock,
+  id: Id,
   link: NullableText,
+  semesterId: NullableId,
+  startTime: WallClock,
+  title: Schema.String,
 });
+
 export type LegacySocialEvent = typeof LegacySocialEvent.Type;
 
 /** Every Phase 1 legacy table, read in one consistent snapshot. */
 export interface LegacySnapshot {
-  readonly departments: ReadonlyArray<LegacyDepartment>;
-  readonly semesters: ReadonlyArray<LegacySemester>;
-  readonly fieldsOfStudy: ReadonlyArray<LegacyFieldOfStudy>;
-  readonly admissionPeriods: ReadonlyArray<LegacyAdmissionPeriod>;
-  readonly articles: ReadonlyArray<LegacyArticle>;
-  readonly articleDepartments: ReadonlyArray<LegacyArticleDepartment>;
-  readonly staticContents: ReadonlyArray<LegacyStaticContent>;
-  readonly sponsors: ReadonlyArray<LegacySponsor>;
-  readonly socialEvents: ReadonlyArray<LegacySocialEvent>;
+  readonly departments: readonly LegacyDepartment[];
+  readonly semesters: readonly LegacySemester[];
+  readonly fieldsOfStudy: readonly LegacyFieldOfStudy[];
+  readonly admissionPeriods: readonly LegacyAdmissionPeriod[];
+  readonly articles: readonly LegacyArticle[];
+  readonly articleDepartments: readonly LegacyArticleDepartment[];
+  readonly staticContents: readonly LegacyStaticContent[];
+  readonly sponsors: readonly LegacySponsor[];
+  readonly socialEvents: readonly LegacySocialEvent[];
 }

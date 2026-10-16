@@ -1,3 +1,5 @@
+import { detectContentType, fileKeyFor } from "@vektorprogrammet/domain";
+import type { FileKey, StoredContentType } from "@vektorprogrammet/domain";
 /**
  * Legacy file bytes and their content-addressed keys.
  *
@@ -6,19 +8,29 @@
  * production file directories is not authorised yet (Checkpoint 2), so the
  * default Layer is `LegacyFiles.none`: every referenced file is reported missing.
  */
-import { Context, Crypto, DateTime, Effect, FileSystem, Layer, Option, Path, Schema } from "effect";
-import { encode as hexEncode } from "effect/encoding/Hex";
 import {
-  type FileKey,
-  type StoredContentType,
-  detectContentType,
-  fileKeyFor,
-} from "@vektorprogrammet/domain";
+  Array as Arr,
+  Context,
+  Crypto,
+  DateTime,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Order,
+  Path,
+  Predicate,
+  Schema,
+} from "effect";
+import { encode as hexEncode } from "effect/encoding/Hex";
 
-export class LegacyFilesError extends Schema.TaggedError<LegacyFilesError>()("LegacyFilesError", {
+export class LegacyFilesError extends Schema.TaggedError<
+  LegacyFilesError,
+  { readonly brand: unique symbol }
+>()("LegacyFilesError", {
+  cause: Schema.Defect(),
   /** The reason only; the path may carry personal data and stays out of logs and reports. */
   reason: Schema.String,
-  cause: Schema.Defect(),
 }) {}
 
 export interface LegacyFileBytes {
@@ -26,19 +38,24 @@ export interface LegacyFileBytes {
   readonly modifiedAt: DateTime.Utc;
 }
 
+const fileReadFailure = (reason: string) => (cause: unknown) =>
+  new LegacyFilesError({ cause, reason });
+
 export class LegacyFiles extends Context.Service<
   LegacyFiles,
   {
     /** `directory` when a legacy web root was given, `none` otherwise (reported). */
     readonly source: "directory" | "none";
     /** The file at a normalised legacy path (`images/…`); `None` when it does not exist. */
-    read(legacyPath: string): Effect.Effect<Option.Option<LegacyFileBytes>, LegacyFilesError>;
+    readonly read: (
+      legacyPath: string
+    ) => Effect.Effect<Option.Option<LegacyFileBytes>, LegacyFilesError>;
   }
 >()("@vektorprogrammet/import/LegacyFiles") {
   /** No file source: every file is missing. */
   static readonly none = Layer.succeed(
     LegacyFiles,
-    LegacyFiles.of({ source: "none", read: () => Effect.succeedNone }),
+    LegacyFiles.of({ read: () => Effect.succeedNone, source: "none" })
   );
 
   /**
@@ -49,51 +66,76 @@ export class LegacyFiles extends Context.Service<
   static readonly fromDirectory = (root: string) =>
     Layer.effect(
       LegacyFiles,
-      Effect.gen(function* () {
+      Effect.gen(function* fromDirectory() {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const realRoot = yield* fs
-          .realPath(root)
-          .pipe(
-            Effect.mapError(
-              (cause) =>
-                new LegacyFilesError({ reason: "LEGACY_FILES_DIR is not readable", cause }),
-            ),
+
+        const realRoot = yield* fs.realPath(root).pipe(
+          Effect.mapError(
+            (cause) =>
+              new LegacyFilesError({
+                cause,
+                reason: "LEGACY_FILES_DIR is not readable",
+              })
+          )
+        );
+
+        const read = Effect.fn("LegacyFiles.read")(function* read(
+          legacyPath: string
+        ) {
+          const candidate = path.join(
+            realRoot,
+            ...Arr.filter(legacyPath.split("/"), (s) => s !== "")
           );
 
-        const read = Effect.fn("LegacyFiles.read")(function* (legacyPath: string) {
-          const candidate = path.join(realRoot, ...legacyPath.split("/").filter((s) => s !== ""));
           const located = yield* fs.realPath(candidate).pipe(
-            Effect.map(Option.some),
+            Effect.asSome,
             Effect.catchTag("PlatformError", (error) =>
-              error.reason._tag === "NotFound"
+              Predicate.isTagged(error.reason, "NotFound")
                 ? Effect.succeedNone
-                : Effect.fail(new LegacyFilesError({ reason: "stat failed", cause: error })),
-            ),
+                : Effect.fail(
+                    new LegacyFilesError({
+                      cause: error,
+                      reason: "stat failed",
+                    })
+                  )
+            )
           );
-          if (Option.isNone(located)) return Option.none<LegacyFileBytes>();
+
+          if (Option.isNone(located)) {
+            return Option.none<LegacyFileBytes>();
+          }
+
           const relative = path.relative(realRoot, located.value);
+
           if (relative.startsWith("..") || path.isAbsolute(relative)) {
             return Option.none<LegacyFileBytes>();
           }
-          const failed = (reason: string) => (cause: unknown) =>
-            new LegacyFilesError({ reason, cause });
-          const info = yield* fs.stat(located.value).pipe(Effect.mapError(failed("stat failed")));
-          if (info.type !== "File") return Option.none<LegacyFileBytes>();
+
+          const info = yield* fs
+            .stat(located.value)
+            .pipe(Effect.mapError(fileReadFailure("stat failed")));
+
+          if (info.type !== "File") {
+            return Option.none<LegacyFileBytes>();
+          }
+
           const bytes = yield* fs
             .readFile(located.value)
-            .pipe(Effect.mapError(failed("read failed")));
+            .pipe(Effect.mapError(fileReadFailure("read failed")));
+
           // The modification time is the upload time legacy recorded on disk; it
           // keeps `public_file.uploaded_at` identical across reruns.
           const modifiedAt = Option.match(info.mtime, {
             onNone: () => DateTime.makeUnsafe(0),
             onSome: (mtime) => DateTime.fromDateUnsafe(mtime),
           });
+
           return Option.some<LegacyFileBytes>({ bytes, modifiedAt });
         });
 
-        return LegacyFiles.of({ source: "directory", read });
-      }),
+        return LegacyFiles.of({ read, source: "directory" });
+      })
     );
 }
 
@@ -115,42 +157,50 @@ export type FileIndex = ReadonlyMap<string, ResolvedFile>;
  * Reads, types (by magic bytes, RULE-130) and hashes every referenced legacy
  * file. `paths` are decoded site paths; the result is independent of their order.
  */
-export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(function* (
-  paths: Iterable<string>,
-) {
-  const files = yield* LegacyFiles;
-  const crypto = yield* Crypto.Crypto;
-  const unique = Array.from(new Set(paths)).sort();
-  const resolved = yield* Effect.forEach(
-    unique,
-    (legacyPath) =>
-      files.read(legacyPath).pipe(
-        Effect.flatMap(
-          Option.match({
-            onNone: () => Effect.succeedNone,
-            onSome: ({ bytes, modifiedAt }) =>
-              crypto.digest("SHA-256", bytes).pipe(
-                Effect.orDie,
-                Effect.map((digest) => {
-                  const contentType = detectContentType(bytes);
-                  const name = legacyPath.slice(legacyPath.lastIndexOf("/") + 1).slice(0, 255);
-                  return Option.some<ResolvedFile>({
-                    legacyPath,
-                    key: fileKeyFor(digest, contentType),
-                    name,
-                    contentType,
-                    size: bytes.byteLength,
-                    sha256: hexEncode(digest),
-                    uploadedAt: modifiedAt,
-                  });
-                }),
-              ),
-          }),
+export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(
+  function* resolveLegacyFiles(paths: Iterable<string>) {
+    const files = yield* LegacyFiles;
+    const crypto = yield* Crypto.Crypto;
+    const unique = Arr.sort([...new Set(paths)], Order.String);
+
+    const resolved = yield* Effect.forEach(
+      unique,
+      (legacyPath) =>
+        files.read(legacyPath).pipe(
+          Effect.flatMap(
+            Option.match({
+              onNone: () => Effect.succeedNone,
+              onSome: ({ bytes, modifiedAt }) =>
+                crypto.digest("SHA-256", bytes).pipe(
+                  Effect.orDie,
+                  Effect.map((digest) => {
+                    const contentType = detectContentType(bytes);
+
+                    const name = legacyPath
+                      .slice(legacyPath.lastIndexOf("/") + 1)
+                      .slice(0, 255);
+
+                    return Option.some<ResolvedFile>({
+                      contentType,
+                      key: fileKeyFor(digest, contentType),
+                      legacyPath,
+                      name,
+                      sha256: hexEncode(digest),
+                      size: bytes.byteLength,
+                      uploadedAt: modifiedAt,
+                    });
+                  })
+                ),
+            })
+          )
         ),
-      ),
-    { concurrency: 8 },
-  );
-  return new Map(
-    resolved.flatMap((file) => (Option.isSome(file) ? [[file.value.legacyPath, file.value]] : [])),
-  ) as FileIndex;
-});
+      { concurrency: 8 }
+    );
+
+    return new Map(
+      Arr.flatMap(resolved, (file) =>
+        Option.isSome(file) ? [[file.value.legacyPath, file.value]] : []
+      )
+    );
+  }
+);

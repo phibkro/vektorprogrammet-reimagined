@@ -5,7 +5,10 @@
  * primary key: the pipeline is deterministic from here on.
  */
 import { MysqlClient } from "@effect/sql-mysql2";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import type { Redacted } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
+import type { SqlError } from "effect/sql/SqlError";
+
 import {
   LegacyAdmissionPeriod,
   LegacyArticle,
@@ -16,13 +19,23 @@ import {
   LegacySocialEvent,
   LegacySponsor,
   LegacyStaticContent,
-  type LegacySnapshot,
 } from "./rows.ts";
+import type { LegacySnapshot } from "./rows.ts";
 
-export class LegacySourceError extends Schema.TaggedError<LegacySourceError>()(
-  "LegacySourceError",
-  { table: Schema.String, cause: Schema.Defect() },
-) {}
+export class LegacySourceError extends Schema.TaggedError<
+  LegacySourceError,
+  { readonly brand: unique symbol }
+>()("LegacySourceError", { cause: Schema.Defect(), table: Schema.String }) {}
+
+const read = <A>(
+  table: string,
+  row: Schema.Codec<A, unknown>,
+  query: Effect.Effect<readonly unknown[], SqlError>
+): Effect.Effect<readonly A[], LegacySourceError> =>
+  query.pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(row))),
+    Effect.mapError((cause) => new LegacySourceError({ cause, table }))
+  );
 
 export class LegacySource extends Context.Service<
   LegacySource,
@@ -31,46 +44,23 @@ export class LegacySource extends Context.Service<
   /** Reads from the ambient `MysqlClient`. */
   static readonly layer = Layer.effect(
     LegacySource,
-    Effect.gen(function* () {
+    Effect.gen(function* layer() {
       const sql = yield* MysqlClient.MysqlClient;
 
-      const read = <A>(
-        table: string,
-        row: Schema.Codec<A, unknown>,
-        query: Effect.Effect<ReadonlyArray<unknown>, unknown>,
-      ): Effect.Effect<ReadonlyArray<A>, LegacySourceError> =>
-        query.pipe(
-          Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(row))),
-          Effect.mapError((cause) => new LegacySourceError({ table, cause })),
-        );
-
       const snapshot = Effect.all({
-        departments: read(
-          "department",
-          LegacyDepartment,
-          sql`SELECT id, name, short_name AS shortName, email, address, city,
-                     slackChannel AS slackChannel, logo_path AS logoPath,
-                     latitude, longitude, active
-              FROM department ORDER BY id`,
-        ),
-        semesters: read(
-          "semester",
-          LegacySemester,
-          sql`SELECT id, semesterTime AS semesterTime, year FROM semester ORDER BY id`,
-        ),
-        fieldsOfStudy: read(
-          "field_of_study",
-          LegacyFieldOfStudy,
-          sql`SELECT id, department_id AS departmentId, name, short_name AS shortName
-              FROM field_of_study ORDER BY id`,
-        ),
         admissionPeriods: read(
           "AdmissionPeriod",
           LegacyAdmissionPeriod,
           sql`SELECT id, department_id AS departmentId, semester_id AS semesterId,
                      DATE_FORMAT(start_date, '%Y-%m-%d %H:%i:%s') AS startDate,
                      DATE_FORMAT(end_date, '%Y-%m-%d %H:%i:%s') AS endDate
-              FROM AdmissionPeriod ORDER BY id`,
+              FROM AdmissionPeriod ORDER BY id`
+        ),
+        articleDepartments: read(
+          "articles_departments",
+          LegacyArticleDepartment,
+          sql`SELECT article_id AS articleId, department_id AS departmentId
+              FROM articles_departments ORDER BY article_id, department_id`
         ),
         articles: read(
           "article",
@@ -79,23 +69,26 @@ export class LegacySource extends Context.Service<
                      imageLarge AS imageLarge, imageSmall AS imageSmall,
                      DATE_FORMAT(created, '%Y-%m-%d %H:%i:%s') AS created,
                      sticky, published, slug
-              FROM article ORDER BY id`,
+              FROM article ORDER BY id`
         ),
-        articleDepartments: read(
-          "articles_departments",
-          LegacyArticleDepartment,
-          sql`SELECT article_id AS articleId, department_id AS departmentId
-              FROM articles_departments ORDER BY article_id, department_id`,
+        departments: read(
+          "department",
+          LegacyDepartment,
+          sql`SELECT id, name, short_name AS shortName, email, address, city,
+                     slackChannel AS slackChannel, logo_path AS logoPath,
+                     latitude, longitude, active
+              FROM department ORDER BY id`
         ),
-        staticContents: read(
-          "static_content",
-          LegacyStaticContent,
-          sql`SELECT id, html_id AS htmlId, html FROM static_content ORDER BY id`,
+        fieldsOfStudy: read(
+          "field_of_study",
+          LegacyFieldOfStudy,
+          sql`SELECT id, department_id AS departmentId, name, short_name AS shortName
+              FROM field_of_study ORDER BY id`
         ),
-        sponsors: read(
-          "sponsor",
-          LegacySponsor,
-          sql`SELECT id, name, url, logoImagePath AS logoImagePath, size FROM sponsor ORDER BY id`,
+        semesters: read(
+          "semester",
+          LegacySemester,
+          sql`SELECT id, semesterTime AS semesterTime, year FROM semester ORDER BY id`
         ),
         socialEvents: read(
           "event",
@@ -105,21 +98,31 @@ export class LegacySource extends Context.Service<
                      DATE_FORMAT(startTime, '%Y-%m-%d %H:%i:%s') AS startTime,
                      DATE_FORMAT(endTime, '%Y-%m-%d %H:%i:%s') AS endTime,
                      link
-              FROM event ORDER BY id`,
+              FROM event ORDER BY id`
+        ),
+        sponsors: read(
+          "sponsor",
+          LegacySponsor,
+          sql`SELECT id, name, url, logoImagePath AS logoImagePath, size FROM sponsor ORDER BY id`
+        ),
+        staticContents: read(
+          "static_content",
+          LegacyStaticContent,
+          sql`SELECT id, html_id AS htmlId, html FROM static_content ORDER BY id`
         ),
       }).pipe(
         sql.withTransaction,
         Effect.catchTag("SqlError", (cause) =>
-          Effect.fail(new LegacySourceError({ table: "(transaction)", cause })),
+          Effect.fail(new LegacySourceError({ cause, table: "(transaction)" }))
         ),
-        Effect.withSpan("LegacySource.snapshot"),
+        Effect.withSpan("LegacySource.snapshot")
       );
 
       return LegacySource.of({ snapshot });
-    }),
+    })
   );
 }
 
 /** The MySQL client for the source, from a `mysql://` URL. */
-export const legacyMysqlLayer = (url: Redacted.Redacted<string>) =>
-  MysqlClient.layer({ url, maxConnections: 2 });
+export const legacyMysqlLayer = (url: Redacted.Redacted) =>
+  MysqlClient.layer({ maxConnections: 2, url });
