@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "prepare": "vp config --no-agent && effect-tsgo patch --typescript --oxlint",
-    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build",
+    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run build:cms",
+    "build:cms": "bun run --cwd apps/cms build",
     "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
     "knip": "knip",
     "cpd": "jscpd --config .jscpd.json apps packages tools",
