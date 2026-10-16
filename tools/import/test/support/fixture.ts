@@ -354,7 +354,7 @@ export const FIXTURE_SQL = Arr.join(
   "\n\n"
 );
 
-/** The Phase 1 legacy tables whose definitions are loaded from `prod-schema.sql`. */
+/** The Phase 1 legacy tables whose definitions are loaded from `../fixtures/legacy-phase1-schema.sql`. */
 export const PHASE_1_LEGACY_TABLES = [
   "AdmissionPeriod",
   "article",
