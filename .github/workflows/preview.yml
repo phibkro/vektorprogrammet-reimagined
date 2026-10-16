@@ -1,0 +1,138 @@
+name: Previews
+
+# Spec 0002 (docs/specs/0002-worker-previews.md).
+# - push to main: migrate Neon `dev`, deploy the base stage `main` (the parent Worker).
+# - pull request: fork Neon `preview/pr-<n>` from `dev`, migrate it, deploy stage `pr-<n>` as a
+#   Cloudflare Worker Preview of `main`; one PR comment holds the URL.
+# - pull request closed: destroy stage `pr-<n>`, then delete its Neon branch.
+# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, NEON_APP_PASSWORD (apps/web/stacks/github.ts);
+# NEON_API_KEY and vars.NEON_PROJECT_ID (Neon's GitHub integration).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+concurrency:
+  group: previews-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  STAGE: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+  NEON_DATABASE: vektorprogrammet
+  NEON_USER: vp_app
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - uses: cachix/cachix-action@97e5ff84d02b3b4f9936339f767e17f03c9252ed # v16
+        with:
+          name: devenv
+      - name: Install pinned devenv CLI
+        shell: bash
+        run: nix profile add github:cachix/devenv/b904dcb51fe48c30db250038241507f60752f222
+      - name: Install workspace dependencies
+        shell: bash
+        run: devenv shell -- bun install --frozen-lockfile
+
+      # A forgotten branch expires on its own two weeks after the last push.
+      - name: Compute the Neon branch expiry
+        id: expiry
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: echo "at=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Fork the Neon branch for this pull request
+        id: neon_branch
+        if: github.event_name == 'pull_request'
+        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6.3.1
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          parent_branch: dev
+          branch_name: preview/pr-${{ github.event.number }}
+          database: vektorprogrammet
+          role: neondb_owner
+          expires_at: ${{ steps.expiry.outputs.at }}
+
+      # drizzle-kit owns migrations; the branch is migrated before the Worker that reads it is deployed.
+      # The owner URL stays inside this step; only the host goes on to the deploy.
+      # devenv exports PGHOST/PGPORT for its local PostgreSQL, which would redirect the Neon URL.
+      - name: Migrate the database branch
+        shell: bash
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          PR_DB_URL: ${{ steps.neon_branch.outputs.db_url }}
+        run: |
+          devenv shell -- env -u PGHOST -u PGPORT -u PGDATA bash -euo pipefail -c '
+            if [ -n "$PR_DB_URL" ]; then
+              owner_url="$PR_DB_URL"
+            else
+              owner_url="$(bunx --bun neonctl@8.7.2 --api-key "$NEON_API_KEY" --project-id "$NEON_PROJECT_ID" \
+                connection-string dev --role-name neondb_owner --database-name "$NEON_DATABASE")"
+            fi
+            echo "::add-mask::$owner_url"
+            echo "NEON_HOST=$(bun -e "console.log(new URL(process.argv[1]).hostname)" "$owner_url")" >> "$GITHUB_ENV"
+            cd packages/db
+            DATABASE_URL="$owner_url" bun run db:migrate
+          '
+      - name: Deploy stage ${{ env.STAGE }}
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEON_APP_PASSWORD: ${{ secrets.NEON_APP_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.number }}
+        run: devenv shell -- bash -c 'cd apps/web && bunx alchemy deploy --stage "$STAGE" --yes'
+
+  cleanup:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse long-lived stages
+        shell: bash
+        run: |
+          case "$STAGE" in
+            main|production) echo "::error::cleanup must never destroy stage $STAGE"; exit 1 ;;
+          esac
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - uses: cachix/cachix-action@97e5ff84d02b3b4f9936339f767e17f03c9252ed # v16
+        with:
+          name: devenv
+      - name: Install pinned devenv CLI
+        shell: bash
+        run: nix profile add github:cachix/devenv/b904dcb51fe48c30db250038241507f60752f222
+      - name: Install workspace dependencies
+        shell: bash
+        run: devenv shell -- bun install --frozen-lockfile
+      - name: Destroy stage ${{ env.STAGE }}
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Destroy reads the stack's Config at plan time; the values are not used to connect.
+          NEON_HOST: unused-on-destroy
+          NEON_APP_PASSWORD: unused-on-destroy
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.number }}
+        run: devenv shell -- bash -c 'cd apps/web && bunx alchemy destroy --stage "$STAGE" --yes'
+      - name: Delete the Neon branch
+        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: preview/pr-${{ github.event.number }}

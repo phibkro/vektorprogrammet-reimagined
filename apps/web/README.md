@@ -76,21 +76,38 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 | --- | --- | --- |
 | `DEPLOYMENT` | var | `production` on stage `production`, else `preview` |
 | `HYPERDRIVE` | Hyperdrive | Neon origin, **query caching disabled** |
-| `PUBLIC_FILES` | R2 bucket | `vp-public-files`, EU jurisdiction, no public access |
+| `PUBLIC_FILES` | R2 bucket | `vp-public-files` on production, `vp-public-files-<stage>` elsewhere; EU jurisdiction, no public access |
 | `CONTACT_RATE_LIMIT` | Rate Limiting binding | 5 posts / 60 s per client IP |
-| `TURNSTILE_SITE_KEY` | var | `${TURNSTILE_SITE_KEY}` at deploy |
-| `TURNSTILE_SECRET_KEY` | secret | `${TURNSTILE_SECRET_KEY}` at deploy |
+| `TURNSTILE_SITE_KEY` | var | production: `${TURNSTILE_SITE_KEY}` at deploy; elsewhere Cloudflare's always-pass test key |
+| `TURNSTILE_SECRET_KEY` | secret | production: `${TURNSTILE_SECRET_KEY}` at deploy; elsewhere the always-pass test secret |
 | `SEND_EMAIL` | `send_email` | **production only**; sender restricted to `MAIL_FROM` |
 | `MAIL_FROM` | var | production only, `${MAIL_FROM}` |
 | `SLACK_WEBHOOK_URL` | secret | production only, `${SLACK_WEBHOOK_URL}` |
 
-Deploy-time placeholders (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON_USER`, `NEON_PASSWORD`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and, for production, `MAIL_FROM` and `SLACK_WEBHOOK_URL`. Shared Worker settings (compatibility date, entry, bucket name, rate limit, cron) live once in `worker.config.ts`, which both `alchemy.run.ts` and `vite.config.ts` import.
+Deploy-time env (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON_USER`, `NEON_APP_PASSWORD`, and, for production only, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `MAIL_FROM` and `SLACK_WEBHOOK_URL`. Shared Worker settings (compatibility date, entry, bucket naming, Turnstile test keys, rate limit, cron, base stage) live once in `worker.config.ts`, which both `alchemy.run.ts` and `vite.config.ts` import.
 
-**Do not run `alchemy deploy`** without operator authority. The file only has to type-check (`vp check`).
+### Stages and previews (spec 0002)
+
+| Stage | What it is | Database | Deployed by |
+| --- | --- | --- | --- |
+| `main` | the base Worker, built from `main`; parent of every Preview; runs the outbox cron | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
+| `pr-<n>` | a [Cloudflare Worker Preview](https://developers.cloudflare.com/workers/previews/) of `main`: own URL, bindings, Hyperdrive config and R2 bucket; no crons | Neon `preview/pr-<n>`, forked from `dev` and migrated before the deploy; expires 14 days after the last push | the same workflow on every push to a pull request; destroyed when it closes |
+| `production` | the production deployment (not deployed yet) | Neon `production` | operator only |
+
+Base and previews are the `preview` deployment: no mail or Slack binding, and no test actor, so the control panel refuses every staff write (403). Preview URLs are public; they serve fake data only.
+
+Deploy a stage by hand (base example; `CI` is unset because Alchemy reads only environment credentials when `CI` is set):
+
+```sh
+SECRETSPEC_REASON="deploy stage main" devenv shell -- secretspec run -- env -u CI \
+  tools/with-neon-env.sh app bash -c 'cd apps/web && bunx alchemy deploy --stage main --profile production --yes'
+```
+
+CI secrets: `CLOUDFLARE_API_TOKEN` is the account-owned token `vektorprogrammet-reimagined-ci` (Workers Scripts Write, Hyperdrive Write, Workers R2 Storage Write, Secrets Store Write, Account Settings Read, Workers Tail Read), minted with the `admin` profile's token-management token and written with `gh secret set` from stdin; `CLOUDFLARE_ACCOUNT_ID`; `NEON_APP_PASSWORD` (from SecretSpec). Neon's GitHub integration owns `NEON_API_KEY` and the `NEON_PROJECT_ID` variable. Rotate the Cloudflare token by creating a new one with the same permission groups, setting the secret, and deleting the old token.
 
 ### Not covered by Alchemy
 
-- Neon itself (project and branch) is not declared here. Architecture §4 leaves the choice between Alchemy's Neon module and `neonctl` to slice 0000.
+- Neon branches come from Neon's GitHub actions (pull requests) and from the project itself (`dev`, `production`), not from `Neon.Branch`: drizzle-kit owns the migrations, and a branch must be migrated before the Worker that reads it is deployed.
 - No custom domain or zone route is declared yet: production hostname cut-over is a separate decision.
 
 ## Local development (devenv)
