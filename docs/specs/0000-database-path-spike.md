@@ -1,6 +1,6 @@
 # Spec 0000: Database-path spike (gate before spec 0001 is frozen)
 
-**Status:** draft, frozen when its pull request opens · **Phase:** 1 · **Source:** `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §5 (architecture critique B1) · **Authority:** operator, 2026-10-16 ("rest is authorised"); Cloudflare account = Alchemy profile `production`; Neon project `bold-poetry-64036846`, branch `dev`.
+**Status:** frozen (its pull request opened 2026-10-16); outcome in [`0000-results.md`](0000-results.md) · **Phase:** 1 · **Source:** `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §5 (architecture critique B1) · **Authority:** operator, 2026-10-16 ("rest is authorised"); Cloudflare account = Alchemy profile `production`; Neon project `bold-poetry-64036846`, branch `dev`.
 
 ## Journey
 
