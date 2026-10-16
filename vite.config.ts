@@ -242,6 +242,19 @@ export default defineConfig({
           "apps/web/src/routes/nyheter/index.tsx",
           "apps/web/src/routes/nyheter/$department.tsx",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
+          "apps/web/src/server/panel.ts",
+          "apps/web/src/routes/__root.tsx",
+          "apps/web/src/routes/foreldre.tsx",
+          "apps/web/src/routes/index.tsx",
+          "apps/web/src/routes/kontrollpanel/arrangementer.tsx",
+          "apps/web/src/routes/kontrollpanel/index.tsx",
+          "apps/web/src/routes/kontrollpanel/avdelinger.tsx",
+          "apps/web/src/routes/kontrollpanel/linjer.tsx",
+          "apps/web/src/routes/kontrollpanel/artikler.tsx",
+          "apps/web/src/routes/kontrollpanel/semestre.tsx",
+          "apps/web/src/routes/kontrollpanel/sponsorer.tsx",
+          "apps/web/src/routes/kontrollpanel/statisk-innhold.tsx",
+          "apps/web/src/routes/omvektor.tsx",
           "apps/web/src/server.ts",
         ],
         rules: {
@@ -253,6 +266,23 @@ export default defineConfig({
         files: ["tools/import/src/config.ts"],
         rules: {
           "unicorn/throw-new-error": "off",
+        },
+      },
+      {
+        // Effect Array.sort is pure; Unicorn misclassifies the namespace call as native Array#sort.
+        files: ["tools/import/src/transform/plan.ts"],
+        rules: {
+          "unicorn/no-array-sort": "off",
+        },
+      },
+      {
+        // Deferred.succeed requires an explicit void payload; dropping it returns a curried function.
+        files: [
+          "packages/db/test/concurrency.postgres.test.ts",
+          "packages/db/test/transactions.postgres.test.ts",
+        ],
+        rules: {
+          "unicorn/no-useless-undefined": "off",
         },
       },
     ],
