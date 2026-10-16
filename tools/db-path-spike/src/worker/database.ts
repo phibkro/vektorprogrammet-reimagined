@@ -1,4 +1,7 @@
-import type { Hyperdrive } from "@cloudflare/workers-types";
+import type {
+  Hyperdrive,
+  WorkerVersionMetadata,
+} from "@cloudflare/workers-types";
 /**
  * The per-request database stack, exactly as production builds it (architecture §3):
  * `@vektorprogrammet/db`'s real `DatabaseLive` over Hyperdrive, plus Drizzle
@@ -14,6 +17,8 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 /** The Worker's only database address is Hyperdrive. There is no direct URL binding to fall back on. */
 export interface SpikeEnv {
+  /** The deployed script version: check 1 names it, so a run is attributable to the code it ran against. */
+  readonly CF_VERSION_METADATA: Pick<WorkerVersionMetadata, "id">;
   readonly HYPERDRIVE: Pick<Hyperdrive, "connectionString">;
 }
 

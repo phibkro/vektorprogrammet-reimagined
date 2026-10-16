@@ -26,6 +26,7 @@ const connect = {
   sqlOne: 1,
   user: "vp_app",
   version: "PostgreSQL 18.6 on aarch64-unknown-linux-gnu",
+  workerVersion: "163aed3e-6aa0-41cb-8731-d0fda12cc4b6",
 };
 
 const upserted = { row: { id: 7, term: "HOST", year: 2030 } };
@@ -40,8 +41,11 @@ const exactCodecReads = Arr.flatMap(codecSamples, (sample, index) =>
 );
 
 describe("check 1: connect", () => {
-  it("passes through Hyperdrive as vp_app with both clients answering", () => {
-    assert.isTrue(Verdicts.connectVerdict(connect).pass);
+  it("passes through Hyperdrive as vp_app with both clients answering, and names the Worker version", () => {
+    const verdict = Verdicts.connectVerdict(connect);
+
+    assert.isTrue(verdict.pass);
+    assert.include(verdict.evidence, connect.workerVersion);
   });
 
   it("fails on a direct database host, another role, or a silent client", () => {

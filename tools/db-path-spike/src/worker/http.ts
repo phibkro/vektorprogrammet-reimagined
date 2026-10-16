@@ -132,7 +132,10 @@ const handlers = {
     ),
   [`GET ${Protocol.routes.connect}`]: (_url, env) =>
     answer(Protocol.Connect)(
-      Checks.connect(hyperdriveHost(env)).pipe(withDatabase(env))
+      Checks.connect({
+        hyperdriveHost: hyperdriveHost(env),
+        workerVersion: env.CF_VERSION_METADATA.id,
+      }).pipe(withDatabase(env))
     ),
   [`GET ${Protocol.routes.ping}`]: () =>
     answer(Protocol.Ping)(Effect.succeed({ ok: true })),

@@ -14,6 +14,7 @@ import worker from "../src/worker.ts";
 
 /** A Worker environment whose database address is never opened: these routes do not touch it. */
 const unused = {
+  CF_VERSION_METADATA: { id: "unused" },
   HYPERDRIVE: { connectionString: "postgres://unused@127.0.0.1:1/none" },
 };
 

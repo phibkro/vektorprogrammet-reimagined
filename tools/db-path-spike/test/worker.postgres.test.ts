@@ -11,7 +11,12 @@ import { codecSamples } from "../src/fixtures.ts";
 import * as Protocol from "../src/protocol.ts";
 import { abortTransaction } from "../src/worker/checks.ts";
 import { requestDatabase } from "../src/worker/database.ts";
-import { LocalWorker, answerOf, localWorker } from "./support/localWorker.ts";
+import {
+  LocalWorker,
+  answerOf,
+  localWorker,
+  localWorkerVersion,
+} from "./support/localWorker.ts";
 import type { CallOptions } from "./support/localWorker.ts";
 
 const CALLERS = 20;
@@ -73,6 +78,7 @@ layer(localWorker(), { excludeTestServices: true })(
           assert.strictEqual(connect.user, "vp_app");
           assert.strictEqual(connect.hyperdriveHost, "127.0.0.1");
           assert.match(connect.version, /^PostgreSQL 18\./u);
+          assert.strictEqual(connect.workerVersion, localWorkerVersion);
         })
     );
 

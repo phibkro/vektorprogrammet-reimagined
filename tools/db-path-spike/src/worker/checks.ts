@@ -97,9 +97,10 @@ const Identity = Schema.Struct({
 const One = Schema.Struct({ one: Schema.Finite });
 
 /** Check 1: `select 1` through the SqlClient (the PgClient) and through Drizzle, and who answered. */
-export const connect = Effect.fn("Check.connect")(function* connect(
-  hyperdriveHost: string
-) {
+export const connect = Effect.fn("Check.connect")(function* connect(where: {
+  readonly hyperdriveHost: string;
+  readonly workerVersion: string;
+}) {
   const sql = yield* SqlClient;
   const db = yield* SpikeDb;
 
@@ -115,10 +116,11 @@ export const connect = Effect.fn("Check.connect")(function* connect(
   return {
     database: identity.database,
     drizzleOne: viaDrizzle.one,
-    hyperdriveHost,
+    hyperdriveHost: where.hyperdriveHost,
     sqlOne: identity.one,
     user: identity.user,
     version: identity.version,
+    workerVersion: where.workerVersion,
   } satisfies typeof Connect.Type;
 });
 

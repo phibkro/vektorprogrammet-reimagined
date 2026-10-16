@@ -69,6 +69,7 @@ export const Connect = Schema.Struct({
   sqlOne: Schema.Finite,
   user: Schema.String,
   version: Schema.String,
+  workerVersion: Schema.String,
 });
 
 /** The labels a run has committed, read by a later request. */

@@ -29,6 +29,9 @@ import type { SpikeEnv } from "../../src/worker/database.ts";
 
 const migrationsFolder = new URL("../../drizzle/", import.meta.url).pathname;
 
+/** What `CF_VERSION_METADATA.id` holds in a local Worker. */
+export const localWorkerVersion = "local-worker-version";
+
 /** One request to the Worker. */
 export interface CallOptions {
   readonly method: "GET" | "POST";
@@ -101,6 +104,7 @@ const provision = (surgery: readonly string[]) =>
     yield* Effect.forEach(surgery, (statement) => owner.unsafe(statement));
 
     const env: SpikeEnv = {
+      CF_VERSION_METADATA: { id: localWorkerVersion },
       HYPERDRIVE: { connectionString: appUrl.toString() },
     };
 

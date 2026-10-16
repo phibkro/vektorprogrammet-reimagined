@@ -44,7 +44,8 @@ export const connectVerdict = (connect: typeof Protocol.Connect.Type) =>
       connect.user === EXPECTED_ROLE,
     `select 1 = ${connect.sqlOne} through the SqlClient and ${connect.drizzleOne} through Drizzle; ` +
       `the Worker's only database address is Hyperdrive (${connect.hyperdriveHost}); ` +
-      `${connect.user}@${connect.database}, ${connect.version.split(" on ")[0] ?? connect.version}`
+      `${connect.user}@${connect.database}, ${connect.version.split(" on ")[0] ?? connect.version}; ` +
+      `Worker version ${connect.workerVersion}`
   );
 
 export const commitVerdict = (
@@ -241,7 +242,7 @@ export const bcryptVerdict = ({
       !wrong.verified &&
       right.prefix === bcryptProbe.prefix &&
       right.cost === bcryptProbe.cost,
-    `${right.prefix}${right.cost} hash ${right.verified ? "verified" : "did NOT verify"} and a wrong input ${wrong.verified ? "VERIFIED" : "was refused"}; ` +
+    `${right.prefix} hash ${right.verified ? "verified" : "did NOT verify"} and a wrong input ${wrong.verified ? "VERIFIED" : "was refused"}; ` +
       `request ${rightMillis} ms against a ${baselineMillis} ms no-op request, so at most ${Math.max(0, rightMillis - baselineMillis)} ms of CPU (client-observed wall clock, an upper bound)`
   );
 
