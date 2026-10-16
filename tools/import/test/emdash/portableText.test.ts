@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { PortableText } from "@vektorprogrammet/cms-client";
-import { Array as Arr, Effect, Option, Schema } from "effect";
+import { Array as Arr, Effect, Option, Predicate, Schema } from "effect";
 
 import { htmlToPortableText } from "../../src/emdash/portableText.ts";
 import type { Block } from "../../src/emdash/portableText.ts";
@@ -19,7 +19,10 @@ const plain = (block: Block) => {
     Arr.map(
       block.markDefs ?? [],
       (definition) =>
-        [definition._key, `link(${String(definition.href)})`] as const
+        [
+          definition._key,
+          `link(${Predicate.isString(definition.href) ? definition.href : "?"})`,
+        ] as const
     )
   );
 

@@ -634,3 +634,72 @@ a {
     display: none;
   }
 }
+
+/*
+ * The public site (spec 0005): the palette and the dark band of mono-web's homepage, ported from
+ * `apps/homepage/src/index.css` at mono-web commit 2aa6ce97. The two blue tokens that differ only in case
+ * (`vektor-darkblue`, `vektor-DARKblue`) are mono-web's own, kept so that its class names port unchanged.
+ */
+@theme inline {
+  --color-vektor-blue: #6fceee;
+  --color-vektor-blue-hover: #46b6dd;
+  --color-vektor-darkblue: #023874;
+  --color-vektor-darkblue-hover: #001854;
+  --color-vektor-DARKblue: #022346;
+  --color-vektor-bg: #e2f4fa;
+  --color-vektor-light-blue: #c7ecf8;
+  --color-vektor-green: #4caf50;
+  --color-vektor-green-hover: #358438;
+  --color-vektor-gray: #4b5563;
+  --color-vektor-muted: #525252;
+  --color-vektor-nav: #404040;
+  --color-vektor-ink: #171717;
+  --color-vektor-code: #f5f5f5;
+  --color-vektor-link: #1e40af;
+  --color-vektor-ok: #dcfce7;
+  --color-vektor-ok-ink: #14532d;
+  --color-vektor-error: #fee2e2;
+  --color-vektor-error-ink: #7f1d1d;
+  --color-vektor-notice: #fffbeb;
+  --color-vektor-notice-line: #fbbf24;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+/* The height keyframes of shadcn's accordion (Base UI exposes the panel height as `--accordion-panel-height`). */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--accordion-panel-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--accordion-panel-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+.info-background {
+  background: linear-gradient(
+    0deg,
+    transparent 0%,
+    #022346 20%,
+    #022346 80%,
+    transparent 100%
+  );
+}
+
+/* The public pages sit on a plain white page in the system font, like mono-web's; the control panel keeps its own look. */
+.public-site {
+  background: #fff;
+  color: #0f172a;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+}

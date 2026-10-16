@@ -53,8 +53,25 @@ import {
   Schema,
 } from "effect";
 
-import { STATIC_BLOCKS } from "./pages";
 import { actorSummary } from "./shell";
+
+/**
+ * Legacy `html_id`s of the editable blocks the old public pages embedded. The public pages now read their text
+ * from EmDash (spec 0005), so this list and the page that edits it retire with the content control panel.
+ */
+const STATIC_BLOCKS = {
+  foreldre: ["parent-header", "parent-assistants-info", "parent-course"],
+  home: ["home-tagline"],
+  kontakt: ["contact-header"],
+  nyheter: ["vektor_i_media"],
+  omvektor: [
+    "about-header",
+    "about-motivate-children",
+    "about-motivate-students",
+    "about-try-teaching",
+    "about-faq",
+  ],
+} as const;
 
 // ---------------------------------------------------------------- form text
 

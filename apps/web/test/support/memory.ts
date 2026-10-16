@@ -7,6 +7,7 @@
 import { OutboxClaimToken, OutboxDelivery } from "@vektorprogrammet/db";
 import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
 import {
+  AdmissionPeriodRepository,
   AlreadyExists,
   ArticleId,
   ArticleRepository,
@@ -37,6 +38,7 @@ import {
 } from "@vektorprogrammet/domain";
 import type {
   Actor,
+  AdmissionPeriod,
   Article,
   AuditEntry,
   Department,
@@ -75,6 +77,7 @@ interface OutboxRow {
 /** The fake tables; tests seed and inspect them directly. */
 export interface MemoryTables {
   departments: Department[];
+  admissionPeriods: AdmissionPeriod[];
   articles: Article[];
   staticContent: StaticContent[];
   publicFiles: PublicFile[];
@@ -97,6 +100,7 @@ export class Memory extends Context.Service<Memory, MemoryTables>()(
 
 /** Fresh tables; tests keep the reference to inspect what was (not) written. */
 export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
+  admissionPeriods: [],
   articles: [],
   audit: [],
   commits: 0,
@@ -520,7 +524,12 @@ const repositories = Layer.effectContext(
         }),
     });
 
+    const admissionPeriods = AdmissionPeriodRepository.of({
+      list: Effect.sync(() => db.admissionPeriods),
+    });
+
     return Context.make(DepartmentRepository, departments).pipe(
+      Context.add(AdmissionPeriodRepository, admissionPeriods),
       Context.add(SemesterRepository, semesters),
       Context.add(FieldOfStudyRepository, fieldsOfStudy),
       Context.add(ArticleRepository, articles),
@@ -550,6 +559,7 @@ const transactor = Layer.effect(
       run: (program) =>
         Effect.suspend(() => {
           const before: Omit<MemoryTables, "commits" | "nextId"> = {
+            admissionPeriods: [...db.admissionPeriods],
             articles: [...db.articles],
             audit: [...db.audit],
             departments: [...db.departments],

@@ -8,7 +8,8 @@
  */
 import { Schema } from "effect";
 
-const Rest = Schema.Record(Schema.String, Schema.Unknown);
+/** What an annotation or an unknown block carries besides its type: JSON, so a page can hand it to the browser. */
+const Rest = Schema.Record(Schema.String, Schema.Json);
 
 export const Span = Schema.Struct({
   _key: Schema.optionalKey(Schema.String),

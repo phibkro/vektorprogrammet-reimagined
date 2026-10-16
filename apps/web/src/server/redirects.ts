@@ -12,14 +12,29 @@ export const LEGACY_ALIASES: readonly {
   readonly from: RegExp;
   readonly to: (match: RegExpExecArray) => string;
 }[] = [
-  { from: /^\/om\/?$/u, to: () => "/omvektor" },
-  { from: /^\/bedrifter\/?$/u, to: () => "/omvektor" },
-  { from: /^\/faq\/?$/u, to: () => "/omvektor" },
+  // /om, /bedrifter and /faq were three legacy pages; /omvektor was this repository's Phase 1 path. Om oss is one page.
+  { from: /^\/(?:om|bedrifter|faq|omvektor)\/?$/u, to: () => "/om-oss" },
   {
     from: /^\/artikkel\/(?<slug>[^/]+)\/?$/u,
     to: (match) => `/nyhet/${match.groups?.slug ?? match[1]}`,
   },
+  // Phase 1 listed a department's news at /nyheter/{department}; the department is now a search parameter.
+  {
+    from: /^\/nyheter\/(?<department>[^/]+)\/?$/u,
+    to: (match) => `/nyheter?avdeling=${match.groups?.department ?? match[1]}`,
+  },
 ];
+
+/** The request's query string after the alias's own: `?side=2` joins `?avdeling=x` as `&side=2`. */
+const withSearch = (location: string, search: string): string => {
+  if (search === "") {
+    return location;
+  }
+
+  return location.includes("?")
+    ? `${location}&${search.slice(1)}`
+    : `${location}${search}`;
+};
 
 /** Legacy public file directories (relative to the legacy web root). */
 export const LEGACY_FILE_PREFIXES = [
@@ -56,7 +71,7 @@ export const classifyLegacyPath = (
 
     if (match !== null) {
       return LegacyPathSchema.cases.Alias.make({
-        location: `${alias.to(match)}${search}`,
+        location: withSearch(alias.to(match), search),
       });
     }
   }

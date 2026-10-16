@@ -1,9 +1,10 @@
 /**
  * P0 rules exercised through web code: the panel's server-side view programs,
- * its form mapping, the per-request runtime and the public page programs.
- * RULE-033 (the calendar month's semester), RULE-130 (upload typing),
- * RULE-133 (rich text on a public page) and RULE-296 (who may edit static
- * text). The domain-level proofs of the same rules live in `packages/domain`.
+ * its form mapping and the per-request runtime. RULE-033 (the calendar month's
+ * semester), RULE-130 (upload typing) and RULE-296 (who may edit static text).
+ * RULE-133 (rich text on a public page) moved with the public pages to
+ * `portableTextView.test.tsx`. The domain-level proofs of the same rules live
+ * in `packages/domain`.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { updateStaticContent } from "@vektorprogrammet/domain";
@@ -12,14 +13,13 @@ import { Array as Arr, DateTime, Effect, Layer, Predicate } from "effect";
 import { TestClock } from "effect/testing";
 
 import { TEST_ACTORS } from "../src/server/actor";
-import { homePage } from "../src/server/pages";
 import {
   dashboardView,
   readFile,
   staticContentInput,
   storeOptional,
 } from "../src/server/panel";
-import { runCommandOutcome, runOutcome } from "../src/server/runtime";
+import { runCommandOutcome } from "../src/server/runtime";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { form, makeTables, memoryLayer } from "./support/memory";
 import { assertValidationFailure } from "./support/outcomes";
@@ -225,41 +225,6 @@ describe("C4 static text through the panel", () => {
           [["staticContent.updated", "home-tagline"]]
         );
         assert.strictEqual(tables.commits, 1);
-      })
-  );
-});
-
-// ---------------------------------------------------------------- RULE-133
-
-const HOSTILE_HTML =
-  '<p>Hei</p><script>alert(1)</script><img src="x" onerror="alert(2)">' +
-  '<a href="javascript:alert(3)">Lenke</a>';
-
-describe("C4/C5 rich text on a public page", () => {
-  it.effect(
-    "RULE-133: HTML saved through the panel reaches the public page with the script, the handler and the javascript: URL removed",
-    () =>
-      Effect.gen(function* sanitizedPublicPageEffect() {
-        const { outcome, tables } = yield* updateStaticContentThroughPanel(
-          TEST_ACTORS.admin,
-          HOSTILE_HTML
-        );
-
-        assert.isTrue(Predicate.isTagged(outcome, "Success"));
-
-        const page = yield* Effect.promise(
-          async () => await runOutcome(memoryLayer(tables), homePage, signal)
-        );
-
-        const html = Predicate.isTagged(page, "Success")
-          ? page.value.blocks["home-tagline"]
-          : null;
-
-        assert.isTrue(html?.includes("<p>Hei</p>"));
-        assert.isTrue(html?.includes('src="x"'));
-        assert.isTrue(html?.includes("<a>Lenke</a>"));
-        assert.isFalse(html?.includes("<script"));
-        assert.isFalse(html?.includes("onerror"));
       })
   );
 });

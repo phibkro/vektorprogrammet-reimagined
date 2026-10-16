@@ -1,62 +1,29 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ContactPage, TURNSTILE_SCRIPT } from "@/components/contactPage";
-import { getContactPage } from "@/functions/public.functions";
+import { getDepartmentSlug } from "@/functions/public.functions";
+import { validateContactSearch } from "@/lib/contactSearch";
+import type { ContactSearch } from "@/lib/contactSearch";
 import { pageData } from "@/lib/outcome";
-import { handleContactPost } from "@/server/contactPost";
 
-interface ContactSearch {
-  readonly sendt?: unknown;
-}
-
-const validateContactSearch = (
-  search: ContactSearch
-): { readonly sendt?: 1 } =>
-  search.sendt === 1 || search.sendt === "1" ? { sendt: 1 } : {};
-
-type ContactRouteSearch = ReturnType<typeof validateContactSearch>;
-
-const routeApi = getRouteApi("/kontakt/avdeling/$id");
-
-const DepartmentContactRoute = () => {
-  const { view, departmentId, formState } = routeApi.useLoaderData();
-
-  return (
-    <ContactPage
-      view={view}
-      departmentId={departmentId}
-      formState={formState}
-    />
-  );
-};
-
-/** C10 contact form with the department preselected; the sent=1 query shows the receipt after a post. */
+/**
+ * `/kontakt/avdeling/{id}` was the legacy address of a department's contact page, and the contact form still
+ * answers a post with 303 to it (`server/contactPost.ts` knows the department's id, not its city). It answers 301
+ * to `/kontakt/{department}`, keeping `?sendt=1`. An id that is not an active department is 404.
+ */
 export const Route = createFileRoute("/kontakt/avdeling/$id")({
-  component: DepartmentContactRoute,
-  head: () => ({
-    scripts: [{ async: true, defer: true, src: TURNSTILE_SCRIPT }],
-  }),
-  loader: ({ params, deps, serverContext }) => {
-    const departmentId = /^\d+$/u.test(params.id) ? Number(params.id) : null;
-
-    return getContactPage({
-      data: { sentTo: deps.sendt === 1 ? departmentId : null },
+  loader: ({ params, deps }) =>
+    getDepartmentSlug({
+      data: { id: /^\d+$/u.test(params.id) ? Number(params.id) : null },
     })
       .then(pageData)
-      .then((view) => ({
-        departmentId,
-        formState: serverContext?.contactForm ?? null,
-        view,
-      }));
-  },
-  loaderDeps: ({ search }: { readonly search: ContactRouteSearch }) => ({
-    sendt: search.sendt,
-  }),
-  server: {
-    handlers: {
-      POST: ({ request, context, next }) =>
-        handleContactPost({ context, next, request }),
-    },
-  },
+      .then((slug) => {
+        throw redirect({
+          params: { department: slug },
+          search: deps,
+          statusCode: 301,
+          to: "/kontakt/$department",
+        });
+      }),
+  loaderDeps: ({ search }: { readonly search: ContactSearch }) => search,
   validateSearch: validateContactSearch,
 });

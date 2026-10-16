@@ -1,8 +1,8 @@
 -- EmDash's database role and schema (spec 0005, D1). Run once per database with psql, as an administrative
 -- role: the devenv superuser locally, `neondb_owner` on Neon. Safe to run again.
 --
---   psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -f apps/homepage/db/emdash-role.sql
---   psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -v emdash_password="$PASSWORD" -f apps/homepage/db/emdash-role.sql
+--   psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -f apps/cms/db/emdash-role.sql
+--   psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -v emdash_password="$PASSWORD" -f apps/cms/db/emdash-role.sql
 --
 -- Source: https://docs.emdashcms.com/deployment/database/#database-role-requirements
 -- EmDash creates and alters its own tables (core migrations, one `ec_*` table per collection, a column per

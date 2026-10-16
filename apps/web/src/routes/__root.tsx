@@ -10,8 +10,7 @@ import {
 import { Array as Arr } from "effect";
 import type { ReactNode } from "react";
 
-import Footer from "@/components/footer";
-import Header from "@/components/header";
+import { SiteFrame } from "@/components/site/siteFrame";
 import { getFooter } from "@/functions/public.functions";
 import { pageData } from "@/lib/outcome";
 
@@ -32,22 +31,22 @@ const RootComponent = () => {
   }
 
   return (
-    <>
-      <Header />
+    <SiteFrame sponsors={sponsors}>
       <Outlet />
-      <Footer sponsors={sponsors} />
-    </>
+    </SiteFrame>
   );
 };
 
 const NotFoundPage = () => (
-  <main className="page-wrap px-4 py-12">
-    <h1 className="text-2xl font-bold">Fant ikke siden</h1>
-    <p>
-      Siden finnes ikke, eller er ikke publisert.{" "}
-      <Link to="/">Til forsiden</Link>
-    </p>
-  </main>
+  <SiteFrame sponsors={[]}>
+    <main className="mx-auto w-full max-w-4xl grow px-4 py-12">
+      <h1 className="text-2xl font-bold">Fant ikke siden</h1>
+      <p>
+        Siden finnes ikke, eller er ikke publisert.{" "}
+        <Link to="/">Til forsiden</Link>
+      </p>
+    </main>
+  </SiteFrame>
 );
 
 const RootDocument = ({ children }: { children: ReactNode }) => (
@@ -65,10 +64,12 @@ const RootDocument = ({ children }: { children: ReactNode }) => (
 export const Route = createRootRoute({
   component: RootComponent,
   errorComponent: ({ error }) => (
-    <main className="page-wrap px-4 py-12">
-      <h1 className="text-2xl font-bold">Noe gikk galt</h1>
-      <p>{error instanceof Error ? error.message : "Ukjent feil."}</p>
-    </main>
+    <SiteFrame sponsors={[]}>
+      <main className="mx-auto w-full max-w-4xl grow px-4 py-12">
+        <h1 className="text-2xl font-bold">Noe gikk galt</h1>
+        <p>{error instanceof Error ? error.message : "Ukjent feil."}</p>
+      </main>
+    </SiteFrame>
   ),
   head: () => ({
     links: [{ href: appCss, rel: "stylesheet" }],
