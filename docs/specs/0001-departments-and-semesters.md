@@ -25,7 +25,7 @@ The journey is done when steps 1-3 work in the browser on migrated data and step
 These rules must each have an executable test. The legacy citations are the oracle, except where §7 of the brief decided a replacement.
 
 | Rule | What the test proves | Source of truth |
-|---|---|---|
+| --- | --- | --- |
 | RULE-033 (P0) | A date in January-July is spring ("Vår") of that calendar year; August-December is autumn ("Høst"). 2026-07-31 → Vår 2026; 2026-08-01 → Høst 2026; 2026-10-15 → Høst 2026. | Legacy `Utils/SemesterUtil.php:15-40` |
 | RULE-022 (P0) | Vår Y is [Y-01-01 00:00, Y-08-01 00:00); Høst Y is [Y-08-01 00:00, (Y+1)-01-01 00:00), at **Europe/Oslo** wall-clock time. | Legacy `Entity/Semester.php:76-92`. See the equivalence note below. |
 | RULE-050 (P1) | Semester order is by year, with Vår before Høst within a year. "Between" includes both bounds, and a missing bound is open-ended. | Legacy `Entity/Semester.php:181-230`; the int-vs-string year defect is made impossible by the typed value. |
@@ -44,6 +44,7 @@ These rules must each have an executable test. The legacy citations are the orac
 ## Data and migration
 
 Source tables, from `analysis/vektorprogrammet/prod-schema.sql`, which reflects the 2024-08-22 backup:
+
 - `department`: id, name, short_name, email, address, city (unique), logo_path, latitude, longitude, active, slackChannel.
 - `semester`: id, semesterTime (varchar), year (varchar). **There is no unique key**, so the import must detect duplicate (semesterTime, year) rows and report them rather than guess.
 - `field_of_study`: id, department_id (nullable), name, short_name.

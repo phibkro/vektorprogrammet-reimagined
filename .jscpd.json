@@ -1,0 +1,12 @@
+{
+  "minTokens": 40,
+  "threshold": 0,
+  "format": ["typescript"],
+  "reporters": ["console"],
+  "ignore": [
+    "apps/web/src/components/ui/**",
+    "**/routeTree.gen.ts",
+    "packages/db/drizzle/**",
+    "tools/oxlint/anti-slop/**"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "description": "Registered suppressions and narrowly scoped type bridges. Every live suppression must match an entry; bridge entries name their owning declaration and retirement trigger.",
+  "exceptions": [
+    {
+      "id": "EX-0001",
+      "scope": {
+        "files": ["apps/web/src/routeTree.gen.ts"],
+        "directives": ["eslint-disable", "@ts-nocheck"]
+      },
+      "reason": "TanStack Router generates this file with both directives to opt generated route metadata out of authored-code lint and type analysis.",
+      "nativeAlternativesExamined": [
+        "The root lint ignore excludes the generated file, but cannot remove the generator-emitted directives.",
+        "No source-level alternative exists without changing the route generator's output."
+      ],
+      "owner": "apps/web",
+      "versions": {
+        "@tanstack/react-router": "1.170.44",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Retire when TanStack Router stops emitting these directives or the generated route tree is no longer part of the workspace source."
+    },
+    {
+      "id": "EX-0003",
+      "scope": {
+        "files": ["packages/domain/test/content/sponsorAndEvents.test.ts"],
+        "directives": ["oxlint-disable-next-line"]
+      },
+      "reason": "A test fixture must contain the literal javascript: URL to assert that the sponsor URL validator rejects script URLs; the lint rule forbids that literal.",
+      "nativeAlternativesExamined": [
+        "Constructing the scheme at runtime would hide the fixture's intent from readers, so the literal stays and only the single line is suppressed.",
+        "Removing the test case would drop RULE-189 coverage (URL check added in the reimagined sponsor entity)."
+      ],
+      "owner": "packages/domain",
+      "versions": {
+        "oxlint": "1.2.0 (vite-plus)"
+      },
+      "retirementTrigger": "Retire when the validator test no longer needs a literal script URL, for example when the fixture is generated from a shared rejected-URL table covered by a non-literal rule."
+    }
+  ],
+  "typeBridges": [
+    {
+      "id": "EX-0002",
+      "scope": {
+        "files": ["packages/db/src/drizzleSqlErrorCompat.d.ts"]
+      },
+      "reason": "Pinned Drizzle ORM declarations import a missing Effect 4.0.5 SQL error module path, erasing query error types into any/unknown.",
+      "nativeAlternativesExamined": [
+        "Effect 4.0.5 exports the matching SqlError module at effect/sql/SqlError, not effect/unstable/sql/SqlError.",
+        "Editing node_modules is not reproducible and changing Drizzle's declaration sources is outside the application package.",
+        "Unpinning Drizzle would violate the frozen dependency pin; the ambient re-export preserves the exact upstream types without runtime code."
+      ],
+      "owner": "packages/db",
+      "versions": {
+        "drizzle-orm": "1.0.0-rc.5-5935859",
+        "effect": "4.0.5",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Retire the bridge when an approved Drizzle release imports effect/sql/SqlError instead, then verify the package typechecks and the runtime tests pass without the alias."
+    }
+  ]
+}

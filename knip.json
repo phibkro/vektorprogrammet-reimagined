@@ -1,0 +1,33 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": ["tools/oxlint/anti-slop/**"],
+  "workspaces": {
+    "tools/quality": {
+      "entry": ["checkEffectExceptions.ts"],
+      "project": ["*.ts"]
+    },
+    "apps/web": {
+      "entry": [
+        "src/routes/**/*.{ts,tsx}",
+        "src/server/**",
+        "src/functions/**",
+        "src/components/ui/**",
+        "src/server.ts",
+        "src/router.tsx",
+        "src/start.ts",
+        "alchemy.run.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}", "**/*.css"]
+    },
+    "packages/domain": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/db": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "tools/import": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    }
+  },
+  "ignoreBinaries": ["devenv", "gitleaks"]
+}
