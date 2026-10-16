@@ -61,7 +61,7 @@ export type PanelSection = (typeof PANEL_SECTIONS)[number];
 export type SectionKey = PanelSection["key"];
 
 /** What the server sends for one sidebar entry. */
-export type NavigationItem = Pick<PanelSection, "key" | "label" | "to">;
+type NavigationItem = Pick<PanelSection, "key" | "label" | "to">;
 
 /** A labelled run of entries. */
 export interface NavigationGroup {
