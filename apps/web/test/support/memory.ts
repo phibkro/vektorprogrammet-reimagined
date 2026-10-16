@@ -23,11 +23,14 @@ import {
   OutboxMessageId,
   PublicFileRepository,
   sanitizeRichText,
+  SemesterId,
+  SemesterRepository,
   Slug,
   StaticContentRepository,
   anonymous,
 } from "@vektorprogrammet/domain";
 import type {
+  Actor,
   Article,
   AuditEntry,
   Department,
@@ -35,6 +38,7 @@ import type {
   OutboxMessage,
   PublicFile,
   StaticContent,
+  StoredSemester,
 } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -43,6 +47,7 @@ import {
   Effect,
   Layer,
   Option,
+  Record as Rec,
   Stream,
 } from "effect";
 
@@ -67,6 +72,7 @@ export interface MemoryTables {
   objects: Map<string, Uint8Array>;
   outbox: OutboxRow[];
   audit: AuditEntry[];
+  semesters: StoredSemester[];
   /** Number of `Transactor.run` calls that committed. */
   commits: number;
 }
@@ -84,6 +90,7 @@ export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   objects: new Map(),
   outbox: [],
   publicFiles: [],
+  semesters: [],
   staticContent: [],
   ...seed,
 });
@@ -156,6 +163,65 @@ const repositories = Layer.effectContext(
 
           return Effect.succeed(updated);
         }),
+    });
+
+    const semesters = SemesterRepository.of({
+      create: (semester) =>
+        Effect.suspend(() => {
+          if (
+            Arr.some(
+              db.semesters,
+              (row) => row.term === semester.term && row.year === semester.year
+            )
+          ) {
+            return Effect.fail(
+              new AlreadyExists({
+                entity: "Semester",
+                key: `${semester.term} ${semester.year}`,
+                message: "Semesteret finnes allerede.",
+              })
+            );
+          }
+
+          const created: StoredSemester = {
+            id: SemesterId.make(takeId()),
+            ...semester,
+          };
+
+          db.semesters.push(created);
+
+          return Effect.succeed(created);
+        }),
+      ensure: (semester) =>
+        Effect.sync(() => {
+          const existing = Option.getOrUndefined(
+            Arr.findFirst(
+              db.semesters,
+              (row) => row.term === semester.term && row.year === semester.year
+            )
+          );
+
+          if (existing !== undefined) {
+            return existing;
+          }
+
+          const created: StoredSemester = {
+            id: SemesterId.make(takeId()),
+            ...semester,
+          };
+
+          db.semesters.push(created);
+
+          return created;
+        }),
+      find: (semester) =>
+        Effect.sync(() =>
+          Arr.findFirst(
+            db.semesters,
+            (row) => row.term === semester.term && row.year === semester.year
+          )
+        ),
+      list: Effect.sync(() => db.semesters),
     });
 
     const articles = ArticleRepository.of({
@@ -378,6 +444,7 @@ const repositories = Layer.effectContext(
     });
 
     return Context.make(DepartmentRepository, departments).pipe(
+      Context.add(SemesterRepository, semesters),
       Context.add(ArticleRepository, articles),
       Context.add(StaticContentRepository, staticContent),
       Context.add(PublicFileRepository, publicFiles),
@@ -409,6 +476,7 @@ const transactor = Layer.effect(
             objects: new Map(db.objects),
             outbox: Arr.map(db.outbox, (row) => ({ ...row })),
             publicFiles: [...db.publicFiles],
+            semesters: [...db.semesters],
             staticContent: [...db.staticContent],
           };
 
@@ -431,13 +499,39 @@ const transactor = Layer.effect(
   })
 );
 
-/** Every in-memory service over `tables` (fresh by default), with an anonymous actor. */
-export const memoryLayer = (tables: MemoryTables = makeTables()) =>
+/** Every in-memory service over `tables` (fresh by default), acting as `actor` (anonymous by default). */
+export const memoryLayer = (
+  tables: MemoryTables = makeTables(),
+  actor: Actor = anonymous
+) =>
   Layer.mergeAll(
     repositories,
     transactor,
-    Layer.succeed(CurrentActor, anonymous)
+    Layer.succeed(CurrentActor, actor)
   ).pipe(Layer.provideMerge(Layer.succeed(Memory, tables)));
+
+/** A `FormData` from text fields and (optionally) uploaded files. */
+export const form = (
+  fields: Readonly<Record<string, string>> = {},
+  files: Readonly<
+    Record<
+      string,
+      { readonly bytes: Uint8Array<ArrayBuffer>; readonly name: string }
+    >
+  > = {}
+): FormData => {
+  const data = new FormData();
+
+  for (const [name, value] of Rec.toEntries(fields)) {
+    data.set(name, value);
+  }
+
+  for (const [name, file] of Rec.toEntries(files)) {
+    data.set(name, new File([file.bytes], file.name));
+  }
+
+  return data;
+};
 
 // ---------------------------------------------------------------- fake fixtures
 

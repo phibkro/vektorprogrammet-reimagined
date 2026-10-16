@@ -445,6 +445,7 @@ export default defineConfig({
           "apps/web/test/contact.test.ts",
           "apps/web/test/errors.test.ts",
           "apps/web/test/news.test.ts",
+          "apps/web/test/panel.test.ts",
           "apps/web/test/publicFiles.test.ts",
           "apps/web/test/redirects.test.ts",
           "apps/web/test/sandbox.test.ts",
