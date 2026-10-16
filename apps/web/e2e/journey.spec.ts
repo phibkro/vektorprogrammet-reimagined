@@ -1,24 +1,26 @@
 /**
  * Spec 0001, journey steps 1 to 4 in a browser (step 2 is spec 0003: semesters come from the cron job, not
- * from a form), against `vp dev` (the `local` deployment, a test actor chosen
- * by cookie) and a PostgreSQL database that the real importer filled from its fake legacy fixture
- * (`e2e/support/database.ts`): this is migrated data, with the importer's own quirks. The fixture's third
- * department (an invalid e-mail address) is quarantined, its five duplicate semester rows are collapsed to
- * two, and its orphan fields of study are left out. One story over one database, so the tests run in order.
- * Falsifier 5 is the last test: a team leader of department A is refused (403) on department B's field of
- * study, by a request the page itself would never send.
+ * from a form), against `vp dev` (the `local` deployment, a test actor chosen by cookie) and a PostgreSQL
+ * database that the real importer filled from its fake legacy fixture (`e2e/support/database.ts`): this is
+ * migrated data, with the importer's own quirks. The fixture's third department (an invalid e-mail address) is
+ * quarantined, its five duplicate semester rows are collapsed to two, and its orphan fields of study are left
+ * out. One story over one database, so the tests run in order. Every create and edit form opens in a Sheet
+ * (spec 0004). Falsifier 5 is the last test: a team leader of department A is refused (403) on department B's
+ * field of study, by a request the page itself would never send. `shell.spec.ts` runs after this file
+ * (Playwright takes the files in name order) and may change what this story leaves behind.
  */
 import { expect, test } from "@playwright/test";
 import { Array as Arr, Order } from "effect";
 
 import {
-  dialogOf,
-  fillDialog,
+  currentSemesterOnOverview,
+  fillSheet,
   openPage,
   semesterKey,
   semesterLabelsOf,
+  sheetOf,
   signInAs,
-  submitDialog,
+  submitSheet,
   successorOf,
   tamperWith,
   textOf,
@@ -77,34 +79,34 @@ test("step 1: an administrator sees the migrated departments, creates and edits 
 
   // Create an inactive department.
   await page.getByRole("button", { name: "Ny avdeling" }).click();
-  await fillDialog(page, {
+  await fillSheet(page, {
     By: "Oslo",
     "E-post": "oslo@example.org",
     Kortnavn: "UiO",
     Navn: "Vektor Oslo",
   });
-  await dialogOf(page).getByRole("switch", { name: "Aktiv" }).click();
-  expect(await submitDialog(page, "Opprett")).toBe(200);
-  await expect(dialogOf(page)).toBeHidden();
+  await sheetOf(page).getByRole("switch", { name: "Aktiv" }).click();
+  expect(await submitSheet(page, "Opprett")).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
   await expect(page.getByRole("row", { name: "Vektor Oslo" })).toContainText(
     "Inaktiv"
   );
 
   // Edit it: the new name shows in the list.
   await page.getByRole("button", { name: "Rediger Vektor Oslo" }).click();
-  await fillDialog(page, { Navn: "Vektor Oslo og Akershus" });
-  expect(await submitDialog(page, "Lagre")).toBe(200);
-  await expect(dialogOf(page)).toBeHidden();
+  await fillSheet(page, { Navn: "Vektor Oslo og Akershus" });
+  expect(await submitSheet(page, "Lagre")).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
   await expect(
     page.getByRole("row", { name: "Vektor Oslo og Akershus" })
   ).toBeVisible();
 
   // An edit keeps what the list does not show: address, Slack channel and coordinates.
   await page.getByRole("button", { name: "Rediger Avdeling Alfa" }).click();
-  await expect(dialogOf(page).getByLabel("Breddegrad")).toHaveValue("63.4");
-  await fillDialog(page, { Navn: "Avdeling Alfa (NTNU)" });
-  expect(await submitDialog(page, "Lagre")).toBe(200);
-  await expect(dialogOf(page)).toBeHidden();
+  await expect(sheetOf(page).getByLabel("Breddegrad")).toHaveValue("63.4");
+  await fillSheet(page, { Navn: "Avdeling Alfa (NTNU)" });
+  expect(await submitSheet(page, "Lagre")).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
   expect(await runDatabase(departmentRow(1))).toEqual({
     address: "Alfaveien 1",
     latitude: 63.4,
@@ -113,19 +115,19 @@ test("step 1: an administrator sees the migrated departments, creates and edits 
     slackChannel: "#alfa",
   });
 
-  // A city is unique: the refusal is a 409 with the message, the dialog stays, nothing is saved.
+  // A city is unique: the refusal is a 409 with the message, the Sheet stays, nothing is saved.
   await page.getByRole("button", { name: "Ny avdeling" }).click();
-  await fillDialog(page, {
+  await fillSheet(page, {
     By: "Alfaby",
     "E-post": "annen@example.org",
     Kortnavn: "ANN",
     Navn: "En annen avdeling",
   });
-  expect(await submitDialog(page, "Opprett")).toBe(409);
-  await expect(dialogOf(page).getByRole("alert")).toHaveText(
+  expect(await submitSheet(page, "Opprett")).toBe(409);
+  await expect(sheetOf(page).getByRole("alert")).toHaveText(
     "Det finnes allerede en avdeling i Alfaby."
   );
-  await dialogOf(page).getByRole("button", { name: "Avbryt" }).click();
+  await sheetOf(page).getByRole("button", { name: "Avbryt" }).click();
   await expect(page.getByRole("row", { name: "Alfaby" })).toHaveCount(1);
   expect(await runDatabase(departmentsInCity("Alfaby"))).toBe(1);
 });
@@ -188,17 +190,17 @@ test("step 3 (RULE-139): a team leader lists, creates and renames the fields of 
   await expect(page.getByRole("row", { name: "Fag Beta" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Ny linje" }).click();
-  await fillDialog(page, { Kortnavn: "MA", Navn: "Matematikk" });
-  expect(await submitDialog(page, "Opprett")).toBe(200);
-  await expect(dialogOf(page)).toBeHidden();
+  await fillSheet(page, { Kortnavn: "MA", Navn: "Matematikk" });
+  expect(await submitSheet(page, "Opprett")).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
   await expect(page.getByRole("row", { name: "Matematikk" })).toBeVisible();
 
   await page
     .getByRole("button", { name: "Gi nytt navn til Matematikk" })
     .click();
-  await fillDialog(page, { Navn: "Matematikk og statistikk" });
-  expect(await submitDialog(page, "Lagre")).toBe(200);
-  await expect(dialogOf(page)).toBeHidden();
+  await fillSheet(page, { Navn: "Matematikk og statistikk" });
+  expect(await submitSheet(page, "Lagre")).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
   await expect(
     page.getByRole("row", { name: "Matematikk og statistikk" })
   ).toBeVisible();
@@ -207,15 +209,14 @@ test("step 3 (RULE-139): a team leader lists, creates and renames the fields of 
   ).toEqual({ departmentId: 1, name: "Matematikk og statistikk" });
 });
 
-test("step 4: the dashboard, the semester list and the events form name the same current semester", async ({
+test("step 4: the overview, the semester list and the events form name the same current semester", async ({
   page,
   context,
 }) => {
   await signInAs(context, "admin");
   await openPage(page, "/kontrollpanel");
 
-  const dashboard = await textOf(page.getByText(/^Nåværende semester:/u));
-  const current = dashboard.replace("Nåværende semester:", "").trim();
+  const current = await currentSemesterOnOverview(page);
 
   await openPage(page, "/kontrollpanel/semestre");
   await expect(
@@ -225,9 +226,10 @@ test("step 4: the dashboard, the semester list and the events form name the same
   ).toContainText(current);
 
   await openPage(page, "/kontrollpanel/arrangementer");
-  await expect(page.locator("select#semesterId option:checked")).toHaveText(
-    current
-  );
+  await page.getByRole("button", { name: "Nytt arrangement" }).click();
+  await expect(
+    sheetOf(page).locator("select#semesterId option:checked")
+  ).toHaveText(current);
 });
 
 test("falsifier 5 (RULE-139): a team leader from department A is refused (403) on department B's field of study, with nothing changed", async ({
@@ -243,17 +245,17 @@ test("falsifier 5 (RULE-139): a team leader from department A is refused (403) o
   // The rename form of A's field of study, with the hidden id changed to B's (2).
   await page.getByRole("button", { name: "Gi nytt navn til Fag Alfa" }).click();
   await tamperWith(page, "id", "2");
-  await fillDialog(page, { Navn: "Kapret" });
-  expect(await submitDialog(page, "Lagre")).toBe(403);
-  await expect(dialogOf(page).getByRole("alert")).toHaveText(NOT_ALLOWED);
-  await dialogOf(page).getByRole("button", { name: "Avbryt" }).click();
+  await fillSheet(page, { Navn: "Kapret" });
+  expect(await submitSheet(page, "Lagre")).toBe(403);
+  await expect(sheetOf(page).getByRole("alert")).toHaveText(NOT_ALLOWED);
+  await sheetOf(page).getByRole("button", { name: "Avbryt" }).click();
 
   // The create form of A, with the hidden department changed to B's (2).
   await page.getByRole("button", { name: "Ny linje" }).click();
   await tamperWith(page, "departmentId", "2");
-  await fillDialog(page, { Kortnavn: "SN", Navn: "Snikopprettet" });
-  expect(await submitDialog(page, "Opprett")).toBe(403);
-  await expect(dialogOf(page).getByRole("alert")).toHaveText(NOT_ALLOWED);
+  await fillSheet(page, { Kortnavn: "SN", Navn: "Snikopprettet" });
+  expect(await submitSheet(page, "Opprett")).toBe(403);
+  await expect(sheetOf(page).getByRole("alert")).toHaveText(NOT_ALLOWED);
 
   expect(await runDatabase(fieldOfStudyRow(2))).toEqual({
     departmentId: 2,

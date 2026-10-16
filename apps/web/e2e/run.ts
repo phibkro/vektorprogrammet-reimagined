@@ -33,7 +33,13 @@ const main = Effect.gen(function* main() {
   const playwright = yield* spawner.spawn(
     ChildProcess.make(
       "bunx",
-      ["playwright", "test", "--config", "e2e/playwright.config.ts"],
+      [
+        "playwright",
+        "test",
+        "--config",
+        "e2e/playwright.config.ts",
+        ...process.argv.slice(2),
+      ],
       {
         cwd: webDirectory,
         env: {

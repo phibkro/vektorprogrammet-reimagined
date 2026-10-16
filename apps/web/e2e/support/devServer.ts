@@ -21,6 +21,14 @@ const WARM_UP_PATHS = [
   "/kontrollpanel/avdelinger",
   "/kontrollpanel/semestre",
   "/kontrollpanel/linjer",
+  "/kontrollpanel/statisk-innhold",
+  "/kontrollpanel/artikler",
+  "/kontrollpanel/sponsorer",
+  "/kontrollpanel/arrangementer",
+  "/omvektor",
+  "/foreldre",
+  "/nyheter",
+  "/kontakt",
 ];
 
 /** The Cloudflare Vite plugin forwards this path to the Worker's `scheduled` handler (the cron, once). */
