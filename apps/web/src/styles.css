@@ -607,3 +607,12 @@ a {
 @utility cf-turnstile {
   display: block;
 }
+
+/* shadcn's sidebar hides the scrollbar of its content area. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

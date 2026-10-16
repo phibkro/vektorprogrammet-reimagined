@@ -76,7 +76,11 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
-      files: ["apps/web/src/routes/kontrollpanel/index.tsx"],
+      files: [
+        "apps/web/src/routes/kontrollpanel/index.tsx",
+        "apps/web/src/components/ui/sidebar.tsx",
+        "apps/web/src/hooks/**",
+      ],
       platform: "browser",
       role: "application",
       strictness: "strict",
@@ -486,6 +490,11 @@ export default defineConfig({
           "effect/no-untyped-throw": "off",
           "typescript/only-throw-error": "off",
         },
+      },
+      {
+        // shadcn's `useSidebar` throws when it is used outside its provider: a React hook contract that only a thrown error (caught by the route's error boundary) can state.
+        files: ["apps/web/src/components/ui/sidebar.tsx"],
+        rules: { "effect/no-untyped-throw": "off" },
       },
       {
         // failureOf is a synchronous pure serialization boundary over an already typed error union.
