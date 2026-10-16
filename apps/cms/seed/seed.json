@@ -221,5 +221,1376 @@
         }
       ]
     }
-  ]
+  ],
+  "content": {
+    "faq": [
+      {
+        "data": {
+          "answer": "Vektorprogrammet er en frivillig, studentdrevet organisasjon, der alle medlemmer jobber som frivillige. Du får delta på sosiale arrangementer og muligheten til å påvirke en organisasjon som er den største av sitt slag.",
+          "page": "assistenter",
+          "position": 1,
+          "question": "Er verv i Vektorprogrammet betalt?"
+        },
+        "id": "faq-assistenter-1",
+        "slug": "faq-assistenter-1",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Enkel stilling tilsvarer 4 skoledager på en ungdomsskole, fordelt over 4 uker. Dobbel stilling tilsvarer 8 skoledager fordelt over åtte uker. En vanlig skoledag er som regel fra 08:00-14:00, og i tillegg kommer transporttid.",
+          "page": "assistenter",
+          "position": 2,
+          "question": "Hvor stor er arbeidsmengden for en vektorassistent?"
+        },
+        "id": "faq-assistenter-2",
+        "slug": "faq-assistenter-2",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Ja, det gjør du. Disse deles normalt ut på avslutningen for vektorassistentene det tilhørende semesteret, men dersom du av en eller annen grunn ikke kunne delta, ta kontakt med ditt lokalstyre via mail. Vil du ha attest for tidligere semester? Ta også kontakt med ditt lokalstyre på mail.",
+          "page": "assistenter",
+          "position": 3,
+          "question": "Får jeg en attest dersom jeg har vært vektorassistent?"
+        },
+        "id": "faq-assistenter-3",
+        "slug": "faq-assistenter-3",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Ta kontakt med din skolekoordinator og forklar situasjonen. Dette er den personen du fikk skoledokumentene av.",
+          "page": "assistenter",
+          "position": 4,
+          "question": "Hva gjør jeg dersom klassen jeg skal være i ikke er tilstede eller dersom det er feil i timeplanen jeg har fått fra Vektorprogrammet?"
+        },
+        "id": "faq-assistenter-4",
+        "slug": "faq-assistenter-4",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Nei, Vektorprogrammet dekker bussbilletter, t-skjorte og forberedelseskurs.",
+          "page": "assistenter",
+          "position": 5,
+          "question": "Får jeg noen ekstra utgifter av å være vektorassistent?"
+        },
+        "id": "faq-assistenter-5",
+        "slug": "faq-assistenter-5",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Alle nye vektorassistenter må delta på et forberedelseskurs i starten av semesteret for å få en enkel innføring i hvordan man kan lære bort til andre på en god måte.",
+          "page": "assistenter",
+          "position": 6,
+          "question": "Hva er forberedelseskurs?"
+        },
+        "id": "faq-assistenter-6",
+        "slug": "faq-assistenter-6",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Nei, alle tidligere vektorassistenter trenger kun å søke via nettsiden. For å få eventuelle bussbilletter må du møte opp på slutten av forberedelseskurset.",
+          "page": "assistenter",
+          "position": 7,
+          "question": "Jeg har vært vektorassistent før, må jeg på intervju eller forberedelseskurs igjen?"
+        },
+        "id": "faq-assistenter-7",
+        "slug": "faq-assistenter-7",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Gå til 'Kontakt' i menyen og velg din region. Der finnes det ett kontaktskjema som du kan fylle ut, så finner vi ut av det sammen.",
+          "page": "assistenter",
+          "position": 8,
+          "question": "Jeg glemte søknadsfristen. Hva gjør jeg nå?"
+        },
+        "id": "faq-assistenter-8",
+        "slug": "faq-assistenter-8",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Ja, men du må huske å søke på nytt hvert semester! Du trenger ikke gå gjennom intervju og forberedelseskurs på nytt.",
+          "page": "assistenter",
+          "position": 9,
+          "question": "Kan jeg være vektorassistent flere semestre?"
+        },
+        "id": "faq-assistenter-9",
+        "slug": "faq-assistenter-9",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Gå inn på denne siden her, finn et eller flere team du er interessert i. Hvis dette teamet tar opp nye medlemmer vil det være en knapp hvor du kan søke. Hvis det ikke er opptak kan du sende en mail til teamleder og si ifra at du er interessert.",
+          "page": "team",
+          "position": 1,
+          "question": "Hvordan søker jeg team?"
+        },
+        "id": "faq-team-1",
+        "slug": "faq-team-1",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Som vektorassistent vil man reise til ungdomsskolen som lærerassistent, mens som teammedlem er man med på å påvirke Vektorprogrammet som organisasjon. Som teammedlem blir man altså med i administrasjonen, og arbeidsoppgavene avhenger av hvilket team man er med i.",
+          "page": "team",
+          "position": 2,
+          "question": "Hva er forskjellen på vektorassistent og teammedlem?"
+        },
+        "id": "faq-team-2",
+        "slug": "faq-team-2",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Det er fullt mulig å være begge deler samtidig. Som vektorassistent vil man kun bli sendt ut 4 eller 8 ganger per semester. Dette gjør at arbeidsmengden er overkommelig, og kan fint kombineres med teamarbeid og studier.",
+          "page": "team",
+          "position": 3,
+          "question": "Går det an å både være vektorassistent og med i team samtidig?"
+        },
+        "id": "faq-team-3",
+        "slug": "faq-team-3",
+        "status": "published"
+      },
+      {
+        "data": {
+          "answer": "Trondheim, Bergen og Ås",
+          "page": "team",
+          "position": 4,
+          "question": "I hvilke regioner holder Vektorprogrammet til?"
+        },
+        "id": "faq-team-4",
+        "slug": "faq-team-4",
+        "status": "published"
+      }
+    ],
+    "texts": [
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d2",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d1",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Om Vektorprogrammet"
+                }
+              ],
+              "markDefs": [],
+              "style": "h1"
+            },
+            {
+              "_key": "d4",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d3",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet arbeider for å øke interessen for matematikk og realfag blant elever i grunnskolen. Vi er en nasjonal studentorganisasjon som sender studenter med god realfagskompetanse til skoler for å hjelpe elevene i matematikktimene. Disse studentene har også gode pedagogiske evner og er gode rollemodeller - de er Norges realfagshelter."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Om oss: innledning"
+        },
+        "id": "about-header",
+        "slug": "about-header",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d6",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d5",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Motivere elever"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d8",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d7",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet ønsker å øke matematikkforståelsen blant elever i grunnskolen. Forståelse gir mestringsfølelse som fører til videre motivasjon. Siden matematikk er grunnlaget for alle realfag er målet at dette også skal føre til motivasjon og videre utforskning av realfagene."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Om oss: motivere elever"
+        },
+        "id": "about-motivate-children",
+        "slug": "about-motivate-children",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d10",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d9",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Motivere studenter"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d12",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d11",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vi har som mål at alle studentene skal sitte igjen mer motivert for videre studier etter å ha vært vektorassistent. Av erfaring vet vi at muligheten til å formidle egen kunnskap og se at deres arbeid gir elevene mestringsfølelse er en sterk motivasjonsfaktor. Videre arrangerer vi både sosiale og faglige arrangementer for å forsterke denne motivasjonen."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Om oss: motivere studenter"
+        },
+        "id": "about-motivate-students",
+        "slug": "about-motivate-students",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d14",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d13",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "En forsmak til læreryrket!"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d16",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d15",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Siden studentene er tilstede i undervisningen får de en introduksjon til læreryrket. Mange som studerer realfag vurderer en fremtid som lærer, og får gjennom oss muligheten til å få reell erfaring."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Om oss: forsmak til læreryrket"
+        },
+        "id": "about-try-teaching",
+        "slug": "about-try-teaching",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d18",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d17",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Assistenter"
+                }
+              ],
+              "markDefs": [],
+              "style": "h1"
+            },
+            {
+              "_key": "d20",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d19",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorassistent er et frivillig verv der du reiser til en ungdomsskole én dag i uka for å hjelpe til som lærerassistent i matematikk. En stilling som vektorassistent varer i 4 eller 8 uker, og du kan selv velge hvilken ukedag som passer best for deg."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: innledning"
+        },
+        "id": "assistants-header",
+        "slug": "assistants-header",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d22",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d21",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Hvorfor bli assistent?"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            }
+          ],
+          "title": "Assistenter: hvorfor bli assistent"
+        },
+        "id": "assistants-why",
+        "slug": "assistants-why",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d24",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d23",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vær et forbilde"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "d26",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d25",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Som vektorassistent er du med på å gjøre matte gøy. Ditt engasjement kan bidra til økt motivasjon og lærelyst. Bli med og gjør en forskjell!"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: vær et forbilde"
+        },
+        "id": "assistants-card-role-model",
+        "slug": "assistants-card-role-model",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d28",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d27",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Sosialt"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "d30",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d29",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Alle assistenter blir invitert til arrangementer som f.eks. fester, populærforedrag, bowling, grilling i parken, gokart og paintball."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: sosialt"
+        },
+        "id": "assistants-card-social",
+        "slug": "assistants-card-social",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d32",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d31",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Fint å ha på CVen"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "d34",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d33",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Erfaring som arbeidsgivere setter pris på. Alle assistenter får en attest."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: fint å ha på CVen"
+        },
+        "id": "assistants-card-cv",
+        "slug": "assistants-card-cv",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d36",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d35",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Lærerassistent i matematikk"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d38",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d37",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet er en studentorganisasjon som sender realfagssterke studenter til grunnskolen for å hjelpe elevene med matematikk i skoletiden. Vi ser etter deg som lengter etter en mulighet til å lære bort kunnskapene du sitter med og ønsker å ta del i et sterkt sosialt fellesskap. Etter å ha vært vektorassistent kommer du til å sitte igjen med mange gode erfaringer og nye venner på tvers av trinn og linje."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: lærerassistent i matematikk"
+        },
+        "id": "assistants-about",
+        "slug": "assistants-about",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d40",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d39",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "I tillegg vil du få muligheten til å delta på mange sosiale arrangementer, alt fra fest og grilling til go-kart, laser tag og spillkvelder. Samtidig arrangerer vi populærforedrag som er til for å øke motivasjonen din for videre studier. Vi har hatt besøk av blant annet Andreas Wahl, Jo Røislien, Knut Jørgen Røed Ødegaard og James Grime."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: sosiale arrangementer"
+        },
+        "id": "assistants-social",
+        "slug": "assistants-social",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d42",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d41",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Arbeidsoppgaver"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d44",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d43",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Som vektorassistent er du ute én dag i uka, i 4 eller 8 uker, på en ungdomsskole i nærområdet. Vi tilpasser timeplanen slik at du selv kan bestemme hvilken dag som passer best. Vektorassistenter blir sendt ut i par, slik at du alltid kan ha noen å støtte deg på. Oppgavene dine vil variere fra å gå rundt i klasserommet og hjelpe elever med oppgaver, til å gjennomgå utvalgte temaer i mindre grupper. Det er læreren som bestemmer hva som skal bli gjennomgått. Dette arbeidet blir satt stor pris på av både barn og lærere!"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Assistenter: arbeidsoppgaver"
+        },
+        "id": "assistants-tasks",
+        "slug": "assistants-tasks",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d46",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d45",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Hvordan blir jeg Vektorassistent?"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            }
+          ],
+          "title": "Assistenter: hvordan bli assistent"
+        },
+        "id": "assistants-how",
+        "slug": "assistants-how",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d48",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d47",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Opptakskrav"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "d50",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d49",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Du studerer på høgskole/universitet"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "d52",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d51",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Du har hatt R1/S2 på videregående"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "d54",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d53",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Du har tid til å dra til en ungdomsskole én dag i uka (kl. 8-14) i en periode på 4 eller 8 uker"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            }
+          ],
+          "title": "Assistenter: opptakskrav"
+        },
+        "id": "assistants-requirements",
+        "slug": "assistants-requirements",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d56",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d55",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Opptaksprosessen"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "d58",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d57",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet tar opp nye assistenter i starten av hvert semester"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "number"
+            },
+            {
+              "_key": "d60",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d59",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Send inn søknad fra skjemaet lengre ned på denne siden"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "number"
+            },
+            {
+              "_key": "d62",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d61",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Møt opp på intervju slik at vi kan bli bedre kjent med deg"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "number"
+            },
+            {
+              "_key": "d64",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d63",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Dra på et gratis forberedelseskurs arrangert av Vektorprogrammet"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "number"
+            },
+            {
+              "_key": "d66",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d65",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Få tildelt en ungdomsskole som du og din vektorpartner skal dra til"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "number"
+            }
+          ],
+          "title": "Assistenter: opptaksprosessen"
+        },
+        "id": "assistants-process",
+        "slug": "assistants-process",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d68",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d67",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Velg avdelingen du vil kontakte. Vi svarer på e-post så snart vi kan."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Kontakt: innledning"
+        },
+        "id": "contact-header",
+        "slug": "contact-header",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d70",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d69",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet arbeider for å øke interessen for matematikk og realfag blant elever i grunnskolen. Vi sender studenter med god realfagskompetanse til skoler for å hjelpe elevene i matematikktimene."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Hjem: kort presentasjon"
+        },
+        "id": "home-tagline",
+        "slug": "home-tagline",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d72",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d71",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Informasjon for foreldre"
+                }
+              ],
+              "markDefs": [],
+              "style": "h1"
+            },
+            {
+              "_key": "d74",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d73",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Lurer du som forelder på mer om Vektorprogrammet? Her finner du informasjon om våre assistenter, kvalitetssikring, og foreldrekurs."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Foreldre: innledning"
+        },
+        "id": "parent-header",
+        "slug": "parent-header",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d76",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d75",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Assistentene"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d78",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d77",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Et verv som assistent hos Vektorprogrammet er ettertraktet blant studenter. Det gjør at vi kan håndplukke de aller beste til jobben. De er faglig sterke, som brenner for matematikk. I tillegg har alle assistentene våre vært gjennom et forberedelseskurs før de blir utplassert på skolene. Du kan derfor være sikker på at assistentene våre gjør en god jobb."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Foreldre: assistentene"
+        },
+        "id": "parent-assistants-info",
+        "slug": "parent-assistants-info",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d80",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d79",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Foreldrekurs"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d82",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d81",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Foreldrekurs foregår på kveldstid, og er rettet mot foreldre. Dette blir arrangert 1-3 ganger i året av skolekoordineringsteamet i Vektorprogrammet Trondheim. Dette er et tiltak for foreldre ved Vektorprogrammets samarbeidsskoler - slik at dere får et enda bedre grunnlag for å kunne hjelpe deres ungdommer med matematikken på hjemmebane."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d84",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d83",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Kursene blir vanligvis holdt i Realfagsbygget på NTNU Gløshaugen, med lett bespisning (kaffe, kaker, kjeks)."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d86",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d85",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Hvorfor foreldrekurs?"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d88",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d87",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Målet er at foreldre skal kunne hjelpe barnet sitt med matematikk, og lære om hvorfor matematikk er et så viktig og spennende fag. Det har tidligere blitt holdt kurs innen innføring i motivasjon, pedagogikk og matematikk tilpasset ungdomsskolenivå. Eksamenskurs, der det har blitt gjennomgått gamle eksamensoppgaver, har også blitt holdt tidligere."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d90",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d89",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Høres foreldrekurset interessant ut?"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d92",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d91",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Påmeldingsskjemaet er under konstruksjon! Ta kontakt med skolekoordineringsteamet for påmelding til eventuelle foreldrekurs."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Foreldre: foreldrekurs"
+        },
+        "id": "parent-course",
+        "slug": "parent-course",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d94",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d93",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorassistenter i skolen"
+                }
+              ],
+              "markDefs": [],
+              "style": "h1"
+            },
+            {
+              "_key": "d96",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d95",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet er en frivillig organisasjon som tilbyr ungdomsskoler i Norge hjelpelærere i matematikktimene. Her kan du enkelt søke om å få studenter til å hjelpe og motivere elevene i dine timer."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Skoler: innledning"
+        },
+        "id": "schools-header",
+        "slug": "schools-header",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d98",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d97",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Vektorprogrammet er Norges største organisasjon som arbeider for å øke interessen for matematikk og realfag blant elever i grunnskolen. Vi er en studentorganisasjon som sender ut dyktige og motiverte studenter til ungdomsskoler i Norge."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Skoler: om Vektorprogrammet"
+        },
+        "id": "schools-about",
+        "slug": "schools-about",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d100",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d99",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Studentene fungerer som lærerens assistenter og kan dermed bidra til at elevene raskere får hjelp i timen, og at undervisningen blir mer tilpasset de ulike elevgruppene. Vi har erfart at lærerne ofte har mye å gjøre i timene, og ofte ikke rekker å hjelpe alle elevene som står fast. Derfor er vi overbevist om at to assistenter kan forhindre mye hodebry for både lærere og elever."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d102",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d101",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Hvert år gjennomfører vi evalueringsundersøkelser, og i gjennomsnitt sier over 95% av lærerne at de er fornøyde med prosjektet og ønsker å delta videre."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d104",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d103",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Alle assistentene har vært gjennom en intervjuprossess som gjør oss sikre på at de vil passe som assistentlærere og kan være gode forbilder for elevene. Dette er en unik mulighet til å få inn rollemodeller i klasserommet som kan være med å gi elevene mer motivasjon."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Skoler: assistentene i klasserommet"
+        },
+        "id": "schools-more",
+        "slug": "schools-more",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d106",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d105",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Enkelt å bruke assistenter i undervisningen"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d108",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d107",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Assistentene kan brukes som hjelp i undervisningen. Her er noen forslag vi har gode erfaringer med:"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d110",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d109",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Hjelpe til med oppgaveløsing i klasserom"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "d112",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d111",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Utfordre de sterkeste elevene med vanskeligere oppgaver"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "d114",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d113",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Engasjere elever med matteleker, gåter og spill"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            },
+            {
+              "_key": "d116",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d115",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Arbeid med elever på grupperom"
+                }
+              ],
+              "markDefs": [],
+              "style": "normal",
+              "level": 1,
+              "listItem": "bullet"
+            }
+          ],
+          "title": "Skoler: bruk av assistenter"
+        },
+        "id": "schools-tips",
+        "slug": "schools-tips",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d118",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d117",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Søk om å få assistenter til din skole"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d120",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d119",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Ta kontakt med ansvarlig for skolekoordinering i din by for å sende inn en søknad om å få vektorassistenter til din skole."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Skoler: søk om assistenter"
+        },
+        "id": "schools-apply",
+        "slug": "schools-apply",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d122",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d121",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Har ikke Vektorprogrammet etablert seg i din by enda?"
+                }
+              ],
+              "markDefs": [],
+              "style": "h3"
+            },
+            {
+              "_key": "d123",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d124",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Ta kontakt med "
+                },
+                {
+                  "_key": "d125",
+                  "_type": "span",
+                  "marks": ["contact-link"],
+                  "text": "hovedstyret"
+                },
+                {
+                  "_key": "d126",
+                  "_type": "span",
+                  "marks": [],
+                  "text": " for å melde din interesse!"
+                }
+              ],
+              "markDefs": [
+                {
+                  "_key": "contact-link",
+                  "_type": "link",
+                  "href": "/kontakt"
+                }
+              ],
+              "style": "normal"
+            }
+          ],
+          "title": "Skoler: ingen avdeling i din by"
+        },
+        "id": "schools-missing-city",
+        "slug": "schools-missing-city",
+        "status": "published"
+      },
+      {
+        "data": {
+          "content": [
+            {
+              "_key": "d128",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d127",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Styre og team"
+                }
+              ],
+              "markDefs": [],
+              "style": "h2"
+            },
+            {
+              "_key": "d130",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d129",
+                  "_type": "span",
+                  "marks": [],
+                  "text": "Her finner du teamene i hver avdeling. Team som tar imot søknader nå, har en søknadslenke på kortet sitt."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            },
+            {
+              "_key": "d132",
+              "_type": "block",
+              "children": [
+                {
+                  "_key": "d131",
+                  "_type": "span",
+                  "marks": ["strong"],
+                  "text": "Velg en avdeling nedenfor."
+                }
+              ],
+              "markDefs": [],
+              "style": "normal"
+            }
+          ],
+          "title": "Team: innledning"
+        },
+        "id": "team-header",
+        "slug": "team-header",
+        "status": "published"
+      }
+    ]
+  }
 }

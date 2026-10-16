@@ -23,6 +23,7 @@ const SchoolsPage = () => {
             className="mx-auto w-1/2 flex-wrap items-center justify-center gap-5 md:flex-nowrap md:justify-between md:gap-14"
             src="/images/teacher2.png"
           />
+          <PortableTextView value={texts["schools-more"] ?? null} />
         </div>
       </div>
       <div className="info-background mx-auto mb-20 flex flex-col items-center gap-5 p-5 py-48 md:gap-5">

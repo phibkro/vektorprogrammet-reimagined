@@ -59,6 +59,7 @@ const AssistantsPage = () => {
           className="mx-auto mt-6 h-80 rounded-lg"
           src="/images/teacher2.png"
         />
+        <PortableTextView value={texts["assistants-social"] ?? null} />
       </div>
       <Divider />
       <div className="mb-16 flex max-w-3xl flex-col items-center p-5">

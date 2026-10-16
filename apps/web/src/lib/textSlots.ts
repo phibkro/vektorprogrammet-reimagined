@@ -24,6 +24,7 @@ export const TEXT_SLOTS = {
     "assistants-card-social",
     "assistants-card-cv",
     "assistants-about",
+    "assistants-social",
     "assistants-tasks",
     "assistants-how",
     "assistants-requirements",
@@ -36,6 +37,7 @@ export const TEXT_SLOTS = {
   schools: [
     "schools-header",
     "schools-about",
+    "schools-more",
     "schools-tips",
     "schools-apply",
     "schools-missing-city",

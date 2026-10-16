@@ -162,7 +162,10 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
-      files: ["packages/cms-client/test/collections.test.ts"],
+      files: [
+        "packages/cms-client/test/collections.test.ts",
+        "apps/web/test/textSlots.test.ts",
+      ],
       platform: "node",
       role: "composition-root",
       strictness: "strict",
