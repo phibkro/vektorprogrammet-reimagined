@@ -32,7 +32,26 @@ export * from "./organisation/department.ts";
 
 export * from "./organisation/fieldOfStudy.ts";
 
-export * from "./organisation/semester.ts";
+// The package root exports the answers to the calendar questions, not the window arithmetic they are
+// built from (`semesterForDate`, `semesterWindow`, `windowContains`): outside the domain nobody can
+// assemble a second "current semester" or "admission is open" rule. `test/organisation/oneDefinition.test.ts`
+// pins this surface.
+export {
+  FIRST_SELECTABLE_YEAR,
+  Semester,
+  SemesterOrder,
+  SemesterYear,
+  StoredSemester,
+  Term,
+  isBetween,
+  nextSemester,
+  selectableYears,
+  semesterLabel,
+  sortNewestFirst,
+  termLabel,
+} from "./organisation/semester.ts";
+
+export type { Window } from "./organisation/semester.ts";
 
 export * from "./organisation/services.ts";
 

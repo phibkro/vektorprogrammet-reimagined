@@ -94,6 +94,12 @@ export const sortNewestFirst = <S extends Semester>(
   semesters: Iterable<S>
 ): S[] => Arr.sort(semesters, Order.flip(SemesterOrder));
 
+/** RULE-050: the semester right after this one (Vår Y → Høst Y → Vår Y+1); none lies between. */
+export const nextSemester = (semester: Semester): Semester =>
+  semester.term === "VAR"
+    ? { term: "HOST", year: semester.year }
+    : { term: "VAR", year: semester.year + 1 };
+
 /**
  * RULE-050: inclusive range check; a missing (null) bound is open-ended.
  * Typed numeric years fix the legacy same-year detection defect.
