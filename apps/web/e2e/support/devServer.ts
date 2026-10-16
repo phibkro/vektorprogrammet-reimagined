@@ -1,6 +1,7 @@
 /**
  * `vp dev` for the browser tests: the `local` deployment (a test actor chosen by cookie, a simulated R2 and
- * rate limiter, no mail), pointed at the disposable database. The dev server is a child process owned by the
+ * rate limiter, no mail), pointed at the disposable database, with the cron's `scheduled` handler run once
+ * (the semester job). The dev server is a child process owned by the
  * scope that starts it: closing the scope stops its whole process group (`vp`, Vite and workerd).
  */
 import { Effect, Redacted, Schedule, Schema } from "effect";
@@ -21,6 +22,9 @@ const WARM_UP_PATHS = [
   "/kontrollpanel/semestre",
   "/kontrollpanel/linjer",
 ];
+
+/** The Cloudflare Vite plugin forwards this path to the Worker's `scheduled` handler (the cron, once). */
+const SCHEDULED_HANDLER_PATH = "/cdn-cgi/handler/scheduled";
 
 /** Vite binds `localhost`, which is `::1` on some hosts: the probe and the browser both use the name. */
 const originOf = (port: number): string => `http://localhost:${port}`;
@@ -55,8 +59,11 @@ export const startDevServer = Effect.fn("startDevServer")(
     const get = (path: string) =>
       http.execute(HttpClientRequest.get(`${origin}${path}`));
 
+    // Semesters are written by the cron job only (spec 0003): run the Worker's `scheduled` handler once, as
+    // the Cloudflare Vite plugin exposes it, so the current and the next semester exist before any page asks.
     const answering = get("/").pipe(
       Effect.retry({ schedule: Schedule.spaced("500 millis"), times: 240 }),
+      Effect.andThen(get(SCHEDULED_HANDLER_PATH)),
       Effect.andThen(Effect.forEach(WARM_UP_PATHS, get, { discard: true }))
     );
 

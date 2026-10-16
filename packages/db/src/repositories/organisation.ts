@@ -3,7 +3,6 @@
  * Rows decode through the domain schemas; infrastructure failures are defects.
  */
 import {
-  AlreadyExists,
   Department,
   DepartmentRepository,
   FieldOfStudy,
@@ -11,7 +10,6 @@ import {
   NotFound,
   SemesterRepository,
   StoredSemester,
-  semesterLabel,
 } from "@vektorprogrammet/domain";
 import type {
   DepartmentDraft,
@@ -129,34 +127,10 @@ export const SemesterRepositoryLive = Layer.effect(
       return yield* decodeOptional(rows);
     });
 
-    /** RULE-144: one statement; the database, not a prior read, decides "already exists". */
-    const create = Effect.fn("SemesterRepository.create")(function* create(
-      wanted: Semester
-    ) {
-      const rows = yield* db
-        .insert(semester)
-        .values({ term: wanted.term, year: wanted.year })
-        .onConflictDoNothing({ target: [semester.term, semester.year] })
-        .returning(semesterColumns)
-        .pipe(Effect.orDie);
-
-      const [row] = rows;
-
-      if (row === undefined) {
-        return yield* new AlreadyExists({
-          entity: "Semester",
-          key: `${wanted.term} ${wanted.year}`,
-          message: `Semesteret ${semesterLabel(wanted)} finnes allerede`,
-        });
-      }
-
-      return yield* decode(row);
-    });
-
     /**
      * RULE-237: one statement. `DO UPDATE` (a no-op write of the same term)
      * makes `RETURNING` yield the existing row too, so every concurrent caller
-     * gets the single row without a second query.
+     * gets the single row without a second query. Only the scheduled job calls it (spec 0003).
      */
     const ensure = Effect.fn("SemesterRepository.ensure")(function* ensure(
       wanted: Semester
@@ -175,7 +149,6 @@ export const SemesterRepositoryLive = Layer.effect(
     });
 
     return SemesterRepository.of({
-      create,
       ensure,
       find,
       list: db

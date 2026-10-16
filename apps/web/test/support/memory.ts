@@ -172,32 +172,6 @@ const repositories = Layer.effectContext(
     });
 
     const semesters = SemesterRepository.of({
-      create: (semester) =>
-        Effect.suspend(() => {
-          if (
-            Arr.some(
-              db.semesters,
-              (row) => row.term === semester.term && row.year === semester.year
-            )
-          ) {
-            return Effect.fail(
-              new AlreadyExists({
-                entity: "Semester",
-                key: `${semester.term} ${semester.year}`,
-                message: "Semesteret finnes allerede.",
-              })
-            );
-          }
-
-          const created: StoredSemester = {
-            id: SemesterId.make(takeId()),
-            ...semester,
-          };
-
-          db.semesters.push(created);
-
-          return Effect.succeed(created);
-        }),
       ensure: (semester) =>
         Effect.sync(() => {
           const existing = Option.getOrUndefined(

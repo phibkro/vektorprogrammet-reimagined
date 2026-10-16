@@ -5,7 +5,6 @@ import {
   OSLO,
   isBetween,
   nextSemester,
-  selectableYears,
   semesterLabel,
   sortNewestFirst,
 } from "../../src/index.ts";
@@ -164,21 +163,6 @@ describe("C2 semester primitives", () => {
       "Vår 2026",
       "Høst 2025",
     ]);
-  });
-
-  it("RULE-190: selectable years run from next year down to 2012", () => {
-    const years = selectableYears(oslo("2026-10-15T12:00:00"));
-    assert.strictEqual(years[0], 2027);
-    assert.strictEqual(years[1], 2026);
-    assert.strictEqual(years.at(-1), 2012);
-    assert.strictEqual(years.length, 2027 - 2012 + 1);
-  });
-
-  it("RULE-190: the year is the Oslo year (New Year's Eve 23:30 UTC is already next year)", () => {
-    assert.strictEqual(
-      selectableYears(DateTime.makeUnsafe("2026-12-31T23:30:00Z"))[0],
-      2028
-    );
   });
 });
 

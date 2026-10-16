@@ -57,5 +57,5 @@ export const CONTACT_RATE_LIMIT = {
   period: 60,
 } as const;
 
-/** Outbox sweep (architecture §4: every 5–15 min). */
+/** The one cron: the outbox sweep (architecture §4: every 5–15 min) and the semester job (spec 0003). */
 export const OUTBOX_SWEEP_CRON = "*/10 * * * *";

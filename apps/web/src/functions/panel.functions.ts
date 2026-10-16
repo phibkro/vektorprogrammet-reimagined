@@ -29,7 +29,6 @@ import {
   readFile,
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
-  saveSemesterProgram,
   semestersView,
   socialEventInput,
   socialEventsView,
@@ -87,12 +86,6 @@ export const saveDepartment = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
     runCommand(requestScope(context), saveDepartmentProgram(data))
-  );
-
-export const saveSemester = createServerFn({ method: "POST" })
-  .validator(formData)
-  .handler(({ context, data }) =>
-    runCommand(requestScope(context), saveSemesterProgram(data))
   );
 
 export const saveFieldOfStudy = createServerFn({ method: "POST" })

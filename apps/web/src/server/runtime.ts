@@ -16,7 +16,12 @@
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import { DatabaseLive } from "@vektorprogrammet/db";
 import type { OutboxDelivery } from "@vektorprogrammet/db";
-import { CurrentActor, Outbox } from "@vektorprogrammet/domain";
+import {
+  CurrentActor,
+  Outbox,
+  ensureScheduledSemesters,
+  semesterLabel,
+} from "@vektorprogrammet/domain";
 import type {
   ArticleRepository,
   AuditLog,
@@ -207,7 +212,7 @@ export const runCommandOutcome = <
     signal
   );
 
-/** A query (or an un-transacted step such as `ensureCurrentSemester`) in the live per-request Layer. */
+/** A query (a read: it must not write) in the live per-request Layer. */
 export const runQuery = <A, E extends RequestError, R extends RequestServices>(
   scope: RequestScope,
   program: Effect.Effect<A, E, R>
@@ -230,30 +235,59 @@ const deliveryLayer = (
     )
   );
 
+/**
+ * A scheduled job: its own Layer, defects logged, and a failed run left for the next cron tick, so
+ * it never rejects `waitUntil`.
+ */
+const runScheduled = <A, E, R>(
+  layer: Layer.Layer<R>,
+  job: Effect.Effect<A, E, R>
+): Promise<void> =>
+  Effect.runPromise(
+    job.pipe(
+      Effect.asVoid,
+      Effect.provide(layer),
+      logDefects,
+      Effect.ignoreCause
+    )
+  );
+
 export const runDelivery = (
   env: WorkerEnv,
   options?: {
     readonly ids?: readonly OutboxMessageId[];
     readonly limit: number;
   }
-): Promise<void> => {
-  const deliveryOptions = options ?? { limit: SWEEP_LIMIT };
-
-  return Effect.runPromise(
-    deliverOutbox(deliveryOptions).pipe(
+): Promise<void> =>
+  runScheduled(
+    deliveryLayer(env),
+    deliverOutbox(options ?? { limit: SWEEP_LIMIT }).pipe(
       Effect.tap((results) =>
         Effect.logInfo("outbox delivery finished").pipe(
           Effect.annotateLogs({ rows: results.length })
         )
-      ),
-      Effect.asVoid,
-      Effect.provide(deliveryLayer(env)),
-      logDefects,
-      // A failed delivery run is retried by the next sweep; it must not reject `waitUntil`.
-      Effect.ignoreCause
+      )
     )
   );
-};
+
+/**
+ * The semester job (spec 0003, RULE-237): the current and the next semester exist as rows. Runs from the
+ * cron `scheduled` handler, and nowhere else; no read path writes a semester.
+ */
+export const runSemesterJob = (env: WorkerEnv): Promise<void> =>
+  runScheduled(
+    databaseLayer(env),
+    ensureScheduledSemesters.pipe(
+      Effect.tap(({ current, next }) =>
+        Effect.logInfo("semester job finished").pipe(
+          Effect.annotateLogs({
+            current: semesterLabel(current),
+            next: semesterLabel(next),
+          })
+        )
+      )
+    )
+  );
 
 /**
  * A prepared command in the live per-request Layer. On success its outbox rows

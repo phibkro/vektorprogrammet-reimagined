@@ -19,11 +19,11 @@ describe("the one error table", () => {
     assert.deepStrictEqual(
       [
         failureOf(new NotFound({ entity: "Article", key: "x" })).status,
-        failureOf(new Forbidden({ capability: "ManageSemesters" })).status,
+        failureOf(new Forbidden({ capability: "CreateDepartment" })).status,
         failureOf(
           new AlreadyExists({
-            entity: "Semester",
-            key: "HOST 2026",
+            entity: "Department",
+            key: "Bergen",
             message: "finnes",
           })
         ).status,
@@ -44,9 +44,9 @@ describe("the one error table", () => {
     () =>
       Effect.gen(function* producesPlainFailures() {
         const error = new AlreadyExists({
-          entity: "Semester",
-          key: "HOST 2026",
-          message: "Semesteret Høst 2026 finnes allerede",
+          entity: "Department",
+          key: "Bergen",
+          message: "Det finnes allerede en avdeling i Bergen.",
         });
 
         const failure = failureOf(error);
@@ -58,7 +58,7 @@ describe("the one error table", () => {
         assert.deepStrictEqual(yield* Schema.decodeEffect(json)(wire), failure);
         assert.strictEqual(
           failure.message,
-          "Semesteret Høst 2026 finnes allerede"
+          "Det finnes allerede en avdeling i Bergen."
         );
         assert.deepStrictEqual(failure.error, encoded);
       })

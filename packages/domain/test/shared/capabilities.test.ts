@@ -21,7 +21,6 @@ import {
 
 const every: readonly Capability[] = [
   Capability.EditStaticContent(),
-  Capability.ManageSemesters(),
   Capability.CreateDepartment(),
   Capability.UpdateDepartment({ departmentId: TRONDHEIM }),
   Capability.ManageFieldsOfStudy({ departmentId: TRONDHEIM }),

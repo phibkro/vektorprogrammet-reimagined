@@ -23,7 +23,8 @@ import {
 
 /** What a caller may ask: the answers. */
 const ANSWERS = [
-  "ensureCurrentSemester",
+  "currentSemester",
+  "ensureScheduledSemesters",
   "isAdmissionOpen",
   "hasOpenAdmission",
   "currentOrLatestAdmissionPeriod",

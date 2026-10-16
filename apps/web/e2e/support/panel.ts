@@ -4,7 +4,7 @@
  * as a person reads the page.
  */
 import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
-import { Array as Arr, DateTime, Record as Rec } from "effect";
+import { Array as Arr, Record as Rec } from "effect";
 
 /** The cookie `apps/web/src/server/actor.ts` reads in a `local` deployment (`TEST_ACTOR_COOKIE`). */
 const TEST_ACTOR_COOKIE = "vp-test-actor";
@@ -76,10 +76,7 @@ const isServerFunctionPost = (response: Response): boolean =>
  * Clicks `button` and returns the HTTP status of the server function that click called: the refusals in the
  * specs are asserted on the status the server sent, not only on the message the page shows.
  */
-export const statusOfClick = async (
-  page: Page,
-  button: Locator
-): Promise<number> => {
+const statusOfClick = async (page: Page, button: Locator): Promise<number> => {
   const [response] = await Promise.all([
     page.waitForResponse(isServerFunctionPost),
     button.click(),
@@ -105,18 +102,15 @@ export const textOf = async (locator: Locator): Promise<string> => {
   return text ?? "";
 };
 
-/** The item a shadcn select shows as chosen. The trigger's own text also holds its chevron. */
-export const chosenOf = async (select: Locator): Promise<string> =>
-  await textOf(select.locator("[data-slot='select-value']"));
+/**
+ * The semester right after a label (RULE-050): `"Vår 2026"` → `"Høst 2026"`, `"Høst 2026"` → `"Vår 2027"`. Written
+ * out on labels here, independent of the domain function the job uses, so the spec checks the job's answer.
+ */
+export const successorOf = (label: string): string => {
+  const [term, year] = label.split(" ");
 
-/** The year after the current Oslo year: the last one the semester form offers (RULE-190). */
-export const nextOsloYear = (): number =>
-  DateTime.toParts(
-    DateTime.setZone(
-      DateTime.nowUnsafe(),
-      DateTime.zoneMakeNamedUnsafe("Europe/Oslo")
-    )
-  ).year + 1;
+  return term === "Vår" ? `Høst ${year}` : `Vår ${Number(year) + 1}`;
+};
 
 /** `"Høst 2026"` → a sort key where a later semester is larger (Vår before Høst within a year). */
 export const semesterKey = (label: string): number => {

@@ -1,9 +1,10 @@
 /**
  * C1/C2 commands and queries. Staff writes require `InTransaction` (the caller
  * wraps them; see `src/README.md`), authorize first, then validate, write, and
- * record one audit entry.
+ * record one audit entry. The semester job and the semester reads are not staff
+ * writes (spec 0003): the job runs from the Worker's `scheduled` handler, reads write nothing.
  */
-import { DateTime, Effect, Schema } from "effect";
+import { DateTime, Effect } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import {
@@ -11,31 +12,17 @@ import {
   requireCapability,
   requireStaff,
 } from "../shared/capabilities.ts";
-import { AlreadyExists, validationFailed } from "../shared/errors.ts";
 import type { DepartmentId, FieldOfStudyId } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { decodeInput } from "../shared/validation.ts";
 import { DepartmentInput } from "./department.ts";
 import { FieldOfStudyInput, FieldOfStudyRename } from "./fieldOfStudy.ts";
-import {
-  FIRST_SELECTABLE_YEAR,
-  Term,
-  selectableYears,
-  semesterForDate,
-  semesterLabel,
-  sortNewestFirst,
-} from "./semester.ts";
+import { nextSemester, semesterForDate, sortNewestFirst } from "./semester.ts";
 import {
   DepartmentRepository,
   FieldOfStudyRepository,
   SemesterRepository,
 } from "./services.ts";
-
-export const SemesterInput = Schema.Struct({ term: Term, year: Schema.Int });
-
-export type SemesterInput = typeof SemesterInput.Type;
-
-const decodeSemesterInput = decodeInput(SemesterInput);
 
 const decodeDepartmentInput = decodeInput(DepartmentInput);
 
@@ -43,52 +30,41 @@ const decodeFieldOfStudyInput = decodeInput(FieldOfStudyInput);
 
 const decodeFieldOfStudyRename = decodeInput(FieldOfStudyRename);
 
-/** RULE-144: admin creates a semester; a duplicate is refused and nothing is saved. */
-export const createSemester = Effect.fn("createSemester")(
-  function* createSemester(input: unknown) {
-    yield* InTransaction;
-    const actor = yield* requireCapability(Capability.ManageSemesters());
-    const semester = yield* decodeSemesterInput(input);
-    const years = selectableYears(yield* DateTime.now);
-
-    if (!years.includes(semester.year)) {
-      return yield* validationFailed(
-        ["year"],
-        `Velg et år mellom ${FIRST_SELECTABLE_YEAR} og ${years[0]}.`
-      );
-    }
-
-    const semesters = yield* SemesterRepository;
-
-    const created = yield* semesters.create(semester).pipe(
-      Effect.mapError(
-        () =>
-          new AlreadyExists({
-            entity: "Semester",
-            key: `${semester.term} ${semester.year}`,
-            message: `Semesteret ${semesterLabel(semester)} finnes allerede`,
-          })
-      )
-    );
-
-    yield* recordAudit(actor, "semester.created", "Semester", created.id);
-
-    return created;
-  }
-);
+/**
+ * RULE-033: which semester it is, by the Oslo calendar and the `Clock`. A pure answer: it needs no
+ * row and writes nothing, so every read asks it, never the database.
+ */
+export const currentSemester = Effect.map(DateTime.now, semesterForDate);
 
 /**
- * RULE-237: the current semester (RULE-033, by `Clock` in Europe/Oslo), created
- * when missing. Not a staff write and a single atomic statement, so it needs no
- * `InTransaction` and records no audit entry; public pages call it directly.
+ * RULE-237 (spec 0003): the current semester (one Clock read) and its stored row, `None` until the
+ * scheduled job has written it. A read: it never inserts, and a caller shows the missing row as a
+ * visible state.
  */
-export const ensureCurrentSemester = Effect.gen(
-  function* ensureCurrentSemester() {
-    const semesters = yield* SemesterRepository;
+export const findCurrentSemester = Effect.gen(function* findCurrentSemester() {
+  const semesters = yield* SemesterRepository;
+  const semester = yield* currentSemester;
 
-    return yield* semesters.ensure(semesterForDate(yield* DateTime.now));
+  return { semester, stored: yield* semesters.find(semester) };
+}).pipe(Effect.withSpan("findCurrentSemester"));
+
+/**
+ * RULE-237 (spec 0003), the scheduled job: the current semester and the one after it (RULE-050)
+ * exist as rows. Nobody creates semesters and no page view does. Idempotent and safe under concurrent
+ * runs: one `INSERT … ON CONFLICT … RETURNING` per semester on the unique (term, year) constraint.
+ * Not a staff write: no actor, no `InTransaction`, no audit entry.
+ */
+export const ensureScheduledSemesters = Effect.gen(
+  function* ensureScheduledSemesters() {
+    const semesters = yield* SemesterRepository;
+    const current = yield* currentSemester;
+
+    return {
+      current: yield* semesters.ensure(current),
+      next: yield* semesters.ensure(nextSemester(current)),
+    };
   }
-).pipe(Effect.withSpan("ensureCurrentSemester"));
+).pipe(Effect.withSpan("ensureScheduledSemesters"));
 
 /** RULE-084: semesters newest first. */
 export const listSemestersNewestFirst = Effect.gen(

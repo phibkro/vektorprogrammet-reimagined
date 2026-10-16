@@ -1,21 +1,31 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, DateTime, Effect, Order, Predicate, pipe } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Order,
+  Predicate,
+  pipe,
+} from "effect";
 import { TestClock } from "effect/testing";
 
 import type { DepartmentId } from "../../src/index.ts";
 import {
   FieldOfStudyId,
-  anonymous,
+  SemesterRepository,
   createDepartment,
   createFieldOfStudy,
-  createSemester,
-  ensureCurrentSemester,
+  currentSemester,
+  ensureScheduledSemesters,
+  findCurrentSemester,
   listFieldsOfStudy,
   listSemestersNewestFirst,
   renameFieldOfStudy,
   semesterLabel,
   updateDepartment,
 } from "../../src/index.ts";
+import { oslo } from "../support/calendar.ts";
 import {
   BERGEN,
   TRONDHEIM,
@@ -39,145 +49,140 @@ const OCTOBER_15 = DateTime.toEpochMillis(
 const department = (id: DepartmentId, city: string) =>
   departmentForTest(id, city, city.slice(0, 4).toUpperCase());
 
-const assertOneSemester = Effect.fnUntraced(function* assertOneSemester() {
-  const semesters = yield* table((db) => db.semesters);
-  assert.strictEqual(semesters.length, 1);
-});
+const storedLabels = Effect.map(listSemestersNewestFirst, (rows) =>
+  Arr.map(rows, semesterLabel)
+);
 
-describe("C1 semesters", () => {
+/** The semester job's one instant, in Oslo wall-clock time, and the two semesters it must leave behind. */
+const JOB_BOUNDARIES = [
+  {
+    expected: ["Høst 2026", "Vår 2026"],
+    now: "2026-07-31T23:59:59",
+  },
+  {
+    expected: ["Vår 2027", "Høst 2026"],
+    now: "2026-08-01T00:00:00",
+  },
+  {
+    expected: ["Vår 2027", "Høst 2026"],
+    now: "2026-12-31T23:59:59",
+  },
+  {
+    expected: ["Høst 2027", "Vår 2027"],
+    now: "2027-01-01T00:00:00",
+  },
+];
+
+describe("C2 semesters by schedule (spec 0003)", () => {
   it.effect(
-    "RULE-144: an admin creates a semester and the write is audited",
+    "RULE-237: on an empty table one job run leaves exactly the current and the next semester; a second run changes nothing",
     () =>
       Effect.gen(function* effectProgram() {
         yield* TestClock.setTime(OCTOBER_15);
 
-        const created = yield* asActor(admin)(
-          createSemester({ term: "HOST", year: 2026 })
-        );
+        const first = yield* ensureScheduledSemesters;
 
-        assert.strictEqual(semesterLabel(created), "Høst 2026");
-        const audit = yield* table((db) => db.audit);
-        assert.deepStrictEqual(
-          pipe(
-            audit,
-            Arr.map((entry) => [entry.action, entry.actorId, entry.entityKey])
-          ),
-          [["semester.created", admin.userId, String(created.id)]]
-        );
+        assert.deepStrictEqual(yield* storedLabels, ["Vår 2027", "Høst 2026"]);
+        assert.strictEqual(semesterLabel(first.current), "Høst 2026");
+        assert.strictEqual(semesterLabel(first.next), "Vår 2027");
+
+        const rows = yield* table((db) => db.semesters);
+        const second = yield* ensureScheduledSemesters;
+
+        assert.deepStrictEqual(second, first);
+        assert.deepStrictEqual(yield* table((db) => db.semesters), rows);
+      }).pipe(Effect.provide(TestServices))
+  );
+
+  it.effect.each(JOB_BOUNDARIES)(
+    "RULE-237, RULE-033: at $now Europe/Oslo the job ensures $expected",
+    ({ now, expected }) =>
+      Effect.gen(function* effectProgram() {
+        yield* TestClock.setTime(DateTime.toEpochMillis(oslo(now)));
+        yield* ensureScheduledSemesters;
+
+        assert.deepStrictEqual(yield* storedLabels, expected);
       }).pipe(Effect.provide(TestServices))
   );
 
   it.effect(
-    "RULE-144: creating an existing semester is refused with a message and nothing is saved",
-    () =>
-      Effect.gen(function* effectProgram() {
-        yield* TestClock.setTime(OCTOBER_15);
-        yield* asActor(admin)(createSemester({ term: "HOST", year: 2026 }));
-
-        const error = yield* Effect.flip(
-          asActor(admin)(createSemester({ term: "HOST", year: 2026 }))
-        );
-
-        assert.strictEqual(error._tag, "AlreadyExists");
-        assert.strictEqual(
-          Predicate.isTagged(error, "AlreadyExists") ? error.message : "",
-          "Semesteret Høst 2026 finnes allerede"
-        );
-        assert.strictEqual((yield* table((db) => db.semesters)).length, 1);
-        assert.strictEqual((yield* table((db) => db.audit)).length, 1);
-      }).pipe(Effect.provide(TestServices))
-  );
-
-  it.effect("RULE-144: years outside 2012..next year are refused", () =>
-    Effect.gen(function* effectProgram() {
-      yield* TestClock.setTime(OCTOBER_15);
-
-      const tooLate = yield* Effect.flip(
-        asActor(admin)(createSemester({ term: "VAR", year: 2028 }))
-      );
-
-      const tooEarly = yield* Effect.flip(
-        asActor(admin)(createSemester({ term: "VAR", year: 2011 }))
-      );
-
-      assert.strictEqual(tooLate._tag, "ValidationFailed");
-      assert.strictEqual(tooEarly._tag, "ValidationFailed");
-
-      const ok = yield* asActor(admin)(
-        createSemester({ term: "VAR", year: 2027 })
-      );
-
-      assert.strictEqual(ok.year, 2027);
-    }).pipe(Effect.provide(TestServices))
-  );
-
-  it.effect("RULE-144: only an admin creates semesters", () =>
-    Effect.gen(function* effectProgram() {
-      yield* TestClock.setTime(OCTOBER_15);
-
-      for (const actor of [anonymous, teamLeaderTrondheim, teamMemberBergen]) {
-        const exit = yield* Effect.exit(
-          asActor(actor)(createSemester({ term: "HOST", year: 2026 }))
-        );
-
-        assert.strictEqual(failureTag(exit), "Forbidden");
-      }
-
-      assert.strictEqual((yield* table((db) => db.semesters)).length, 0);
-    }).pipe(Effect.provide(TestServices))
-  );
-
-  it.effect("RULE-237: the current semester row is created when missing", () =>
-    Effect.gen(function* effectProgram() {
-      yield* TestClock.setTime(OCTOBER_15);
-      const current = yield* ensureCurrentSemester;
-      assert.deepStrictEqual([current.term, current.year], ["HOST", 2026]);
-      const again = yield* ensureCurrentSemester;
-      assert.strictEqual(again.id, current.id);
-      yield* assertOneSemester();
-    }).pipe(Effect.provide(TestServices))
-  );
-
-  it.effect(
-    "RULE-237: 20 concurrent calls on an empty table yield exactly one row",
+    "RULE-237: concurrent job runs on an empty table yield exactly two rows, and every run sees the same two",
     () =>
       Effect.gen(function* effectProgram() {
         yield* TestClock.setTime(OCTOBER_15);
 
-        const results = yield* Effect.all(
-          Array.from({ length: 20 }, () => ensureCurrentSemester),
-          {
-            concurrency: "unbounded",
-          }
+        const runs = yield* Effect.all(
+          Array.from({ length: 20 }, () => ensureScheduledSemesters),
+          { concurrency: "unbounded" }
         );
 
         assert.strictEqual(
           new Set(
             pipe(
-              results,
-              Arr.map((s) => s.id)
+              runs,
+              Arr.flatMap((run) => [run.current.id, run.next.id])
             )
           ).size,
-          1
+          2
         );
-        yield* assertOneSemester();
+        assert.deepStrictEqual(yield* storedLabels, ["Vår 2027", "Høst 2026"]);
+      }).pipe(Effect.provide(TestServices))
+  );
+
+  it.effect("RULE-237: the job leaves older semesters as they are", () =>
+    Effect.gen(function* effectProgram() {
+      yield* TestClock.setTime(OCTOBER_15);
+
+      const semesters = yield* SemesterRepository;
+      yield* semesters.ensure({ term: "HOST", year: 2025 });
+      yield* ensureScheduledSemesters;
+
+      assert.deepStrictEqual(yield* storedLabels, [
+        "Vår 2027",
+        "Høst 2026",
+        "Høst 2025",
+      ]);
+    }).pipe(Effect.provide(TestServices))
+  );
+
+  it.effect(
+    "RULE-237: reads never write: the current semester is answered without a row, and a missing row stays missing",
+    () =>
+      Effect.gen(function* effectProgram() {
+        yield* TestClock.setTime(OCTOBER_15);
+
+        assert.deepStrictEqual(yield* currentSemester, {
+          term: "HOST",
+          year: 2026,
+        });
+        assert.isTrue(Option.isNone((yield* findCurrentSemester).stored));
+        assert.strictEqual((yield* table((db) => db.semesters)).length, 0);
+
+        yield* ensureScheduledSemesters;
+
+        const found = yield* findCurrentSemester;
+
+        assert.deepStrictEqual(
+          Option.map(found.stored, semesterLabel),
+          Option.some("Høst 2026")
+        );
+        assert.strictEqual((yield* table((db) => db.semesters)).length, 2);
       }).pipe(Effect.provide(TestServices))
   );
 
   it.effect("RULE-084: the semester list query is newest first", () =>
     Effect.gen(function* effectProgram() {
-      yield* TestClock.setTime(OCTOBER_15);
+      const semesters = yield* SemesterRepository;
 
       for (const input of [
         { term: "VAR", year: 2026 },
         { term: "HOST", year: 2025 },
         { term: "HOST", year: 2026 },
-      ]) {
-        yield* asActor(admin)(createSemester(input));
+      ] as const) {
+        yield* semesters.ensure(input);
       }
 
-      const listed = yield* listSemestersNewestFirst;
-      assert.deepStrictEqual(pipe(listed, Arr.map(semesterLabel)), [
+      assert.deepStrictEqual(yield* storedLabels, [
         "Høst 2026",
         "Vår 2026",
         "Høst 2025",

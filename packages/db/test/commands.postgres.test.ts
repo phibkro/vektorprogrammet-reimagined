@@ -8,8 +8,7 @@ import {
   CurrentActor,
   DepartmentRepository,
   OutboxMessage,
-  createSemester,
-  ensureCurrentSemester,
+  ensureScheduledSemesters,
   submitContact,
   updateStaticContent,
 } from "@vektorprogrammet/domain";
@@ -19,8 +18,7 @@ import {
   Array as Arr,
   DateTime,
   Effect,
-  Exit,
-  Option,
+  Order,
   Predicate,
   Schema,
   pipe,
@@ -66,151 +64,117 @@ const auditRows = Effect.fnUntraced(function* auditRows(
 
 const decodeMessage = Schema.decodeUnknownEffect(OutboxMessage);
 
+const semesterRows = Effect.gen(function* semesterRows() {
+  const db = yield* Drizzle;
+
+  return yield* db.select().from(schema.semester);
+});
+
+/** The earlier tests of this suite created semesters: every job test starts from an empty table. */
+const emptySemesterTable = Effect.gen(function* emptySemesterTable() {
+  const db = yield* Drizzle;
+  yield* db.delete(schema.semester);
+});
+
+const labelsOf = (rows: readonly { term: string; year: number }[]) =>
+  Arr.sort(
+    Arr.map(rows, (row) => `${row.term} ${row.year}`),
+    Order.String
+  );
+
+/** Falsifier 2: the instant the job runs at (an Oslo offset) and the two semesters it leaves. */
+const JOB_BOUNDARIES = [
+  {
+    expected: ["HOST 2026", "VAR 2026"],
+    now: "2026-07-31T23:59:59+02:00",
+  },
+  {
+    expected: ["HOST 2026", "VAR 2027"],
+    now: "2026-08-01T00:00:00+02:00",
+  },
+  {
+    expected: ["HOST 2026", "VAR 2027"],
+    now: "2026-12-31T23:59:59+01:00",
+  },
+  {
+    expected: ["HOST 2027", "VAR 2027"],
+    now: "2027-01-01T00:00:00+01:00",
+  },
+];
+
 layer(postgresDatabase(), { excludeTestServices: true })(
   "domain commands on PostgreSQL",
   (outerTest) => {
     outerTest.layer(TestClock.layer())((it) => {
       it.effect(
-        "RULE-144: createSemester persists one row and one audit entry; a duplicate is refused and saves nothing",
+        "RULE-237: on an empty table one job run leaves exactly the current and the next semester; a second run changes nothing",
         () =>
           Effect.gen(function* effectProgram() {
+            // 2026-10-15 in Oslo is Høst 2026 (RULE-033); its successor is Vår 2027 (RULE-050).
             yield* TestClock.setTime(DateTime.toEpochMillis(AT));
+            yield* emptySemesterTable;
 
-            const created = yield* transactional(
-              createSemester({ term: "HOST", year: 2026 })
-            ).pipe(as(admin));
+            const first = yield* ensureScheduledSemesters;
+            const rows = yield* semesterRows;
 
+            assert.deepStrictEqual(labelsOf(rows), ["HOST 2026", "VAR 2027"]);
             assert.deepStrictEqual(
-              [created.term, created.year],
-              ["HOST", 2026]
-            );
-
-            const duplicate = yield* Effect.flip(
-              transactional(createSemester({ term: "HOST", year: 2026 })).pipe(
-                as(admin)
+              Arr.sort([first.current.id, first.next.id], Order.Number),
+              Arr.sort(
+                Arr.map(rows, (row) => row.id),
+                Order.Number
               )
             );
 
-            assert.strictEqual(duplicate._tag, "AlreadyExists");
+            const second = yield* ensureScheduledSemesters;
 
-            if (Predicate.isTagged(duplicate, "AlreadyExists")) {
-              assert.strictEqual(
-                duplicate.message,
-                "Semesteret Høst 2026 finnes allerede"
-              );
-            }
-
-            const db = yield* Drizzle;
-
-            const rows = yield* db
-              .select()
-              .from(schema.semester)
-              .where(
-                and(
-                  eq(schema.semester.term, "HOST"),
-                  eq(schema.semester.year, 2026)
-                )
-              );
-
-            assert.strictEqual(rows.length, 1);
-            const audits = yield* auditRows("Semester", String(created.id));
-            assert.strictEqual(audits.length, 1);
-            assert.strictEqual(audits[0]?.action, "semester.created");
-            assert.strictEqual(audits[0]?.actorId, admin.userId);
+            assert.deepStrictEqual(second, first);
+            assert.deepStrictEqual(yield* semesterRows, rows);
+            // Not a staff write: no actor, no audit entry.
             assert.strictEqual(
-              audits[0]?.at.toISOString(),
-              "2026-10-15T10:00:00.000Z"
+              (yield* auditRows("Semester", String(first.current.id))).length,
+              0
             );
           })
       );
 
       it.effect(
-        "RULE-144: 20 concurrent createSemester commands commit exactly one row and one audit entry",
+        "RULE-237: 20 concurrent job runs on an empty table still leave exactly two rows, and every run saw the same two",
         () =>
           Effect.gen(function* effectProgram() {
             yield* TestClock.setTime(DateTime.toEpochMillis(AT));
+            yield* emptySemesterTable;
 
-            const exits = yield* Effect.all(
-              Arr.makeBy(20, () =>
-                Effect.exit(
-                  transactional(
-                    createSemester({ term: "VAR", year: 2027 })
-                  ).pipe(as(admin))
-                )
-              ),
+            const runs = yield* Effect.all(
+              Arr.makeBy(20, () => ensureScheduledSemesters),
               { concurrency: "unbounded" }
             );
 
-            const successes = pipe(exits, Arr.filter(Exit.isSuccess));
-            assert.strictEqual(successes.length, 1);
+            const rows = yield* semesterRows;
+
+            assert.deepStrictEqual(labelsOf(rows), ["HOST 2026", "VAR 2027"]);
             assert.isTrue(
-              pipe(
-                exits,
-                Arr.filter(Exit.isFailure),
-                Arr.every((exit) =>
-                  Option.exists(
-                    Exit.findErrorOption(exit),
-                    Predicate.isTagged("AlreadyExists")
-                  )
-                )
+              Arr.every(
+                runs,
+                (run) =>
+                  Arr.some(rows, (row) => row.id === run.current.id) &&
+                  Arr.some(rows, (row) => row.id === run.next.id)
               )
-            );
-
-            const [winner] = successes;
-
-            if (winner === undefined) {
-              assert.fail("expected one success");
-            }
-
-            assert.strictEqual(
-              (yield* auditRows("Semester", String(winner.value.id))).length,
-              1
             );
           })
       );
 
-      it.effect(
-        "RULE-237: 20 concurrent ensureCurrentSemester calls on an empty table create exactly one row",
-        () =>
+      it.effect.each(JOB_BOUNDARIES)(
+        "RULE-237, RULE-033: at $now the job ensures $expected",
+        ({ now, expected }) =>
           Effect.gen(function* effectProgram() {
-            // 2028-03-01 in Oslo is Vår 2028 (RULE-033); no audit entry (not a staff write).
             yield* TestClock.setTime(
-              DateTime.toEpochMillis(
-                DateTime.makeUnsafe("2028-03-01T12:00:00Z")
-              )
+              DateTime.toEpochMillis(DateTime.makeUnsafe(now))
             );
+            yield* emptySemesterTable;
+            yield* ensureScheduledSemesters;
 
-            const db = yield* Drizzle;
-            // The earlier tests of this suite created semesters: the race starts from an empty table.
-            yield* db.delete(schema.semester);
-            assert.strictEqual(yield* db.$count(schema.semester), 0);
-
-            const results = yield* Effect.all(
-              Arr.makeBy(20, () => ensureCurrentSemester),
-              {
-                concurrency: "unbounded",
-              }
-            );
-
-            const rows = yield* db.select().from(schema.semester);
-
-            assert.deepStrictEqual(
-              pipe(
-                rows,
-                Arr.map((row) => [row.term, row.year])
-              ),
-              [["VAR", 2028]]
-            );
-            assert.isTrue(
-              pipe(
-                results,
-                Arr.every((semester) => semester.id === rows[0]?.id)
-              )
-            );
-            assert.strictEqual(
-              (yield* auditRows("Semester", String(rows[0]?.id))).length,
-              0
-            );
+            assert.deepStrictEqual(labelsOf(yield* semesterRows), expected);
           })
       );
 

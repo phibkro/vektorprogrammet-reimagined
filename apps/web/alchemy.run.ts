@@ -5,7 +5,8 @@
  * - `production`: the production deployment, the only one with real mail, Slack and Turnstile keys.
  * - `main` (`BASE_STAGE`): a long-lived Worker built from `main`, on Neon `dev` with fake data.
  * - any other stage (`pr-<n>`): a Cloudflare Worker Preview of the `main` Worker, on its own Neon
- *   branch. A Preview cannot own crons, so the outbox sweep runs on `main` and `production` only.
+ *   branch. A Preview cannot own crons, so the outbox sweep and the semester job (spec 0003) run on
+ *   `main` and `production` only; a Preview's semester rows come from its Neon fork of `dev`.
  *
  * Connection details are env vars read at deploy time (never committed): NEON_HOST, NEON_DATABASE,
  * NEON_USER, NEON_APP_PASSWORD, and for production only TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY,
