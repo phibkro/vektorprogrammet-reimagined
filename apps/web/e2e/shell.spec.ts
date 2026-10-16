@@ -193,6 +193,10 @@ for (const actor of STAFF) {
           page.getByRole("button", { includeHidden: true, name: gated.control })
         ).toHaveCount(gated.shownTo.includes(actor) ? 1 : 0);
       }
+
+      if (path === DEPARTMENTS) {
+        await screenshot(page, `departments-${actor}`);
+      }
     });
   }
 }
@@ -322,29 +326,29 @@ test("falsifier 4: create and edit happen in a right-hand Sheet; a saved edit sh
   // Saving a new department closes the Sheet; the table shows it, and the page was not reloaded.
   await create.click();
   await fillSheet(page, {
-    By: "Sheetby",
-    "E-post": "sheet@example.org",
-    Kortnavn: "SHT",
-    Navn: "Sheet-avdeling",
+    By: "Gammaby",
+    "E-post": "kontakt@gamma.example",
+    Kortnavn: "GAMMA",
+    Navn: "Avdeling Gamma",
   });
   expect(await submitSheet(page, "Opprett")).toBe(200);
   await expect(sheetOf(page)).toBeHidden();
-  await expect(page.getByRole("row", { name: "Sheet-avdeling" })).toBeVisible();
+  await expect(page.getByRole("row", { name: "Avdeling Gamma" })).toBeVisible();
   await expectPageNotReloaded(page);
   await expect(create).toBeFocused();
 
   // Editing it: the saved edit is in the table, still without a reload, and focus is back on the row's button.
-  await page.getByRole("button", { name: "Rediger Sheet-avdeling" }).click();
-  await fillSheet(page, { Navn: "Sheet-avdeling (endret)" });
+  await page.getByRole("button", { name: "Rediger Avdeling Gamma" }).click();
+  await fillSheet(page, { Navn: "Avdeling Delta" });
   expect(await submitSheet(page, "Lagre")).toBe(200);
   await expect(sheetOf(page)).toBeHidden();
 
-  const edited = page.getByRole("row", { name: "Sheet-avdeling (endret)" });
+  const edited = page.getByRole("row", { name: "Avdeling Delta" });
 
   await expect(edited).toBeVisible();
-  await expect(
-    page.getByRole("row", { name: /^Sheet-avdeling Sheet/u })
-  ).toHaveCount(0);
+  await expect(page.getByRole("row", { name: "Avdeling Gamma" })).toHaveCount(
+    0
+  );
   await expectPageNotReloaded(page);
   await expect(edited.getByRole("button")).toBeFocused();
 });
