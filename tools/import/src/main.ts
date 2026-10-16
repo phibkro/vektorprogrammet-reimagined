@@ -5,11 +5,12 @@
  * truncate the development database unless told to, runs the import and writes
  * the reconciliation report. The operator runbook is `README.md`.
  */
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { NodeRuntime } from "@effect/platform-node";
 import { Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
 
 import { ImportConfig, checkTarget } from "./config.ts";
+import { nodeServicesLayer } from "./nodeServices.ts";
 import { importLayer, runImport } from "./pipeline.ts";
 
 const command = Command.make(
@@ -60,6 +61,6 @@ const command = Command.make(
 NodeRuntime.runMain(
   command.pipe(
     Command.run({ version: "0.0.0" }),
-    Effect.provide(NodeServices.layer)
+    Effect.provide(nodeServicesLayer)
   )
 );
