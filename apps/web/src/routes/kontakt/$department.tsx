@@ -1,6 +1,6 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { ContactTabs, TURNSTILE_SCRIPT } from "@/components/site/contactTabs";
+import { ContactTabs } from "@/components/site/contactTabs";
 import { getContactPage } from "@/functions/public.functions";
 import { validateContactSearch } from "@/lib/contactSearch";
 import type { ContactSearch } from "@/lib/contactSearch";
@@ -18,9 +18,7 @@ const DepartmentContactRoute = () => {
 /** C10 contact form of one department; `?sendt=1` shows the receipt after a post. An unknown department is 404. */
 export const Route = createFileRoute("/kontakt/$department")({
   component: DepartmentContactRoute,
-  head: () => ({
-    scripts: [{ async: true, defer: true, src: TURNSTILE_SCRIPT }],
-  }),
+  head: () => ({ meta: [{ title: "Kontakt – Vektorprogrammet" }] }),
   loader: ({ params, deps, serverContext }) =>
     getContactPage({
       data: { sent: deps.sendt === 1, slug: params.department },

@@ -143,7 +143,7 @@ export const AdmissionStatus = ({
   );
 };
 
-/** The pill-shaped department links of the team and contact pages. */
+/** The pill-shaped department links of the team page and the news filter (the contact page has its own buttons). */
 export const departmentLinkClass = (current: boolean) =>
   cn(
     "focus-visible:ring-ring inline-flex min-h-10 max-w-full items-center justify-center rounded-full px-4 py-2 text-center text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",

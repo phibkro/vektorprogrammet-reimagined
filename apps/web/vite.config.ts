@@ -136,6 +136,7 @@ const LAZY_ROUTE_DEPENDENCIES = [
   "@base-ui/react/tooltip",
   "@base-ui/react/use-render",
   "@icons-pack/react-simple-icons",
+  "@marsidev/react-turnstile",
   "@portabletext/react",
   "class-variance-authority",
   "clsx",

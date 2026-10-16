@@ -1,6 +1,6 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { ContactTabs, TURNSTILE_SCRIPT } from "@/components/site/contactTabs";
+import { ContactTabs } from "@/components/site/contactTabs";
 import { getContactPage } from "@/functions/public.functions";
 import { pageData } from "@/lib/outcome";
 import { handleContactPost } from "@/server/contactPost";
@@ -16,9 +16,7 @@ const ContactRoute = () => {
 /** C10 contact form (RULE-156, 167, 249) with the first department selected; the visitor picks another tab. */
 export const Route = createFileRoute("/kontakt/")({
   component: ContactRoute,
-  head: () => ({
-    scripts: [{ async: true, defer: true, src: TURNSTILE_SCRIPT }],
-  }),
+  head: () => ({ meta: [{ title: "Kontakt – Vektorprogrammet" }] }),
   loader: ({ serverContext }) =>
     getContactPage({ data: { sent: false, slug: null } })
       .then(pageData)

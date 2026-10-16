@@ -13,7 +13,7 @@ export const TeamPage = ({ view }: { readonly view: TeamPageView }) => (
     <header className="mx-auto flex w-full flex-wrap justify-around">
       <div className="mt-5 flex max-w-md flex-col px-3">
         <PortableTextView
-          className="mb-20 text-xl [&_h1]:text-left [&_h2]:text-left"
+          className="[&_h2]:text-vektor-gray mb-20 text-xl [&_h1]:text-left [&_h2]:text-left"
           value={view.texts["team-header"] ?? null}
         />
       </div>
