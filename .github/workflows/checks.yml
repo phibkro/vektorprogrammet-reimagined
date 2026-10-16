@@ -1,0 +1,56 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - uses: cachix/cachix-action@97e5ff84d02b3b4f9936339f767e17f03c9252ed # v16
+        with:
+          name: devenv
+      - name: Install pinned devenv CLI
+        shell: bash
+        run: nix profile add github:cachix/devenv/b904dcb51fe48c30db250038241507f60752f222
+      - name: Start devenv PostgreSQL and MySQL
+        shell: bash
+        run: devenv up --detach
+      - name: Install workspace dependencies and prepare editor/hooks
+        shell: bash
+        run: devenv shell -- bun install --frozen-lockfile
+      - name: Wait for database services
+        shell: bash
+        run: |
+          devenv shell -- bash -euo pipefail -c '
+            until pg_isready --host 127.0.0.1 --port "${PGPORT}"; do sleep 1; done
+            mysql_port="$(bun -e "console.log(new URL(process.env.LEGACY_MYSQL_URL).port)")"
+            until MYSQL_PWD=legacy_reader mysqladmin ping --silent --host 127.0.0.1 --port "$mysql_port" --user legacy_reader; do sleep 1; done
+          '
+      - name: Vite+ checks
+        shell: bash
+        run: devenv shell -- bunx vp check
+      - name: Effect exception registry
+        shell: bash
+        run: devenv shell -- bun run check:exceptions
+      - name: Workspace tests
+        shell: bash
+        run: devenv shell -- bunx vp run -r test
+      - name: Knip
+        shell: bash
+        run: devenv shell -- bun run knip
+      - name: Copy-paste detection
+        shell: bash
+        run: devenv shell -- bun run cpd
+      - name: Full-history secret and personal-data scan
+        shell: bash
+        run: devenv shell -- gitleaks git --config .gitleaks.toml --redact
