@@ -79,7 +79,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Pre-push | `vp run -r test` | automatic (`.vite-hooks/pre-push`) |
 | Suppressions | every `oxlint-disable` / `@ts-expect-error` needs an entry in `tools/quality/effect-exceptions.json` | `devenv shell -- bun run check:exceptions` |
 | Browser tests | Playwright 1.63.0 (pinned to nixpkgs' `playwright-driver`) on devenv's Chromium, against `vp dev` and a disposable migrated database that the real importer fills from its fake fixture; one Effect program owns the lifecycle (`apps/web/e2e/run.ts`) | `devenv shell -- bun run e2e` |
-| CI | the same gates, including the browser tests, on every pull request | `.github/workflows/checks.yml` |
+| CI | the same gates, including the browser tests (that step is limited to 15 minutes; a run takes 2 to 3), on every pull request | `.github/workflows/checks.yml` |
 
 - Hooks are installed by `vp config` (the `prepare` script, which also runs `effect-tsgo patch`). Never use `--no-verify`.
 - Fix the code, not the rule. A rule that is wrong for a file class gets a narrow `overrides` entry with a one-line reason. Two presets that contradict each other get one global switch with a comment naming both rules.
@@ -92,6 +92,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 - Exact dependency pins live in the root `package.json` `catalog`. Drizzle is pinned to `1.0.0-rc.5-5935859`, because rc.4 can't load with Effect 4.0.5.
 - UI is shadcn/ui on Base UI (`base-nova`). Add components with `shadcn add`, then `bun add` any dependency it names (its npm install fails silently under the Bun `devEngines` rule). A component that imports `cn` from `"cn"` gets `@/lib/utils` instead (and no `cn` dependency), and a generated file is fixed until it passes lint; a component the shell does not use is not kept. Answer `n` to its prompt to overwrite `button.tsx` and `input.tsx`, which are the lint-fixed versions of the same registry files.
 - What the control panel shows derives from the domain's `authorize` (the function every command's `requireCapability` calls), computed on the server: `apps/web/src/server/shell.ts` for the sidebar, the page views in `server/panel.ts` for page controls. A role check in `apps/web` is a second who-may-do-what list: do not write one. A control the actor lacks is not rendered, and `apps/web/test/shell.test.ts` compares each control with its command.
+- A release (a finalizer, `Effect.acquireRelease`'s second argument) never waits on a pooled client built earlier in its own scope. The pool retires an idle connection after 60 to 120 seconds, and a scope that is closing cannot grow it again (Effect 4.0.5), so the release never returns: the first CI browser-test run longer than two minutes hung for that reason. Run admin and cleanup statements through `withClient` (`@vektorprogrammet/db/testing`), a client with one connection that lives for the statement. `packages/db/test/disposableDatabase.postgres.test.ts` guards it.
 - Lint, format and staged-file checks are configured once, in the root `vite.config.ts`.
 
 ## Legacy → modern traceability (Phase 1)
