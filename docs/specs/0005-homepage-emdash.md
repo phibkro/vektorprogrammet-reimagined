@@ -40,3 +40,13 @@ Out of scope: team applications (`/team/$teamId/soknad`, Phase 3), the member ar
 7. CI green; both apps have a base deployment and a Preview per PR, and closing the PR removes both Previews and the Neon branch.
 
 ## Revisions
+
+### R1 (operator, 2026-10-16): TanStack Start renders every page; EmDash runs headless
+
+Operator: "we could also keep only tanstack start but we'd want to avoid having to hand roll our own cms", then chose "Start pages + EmDash headless". This supersedes D2, D3, D4 and D7; D1, D5 and D6 stand.
+
+- **Pages:** all public pages are TanStack Start routes in `apps/web`, ported from mono-web's React homepage (`@monoweb/homepage`), with its CSS and images. Its Radix-based shadcn components are swapped for the `base-nova` (Base UI) equivalents already in `apps/web`, so the app keeps one primitive library.
+- **CMS:** a CMS-only Astro app, `apps/cms`, hosts EmDash's admin (`/_emdash/admin`) and REST API (`/_emdash/api/`, OpenAPI 3.1) and renders no public pages. It is declared in the same Alchemy stack, with its own base `main` Worker and a Preview per PR.
+- **How Start reads content:** over EmDash's REST API, with a typed client generated from `GET /_emdash/api/openapi.json` and a read-only bearer token (scoped personal access token). Worker-to-Worker `fetch` by URL needs the `global_fetch_strictly_public` compatibility flag on `apps/web` (Cloudflare error 1042 otherwise; Workers fetch docs). Each Preview of `apps/web` reads its own PR's CMS Preview, so content stays isolated per PR. The flag must not disturb the Hyperdrive binding: the first Preview checks it.
+- **Organisation data and contact (D3, D4 retired):** they stay in `apps/web`, which already has them. Nothing is duplicated across hosts.
+- **Falsifier changes:** falsifier 1 now means "every page renders from EmDash's API and Postgres in `apps/web`"; falsifier 6 means "the Postgres content tables and the content control-panel pages retire; the public pages are the ported design"; falsifier 7 covers both Workers.
