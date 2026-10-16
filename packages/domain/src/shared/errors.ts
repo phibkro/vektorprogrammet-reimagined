@@ -11,19 +11,29 @@
  */
 import { Schema } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
+
 import { EntityName } from "./ids.ts";
 
-export class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
+export class NotFound extends Schema.TaggedError<
+  NotFound,
+  { readonly brand: unique symbol }
+>()("NotFound", {
   entity: EntityName,
   key: Schema.String,
 }) {}
 
-export class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
+export class Forbidden extends Schema.TaggedError<
+  Forbidden,
+  { readonly brand: unique symbol }
+>()("Forbidden", {
   /** The `_tag` of the capability the actor lacked. */
   capability: Schema.String,
 }) {}
 
-export class AlreadyExists extends Schema.TaggedError<AlreadyExists>()("AlreadyExists", {
+export class AlreadyExists extends Schema.TaggedError<
+  AlreadyExists,
+  { readonly brand: unique symbol }
+>()("AlreadyExists", {
   entity: EntityName,
   key: Schema.String,
   /** User-facing Norwegian text. */
@@ -31,22 +41,34 @@ export class AlreadyExists extends Schema.TaggedError<AlreadyExists>()("AlreadyE
 }) {}
 
 export const ValidationIssue = Schema.Struct({
-  path: Schema.Array(Schema.String),
   /** User-facing Norwegian text where the rule defines one. */
   message: Schema.String,
+  path: Schema.Array(Schema.String),
 });
+
 export type ValidationIssue = typeof ValidationIssue.Type;
 
-export class ValidationFailed extends Schema.TaggedError<ValidationFailed>()("ValidationFailed", {
+export class ValidationFailed extends Schema.TaggedError<
+  ValidationFailed,
+  { readonly brand: unique symbol }
+>()("ValidationFailed", {
   issues: Schema.NonEmptyArray(ValidationIssue),
 }) {}
 
-export type DomainError = NotFound | Forbidden | AlreadyExists | ValidationFailed;
+export type DomainError =
+  | NotFound
+  | Forbidden
+  | AlreadyExists
+  | ValidationFailed;
 
 /** One issue at one path. */
-export const validationFailed = (path: ReadonlyArray<string>, message: string): ValidationFailed =>
-  new ValidationFailed({ issues: [{ path: [...path], message }] });
+export const validationFailed = (
+  path: readonly string[],
+  message: string
+): ValidationFailed =>
+  new ValidationFailed({ issues: [{ message, path: [...path] }] });
 
 export const validationFailedWith = (
-  issues: NonEmptyReadonlyArray<ValidationIssue>,
-): ValidationFailed => new ValidationFailed({ issues: [issues[0], ...issues.slice(1)] });
+  issues: NonEmptyReadonlyArray<ValidationIssue>
+): ValidationFailed =>
+  new ValidationFailed({ issues: [issues[0], ...issues.slice(1)] });

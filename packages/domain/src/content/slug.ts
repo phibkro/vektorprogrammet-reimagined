@@ -6,16 +6,17 @@
  * other non-alphanumerics becomes one `-`. Unlike legacy, leading and trailing
  * dashes are trimmed and an empty result falls back to `artikkel`.
  */
-import { Schema } from "effect";
+import { Array as Arr, Schema } from "effect";
 
 /** Lenient on purpose so imported legacy slugs decode: lowercase ASCII letters, digits and dashes. */
 export const Slug = Schema.String.check(
-  Schema.isPattern(/^[a-z0-9-]+$/, { expected: "a URL slug" }),
-  Schema.isMaxLength(255),
+  Schema.isPattern(/^[a-z0-9-]+$/u, { expected: "a URL slug" }),
+  Schema.isMaxLength(255)
 ).pipe(Schema.brand("Slug"));
+
 export type Slug = typeof Slug.Type;
 
-const REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
+const REPLACEMENTS: readonly (readonly [string, string])[] = [
   ["Æ", "AE"],
   ["Ø", "O"],
   ["Å", "A"],
@@ -34,13 +35,17 @@ const FALLBACK_SLUG = "artikkel";
 
 /** The base slug of a title, before uniqueness. */
 export const slugify = (title: string): Slug => {
-  const replaced = REPLACEMENTS.reduce((text, [from, to]) => text.replaceAll(from, to), title);
+  const replaced = Arr.reduce(REPLACEMENTS, title, (text, [from, to]) =>
+    text.replaceAll(from, to)
+  );
+
   const base = replaced
-    .replace(/[^A-Za-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replaceAll(/[^A-Za-z0-9-]+/gu, "-")
+    .replaceAll(/^-+|-+$/gu, "")
     .toLowerCase()
     .slice(0, 240)
-    .replace(/-+$/, "");
+    .replace(/-+$/u, "");
+
   return Slug.make(base.length > 0 ? base : FALLBACK_SLUG);
 };
 
@@ -48,8 +53,16 @@ export const slugify = (title: string): Slug => {
 export const uniqueSlug = (title: string, existing: Iterable<string>): Slug => {
   const taken = new Set(existing);
   const base = slugify(title);
-  if (!taken.has(base)) return base;
+
+  if (!taken.has(base)) {
+    return base;
+  }
+
   let suffix = 2;
-  while (taken.has(`${base}-${suffix}`)) suffix += 1;
+
+  while (taken.has(`${base}-${suffix}`)) {
+    suffix += 1;
+  }
+
   return Slug.make(`${base}-${suffix}`);
 };

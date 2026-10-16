@@ -6,30 +6,35 @@
  * it fills.
  */
 import { Context, Schema } from "effect";
+
 import { DepartmentId, UserId } from "./ids.ts";
 
 /** Staff roles, ordered by authority: teamMember < teamLeader < admin. */
 export const StaffRole = Schema.Literals(["teamMember", "teamLeader", "admin"]);
+
 export type StaffRole = typeof StaffRole.Type;
 
 export const Actor = Schema.TaggedUnion({
   Anonymous: {},
   Staff: {
-    userId: UserId,
     /** The staff member's own department; department-scoped capabilities compare against it. */
     departmentId: DepartmentId,
-    role: StaffRole,
     /** Current member of the executive board (hovedstyret); independent of `role`. */
     executiveBoard: Schema.Boolean,
+    role: StaffRole,
+    userId: UserId,
   },
 });
+
 export type Actor = typeof Actor.Type;
+
 export type Staff = Extract<Actor, { readonly _tag: "Staff" }>;
+
 export type Anonymous = Extract<Actor, { readonly _tag: "Anonymous" }>;
 
-export const anonymous: Anonymous = { _tag: "Anonymous" };
+export const anonymous: Anonymous = Actor.cases.Anonymous.make({});
 
 /** The acting principal for the current request. */
 export class CurrentActor extends Context.Service<CurrentActor, Actor>()(
-  "@vektorprogrammet/domain/shared/CurrentActor",
+  "@vektorprogrammet/domain/shared/CurrentActor"
 ) {}

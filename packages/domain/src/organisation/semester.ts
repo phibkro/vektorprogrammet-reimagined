@@ -11,23 +11,40 @@
  * half-open end answers identically for every instant legacy can represent and
  * also covers the sub-second gap after 23:59:59 (spec 0001, equivalence note).
  */
-import { Array as Arr, DateTime, Order, Schema } from "effect";
-import { isBefore, osloParts, osloWallClock, osloYear } from "../shared/clock.ts";
+import type { DateTime } from "effect";
+import { Array as Arr, Order, Schema } from "effect";
+
+import {
+  isBefore,
+  osloParts,
+  osloWallClock,
+  osloYear,
+} from "../shared/clock.ts";
 import { SemesterId } from "../shared/ids.ts";
 
 export const Term = Schema.Literals(["VAR", "HOST"]);
+
 export type Term = typeof Term.Type;
 
-export const SemesterYear = Schema.Int.check(Schema.isBetween({ minimum: 1900, maximum: 9999 }));
+export const SemesterYear = Schema.Int.check(
+  Schema.isBetween({ maximum: 9999, minimum: 1900 })
+);
 
 export const Semester = Schema.Struct({ term: Term, year: SemesterYear });
+
 export type Semester = typeof Semester.Type;
 
-export const StoredSemester = Schema.Struct({ id: SemesterId, term: Term, year: SemesterYear });
+export const StoredSemester = Schema.Struct({
+  id: SemesterId,
+  term: Term,
+  year: SemesterYear,
+});
+
 export type StoredSemester = typeof StoredSemester.Type;
 
 /** Norwegian label of a term, as shown in the UI. */
-export const termLabel = (term: Term): "Vår" | "Høst" => (term === "VAR" ? "Vår" : "Høst");
+export const termLabel = (term: Term): "Vår" | "Høst" =>
+  term === "VAR" ? "Vår" : "Høst";
 
 /** "Vår 2026" / "Høst 2026". */
 export const semesterLabel = (semester: Semester): string =>
@@ -36,6 +53,7 @@ export const semesterLabel = (semester: Semester): string =>
 /** RULE-033: January-July is Vår, August-December is Høst, by the Oslo calendar. */
 export const semesterForDate = (instant: DateTime.DateTime): Semester => {
   const { year, month } = osloParts(instant);
+
   return { term: month <= 7 ? "VAR" : "HOST", year };
 };
 
@@ -49,27 +67,32 @@ export interface Window {
 export const semesterWindow = (semester: Semester): Window =>
   semester.term === "VAR"
     ? {
-        start: osloWallClock({ year: semester.year, month: 1, day: 1 }),
-        end: osloWallClock({ year: semester.year, month: 8, day: 1 }),
+        end: osloWallClock({ day: 1, month: 8, year: semester.year }),
+        start: osloWallClock({ day: 1, month: 1, year: semester.year }),
       }
     : {
-        start: osloWallClock({ year: semester.year, month: 8, day: 1 }),
-        end: osloWallClock({ year: semester.year + 1, month: 1, day: 1 }),
+        end: osloWallClock({ day: 1, month: 1, year: semester.year + 1 }),
+        start: osloWallClock({ day: 1, month: 8, year: semester.year }),
       };
 
 /** `start <= instant < end`. */
-export const windowContains = (window: Window, instant: DateTime.DateTime): boolean =>
-  !isBefore(instant, window.start) && isBefore(instant, window.end);
+export const windowContains = (
+  window: Window,
+  instant: DateTime.DateTime
+): boolean => !isBefore(instant, window.start) && isBefore(instant, window.end);
 
 /** RULE-050: by year, then Vår before Høst. */
 export const SemesterOrder: Order.Order<Semester> = Order.combine(
   Order.mapInput(Order.Number, (semester: Semester) => semester.year),
-  Order.mapInput(Order.Number, (semester: Semester) => (semester.term === "VAR" ? 0 : 1)),
+  Order.mapInput(Order.Number, (semester: Semester) =>
+    semester.term === "VAR" ? 0 : 1
+  )
 );
 
 /** RULE-084: semester lists are ordered newest first. */
-export const sortNewestFirst = <S extends Semester>(semesters: Iterable<S>): Array<S> =>
-  Arr.sort(semesters, Order.flip(SemesterOrder));
+export const sortNewestFirst = <S extends Semester>(
+  semesters: Iterable<S>
+): S[] => Arr.sort(semesters, Order.flip(SemesterOrder));
 
 /**
  * RULE-050: inclusive range check; a missing (null) bound is open-ended.
@@ -78,7 +101,7 @@ export const sortNewestFirst = <S extends Semester>(semesters: Iterable<S>): Arr
 export const isBetween = (
   semester: Semester,
   from: Semester | null,
-  to: Semester | null,
+  to: Semester | null
 ): boolean =>
   (from === null || SemesterOrder(semester, from) >= 0) &&
   (to === null || SemesterOrder(semester, to) <= 0);
@@ -87,5 +110,5 @@ export const isBetween = (
 export const FIRST_SELECTABLE_YEAR = 2012;
 
 /** RULE-190 / RULE-144: selectable years, newest first: next Oslo year down to 2012. */
-export const selectableYears = (today: DateTime.DateTime): ReadonlyArray<number> =>
+export const selectableYears = (today: DateTime.DateTime): readonly number[] =>
   Arr.reverse(Arr.range(FIRST_SELECTABLE_YEAR, osloYear(today) + 1));

@@ -1,5 +1,7 @@
 /** C11 services: the public-file registry (Postgres) and the object store (R2). */
-import { Context, type Effect, type Option, type Stream } from "effect";
+import { Context } from "effect";
+import type { Effect, Option, Stream } from "effect";
+
 import type { FileKey } from "../shared/ids.ts";
 import type { StoredContentType } from "./fileType.ts";
 import type { PublicFile } from "./publicFile.ts";
@@ -7,13 +9,17 @@ import type { PublicFile } from "./publicFile.ts";
 export class PublicFileRepository extends Context.Service<
   PublicFileRepository,
   {
-    findByKey(key: FileKey): Effect.Effect<Option.Option<PublicFile>>;
-    findByLegacyPath(legacyPath: string): Effect.Effect<Option.Option<PublicFile>>;
+    readonly findByKey: (
+      key: FileKey
+    ) => Effect.Effect<Option.Option<PublicFile>>;
+    readonly findByLegacyPath: (
+      legacyPath: string
+    ) => Effect.Effect<Option.Option<PublicFile>>;
     /**
      * Registers the file; idempotent on `key` (`ON CONFLICT (key) DO NOTHING`,
      * then returns the stored row, which wins over the argument).
      */
-    register(file: PublicFile): Effect.Effect<PublicFile>;
+    readonly register: (file: PublicFile) => Effect.Effect<PublicFile>;
   }
 >()("@vektorprogrammet/domain/files/PublicFileRepository") {}
 
@@ -30,11 +36,11 @@ export interface StoredObject {
 export class FileStore extends Context.Service<
   FileStore,
   {
-    put(object: {
+    readonly put: (object: {
       readonly key: FileKey;
       readonly bytes: Uint8Array;
       readonly contentType: StoredContentType;
-    }): Effect.Effect<void>;
-    get(key: FileKey): Effect.Effect<Option.Option<StoredObject>>;
+    }) => Effect.Effect<void>;
+    readonly get: (key: FileKey) => Effect.Effect<Option.Option<StoredObject>>;
   }
 >()("@vektorprogrammet/domain/files/FileStore") {}
