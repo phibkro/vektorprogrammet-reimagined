@@ -1,8 +1,8 @@
 /**
  * Row shapes of the legacy MySQL tables the Phase 1 import reads.
  *
- * Structure source: `analysis/vektorprogrammet/prod-schema.sql` (MySQL 5.7 dump
- * of the 2024-08-22 backup). Column meaning: the legacy Doctrine entities in
+ * Structure source: the MySQL 5.7 structure-only dump of the 2024-08-22 backup;
+ * its Phase 1 tables are vendored in `test/fixtures/legacy-phase1-schema.sql`. Column meaning: the legacy Doctrine entities in
  * `src/AppBundle/Entity/` (cited per table). The queries in `source.ts` alias
  * the columns to these camelCase names and select every `DATETIME` as
  * `YYYY-MM-DD HH:MM:SS` text, so no driver time-zone conversion happens: the

@@ -4,7 +4,7 @@
  *
  * - `LegacyTestDatabase`: a MySQL database created with `mysql -uroot` over the
  *   socket `$MYSQL_UNIX_PORT`, loaded with the Phase 1 table definitions taken
- *   verbatim from `analysis/vektorprogrammet/prod-schema.sql` and the FAKE rows
+ *   verbatim from `../fixtures/legacy-phase1-schema.sql` (vendored from the production structure dump) and the FAKE rows
  *   of `fixture.ts`. `legacy_reader` is granted SELECT on it, so the importer
  *   reads through the same SELECT-only user as against the restored backup.
  * - `TargetTestDatabase`: a PostgreSQL database created through
@@ -32,9 +32,9 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { FIXTURE_SQL, PHASE_1_LEGACY_TABLES } from "./fixture.ts";
 
-/** The structure-only dump of the 2024-08-22 backup (outside this monorepo, in the analysis tree). */
+/** The Phase 1 table definitions, vendored verbatim from the 2024-08-22 structure-only dump (provenance in its header). */
 const PROD_SCHEMA = new URL(
-  "../../../../../../analysis/vektorprogrammet/prod-schema.sql",
+  "../fixtures/legacy-phase1-schema.sql",
   import.meta.url
 );
 
@@ -100,7 +100,7 @@ const legacyTableDefinitions = (
     const end = start === -1 ? -1 : dump.indexOf(";", start);
 
     return end < 0
-      ? Effect.die(`prod-schema.sql has no definition of ${table}`)
+      ? Effect.die(`legacy-phase1-schema.sql has no definition of ${table}`)
       : Effect.succeed(dump.slice(start, end + 1));
   });
 
