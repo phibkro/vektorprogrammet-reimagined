@@ -6,6 +6,7 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
+  AdmissionPeriodRepository,
   ArticleRepository,
   AuditLog,
   ArticleId,
@@ -26,6 +27,7 @@ import {
   StaticContentRepository,
   UserId,
   HttpUrl,
+  hasOpenAdmission,
   sanitizeRichText,
 } from "@vektorprogrammet/domain";
 import type { ArticleDraft } from "@vektorprogrammet/domain";
@@ -425,6 +427,70 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
         );
 
         assert.isTrue(Exit.hasDies(backwards));
+      })
+  );
+
+  it.effect(
+    "RULE-119: admission periods are read with their semester, and hasOpenAdmission answers over them",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const db = yield* Drizzle;
+
+        const department = yield* (yield* DepartmentRepository).create(
+          departmentDraft("Kristiansand")
+        );
+
+        const semester = yield* (yield* SemesterRepository).ensure({
+          term: "HOST",
+          year: 2026,
+        });
+
+        yield* db
+          .insert(schema.admissionPeriod)
+          .values({
+            departmentId: department.id,
+            endsAt: DateTime.toDateUtc(
+              DateTime.makeUnsafe("2026-09-01T00:00:00.000Z")
+            ),
+            semesterId: semester.id,
+            startsAt: DateTime.toDateUtc(
+              DateTime.makeUnsafe("2026-08-01T00:00:00.000Z")
+            ),
+          })
+          .pipe(Effect.orDie);
+
+        const periods = yield* (yield* AdmissionPeriodRepository).list;
+
+        assert.deepStrictEqual(
+          Arr.map(periods, (period) => [
+            period.departmentId,
+            period.semester.term,
+            period.semester.year,
+            DateTime.formatIso(period.start),
+            DateTime.formatIso(period.end),
+          ]),
+          [
+            [
+              department.id,
+              "HOST",
+              2026,
+              "2026-08-01T00:00:00.000Z",
+              "2026-09-01T00:00:00.000Z",
+            ],
+          ]
+        );
+        assert.isTrue(
+          hasOpenAdmission(
+            periods,
+            DateTime.makeUnsafe("2026-08-15T12:00:00.000Z")
+          )
+        );
+        assert.isFalse(
+          hasOpenAdmission(
+            periods,
+            DateTime.makeUnsafe("2026-09-01T00:00:00.000Z")
+          )
+        );
       })
   );
 

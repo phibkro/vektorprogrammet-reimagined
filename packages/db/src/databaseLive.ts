@@ -21,6 +21,7 @@ import {
 } from "./repositories/content.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
 import {
+  AdmissionPeriodRepositoryLive,
   DepartmentRepositoryLive,
   FieldOfStudyRepositoryLive,
   SemesterRepositoryLive,
@@ -37,6 +38,7 @@ import {
  */
 export const RepositoriesLayer = Layer.mergeAll(
   DepartmentRepositoryLive,
+  AdmissionPeriodRepositoryLive,
   SemesterRepositoryLive,
   FieldOfStudyRepositoryLive,
   ArticleRepositoryLive,
