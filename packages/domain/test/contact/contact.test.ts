@@ -1,11 +1,21 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Match, Order, Predicate, pipe } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Match,
+  Order,
+  Predicate,
+  Schema,
+  pipe,
+} from "effect";
 
 import {
   DEPARTMENT_UNAVAILABLE_MESSAGE,
   DepartmentId,
   INVALID_EMAIL_MESSAGE,
+  SupportTicket,
   submitContact,
+  supportTicketMessages,
 } from "../../src/index.ts";
 import type { DomainError } from "../../src/index.ts";
 import {
@@ -203,5 +213,76 @@ describe("C10 contact form", () => {
             Predicate.isTagged(last.target, "Notifications")
         );
       }).pipe(Effect.provide(TestServices))
+  );
+});
+
+// Fixtures F43/F44 of the independent verification; the expected strings are
+// the legacy output (SupportTicketSubscriber + SlackMessenger), except the
+// trailing space legacy left after "vektorprogrammet.no.", which is not
+// product meaning.
+const slackTexts = Effect.fn("slackTexts")(function* slackTexts(
+  slackChannel: string | null,
+  message: string
+) {
+  const decoded = yield* Schema.decodeEffect(SupportTicket)({
+    ...ticket,
+    email: "ola@skole.example",
+    message,
+    name: "Ola Nordmann",
+    subject: "Assistent til 9A",
+  });
+
+  return pipe(
+    supportTicketMessages(
+      decoded,
+      departmentForTest(TRONDHEIM, "Kristiansand", "UiA", slackChannel)
+    ),
+    Arr.flatMap((outbox) =>
+      Predicate.isTagged(outbox, "SlackPost") ? [outbox.text] : []
+    )
+  );
+});
+
+describe("RULE-249 legacy-equal Slack text", () => {
+  it.effect(
+    "RULE-249 F43: #notifications starts with the department city, as legacy does",
+    () =>
+      Effect.gen(function* effectProgram() {
+        assert.deepStrictEqual(yield* slackTexts(null, "Hei!"), [
+          Arr.join(
+            [
+              "Kristiansand: Ny melding mottatt fra *Ola Nordmann*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no.",
+              "Emne: `Assistent til 9A`",
+              "Meldingen har blitt videresendt til kristiansand@example.org",
+            ],
+            "\n"
+          ),
+        ]);
+      })
+  );
+
+  it.effect(
+    "RULE-249 F44: the department channel message closes the code block with no newline before the fence, as legacy does",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const [departmentChannel] = yield* slackTexts(
+          "#uia-styret",
+          "Hei!\nKan dere sende en assistent?"
+        );
+
+        assert.strictEqual(
+          departmentChannel,
+          Arr.join(
+            [
+              "Ny henvendelse fra Ola Nordmann (ola@skole.example).",
+              "Emne: `Assistent til 9A`",
+              "```",
+              "Hei!",
+              "Kan dere sende en assistent?```",
+            ],
+            "\n"
+          )
+        );
+      })
   );
 });

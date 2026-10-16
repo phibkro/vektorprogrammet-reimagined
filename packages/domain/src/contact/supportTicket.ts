@@ -52,10 +52,17 @@ export const contactReceiptNotice = (
  * RULE-249: the notifications for one ticket, in delivery order:
  * department e-mail, receipt e-mail, the department's Slack channel when it has
  * one, then #notifications.
+ *
+ * The #notifications line starts with the department's city, because legacy
+ * `Department::__toString()` returns the city (verified F43). The department
+ * channel message closes its code block directly after the text, with no
+ * newline before the closing fence (verified F44). Legacy left a trailing
+ * space after "vektorprogrammet.no."; that is not product meaning, so it is
+ * not reproduced.
  */
 export const supportTicketMessages = (
   ticket: SupportTicket,
-  department: Pick<Department, "name" | "email" | "slackChannel">
+  department: Pick<Department, "city" | "email" | "slackChannel">
 ): NonEmptyReadonlyArray<OutboxMessage> => {
   const departmentEmail: OutboxMessage = OutboxMessage.cases.Email.make({
     replyTo: ticket.email,
@@ -94,7 +101,7 @@ export const supportTicketMessages = (
     target: SlackTarget.cases.Notifications.make({}),
     text: Arr.join(
       [
-        `${department.name}: Ny melding mottatt fra *${ticket.name}*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no.`,
+        `${department.city}: Ny melding mottatt fra *${ticket.name}*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no.`,
         `Emne: \`${ticket.subject}\``,
         `Meldingen har blitt videresendt til ${department.email}`,
       ],
@@ -115,8 +122,7 @@ export const supportTicketMessages = (
         `Ny henvendelse fra ${ticket.name} (${ticket.email}).`,
         `Emne: \`${ticket.subject}\``,
         "```",
-        ticket.message,
-        "```",
+        `${ticket.message}\`\`\``,
       ],
       "\n"
     ),
