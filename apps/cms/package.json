@@ -1,0 +1,33 @@
+{
+  "name": "@vektorprogrammet/cms",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "CMS_STANDALONE=1 astro dev --port 4321 --ignore-lock",
+    "check": "vp check",
+    "build": "bun scripts/build.ts"
+  },
+  "dependencies": {
+    "@astrojs/react": "catalog:",
+    "@emdash-cms/cloudflare": "catalog:",
+    "astro": "catalog:",
+    "effect": "catalog:",
+    "emdash": "catalog:",
+    "pg": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@alchemy.run/frontend-frameworks": "catalog:",
+    "@astrojs/cloudflare": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "alchemy": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

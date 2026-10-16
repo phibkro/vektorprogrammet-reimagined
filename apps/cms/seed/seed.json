@@ -1,0 +1,219 @@
+{
+  "$schema": "https://emdashcms.com/seed.schema.json",
+  "version": "1",
+  "defaultLocale": "nb",
+  "meta": {
+    "name": "Vektorprogrammet",
+    "description": "Content of the public site: texts, news, sponsors, FAQ and teams",
+    "author": "Vektorprogrammet"
+  },
+  "settings": {
+    "title": "Vektorprogrammet",
+    "tagline": "Studenter som hjelper elever med matematikk",
+    "timezone": "Europe/Oslo"
+  },
+  "collections": [
+    {
+      "slug": "texts",
+      "label": "Tekster",
+      "labelSingular": "Tekst",
+      "description": "Teksten på de offentlige sidene, én tekst per sted på siden",
+      "icon": "text-aa",
+      "sortOrder": 1,
+      "supports": ["drafts", "revisions"],
+      "routable": false,
+      "titleField": "title",
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Tittel",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "content",
+          "label": "Tekst",
+          "type": "portableText"
+        }
+      ]
+    },
+    {
+      "slug": "news",
+      "label": "Nyheter",
+      "labelSingular": "Nyhet",
+      "description": "Nyhetsartikler",
+      "icon": "newspaper",
+      "sortOrder": 2,
+      "supports": ["drafts", "revisions", "preview"],
+      "titleField": "title",
+      "admin": {
+        "listColumns": ["sticky"]
+      },
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Tittel",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "sticky",
+          "label": "Fast øverst",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "slug": "departments",
+          "label": "Avdelinger (byer, tomt = alle)",
+          "type": "multiSelect"
+        },
+        {
+          "slug": "image",
+          "label": "Bilde",
+          "type": "image"
+        },
+        {
+          "slug": "content",
+          "label": "Artikkel",
+          "type": "portableText"
+        }
+      ]
+    },
+    {
+      "slug": "sponsors",
+      "label": "Sponsorer",
+      "labelSingular": "Sponsor",
+      "description": "Sponsorer og samarbeidspartnere, vist nederst på sidene",
+      "icon": "handshake",
+      "sortOrder": 3,
+      "supports": ["drafts"],
+      "routable": false,
+      "titleField": "name",
+      "admin": {
+        "listColumns": ["size"]
+      },
+      "fields": [
+        {
+          "slug": "name",
+          "label": "Navn",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "url",
+          "label": "Nettside",
+          "type": "url",
+          "required": true
+        },
+        {
+          "slug": "size",
+          "label": "Størrelse",
+          "type": "select",
+          "required": true,
+          "defaultValue": "small",
+          "validation": {
+            "options": ["small", "medium", "large"]
+          }
+        },
+        {
+          "slug": "logo",
+          "label": "Logo",
+          "type": "image"
+        }
+      ]
+    },
+    {
+      "slug": "faq",
+      "label": "Vanlige spørsmål",
+      "labelSingular": "Spørsmål",
+      "description": "Spørsmål og svar på assistent- og teamsidene",
+      "icon": "question",
+      "sortOrder": 4,
+      "supports": ["drafts"],
+      "routable": false,
+      "titleField": "question",
+      "admin": {
+        "listColumns": ["page", "position"]
+      },
+      "fields": [
+        {
+          "slug": "question",
+          "label": "Spørsmål",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "answer",
+          "label": "Svar",
+          "type": "text",
+          "required": true
+        },
+        {
+          "slug": "page",
+          "label": "Side",
+          "type": "select",
+          "required": true,
+          "indexed": true,
+          "validation": {
+            "options": ["assistenter", "team"]
+          }
+        },
+        {
+          "slug": "position",
+          "label": "Rekkefølge",
+          "type": "integer",
+          "required": true,
+          "indexed": true,
+          "defaultValue": 0
+        }
+      ]
+    },
+    {
+      "slug": "teams",
+      "label": "Team",
+      "labelSingular": "Team",
+      "description": "Teamene i hver avdeling (flyttes til databasen i fase 4)",
+      "icon": "users-three",
+      "sortOrder": 5,
+      "supports": ["drafts"],
+      "routable": false,
+      "titleField": "name",
+      "admin": {
+        "listColumns": ["department", "position"]
+      },
+      "fields": [
+        {
+          "slug": "name",
+          "label": "Navn",
+          "type": "string",
+          "required": true
+        },
+        {
+          "slug": "department",
+          "label": "Avdeling (by)",
+          "type": "string",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "slug": "description",
+          "label": "Beskrivelse",
+          "type": "text"
+        },
+        {
+          "slug": "email",
+          "label": "E-post",
+          "type": "string"
+        },
+        {
+          "slug": "position",
+          "label": "Rekkefølge",
+          "type": "integer",
+          "required": true,
+          "indexed": true,
+          "defaultValue": 0
+        }
+      ]
+    }
+  ]
+}
