@@ -6,9 +6,9 @@ PostgreSQL for Phase 1: the Drizzle schema (single source), the generated migrat
 
 | Export | What it is |
 | --- | --- |
-| `schema` | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `article`, `articleDepartment`, `staticContent`, `sponsor`, `socialEvent`, `publicFile`, `outbox`, `auditLog`, and the enums `semesterTerm`, `sponsorSize`, `outboxStatus`. TS names are camelCase, SQL names snake_case. |
-| `UniqueConstraint` | The unique constraint names (`department_city_unique`, `semester_term_year_unique`, `article_slug_unique`). |
-| `DatabaseLive({ url, maxConnections? })` | `Layer<DepartmentRepository \| SemesterRepository \| FieldOfStudyRepository \| ArticleRepository \| StaticContentRepository \| SponsorRepository \| SocialEventRepository \| PublicFileRepository \| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
+| `schema` | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `socialEvent`, `publicFile`, `outbox`, `auditLog`, and the enums `semesterTerm`, `outboxStatus`. TS names are camelCase, SQL names snake_case. |
+| `UniqueConstraint` | The unique constraint names (`department_city_unique`, `semester_term_year_unique`). |
+| `DatabaseLive({ url, maxConnections? })` | `Layer<DepartmentRepository \| AdmissionPeriodRepository \| SemesterRepository \| FieldOfStudyRepository \| SocialEventRepository \| PublicFileRepository \| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
 | `transactional(effect)` | Runs the effect in `SqlClient.withTransaction` (a savepoint when nested) and provides `InTransaction`. The only provider of `InTransaction`. A typed failure, a defect or an interruption rolls back every row, including audit and outbox rows. A failing BEGIN/COMMIT is a defect. |
 | `OutboxDelivery` | `claimDue({ limit, leaseSeconds, ids? })`, `markDelivered(id, claimToken)`, `markFailed(id, claimToken, error, nextAttemptAt \| "dead")`. Acknowledgements return `"recorded"` or `"claimLost"`. |
 | `ClaimedOutboxMessage`, `OutboxClaimToken`, `OutboxAck` | The delivery-side schemas and types. |
@@ -18,9 +18,10 @@ PostgreSQL for Phase 1: the Drizzle schema (single source), the generated migrat
 ### Repository behaviour
 
 - Every method fails only with the domain errors its interface lists. Infrastructure failures, check or foreign-key violations, and stored rows that fail to decode are defects.
-- Rows decode through the domain schemas. Stored rich text is sanitized again on every read (RULE-133 replacement).
+- Rows decode through the domain schemas.
 - `SemesterRepository.ensure` (RULE-237) is one `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING`, so it always returns the single row. Only the scheduled semester job calls it (spec 0003); there is no create-or-refuse variant, because nobody creates a semester by hand. `find` is a plain `SELECT`.
-- `ArticleRepository.create` (RULE-096): if the unique slug constraint refuses the insert, the method reads the taken slugs again and retries once with the next suffix. Each attempt runs in a savepoint, so the caller's transaction survives. A second collision is `AlreadyExists`.
+- `AdmissionPeriodRepository.list` is a plain `SELECT` (the public pages read the admission state; the importer is the only writer of admission periods in Phase 1).
+- The content tables (`article`, `article_department`, `static_content`, `sponsor` and the enum `sponsor_size`) were dropped by the migration `content_moved_to_the_cms` (spec 0005): the CMS owns that content. The migration also tightens the `audit_log` action and entity checks, so it fails if an audit row of a retired action exists (the importer's databases and Neon `dev` hold none).
 - `PublicFileRepository.register` is idempotent on `key`, and the stored row wins. Deleted files (`deleted_at`) never resolve.
 - Outbox delivery is at least once. Rows are claimed in id order with `FOR UPDATE SKIP LOCKED` inside one `UPDATE … RETURNING`. A claim token fences every acknowledgement. The caller chooses the retry schedule and when a row is dead. Every timestamp comes from Effect's `Clock`.
 

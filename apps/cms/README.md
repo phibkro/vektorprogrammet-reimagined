@@ -31,6 +31,19 @@ media ───► R2 bucket (binding MEDIA), served from /_emdash/api/media/fil
 | `faq` | a question and answer | `page` (`assistenter` or `team`), `position` |
 | `teams` | a team of a department | `department` is the city; moves to PostgreSQL in phase 4 |
 
+## Content of a stage
+
+| Stage | Where its content comes from |
+| --- | --- |
+| local (`bun run dev`) and the browser tests | the default copy in `seed/seed.json` (`content`: a text for every slot of the public pages, taken from mono-web's wording, and the FAQ entries), applied by the development bypass; then `tools/import`'s `bun run import:fixture:cms` adds the importer's fake articles, texts and sponsors |
+| `main` and the Previews | the same, put in once: the setup wizard's "sample content" choice applies the seed's `content` (EmDash's `POST /_emdash/api/setup` takes `includeContent`), and `import:fixture:cms` adds the fake articles. A Preview's Neon branch forks `dev`, so it starts with `dev`'s content |
+| production | the real legacy articles, texts and sponsors from `import:cms` (`tools/import/README.md` § Into the CMS), then the editors. No sample content |
+
+- The seed holds no teams and no people: a team page without entries says that no team is published. Editors add `teams` entries in the admin.
+- The seed's texts have a slug per slot (`about-header`, `home-tagline`, …); the page-to-slot map is `apps/web/src/lib/textSlots.ts`, and `apps/web/test/textSlots.test.ts` fails if a slot has no default copy. `about-faq` and `vektor_i_media` have none on purpose (no wording to port: they render nothing until an editor writes them).
+- **Tokens.** `apps/web` reads with a personal access token that has the scopes `content:read` and `media:read`. The importer needs `content:read`, `content:write` and `schema:write` (it adds the department cities as options of `news.departments`), created by an administrator because writing a legacy publication date needs `content:publish_any`. A token acts for its creator, so one made by an administrator also reads drafts: the web client asks for `status=published` and refuses anything else.
+- **Schema changes after the first deploy** (a new field, a new option) are made in the admin's Content Types (EmDash docs, "Evolving a deployed site"); editing `seed.json` does not change a deployed site.
+
 ## Run it locally
 
 Everything runs inside devenv; its PostgreSQL 18 (`devenv up -d`) stands in for Neon.

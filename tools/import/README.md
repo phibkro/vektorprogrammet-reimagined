@@ -1,6 +1,6 @@
 # @vektorprogrammet/import
 
-Imports the Phase 1 tables of the legacy MySQL backup into a PostgreSQL target (a Neon branch) and writes a reconciliation report. It is deterministic and reruns from scratch: every run replaces the target's Phase 1 data in one transaction. Design: `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §6 and spec `docs/specs/0001-departments-and-semesters.md` ("Data and migration"). A second program (`src/cms.ts`, spec 0005) loads the legacy articles, static texts and sponsors into the CMS; see "Into the CMS" below.
+Imports the organisation tables of the legacy MySQL backup (departments, semesters, fields of study, admission periods, social events and the departments' logos) into a PostgreSQL target (a Neon branch) and writes a reconciliation report (format version 2). It is deterministic and reruns from scratch: every run replaces the target's data in one transaction. Design: `analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` §6 and spec `docs/specs/0001-departments-and-semesters.md` ("Data and migration"). Articles, static texts and sponsors are not loaded here since spec 0005: a second program (`src/cms.ts`) loads them into the CMS; see "Into the CMS" below.
 
 ```
 legacy MySQL (SELECT-only legacy_reader, one snapshot)
@@ -13,7 +13,7 @@ legacy MySQL (SELECT-only legacy_reader, one snapshot)
 ## Authority
 
 - **Loading rows derived from the 2024-08-22 backup into Neon branches is authorised** (operator, Checkpoint 2, 2026-10-15). Production Neon is written only at the final import.
-- **Copying the production file directories is NOT authorised yet** (Checkpoint 2: the file-copy entry item stays open). Run without `LEGACY_FILES_DIR`; the report then lists every referenced file as missing, and articles (whose images are required) are quarantined.
+- **Copying the production file directories is NOT authorised yet** (Checkpoint 2: the file-copy entry item stays open). Run without `LEGACY_FILES_DIR`; the report then lists every referenced file (the departments' logos) as missing.
 - The backup holds personal data. Keep it, the restored `legacy` database and any Neon branch out of the repository, issue trackers and chat. The report holds ids, counts, column names and upload areas only, so it may be attached to a pull request.
 
 ## Operator runbook
@@ -77,8 +77,7 @@ The run prints rows in/out per table and the report paths. It exits non-zero and
 | Collapsed semesters | identical (term, year) rows merged into the lowest id; references were remapped |
 | Missing files | references to upload files that were not found, grouped as `missing-file-N` with their upload area |
 | Broken references | references to absent or quarantined rows, and file references that cannot be mapped |
-| Rich text | rows the sanitizer changed (RULE-133 replacement) and references rewritten to `/filer/{key}` |
-| Normalisations | value changes that are not guesses (blank optional text → NULL; `published` NULL → draft) |
+| Normalisations | value changes that are not guesses (blank optional text → NULL) |
 | Dropped legacy columns | columns with no target, by decision (`event.role_id`: RULE-188) |
 
 A quarantined row is never repaired by the importer. Decide the fix with the operator, correct it in the source (or record the decision), and rerun.
@@ -129,12 +128,8 @@ devenv shell -- bash -c 'cd tools/import && IMPORT_CMS_URL="$CMS_URL" IMPORT_CMS
 | `semester` | `semester` | `semesterTime` exactly `Vår`/`Høst` → `VAR`/`HOST`; four-digit numeric year (RULE-050); duplicates collapse into the lowest id (RULE-144, RULE-237) |
 | `field_of_study` | `field_of_study` | a NULL, absent or quarantined department quarantines the row |
 | `admission_period` | `AdmissionPeriod` | semester remapped through collapses; end after start; `infoMeeting_id` dropped (Phase 3) |
-| `article` | `article` | slug kept (unique); body sanitized and rewritten; both images must be registered files; the legacy author id kept in `author_id` (the architecture's `legacy_author_id`) with no foreign key; `published` NULL → draft (RULE-267) |
-| `article_department` | `articles_departments` | kept when both ends were imported |
-| `static_content` | `static_content` | keyed by `html_id`; a repeated `html_id` is quarantined (the first id wins); html sanitized and rewritten |
-| `sponsor` | `sponsor` | name, absolute http(s) URL and size (`small`/`medium`/`large`) required (RULE-189); logo optional |
 | `social_event` | `event` | title required, end after start, link ≤ 250; `role_id` dropped (RULE-188) |
-| `public_file` | files on disk | one row per content key (SHA-256 + type by magic bytes, RULE-130); `legacy_path` is the decoded path below the web root, e.g. `Offentlige filer/x.pdf` (RULE-290 redirects) |
+| `public_file` | the departments' logos on disk | one row per content key (SHA-256 + type by magic bytes, RULE-130); `legacy_path` is the decoded path below the web root, e.g. `images/Logo images/x.png` (RULE-290 redirects). Article images and sponsor logos belong to the CMS program, which does not copy files |
 
 - Legacy `DATETIME` values are Oslo wall-clock time ([INFERENCE] from spec 0001: legacy used server-local time) and are stored as UTC instants.
 - Only `Offentlige filer/`, `images/article_images/` and `images/Logo images/` are upload roots. Site paths, percent-encoded paths and absolute URLs on `vektorprogrammet.no` are recognised. Other `images/` assets and unsafe paths (`..`, empty segments, malformed encoding) are reported as unmappable.
