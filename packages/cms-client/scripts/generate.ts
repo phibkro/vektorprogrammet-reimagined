@@ -31,8 +31,6 @@ const OPERATIONS = [
   "getContent",
   "createContent",
   "publishContent",
-  "getField",
-  "updateField",
 ] as const;
 
 class GenerateFailed extends Schema.TaggedError<

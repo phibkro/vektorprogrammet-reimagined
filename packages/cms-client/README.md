@@ -23,7 +23,7 @@ flowchart LR
 | `src/portableText.ts` | the Portable Text blocks EmDash stores (`block`, `code`, `break`, `htmlBlock`, `table`, `image`), as Schemas |
 | `src/client.ts` | `CmsClient`: the service that `apps/web` and `tools/import` use |
 
-The six operations: `listCollections`, `listContent`, `getContent`, `createContent`, `updateContent`, `publishContent` (the list is `OPERATIONS` in `scripts/generate.ts`).
+The six operations: `listContent`, `getContent`, `createContent`, `publishContent` (content), `getField` and `updateField` (the options of a select field). The list is `OPERATIONS` in `scripts/generate.ts`.
 
 ## Use
 
@@ -48,6 +48,7 @@ program.pipe(
 - `create` makes a draft with the original `createdAt` and `publishedAt`. A slug that is taken answers `CreateOutcome.SlugTaken`, not a failure, which is what makes the importer safe to rerun.
 - Failures are `CmsUnavailable` (transport, 5xx, retries exhausted), `CmsRejected` (the CMS refused: 4xx with its code, for example `INSUFFICIENT_SCOPE`) and `CmsInvalidContent` (an entry's data does not match its collection's schema; carries the slug).
 - The token goes only to the CMS base URL. Media paths that EmDash returns are relative; `absoluteUrl(path)` makes them absolute.
+- `ensureOptions(collection, field, values)` adds the values that a select or multi-select field lacks to its options (and keeps the ones it has). The importer registers every department city it tags articles with, so each tag is a choice for editors and the CMS accepts it. It needs the `schema:write` scope and replaces the field's validation by its options, which is all those fields have.
 
 ## Regenerating the client
 

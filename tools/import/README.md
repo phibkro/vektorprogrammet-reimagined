@@ -106,7 +106,7 @@ devenv shell -- bash -c 'cd tools/import && IMPORT_CMS_URL="$CMS_URL" IMPORT_CMS
 | --- | --- | --- |
 | `LEGACY_MYSQL_URL` | yes | set by devenv: `legacy_reader` on the `legacy` database |
 | `IMPORT_CMS_URL` | yes | the CMS origin (`apps/cms`): its `/_emdash/api/` is called |
-| `IMPORT_CMS_TOKEN` | yes | a personal access token with the scopes `content:read` and `content:write`, created in the EmDash admin by an administrator (writing the original dates needs the `content:publish_any` permission, which an administrator has) |
+| `IMPORT_CMS_TOKEN` | yes | a personal access token with the scopes `content:read`, `content:write` and `schema:write`, created in the EmDash admin by an administrator (writing the original dates needs the `content:publish_any` permission, which an administrator has; `schema:write` lets the import add department cities as options of `news.departments`) |
 
 - **Create-only, so a rerun changes nothing.** An entry whose slug exists is left as it is, which also means an editor's later change is never overwritten. The second run reports `created` 0 and `unchanged` everything.
 - **Create, then publish.** An entry is created as a draft with the legacy `created` date as both its creation and publication date, then published when the legacy row was live (`published = 1`). A legacy draft stays a draft (RULE-267). If the CMS refuses an entry (for example a department city that is not an option of the `departments` field of `news`), the run goes on, counts the refusal with the CMS's error code and exits non-zero at the end; fix the cause and run again. A CMS that cannot be reached stops the run.

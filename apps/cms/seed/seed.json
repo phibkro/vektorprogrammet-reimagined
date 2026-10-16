@@ -44,7 +44,7 @@
       "description": "Nyhetsartikler",
       "icon": "newspaper",
       "sortOrder": 2,
-      "supports": ["drafts", "revisions", "preview"],
+      "supports": ["drafts", "revisions"],
       "titleField": "title",
       "admin": {
         "listColumns": ["sticky"]
@@ -64,8 +64,11 @@
         },
         {
           "slug": "departments",
-          "label": "Avdelinger (byer, tomt = alle)",
-          "type": "multiSelect"
+          "label": "Avdelinger (tomt = alle)",
+          "type": "multiSelect",
+          "validation": {
+            "options": ["Trondheim", "Bergen", "Ås"]
+          }
         },
         {
           "slug": "image",
@@ -191,9 +194,12 @@
         {
           "slug": "department",
           "label": "Avdeling (by)",
-          "type": "string",
+          "type": "select",
           "required": true,
-          "indexed": true
+          "indexed": true,
+          "validation": {
+            "options": ["Trondheim", "Bergen", "Ås"]
+          }
         },
         {
           "slug": "description",

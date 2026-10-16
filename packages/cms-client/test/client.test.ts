@@ -481,25 +481,25 @@ describe("CmsClient media", () => {
   });
 });
 
-/** A select field as EmDash answers `GET …/fields/{field}`: every key of its `Field`; the values are fake. */
+/**
+ * A select field as EmDash 1.3.0 really answers `GET …/fields/{field}` (recorded from the dev server): unset keys
+ * such as `defaultValue`, `widget` and `options` are absent, although its OpenAPI document lists them as required.
+ */
 const field = (validation: Readonly<Record<string, Schema.Json>> | null) => ({
   collectionId: "01COLLECTION",
-  createdAt: "2024-01-01T00:00:00.000Z",
-  defaultValue: null,
+  columnType: "JSON",
+  createdAt: "2026-10-16 13:20:03.873661+00",
   id: "01FIELD",
   indexed: false,
   label: "Avdelinger",
-  options: null,
   required: false,
   searchable: false,
   slug: "departments",
   sortOrder: 2,
-  translatable: false,
+  translatable: true,
   type: "multiSelect",
   unique: false,
-  updatedAt: "2024-01-01T00:00:00.000Z",
   validation,
-  widget: null,
 });
 
 const fieldResponse = (

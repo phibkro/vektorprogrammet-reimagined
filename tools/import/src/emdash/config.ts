@@ -5,8 +5,8 @@
  * | ------------------ | --------------------------------------------------------------------------------- |
  * | `LEGACY_MYSQL_URL` | the restored backup, read with the SELECT-only `legacy_reader`                    |
  * | `IMPORT_CMS_URL`   | the CMS origin (`apps/cms`), whose `/_emdash/api/` the import calls               |
- * | `IMPORT_CMS_TOKEN` | a personal access token with the scopes `content:read` and `content:write`, owned |
- * |                    | by an administrator (writing the original dates needs `content:publish_any`)      |
+ * | `IMPORT_CMS_TOKEN` | a personal access token with the scopes `content:read`, `content:write` and       |
+ * |                    | `schema:write`, owned by an administrator (the original dates need `content:publish_any`) |
  */
 import { Config } from "effect";
 

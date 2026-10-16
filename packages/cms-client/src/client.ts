@@ -23,7 +23,7 @@ import {
   Schema,
 } from "effect";
 import type { Redacted } from "effect";
-import { HttpClient, HttpClientRequest } from "effect/http";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import type { HttpClientError } from "effect/http";
 
 import { COLLECTIONS } from "./collections.ts";
@@ -151,6 +151,21 @@ export class CmsClient extends Context.Service<
 /** EmDash's error envelope: `{ success: false, error: { code, message } }`. */
 const ApiError = Schema.Struct({
   error: Schema.Struct({ code: Schema.String, message: Schema.String }),
+});
+
+/** What `GET …/schema/collections/{collection}/fields/{field}` answers, as far as this client reads it. */
+const FieldAnswer = Schema.Struct({
+  data: Schema.Struct({
+    item: Schema.Struct({
+      validation: Schema.optionalKey(
+        Schema.NullOr(
+          Schema.Struct({
+            options: Schema.optionalKey(Schema.Array(Schema.String)),
+          })
+        )
+      ),
+    }),
+  }),
 });
 
 /** The envelope as an object (a status the OpenAPI document declares) or as the JSON text of an undeclared one. */
@@ -425,10 +440,12 @@ export const layer = (
         };
       };
 
-      /** The options a select field already has, whatever else its validation says. */
-      const decodeOptions = Schema.decodeUnknownOption(
-        Schema.Struct({ options: Schema.Array(Schema.String) })
-      );
+      /**
+       * The one part of a field this client reads. It does not use the generated `getField`: EmDash's OpenAPI
+       * document lists `defaultValue`, `widget` and `options` as required, but its answer leaves them out when
+       * they are unset (emdash 1.3.0), so the generated `Field` schema cannot decode a real answer.
+       */
+      const decodeField = HttpClientResponse.schemaBodyJson(FieldAnswer);
 
       const ensureOptions = Effect.fn("CmsClient.ensureOptions")(
         function* ensureOptions(
@@ -436,14 +453,15 @@ export const layer = (
           field: string,
           values: readonly string[]
         ) {
-          const current = yield* reads
-            .getField(collection, field, {})
-            .pipe(Effect.mapError((error) => failureOf("getField", error)));
+          const path = `/_emdash/api/schema/collections/${collection}/fields/${field}`;
 
-          const known = Option.match(
-            decodeOptions(current.data.item.validation),
-            { onNone: () => [], onSome: (validation) => validation.options }
+          const current = yield* http.get(path).pipe(
+            Effect.flatMap(HttpClientResponse.filterStatusOk),
+            Effect.flatMap(decodeField),
+            Effect.mapError((error) => failureOf("getField", error))
           );
+
+          const known = current.data.item.validation?.options ?? [];
 
           const missing = Arr.filter(
             Arr.dedupe(values),
@@ -452,11 +470,14 @@ export const layer = (
 
           if (missing.length > 0) {
             // The field's validation is only its options (the seed sets nothing else on these fields).
-            yield* writes
-              .updateField(collection, field, {
-                payload: { validation: { options: [...known, ...missing] } },
-              })
+            yield* http
+              .execute(
+                HttpClientRequest.bodyJsonUnsafe(HttpClientRequest.put(path), {
+                  validation: { options: [...known, ...missing] },
+                })
+              )
               .pipe(
+                Effect.flatMap(HttpClientResponse.filterStatusOk),
                 Effect.mapError((error) => failureOf("updateField", error))
               );
           }
