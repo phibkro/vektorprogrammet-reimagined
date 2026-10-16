@@ -93,7 +93,7 @@ const SemestersPage = () => {
             >
               <Field name="term" label="Semester">
                 <Select name="term" defaultValue={proposed.term} items={TERMS}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger aria-label="Semester" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -114,7 +114,7 @@ const SemestersPage = () => {
                   defaultValue={String(proposed.year)}
                   items={yearItems}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger aria-label="År" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

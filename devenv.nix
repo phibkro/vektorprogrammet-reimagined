@@ -3,6 +3,16 @@ let
   # The ports devenv actually allocated (the configured port is only the starting point).
   pgPort = toString config.processes.postgres.ports.main.value;
   mysqlPort = toString config.processes.mysql.ports.main.value;
+
+  # Browsers for the Playwright tests in apps/web/e2e: Chromium only (the headless shell, the full browser and
+  # ffmpeg), without Firefox and WebKit, which the tests do not use and which make the closure twice as big.
+  # The npm packages `@playwright/test` and `playwright` are pinned to this derivation's Playwright version
+  # (root package.json catalog), because Playwright looks for the exact browser revision it was built against
+  # under PLAYWRIGHT_BROWSERS_PATH.
+  playwrightBrowsers = pkgs.playwright-driver.browsers.override {
+    withFirefox = false;
+    withWebkit = false;
+  };
 in
 {
   # Toolchain. Vite+ needs Node >= 22.18 (root package.json engines).
@@ -13,6 +23,7 @@ in
     pkgs.bun
     pkgs.nodejs_24
     pkgs.gitleaks
+    playwrightBrowsers
   ];
 
   # Local stand-in for Neon, matching its version (project bold-poetry-64036846 runs PostgreSQL 18).
@@ -56,5 +67,10 @@ in
     DATABASE_URL = "postgres://127.0.0.1:${pgPort}/vektorprogrammet";
     TEST_DATABASE_ADMIN_URL = "postgres://127.0.0.1:${pgPort}/postgres";
     LEGACY_MYSQL_URL = "mysql://legacy_reader:legacy_reader@127.0.0.1:${mysqlPort}/legacy";
+
+    # Playwright (apps/web/e2e) uses the Nix-built browsers above and never downloads its own.
+    # The host-requirements validation checks for an Ubuntu layout that Nix does not have.
+    PLAYWRIGHT_BROWSERS_PATH = "${playwrightBrowsers}";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   };
 }

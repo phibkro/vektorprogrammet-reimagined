@@ -340,6 +340,8 @@ export default defineConfig({
           "tools/db-path-spike/src/worker/http.ts",
           "tools/db-path-spike/src/smoke.ts",
           "tools/db-path-spike/src/smoke/refused.ts",
+          "apps/web/e2e/run.ts",
+          "apps/web/e2e/support/devServer.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",
@@ -434,7 +436,7 @@ export default defineConfig({
         rules: { "no-inline-comments": "off" },
       },
       {
-        // promise/prefer-await-to-then and typescript/promise-function-async conflict with effecttsgo/async-function at TanStack and React Promise ABIs.
+        // promise/prefer-await-to-then and typescript/promise-function-async conflict with effecttsgo/async-function at TanStack, React and Playwright-runner Promise ABIs.
         files: [
           "apps/web/src/server.ts",
           "apps/web/src/server/runtime.ts",
@@ -464,6 +466,7 @@ export default defineConfig({
           "apps/web/src/components/forms.tsx",
           "apps/web/src/server/outcomeStatus.ts",
           "tools/db-path-spike/src/worker.ts",
+          "apps/web/e2e/support/probes.ts",
         ],
         rules: {
           "promise/prefer-await-to-callbacks": "off",
@@ -490,7 +493,7 @@ export default defineConfig({
         rules: { "effecttsgo/schema-sync": "off" },
       },
       {
-        // Effect.promise takes a thunk. typescript/promise-function-async needs that thunk to be async, while effecttsgo/async-function rejects every async function, so the two rules cannot both hold at a Promise boundary. Test files only: they drive platform Promise surfaces (Response bodies, the SendEmail binding, AbortController).
+        // Effect.promise takes a thunk. typescript/promise-function-async needs that thunk to be async, while effecttsgo/async-function rejects every async function, so the two rules cannot both hold at a Promise boundary. Test files only: they drive platform Promise surfaces (Response bodies, the SendEmail binding, AbortController, Playwright's browser API).
         files: [
           "apps/web/test/contact.test.ts",
           "apps/web/test/errors.test.ts",
@@ -503,6 +506,8 @@ export default defineConfig({
           "tools/db-path-spike/test/support/localWorker.ts",
           "tools/db-path-spike/test/worker.postgres.test.ts",
           "tools/db-path-spike/test/pure.test.ts",
+          "apps/web/e2e/journey.spec.ts",
+          "apps/web/e2e/support/panel.ts",
         ],
         rules: { "effecttsgo/async-function": "off" },
       },
@@ -551,6 +556,11 @@ export default defineConfig({
         // This test pins the JSON wire form of a failure. JSON.parse(JSON.stringify(...)) drops and coerces values that structuredClone keeps, so unicorn/prefer-structured-clone would replace the wire check with a weaker one.
         files: ["apps/web/test/errors.test.ts"],
         rules: { "unicorn/prefer-structured-clone": "off" },
+      },
+      {
+        // Playwright actions on one page must run in order: every `fill` moves the focus, so filling fields concurrently types into the wrong ones.
+        files: ["apps/web/e2e/support/panel.ts"],
+        rules: { "no-await-in-loop": "off" },
       },
     ],
     rules: {

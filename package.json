@@ -16,6 +16,7 @@
     "cpd": "jscpd --config .jscpd.json apps packages tools",
     "secrets": "gitleaks git --config .gitleaks.toml --redact",
     "dev": "vp run @vektorprogrammet/web#dev",
+    "e2e": "bun run --cwd apps/web e2e",
     "commitlint": "commitlint"
   },
   "devDependencies": {
@@ -73,6 +74,7 @@
     "oxc-parser": "0.153.0",
     "alchemy": "2.0.0-beta.83",
     "@effect/platform-bun": "4.0.5",
-    "bcryptjs": "3.0.3"
+    "bcryptjs": "3.0.3",
+    "@playwright/test": "1.63.0"
   }
 }

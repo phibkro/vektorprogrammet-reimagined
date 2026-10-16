@@ -20,7 +20,7 @@ import type {
   InTransaction,
   SemesterRepository,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Predicate } from "effect";
+import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
 import { TEST_ACTORS } from "../src/server/actor";
@@ -44,7 +44,11 @@ import {
   memoryLayer,
 } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
-import { assertRefused, assertSuccess } from "./support/outcomes";
+import {
+  assertRefused,
+  assertSuccess,
+  assertValidationFailure,
+} from "./support/outcomes";
 
 const { signal } = new AbortController();
 
@@ -330,22 +334,18 @@ describe("C1 departments through the panel", () => {
       Effect.gen(function* invalidEmailEffect() {
         const tables = makeTables();
 
-        const refused = assertRefused(
+        const failure = assertValidationFailure(
           yield* runAs(
             tables,
             TEST_ACTORS.admin,
             saveDepartmentProgram(
               form(departmentFields({ email: "ikke-en-adresse" }))
             )
-          ),
-          "ValidationFailed"
+          )
         );
 
-        assert.strictEqual(refused.status, 400);
         assert.deepStrictEqual(
-          Predicate.isTagged(refused.error, "ValidationFailed")
-            ? Arr.map(refused.error.issues, (issue) => issue.path)
-            : [],
+          Arr.map(failure.issues, (issue) => issue.path),
           [["email"]]
         );
         assert.strictEqual(tables.departments.length, 0);
@@ -437,19 +437,16 @@ describe("C2 semesters through the panel", () => {
         const tables = makeTables();
 
         for (const year of ["2011", "2028"]) {
-          const refused = assertRefused(
+          const failure = assertValidationFailure(
             yield* runAs(
               tables,
               TEST_ACTORS.admin,
               saveSemesterProgram(form({ term: "VAR", year }))
-            ),
-            "ValidationFailed"
+            )
           );
 
           assert.deepStrictEqual(
-            Predicate.isTagged(refused.error, "ValidationFailed")
-              ? Arr.map(refused.error.issues, (issue) => issue.path)
-              : [],
+            Arr.map(failure.issues, (issue) => issue.path),
             [["year"]]
           );
         }

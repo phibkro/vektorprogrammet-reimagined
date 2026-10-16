@@ -15,9 +15,16 @@
         "src/server.ts",
         "src/router.tsx",
         "src/start.ts",
-        "alchemy.run.ts"
+        "alchemy.run.ts",
+        "e2e/playwright.config.ts",
+        "e2e/**/*.spec.ts"
       ],
-      "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}", "**/*.css"]
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "test/**/*.{ts,tsx}",
+        "e2e/**/*.ts",
+        "**/*.css"
+      ]
     },
     "packages/domain": {
       "project": ["src/**/*.ts", "test/**/*.ts"]

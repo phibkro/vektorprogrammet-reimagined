@@ -57,7 +57,8 @@
           "effect/reactivity/Reactivity#layer",
           "effect/sql/SqlClient#SqlClient",
           "effect/sql/SqlError#SqlError",
-          "effect/sql/SqlError#isSqlError"
+          "effect/sql/SqlError#isSqlError",
+          "effect/sql/SqlSchema#findOne"
         ]
       }
     ]
