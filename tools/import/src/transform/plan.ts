@@ -256,6 +256,10 @@ const WALL_CLOCK =
  * A legacy `DATETIME` (`YYYY-MM-DD HH:MM:SS`) as an instant. Legacy wrote
  * server-local time; the server is assumed to have run on Europe/Oslo
  * (spec 0001, [INFERENCE]). Zero dates and impossible dates give `undefined`.
+ *
+ * A time that occurs twice (the repeated hour when daylight saving ends, T04)
+ * resolves to the later occurrence, as legacy PHP/Doctrine does. A time inside
+ * the spring gap moves forward past the gap, which already equals legacy (T02).
  */
 export const parseLegacyDateTime = (text: string): DateTime.Utc | undefined => {
   const match = WALL_CLOCK.exec(text);
@@ -292,7 +296,17 @@ export const parseLegacyDateTime = (text: string): DateTime.Utc | undefined => {
     return undefined;
   }
 
-  const instant = osloWallClock({ day, hour, minute, month, second, year });
+  const earlier = osloWallClock({ day, hour, minute, month, second, year });
+  const later = DateTime.add(earlier, { hours: 1 });
+  const laterParts = osloParts(later);
+
+  const repeated =
+    laterParts.day === day &&
+    laterParts.hour === hour &&
+    laterParts.minute === minute &&
+    laterParts.second === second;
+
+  const instant = repeated ? later : earlier;
   const parts = osloParts(instant);
 
   return parts.year === year && parts.month === month && parts.day === day

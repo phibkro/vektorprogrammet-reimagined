@@ -127,6 +127,36 @@ describe("legacy DATETIME", () => {
     );
   });
 
+  it("T04: a time in the repeated autumn hour resolves to the later occurrence (+01:00), as legacy does", () => {
+    assert.deepStrictEqual(
+      formatInstant("2031-10-26 02:30:00"),
+      Option.some("2031-10-26T01:30:00.000Z")
+    );
+    assert.deepStrictEqual(
+      formatInstant("2031-10-26 02:00:00"),
+      Option.some("2031-10-26T01:00:00.000Z")
+    );
+    assert.deepStrictEqual(
+      formatInstant("2031-10-26 01:59:59"),
+      Option.some("2031-10-25T23:59:59.000Z")
+    );
+    assert.deepStrictEqual(
+      formatInstant("2031-10-26 03:00:00"),
+      Option.some("2031-10-26T02:00:00.000Z")
+    );
+  });
+
+  it("T02: a time inside the spring gap moves forward past the gap, as legacy does", () => {
+    assert.deepStrictEqual(
+      formatInstant("2031-03-30 02:30:00"),
+      Option.some("2031-03-30T01:30:00.000Z")
+    );
+    assert.deepStrictEqual(
+      formatInstant("2031-03-30 03:00:00"),
+      Option.some("2031-03-30T01:00:00.000Z")
+    );
+  });
+
   it("zero and impossible dates are invalid, never guessed", () => {
     for (const text of [
       "0000-00-00 00:00:00",
