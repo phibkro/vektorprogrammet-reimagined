@@ -96,7 +96,9 @@ jobs:
           NEON_APP_PASSWORD: ${{ secrets.NEON_APP_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PULL_REQUEST: ${{ github.event.number }}
-        run: devenv shell -- bash -c 'cd apps/web && bunx alchemy deploy --stage "$STAGE" --yes'
+          # For a pull request GITHUB_SHA is GitHub's merge commit; the comment names the branch head instead.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: devenv shell -- bash -c 'cd apps/web && GITHUB_SHA="$HEAD_SHA" bunx alchemy deploy --stage "$STAGE" --yes'
 
   cleanup:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
