@@ -15,6 +15,8 @@ import {
   DepartmentId,
   DepartmentRepository,
   EmailAddress,
+  FieldOfStudyId,
+  FieldOfStudyRepository,
   FileKey,
   FileStore,
   InTransaction,
@@ -35,6 +37,7 @@ import type {
   AuditEntry,
   Department,
   EntityName,
+  FieldOfStudy,
   OutboxMessage,
   PublicFile,
   StaticContent,
@@ -73,8 +76,11 @@ export interface MemoryTables {
   outbox: OutboxRow[];
   audit: AuditEntry[];
   semesters: StoredSemester[];
+  fieldsOfStudy: FieldOfStudy[];
   /** Number of `Transactor.run` calls that committed. */
   commits: number;
+  /** The next id every table hands out; it survives layer builds and rollbacks, as a sequence does. */
+  nextId: number;
 }
 
 export class Memory extends Context.Service<Memory, MemoryTables>()(
@@ -87,6 +93,8 @@ export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   audit: [],
   commits: 0,
   departments: [],
+  fieldsOfStudy: [],
+  nextId: 1,
   objects: new Map(),
   outbox: [],
   publicFiles: [],
@@ -112,11 +120,9 @@ const repositories = Layer.effectContext(
   Effect.gen(function* repositories() {
     const db = yield* Memory;
 
-    let nextId = 1;
-
     const takeId = () => {
-      const id = nextId;
-      nextId += 1;
+      const id = db.nextId;
+      db.nextId += 1;
 
       return id;
     };
@@ -222,6 +228,59 @@ const repositories = Layer.effectContext(
           )
         ),
       list: Effect.sync(() => db.semesters),
+    });
+
+    const fieldsOfStudy = FieldOfStudyRepository.of({
+      create: (draft) =>
+        Effect.sync(() => {
+          const created: FieldOfStudy = {
+            id: FieldOfStudyId.make(takeId()),
+            ...draft,
+          };
+
+          db.fieldsOfStudy.push(created);
+
+          return created;
+        }),
+      findById: (id) =>
+        Effect.suspend(() => {
+          const found = Option.getOrUndefined(
+            Arr.findFirst(db.fieldsOfStudy, (row) => row.id === id)
+          );
+
+          return found === undefined
+            ? Effect.fail(
+                new NotFound({ entity: "FieldOfStudy", key: String(id) })
+              )
+            : Effect.succeed(found);
+        }),
+      listByDepartment: (departmentId) =>
+        Effect.sync(() =>
+          Arr.filter(
+            db.fieldsOfStudy,
+            (row) => row.departmentId === departmentId
+          )
+        ),
+      rename: (id, names) =>
+        Effect.suspend(() => {
+          const index = Option.getOrElse(
+            Arr.findFirstIndex(db.fieldsOfStudy, (row) => row.id === id),
+            () => -1
+          );
+
+          const existing = db.fieldsOfStudy[index];
+
+          if (existing === undefined) {
+            return Effect.fail(
+              new NotFound({ entity: "FieldOfStudy", key: String(id) })
+            );
+          }
+
+          const renamed: FieldOfStudy = { ...existing, ...names };
+          db.fieldsOfStudy[index] = renamed;
+
+          return Effect.succeed(renamed);
+        }),
     });
 
     const articles = ArticleRepository.of({
@@ -445,6 +504,7 @@ const repositories = Layer.effectContext(
 
     return Context.make(DepartmentRepository, departments).pipe(
       Context.add(SemesterRepository, semesters),
+      Context.add(FieldOfStudyRepository, fieldsOfStudy),
       Context.add(ArticleRepository, articles),
       Context.add(StaticContentRepository, staticContent),
       Context.add(PublicFileRepository, publicFiles),
@@ -469,10 +529,11 @@ const transactor = Layer.effect(
     return Transactor.of({
       run: (program) =>
         Effect.suspend(() => {
-          const before: Omit<MemoryTables, "commits"> = {
+          const before: Omit<MemoryTables, "commits" | "nextId"> = {
             articles: [...db.articles],
             audit: [...db.audit],
             departments: [...db.departments],
+            fieldsOfStudy: [...db.fieldsOfStudy],
             objects: new Map(db.objects),
             outbox: Arr.map(db.outbox, (row) => ({ ...row })),
             publicFiles: [...db.publicFiles],
@@ -552,6 +613,17 @@ export const fakeDepartment = (
   shortName: city.slice(0, 4).toUpperCase(),
   slackChannel: null,
   ...overrides,
+});
+
+export const fakeFieldOfStudy = (
+  id: number,
+  departmentId: number,
+  name = `Linje ${id}`
+): FieldOfStudy => ({
+  departmentId: DepartmentId.make(departmentId),
+  id: FieldOfStudyId.make(id),
+  name,
+  shortName: `L${id}`,
 });
 
 export const fakeKey = (

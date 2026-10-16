@@ -8,7 +8,42 @@ import { Predicate } from "effect";
 
 import type { Outcome } from "../../src/lib/outcome";
 import { ERROR_TABLE } from "../../src/server/errors";
-import type { EncodedRequestError } from "../../src/server/errors";
+import type {
+  EncodedRequestError,
+  RequestErrorTag,
+} from "../../src/server/errors";
+
+type FailedOutcome = Extract<Outcome<unknown>, { readonly _tag: "Failure" }>;
+
+/** The value of a successful outcome; a failure fails the test and names the error. */
+export const assertSuccess = <A>(outcome: Outcome<A>): A => {
+  if (Predicate.isTagged(outcome, "Failure")) {
+    assert.fail(
+      `expected success, received ${outcome.error._tag}: ${outcome.message}`
+    );
+  }
+
+  return outcome.value;
+};
+
+/**
+ * Asserts the outcome is a failure of the tagged error `tag` with the error table's own statuses for
+ * it (the server function sends `status` as the HTTP status of its reply), and returns the failure.
+ */
+export const assertRefused = (
+  outcome: Outcome<unknown>,
+  tag: RequestErrorTag
+): FailedOutcome => {
+  if (!Predicate.isTagged(outcome, "Failure")) {
+    return assert.fail(`expected ${tag}, received a success`);
+  }
+
+  assert.strictEqual(outcome.error._tag, tag, outcome.message);
+  assert.strictEqual(outcome.status, ERROR_TABLE[tag].status);
+  assert.strictEqual(outcome.formStatus, ERROR_TABLE[tag].formStatus);
+
+  return outcome;
+};
 
 /** The `ValidationFailed` failure as the browser receives it. */
 type EncodedValidationFailure = Extract<

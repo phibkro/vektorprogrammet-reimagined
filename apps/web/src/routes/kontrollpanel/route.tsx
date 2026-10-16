@@ -1,5 +1,12 @@
-import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useRouterState,
+} from "@tanstack/react-router";
 import { Array as Arr, pipe } from "effect";
+
+import { Button } from "@/components/ui/button";
 
 const SECTIONS = [
   { label: "Oversikt", to: "/kontrollpanel" },
@@ -12,28 +19,36 @@ const SECTIONS = [
   { label: "Arrangementer", to: "/kontrollpanel/arrangementer" },
 ] as const;
 
-const ControlPanelLayout = () => (
-  <main className="page-wrap grid gap-6 px-4 py-10 md:grid-cols-[12rem_1fr]">
-    <nav aria-label="Kontrollpanel" className="flex flex-col gap-2 text-sm">
-      {pipe(
-        SECTIONS,
-        Arr.map((section) => (
-          <Link
-            key={section.to}
-            to={section.to}
-            activeOptions={{ exact: true }}
-            activeProps={{ className: "font-bold" }}
-          >
-            {section.label}
-          </Link>
-        ))
-      )}
-    </nav>
-    <div className="grid content-start gap-6">
-      <Outlet />
-    </div>
-  </main>
-);
+const ControlPanelLayout = () => {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+
+  return (
+    <main className="page-wrap grid gap-6 px-4 py-10 md:grid-cols-[13rem_1fr]">
+      <nav aria-label="Kontrollpanel" className="flex flex-col gap-1">
+        {pipe(
+          SECTIONS,
+          Arr.map((section) => (
+            <Button
+              key={section.to}
+              variant={pathname === section.to ? "secondary" : "ghost"}
+              size="sm"
+              nativeButton={false}
+              className="justify-start"
+              render={<Link to={section.to} activeOptions={{ exact: true }} />}
+            >
+              {section.label}
+            </Button>
+          ))
+        )}
+      </nav>
+      <div className="grid content-start gap-6">
+        <Outlet />
+      </div>
+    </main>
+  );
+};
 
 /**
  * Staff control panel. Phase 1 has no login: authority is decided inside each

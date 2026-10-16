@@ -69,6 +69,7 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/server/scope.ts",
         "apps/web/src/server/deployment.ts",
         "apps/web/src/server/env.ts",
+        "apps/web/src/server/outcomeStatus.ts",
       ],
       platform: "portable",
       role: "application",
@@ -461,6 +462,7 @@ export default defineConfig({
           "apps/web/src/routes/kontrollpanel/sponsorer.tsx",
           "apps/web/src/routes/kontakt/index.tsx",
           "apps/web/src/components/forms.tsx",
+          "apps/web/src/server/outcomeStatus.ts",
           "tools/db-path-spike/src/worker.ts",
         ],
         rules: {
@@ -492,6 +494,7 @@ export default defineConfig({
         files: [
           "apps/web/test/contact.test.ts",
           "apps/web/test/errors.test.ts",
+          "apps/web/test/organisationPanel.test.ts",
           "apps/web/test/news.test.ts",
           "apps/web/test/panel.test.ts",
           "apps/web/test/publicFiles.test.ts",

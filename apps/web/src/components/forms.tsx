@@ -4,9 +4,10 @@ import { Array as Arr, Effect, Predicate } from "effect";
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { fieldErrors } from "@/lib/outcome";
+import { fieldErrors, formLevelMessage } from "@/lib/outcome";
 import type { Outcome } from "@/lib/outcome";
 
 type FieldErrors = Readonly<Record<string, readonly string[]>>;
@@ -59,18 +60,26 @@ export const Field = ({
 
 /**
  * A control-panel form backed by a server function that takes `FormData` and
- * answers an `Outcome` notice. On success the route's data is re-loaded.
+ * answers an `Outcome` notice. On success the route's data is re-loaded and
+ * `onSuccess` runs (a dialog closes). A failure stays on screen: validation
+ * messages under their field, every other refusal (403, a duplicate) in an alert.
+ * The browser's own validation is off (`noValidate`), so the only rules and the only
+ * messages are the domain's.
  */
 export const CommandForm = ({
   action,
   submitLabel,
   children,
   className,
+  onSuccess,
+  extraActions,
 }: {
   action: (options: { data: FormData }) => Promise<Outcome<string>>;
   submitLabel: string;
   children: ReactNode;
   className?: string;
+  onSuccess?: () => void;
+  extraActions?: ReactNode;
 }) => {
   const router = useRouter();
   const run = useServerFn(action);
@@ -99,6 +108,9 @@ export const CommandForm = ({
           form.reset();
         });
         yield* Effect.tryPromise(() => router.invalidate());
+        yield* Effect.sync(() => {
+          onSuccess?.();
+        });
       }
     }).pipe(
       Effect.catch(() =>
@@ -116,33 +128,32 @@ export const CommandForm = ({
     );
   };
 
-  let status: { ok: boolean; text: string } | null = null;
-
-  if (crashed) {
-    status = { ok: false, text: "Noe gikk galt. Prøv igjen senere." };
-  } else if (outcome !== null) {
-    status = Predicate.isTagged(outcome, "Success")
-      ? { ok: true, text: outcome.value }
-      : { ok: false, text: outcome.message };
-  }
+  const problem = crashed
+    ? "Noe gikk galt. Prøv igjen senere."
+    : formLevelMessage(outcome);
 
   return (
-    <form onSubmit={onSubmit} className={className ?? "grid max-w-xl gap-4"}>
+    <form
+      noValidate
+      onSubmit={onSubmit}
+      className={className ?? "grid max-w-xl gap-4"}
+    >
       <FieldErrorsProvider errors={fieldErrors(outcome)}>
         {children}
       </FieldErrorsProvider>
+      {problem !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{problem}</AlertDescription>
+        </Alert>
+      )}
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>
           {submitLabel}
         </Button>
-        {status !== null && (
-          <p
-            role="status"
-            className={
-              status.ok ? "text-success text-sm" : "text-destructive text-sm"
-            }
-          >
-            {status.text}
+        {extraActions}
+        {Predicate.isTagged(outcome, "Success") && (
+          <p role="status" className="text-success text-sm">
+            {outcome.value}
           </p>
         )}
       </div>
