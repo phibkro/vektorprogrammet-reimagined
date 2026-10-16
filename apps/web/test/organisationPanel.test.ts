@@ -12,20 +12,10 @@ import {
   SemesterId,
   anonymous,
 } from "@vektorprogrammet/domain";
-import type {
-  Actor,
-  AuditLog,
-  CurrentActor,
-  DepartmentRepository,
-  FieldOfStudyRepository,
-  InTransaction,
-  SemesterRepository,
-} from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
 import { TEST_ACTORS } from "../src/server/actor";
-import type { RequestError } from "../src/server/errors";
 import {
   SAVED,
   departmentsView,
@@ -34,14 +24,12 @@ import {
   saveFieldOfStudyProgram,
   semestersView,
 } from "../src/server/panel";
-import { runCommandOutcome, runOutcome } from "../src/server/runtime";
 import {
   fakeDepartment,
   fakeFieldOfStudy,
   fakeKey,
   form,
   makeTables,
-  memoryLayer,
 } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
 import {
@@ -49,52 +37,14 @@ import {
   assertSuccess,
   assertValidationFailure,
 } from "./support/outcomes";
-
-const { signal } = new AbortController();
+import { runAs, viewAs } from "./support/run";
 
 /** 2026-10-15 12:00 in Oslo: Høst 2026, and next year is 2027. */
 const OCTOBER_15 = DateTime.toEpochMillis(
   DateTime.makeUnsafe("2026-10-15T12:00:00+02:00")
 );
 
-type ViewServices =
-  | CurrentActor
-  | DepartmentRepository
-  | SemesterRepository
-  | FieldOfStudyRepository
-  | AuditLog;
-
-/** Runs a command as `actor` exactly as a server function does: in a transaction, through the error table. */
-const runAs = <
-  A,
-  E extends RequestError,
-  R extends ViewServices | InTransaction,
->(
-  tables: MemoryTables,
-  actor: Actor,
-  command: Effect.Effect<A, E, R>
-) =>
-  Effect.promise(
-    async () =>
-      await runCommandOutcome(
-        memoryLayer(tables, actor),
-        Effect.void,
-        () => command,
-        signal
-      )
-  );
-
-/** Runs a view (a loader's program) as `actor` through the error table. */
-const viewAs = <A, E extends RequestError, R extends ViewServices>(
-  tables: MemoryTables,
-  actor: Actor,
-  view: Effect.Effect<A, E, R>
-) =>
-  Effect.promise(
-    async () => await runOutcome(memoryLayer(tables, actor), view, signal)
-  );
-
-/** What the form posts for a department: the same fields the edit dialog renders. */
+/** What the form posts for a department: the same fields the edit form renders. */
 const departmentFields = (
   overrides: Readonly<Record<string, string>> = {}
 ) => ({
