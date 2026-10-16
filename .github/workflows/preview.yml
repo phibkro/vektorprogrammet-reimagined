@@ -6,7 +6,8 @@ name: Previews
 #   Cloudflare Worker Preview of each `main` Worker; one PR comment holds both URLs. The `Web` Preview reads
 #   the `Cms` Preview, which serves the content of the forked branch (EmDash's `emdash` schema).
 # - pull request closed: destroy stage `pr-<n>`, then delete its Neon branch.
-# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, NEON_APP_PASSWORD (apps/web/stacks/github.ts);
+# Secrets: CLOUDFLARE_API_TOKEN (the account token `vektorprogrammet-reimagined-ci`), CLOUDFLARE_ACCOUNT_ID and
+# NEON_APP_PASSWORD (from SecretSpec), all described in apps/web/README.md § Stages and previews;
 # NEON_EMDASH_PASSWORD (role `emdash_app`, apps/cms/db/emdash-role.sql), EMDASH_ENCRYPTION_KEY and
 # CMS_READ_TOKEN (a `content:read` token made in the CMS admin of stage `main`);
 # NEON_API_KEY and vars.NEON_PROJECT_ID (Neon's GitHub integration).
