@@ -9,9 +9,9 @@
     "cf": "DO_NOT_TRACK=1 cf",
     "db:generate": "bun --bun drizzle-kit generate",
     "db:migrate": "bun --bun drizzle-kit migrate",
-    "deploy": "alchemy deploy alchemy.run.ts",
-    "destroy": "alchemy destroy alchemy.run.ts",
-    "smoke": "bun src/smoke.ts"
+    "deploy": "alchemy deploy alchemy.run.ts --stage spike --profile production",
+    "smoke": "bun src/smoke.ts",
+    "teardown": "alchemy destroy alchemy.run.ts --stage spike --profile production --yes && psql \"$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -c 'drop schema if exists spike_0000 cascade' -c 'drop table if exists public.spike_0000_migrations'"
   },
   "dependencies": {
     "@effect/sql-pg": "catalog:",
