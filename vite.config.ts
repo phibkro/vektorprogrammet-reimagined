@@ -290,6 +290,11 @@ export default defineConfig({
         rules: { "promise/prefer-await-to-then": "off" },
       },
       {
+        // Drizzle's SQL error wrapper is foreign; this classifier narrows its unknown input with isSqlError and Cause guards.
+        files: ["packages/db/src/classifySqlFailure.ts"],
+        rules: { "anti-slop/no-unknown-parameters": "off" },
+      },
+      {
         // Domain commands own untrusted request decoding through their schemas; this rule cannot see decodeInput inside the command boundary.
         files: [
           "packages/domain/src/contact/commands.ts",
