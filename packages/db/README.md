@@ -44,6 +44,34 @@ devenv shell -- bash -c 'cd packages/db && bunx drizzle-kit migrate'            
 
 `drizzle.config.ts` reads the target only from `DATABASE_URL`. For a Neon branch, export that branch's direct (non-Hyperdrive) URL in your shell. Never store it in a file.
 
+## Neon
+
+The deployed database is Neon project `bold-poetry-64036846` (name `vektorprogrammet`, `aws-eu-central-1`, PostgreSQL 18). Devenv's local server runs the same major version, so a local migration rehearses the deployed one.
+
+| Branch | What lives there |
+| --- | --- |
+| `production` (default) | Roles and grants only. The schema is applied at the first deploy. |
+| `dev` | Migrations applied. Used for slice 0000 and for the preview deployments. |
+| one throwaway branch per import rehearsal | Created for a rehearsal and dropped afterwards. |
+
+| Role | Use |
+| --- | --- |
+| `neondb_owner` | Migrations and the import, over a direct connection. |
+| `vp_app` | DML only. Created in SQL so it is not a member of `neon_superuser`; Hyperdrive connects as this role. |
+
+The two secrets are declared in `secretspec.toml` (`NEON_API_KEY`, `NEON_APP_PASSWORD`). Values live in each developer's own `secretspec` provider, never in the repository, and reach a command only through `secretspec run -- …` with a `SECRETSPEC_REASON`. No connection URL is ever stored; ask Neon for it at runtime:
+
+```sh
+bunx --bun neonctl@8.7.2 --api-key "$NEON_API_KEY" --project-id bold-poetry-64036846 \
+  connection-string <branch> --role-name <role> --database-name vektorprogrammet
+```
+
+**Trap:** devenv exports `PGHOST`/`PGPORT` for the local server, and a Neon URL carries no port, so libpq would dial Neon on devenv's 54321 and hang. Clear them first:
+
+```sh
+unset PGHOST PGPORT PGDATA
+```
+
 ## Tests
 
 ```sh
@@ -52,7 +80,7 @@ devenv shell -- bash -c 'cd packages/db && bunx vp check'  # format, lint, type 
 ```
 
 - `*.pglite.test.ts`: the production `RepositoriesLayer` and the generated migrations on an in-memory PGlite (`drizzle-orm/effect-pglite` and `@effect/sql-pglite`).
-- `*.postgres.test.ts`: devenv's PostgreSQL 17 through `DatabaseLive`. Each suite creates `vp_db_test_<random>` through `TEST_DATABASE_ADMIN_URL`, applies the migrations, and drops the database when the suite ends. The suite never uses the `vektorprogrammet` database. A missing `TEST_DATABASE_ADMIN_URL` fails the suite and does not skip it. A run that is killed before cleanup leaves its database behind. Drop leftovers with: `psql "$TEST_DATABASE_ADMIN_URL" -Atc "select datname from pg_database where datname like 'vp_db_test_%'"`.
+- `*.postgres.test.ts`: devenv's PostgreSQL 18 through `DatabaseLive`. Each suite creates `vp_db_test_<random>` through `TEST_DATABASE_ADMIN_URL`, applies the migrations, and drops the database when the suite ends. The suite never uses the `vektorprogrammet` database. A missing `TEST_DATABASE_ADMIN_URL` fails the suite and does not skip it. A run that is killed before cleanup leaves its database behind. Drop leftovers with: `psql "$TEST_DATABASE_ADMIN_URL" -Atc "select datname from pg_database where datname like 'vp_db_test_%'"`.
 - Build the PostgreSQL layer with `excludeTestServices: true`. The pool reads the Clock it was built with to track connection age. When a test moved a shared `TestClock`, the suite hung. Tests that need fixed time nest `it.layer(TestClock.layer())`.
 
 Each Behavior Contract rule that the database enforces is covered by a test whose name contains the rule id. These rules are RULE-096, 133, 144, 188, 189, 237, 249, 290 and 296.
@@ -62,7 +90,7 @@ Each Behavior Contract rule that the database enforces is covered by a test whos
 - **Scope:** `drizzle-orm` and `drizzle-kit` are pinned to the preview build `1.0.0-rc.5-5935859` (npm dist-tag `rc5`) in the root catalog.
 - **Missing capability:** the published `1.0.0-rc.4` does not load `drizzle-orm/effect-postgres` or `effect-pglite` with effect 4.0.5. It fails with `TypeError: Schema$1.TaggedErrorClass is not a function`, because effect 4.0 GA renamed the API to `Schema.TaggedError`. The rc5 build uses `Schema.TaggedError`.
 - **Remaining defect:** the `.d.ts` files in rc5 still import `effect/unstable/sql/SqlError`. That path no longer exists, so Drizzle's `transaction` and `migrate` error types resolve to `any`. This package uses neither in production code. Transactions go through `SqlClient.withTransaction`.
-- **Verification:** `bunx vp test` in this package. Both Drizzle drivers load and run against PGlite and PostgreSQL 17.
+- **Verification:** `bunx vp test` in this package. Both Drizzle drivers load and run against PGlite and PostgreSQL 18.
 - **Retirement trigger:** a published Drizzle 1.0.0 that supports effect 4.0 GA. When it ships, move the catalog to it and run this suite.
 
 A related Drizzle behaviour shapes the schema: Drizzle selects `bigint` columns as `::text`. That breaks `id IN (subquery)` in the outbox claim. For this reason the outbox and audit ids are `integer` identities.

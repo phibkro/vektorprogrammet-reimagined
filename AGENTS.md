@@ -25,7 +25,7 @@ flowchart LR
   db --> domain
   import["tools/import<br/>legacy MySQL → PostgreSQL"] --> db
   import --> domain
-  db -->|"Hyperdrive (cache off) → @effect/sql-pg"| pg[("Neon PostgreSQL 17")]
+  db -->|"Hyperdrive (cache off) → @effect/sql-pg"| pg[("Neon PostgreSQL 18")]
   web -->|binding| r2[("R2 public files")]
 ```
 
@@ -45,7 +45,7 @@ flowchart LR
 
 ## Run it
 
-Everything runs inside devenv: it pins Bun 1.4.2 and Node 24 and runs PostgreSQL 17 and MySQL 8.4. The system Bun (1.3.x) hangs on `bun install`.
+Everything runs inside devenv: it pins Bun 1.4.2 and Node 24 and runs PostgreSQL 18 and MySQL 8.4. The system Bun (1.3.x) hangs on `bun install`.
 
 ```sh
 devenv up -d                                   # PostgreSQL + MySQL; stop with: devenv down
@@ -58,6 +58,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://local
 
 - Environment variables (`DATABASE_URL`, `TEST_DATABASE_ADMIN_URL`, `LEGACY_MYSQL_URL`) come from `devenv.nix`, derived from the ports devenv allocates. Deployed environments get the database through the Hyperdrive binding declared in `apps/web/alchemy.run.ts`.
 - Secrets (Turnstile, Slack webhooks) are Worker secrets set with `cf`, never files.
+- Neon secrets are declared in `secretspec.toml` and read only through `secretspec run -- <command>` with a `SECRETSPEC_REASON`, so a value never enters devenv evaluation, the Nix store or a shell. `packages/db/README.md` (Neon) has the branch, role and connection details.
 - Real-PostgreSQL tests create and drop their own `vp_db_test_*` / `import_test_*` databases.
 - The local test actor exists only when `DEPLOYMENT=local` (`vp dev`), via the `vp-test-actor` cookie.
 
