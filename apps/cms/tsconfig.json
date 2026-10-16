@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     "astro.config.ts",
+    "build/**/*.ts",
     "scripts/**/*.ts",
     "src/**/*.ts",
     ".astro/types.d.ts"

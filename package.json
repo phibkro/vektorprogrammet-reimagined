@@ -10,8 +10,8 @@
   "type": "module",
   "scripts": {
     "prepare": "vp config --no-agent && effect-tsgo patch --typescript --oxlint",
-    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run build:cms",
-    "build:cms": "bun run --cwd apps/cms build",
+    "ready": "vp check && bun run check:exceptions && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run check:cms",
+    "check:cms": "bun run --cwd apps/cms check:bundle",
     "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
     "knip": "knip",
     "cpd": "jscpd --config .jscpd.json apps packages tools",
@@ -86,6 +86,7 @@
     "pg": "8.23.1",
     "@effect/openapi-generator": "4.0.5",
     "htmlparser2": "12.0.0",
-    "domhandler": "6.0.1"
+    "domhandler": "6.0.1",
+    "miniflare": "5.20261012.0-beta"
   }
 }

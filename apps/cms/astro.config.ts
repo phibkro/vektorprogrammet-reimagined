@@ -5,6 +5,8 @@ import { defineConfig } from "astro/config";
 import { Config, Effect } from "effect";
 import emdash from "emdash/astro";
 
+import { ownExternalRequire } from "./build/ownExternalRequire.ts";
+
 // Alchemy builds with its own Cloudflare adapter and fails the build when this file configures one. The local runs
 // (`bun run dev`, the browser tests) set CMS_STANDALONE=1 and use @astrojs/cloudflare over wrangler.json instead.
 const standalone =
@@ -22,5 +24,9 @@ export default defineConfig({
     }),
   ],
   output: "server",
-  vite: { optimizeDeps: { include: ["pg"] } },
+  // `ownExternalRequire`: the bundle's `require("events")` and friends become imports (see its comment).
+  vite: {
+    optimizeDeps: { include: ["pg"] },
+    plugins: [ownExternalRequire()],
+  },
 });

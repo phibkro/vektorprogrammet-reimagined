@@ -382,6 +382,7 @@ export default defineConfig({
           "packages/cms-client/scripts/generate.ts",
           "tools/import/src/reportFiles.ts",
           "tools/import/src/emdash/pipeline.ts",
+          "apps/cms/scripts/checkBundle.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",
@@ -477,7 +478,7 @@ export default defineConfig({
         rules: { "no-inline-comments": "off" },
       },
       {
-        // promise/prefer-await-to-then and typescript/promise-function-async conflict with effecttsgo/async-function at TanStack, React and Playwright-runner Promise ABIs.
+        // promise/prefer-await-to-then and typescript/promise-function-async conflict with effecttsgo/async-function at TanStack, React, Playwright-runner and Miniflare Promise ABIs.
         files: [
           "apps/web/src/server.ts",
           "apps/web/src/server/runtime.ts",
@@ -504,6 +505,7 @@ export default defineConfig({
           "apps/web/src/server/outcomeStatus.ts",
           "tools/db-path-spike/src/worker.ts",
           "apps/web/e2e/support/probes.ts",
+          "apps/cms/scripts/checkBundle.ts",
         ],
         rules: {
           "promise/prefer-await-to-callbacks": "off",

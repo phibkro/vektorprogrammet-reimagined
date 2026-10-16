@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "CMS_STANDALONE=1 astro dev --port 4321 --ignore-lock",
     "check": "vp check",
-    "build": "bun scripts/build.ts"
+    "check:bundle": "bun scripts/checkBundle.ts"
   },
   "dependencies": {
     "@astrojs/react": "catalog:",
@@ -26,7 +26,10 @@
     "@types/node": "catalog:",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@vektorprogrammet/db": "workspace:*",
+    "miniflare": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vite-plus": "catalog:"
   }
 }
