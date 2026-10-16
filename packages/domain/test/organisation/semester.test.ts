@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
-import { DateTime } from "effect";
+import { Array as Arr, DateTime, pipe } from "effect";
+
 import {
   OSLO,
   isBetween,
@@ -9,52 +10,86 @@ import {
   semesterWindow,
   sortNewestFirst,
   windowContains,
-  type Semester,
 } from "../../src/index.ts";
+import type { Semester } from "../../src/index.ts";
 
 /** An Oslo wall-clock time as an instant. */
 const oslo = (local: string): DateTime.Zoned =>
-  DateTime.makeZonedUnsafe(local, { timeZone: "Europe/Oslo", adjustForTimeZone: true });
+  DateTime.makeZonedUnsafe(local, {
+    adjustForTimeZone: true,
+    timeZone: "Europe/Oslo",
+  });
 
 const vaar = (year: number): Semester => ({ term: "VAR", year });
+
 const host = (year: number): Semester => ({ term: "HOST", year });
+
+const lastSecond = (end: DateTime.Utc) =>
+  DateTime.subtract(end, { seconds: 1 });
 
 describe("C2 semester primitives", () => {
   it("RULE-033: the calendar month in Oslo decides Vår or Høst", () => {
-    assert.deepStrictEqual(semesterForDate(oslo("2026-10-15T12:00:00")), host(2026));
-    assert.deepStrictEqual(semesterForDate(oslo("2026-07-31T12:00:00")), vaar(2026));
-    assert.deepStrictEqual(semesterForDate(oslo("2026-08-01T12:00:00")), host(2026));
+    assert.deepStrictEqual(
+      semesterForDate(oslo("2026-10-15T12:00:00")),
+      host(2026)
+    );
+    assert.deepStrictEqual(
+      semesterForDate(oslo("2026-07-31T12:00:00")),
+      vaar(2026)
+    );
+    assert.deepStrictEqual(
+      semesterForDate(oslo("2026-08-01T12:00:00")),
+      host(2026)
+    );
   });
 
   it("RULE-033: the boundary follows Oslo midnight, not UTC midnight", () => {
     // 2026-07-31T22:30Z is already 2026-08-01 00:30 in Oslo (CEST, +02:00).
     assert.deepStrictEqual(
       semesterForDate(DateTime.makeUnsafe("2026-07-31T22:30:00Z")),
-      host(2026),
+      host(2026)
     );
     // 2026-12-31T23:30Z is 2027-01-01 00:30 in Oslo (CET, +01:00).
     assert.deepStrictEqual(
       semesterForDate(DateTime.makeUnsafe("2026-12-31T23:30:00Z")),
-      vaar(2027),
+      vaar(2027)
     );
   });
 
   it("RULE-022: Vår and Høst windows are half-open at Oslo midnight", () => {
     const spring = semesterWindow(vaar(2026));
     const autumn = semesterWindow(host(2026));
-    assert.strictEqual(DateTime.formatIso(spring.start), "2025-12-31T23:00:00.000Z");
-    assert.strictEqual(DateTime.formatIso(spring.end), "2026-07-31T22:00:00.000Z");
-    assert.strictEqual(DateTime.formatIso(autumn.start), "2026-07-31T22:00:00.000Z");
-    assert.strictEqual(DateTime.formatIso(autumn.end), "2026-12-31T23:00:00.000Z");
+    assert.strictEqual(
+      DateTime.formatIso(spring.start),
+      "2025-12-31T23:00:00.000Z"
+    );
+    assert.strictEqual(
+      DateTime.formatIso(spring.end),
+      "2026-07-31T22:00:00.000Z"
+    );
+    assert.strictEqual(
+      DateTime.formatIso(autumn.start),
+      "2026-07-31T22:00:00.000Z"
+    );
+    assert.strictEqual(
+      DateTime.formatIso(autumn.end),
+      "2026-12-31T23:00:00.000Z"
+    );
   });
 
   it("RULE-022: 2026-07-31T23:59:59 Oslo is in Vår, 2026-08-01T00:00:00 Oslo is in Høst", () => {
     const lastLegacySecond = oslo("2026-07-31T23:59:59");
     const firstAutumnInstant = oslo("2026-08-01T00:00:00");
     assert.isTrue(windowContains(semesterWindow(vaar(2026)), lastLegacySecond));
-    assert.isFalse(windowContains(semesterWindow(host(2026)), lastLegacySecond));
-    assert.isFalse(windowContains(semesterWindow(vaar(2026)), firstAutumnInstant));
-    assert.isTrue(windowContains(semesterWindow(host(2026)), firstAutumnInstant));
+    assert.isFalse(
+      windowContains(semesterWindow(host(2026)), lastLegacySecond)
+    );
+    assert.isFalse(
+      windowContains(semesterWindow(vaar(2026)), firstAutumnInstant)
+    );
+    assert.isTrue(
+      windowContains(semesterWindow(host(2026)), firstAutumnInstant)
+    );
   });
 
   it("RULE-022: the window spans the March DST change (start +01:00, end +02:00)", () => {
@@ -64,11 +99,11 @@ describe("C2 semester primitives", () => {
     assert.isTrue(windowContains(spring, oslo("2026-03-29T03:00:00")));
     assert.strictEqual(
       DateTime.formatIsoOffset(DateTime.setZone(spring.start, OSLO)),
-      "2026-01-01T00:00:00.000+01:00",
+      "2026-01-01T00:00:00.000+01:00"
     );
     assert.strictEqual(
       DateTime.formatIsoOffset(DateTime.setZone(spring.end, OSLO)),
-      "2026-08-01T00:00:00.000+02:00",
+      "2026-08-01T00:00:00.000+02:00"
     );
   });
 
@@ -76,26 +111,29 @@ describe("C2 semester primitives", () => {
     for (const year of [2012, 2024, 2026]) {
       const spring = semesterWindow(vaar(year));
       const autumn = semesterWindow(host(year));
-      const lastSecond = (end: DateTime.Utc) => DateTime.subtract(end, { seconds: 1 });
+
       assert.strictEqual(
         DateTime.formatIso(spring.start),
-        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-01-01T00:00:00`))),
+        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-01-01T00:00:00`)))
       );
       assert.strictEqual(
         DateTime.formatIso(lastSecond(spring.end)),
-        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-07-31T23:59:59`))),
+        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-07-31T23:59:59`)))
       );
       assert.strictEqual(
         DateTime.formatIso(autumn.start),
-        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-08-01T00:00:00`))),
+        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-08-01T00:00:00`)))
       );
       assert.strictEqual(
         DateTime.formatIso(lastSecond(autumn.end)),
-        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-12-31T23:59:59`))),
+        DateTime.formatIso(DateTime.toUtc(oslo(`${year}-12-31T23:59:59`)))
       );
       // The sub-second gap after 23:59:59 that legacy left uncovered now belongs to Vår.
       assert.isTrue(
-        windowContains(spring, DateTime.add(lastSecond(spring.end), { milliseconds: 500 })),
+        windowContains(
+          spring,
+          DateTime.add(lastSecond(spring.end), { milliseconds: 500 })
+        )
       );
     }
   });
@@ -122,7 +160,11 @@ describe("C2 semester primitives", () => {
 
   it("RULE-084: semester lists are ordered newest first", () => {
     const sorted = sortNewestFirst([vaar(2026), host(2026), host(2025)]);
-    assert.deepStrictEqual(sorted.map(semesterLabel), ["Høst 2026", "Vår 2026", "Høst 2025"]);
+    assert.deepStrictEqual(pipe(sorted, Arr.map(semesterLabel)), [
+      "Høst 2026",
+      "Vår 2026",
+      "Høst 2025",
+    ]);
   });
 
   it("RULE-190: selectable years run from next year down to 2012", () => {
@@ -134,6 +176,9 @@ describe("C2 semester primitives", () => {
   });
 
   it("RULE-190: the year is the Oslo year (New Year's Eve 23:30 UTC is already next year)", () => {
-    assert.strictEqual(selectableYears(DateTime.makeUnsafe("2026-12-31T23:30:00Z"))[0], 2028);
+    assert.strictEqual(
+      selectableYears(DateTime.makeUnsafe("2026-12-31T23:30:00Z"))[0],
+      2028
+    );
   });
 });

@@ -1,9 +1,23 @@
+import { assert } from "@effect/vitest";
 /**
  * Test-only in-memory implementations of the domain's service interfaces.
  * Not exported from the package; `packages/db` provides the real Layers.
  */
-import { Context, Crypto, DateTime, Effect, Exit, Layer, Option, Ref, Stream } from "effect";
 import {
+  Array as Arr,
+  Context,
+  Crypto,
+  DateTime,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Ref,
+  Stream,
+} from "effect";
+
+import {
+  Actor,
   AlreadyExists,
   ArticleId,
   ArticleRepository,
@@ -11,6 +25,7 @@ import {
   CurrentActor,
   DepartmentId,
   DepartmentRepository,
+  EmailAddress,
   FieldOfStudyId,
   FieldOfStudyRepository,
   FileStore,
@@ -21,28 +36,30 @@ import {
   PublicFileRepository,
   SemesterId,
   SemesterRepository,
+  SlackChannel,
   SocialEventId,
   SocialEventRepository,
   SponsorId,
   SponsorRepository,
   StaticContentRepository,
   UserId,
-  type Actor,
-  type Article,
-  type AuditEntry,
-  type Department,
-  type FieldOfStudy,
-  type FileKey,
-  type OutboxMessage,
-  type PublicFile,
-  type SanitizedHtml,
-  type SocialEvent,
-  type Sponsor,
-  type StaticContent,
-  type StaticContentKey,
-  type StoredContentType,
-  type StoredSemester,
-  type Staff,
+} from "../../src/index.ts";
+import type {
+  Article,
+  AuditEntry,
+  Department,
+  FieldOfStudy,
+  FileKey,
+  OutboxMessage,
+  PublicFile,
+  SanitizedHtml,
+  SocialEvent,
+  Sponsor,
+  StaticContent,
+  StaticContentKey,
+  StoredContentType,
+  StoredSemester,
+  Staff,
 } from "../../src/index.ts";
 
 export interface StoredBytes {
@@ -54,68 +71,97 @@ export interface StoredBytes {
 export class TestDb extends Context.Service<
   TestDb,
   {
-    readonly departments: Ref.Ref<ReadonlyArray<Department>>;
-    readonly semesters: Ref.Ref<ReadonlyArray<StoredSemester>>;
-    readonly fieldsOfStudy: Ref.Ref<ReadonlyArray<FieldOfStudy>>;
-    readonly articles: Ref.Ref<ReadonlyArray<Article>>;
-    readonly staticContent: Ref.Ref<ReadonlyArray<StaticContent>>;
-    readonly sponsors: Ref.Ref<ReadonlyArray<Sponsor>>;
-    readonly socialEvents: Ref.Ref<ReadonlyArray<SocialEvent>>;
-    readonly publicFiles: Ref.Ref<ReadonlyArray<PublicFile>>;
+    readonly departments: Ref.Ref<readonly Department[]>;
+    readonly semesters: Ref.Ref<readonly StoredSemester[]>;
+    readonly fieldsOfStudy: Ref.Ref<readonly FieldOfStudy[]>;
+    readonly articles: Ref.Ref<readonly Article[]>;
+    readonly staticContent: Ref.Ref<readonly StaticContent[]>;
+    readonly sponsors: Ref.Ref<readonly Sponsor[]>;
+    readonly socialEvents: Ref.Ref<readonly SocialEvent[]>;
+    readonly publicFiles: Ref.Ref<readonly PublicFile[]>;
     readonly objects: Ref.Ref<ReadonlyMap<FileKey, StoredBytes>>;
-    readonly outbox: Ref.Ref<ReadonlyArray<OutboxMessage>>;
-    readonly audit: Ref.Ref<ReadonlyArray<AuditEntry>>;
+    readonly outbox: Ref.Ref<readonly OutboxMessage[]>;
+    readonly audit: Ref.Ref<readonly AuditEntry[]>;
     readonly nextId: Ref.Ref<number>;
   }
 >()("test/TestDb") {
   static readonly layer = Layer.effect(
     TestDb,
-    Effect.gen(function* () {
+    Effect.gen(function* layer() {
       return TestDb.of({
-        departments: yield* Ref.make<ReadonlyArray<Department>>([]),
-        semesters: yield* Ref.make<ReadonlyArray<StoredSemester>>([]),
-        fieldsOfStudy: yield* Ref.make<ReadonlyArray<FieldOfStudy>>([]),
-        articles: yield* Ref.make<ReadonlyArray<Article>>([]),
-        staticContent: yield* Ref.make<ReadonlyArray<StaticContent>>([]),
-        sponsors: yield* Ref.make<ReadonlyArray<Sponsor>>([]),
-        socialEvents: yield* Ref.make<ReadonlyArray<SocialEvent>>([]),
-        publicFiles: yield* Ref.make<ReadonlyArray<PublicFile>>([]),
-        objects: yield* Ref.make<ReadonlyMap<FileKey, StoredBytes>>(new Map()),
-        outbox: yield* Ref.make<ReadonlyArray<OutboxMessage>>([]),
-        audit: yield* Ref.make<ReadonlyArray<AuditEntry>>([]),
+        articles: yield* Ref.make<readonly Article[]>([]),
+        audit: yield* Ref.make<readonly AuditEntry[]>([]),
+        departments: yield* Ref.make<readonly Department[]>([]),
+        fieldsOfStudy: yield* Ref.make<readonly FieldOfStudy[]>([]),
         nextId: yield* Ref.make(1),
+        objects: yield* Ref.make<ReadonlyMap<FileKey, StoredBytes>>(new Map()),
+        outbox: yield* Ref.make<readonly OutboxMessage[]>([]),
+        publicFiles: yield* Ref.make<readonly PublicFile[]>([]),
+        semesters: yield* Ref.make<readonly StoredSemester[]>([]),
+        socialEvents: yield* Ref.make<readonly SocialEvent[]>([]),
+        sponsors: yield* Ref.make<readonly Sponsor[]>([]),
+        staticContent: yield* Ref.make<readonly StaticContent[]>([]),
       });
-    }),
+    })
   );
 }
 
-const nextId = (db: TestDb["Service"]) => Ref.getAndUpdate(db.nextId, (id) => id + 1);
+export const departmentForTest = (
+  id: DepartmentId,
+  city: string,
+  shortName = city.toUpperCase(),
+  slackChannel: string | null = null
+): Department => ({
+  active: true,
+  address: null,
+  city,
+  email: EmailAddress.make(`${city.toLowerCase()}@example.org`),
+  id,
+  latitude: null,
+  logoKey: null,
+  longitude: null,
+  name: `Vektor ${city}`,
+  shortName,
+  slackChannel: slackChannel === null ? null : SlackChannel.make(slackChannel),
+});
 
-const findOr = <A>(items: ReadonlyArray<A>, predicate: (item: A) => boolean, error: NotFound) => {
-  const found = items.find(predicate);
+const nextId = (db: TestDb["Service"]) =>
+  Ref.getAndUpdate(db.nextId, (id) => id + 1);
+
+const findOr = <A>(
+  items: readonly A[],
+  predicate: (item: A) => boolean,
+  error: NotFound
+) => {
+  const found = Option.getOrUndefined(Arr.findFirst(items, predicate));
+
   return found === undefined ? Effect.fail(error) : Effect.succeed(found);
 };
 
+const sameSemester = (
+  a: { term: string; year: number },
+  b: { term: string; year: number }
+) => a.term === b.term && a.year === b.year;
+
+const notFoundFieldOfStudy = (id: FieldOfStudyId) =>
+  new NotFound({ entity: "FieldOfStudy", key: String(id) });
+
+const notFoundArticle = (id: ArticleId) =>
+  new NotFound({ entity: "Article", key: String(id) });
+
 const DepartmentRepositoryTest = Layer.effect(
   DepartmentRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* DepartmentRepositoryTest() {
     const db = yield* TestDb;
+
     const cityTaken = (city: string, except?: DepartmentId) =>
       Effect.map(Ref.get(db.departments), (rows) =>
-        rows.some((row) => row.city === city && row.id !== except),
+        Arr.some(rows, (row) => row.city === city && row.id !== except)
       );
+
     return DepartmentRepository.of({
-      list: Ref.get(db.departments),
-      findById: (id) =>
-        Effect.flatMap(Ref.get(db.departments), (rows) =>
-          findOr(
-            rows,
-            (row) => row.id === id,
-            new NotFound({ entity: "Department", key: String(id) }),
-          ),
-        ),
       create: (draft) =>
-        Effect.gen(function* () {
+        Effect.gen(function* create() {
           if (yield* cityTaken(draft.city)) {
             return yield* new AlreadyExists({
               entity: "Department",
@@ -123,18 +169,34 @@ const DepartmentRepositoryTest = Layer.effect(
               message: "city taken",
             });
           }
-          const created: Department = { id: DepartmentId.make(yield* nextId(db)), ...draft };
+
+          const created: Department = {
+            id: DepartmentId.make(yield* nextId(db)),
+            ...draft,
+          };
+
           yield* Ref.update(db.departments, (rows) => [...rows, created]);
+
           return created;
         }),
+      findById: (id) =>
+        Effect.flatMap(Ref.get(db.departments), (rows) =>
+          findOr(
+            rows,
+            (row) => row.id === id,
+            new NotFound({ entity: "Department", key: String(id) })
+          )
+        ),
+      list: Ref.get(db.departments),
       update: (id, draft) =>
-        Effect.gen(function* () {
+        Effect.gen(function* update() {
           const rows = yield* Ref.get(db.departments);
           yield* findOr(
             rows,
             (row) => row.id === id,
-            new NotFound({ entity: "Department", key: String(id) }),
+            new NotFound({ entity: "Department", key: String(id) })
           );
+
           if (yield* cityTaken(draft.city, id)) {
             return yield* new AlreadyExists({
               entity: "Department",
@@ -142,37 +204,38 @@ const DepartmentRepositoryTest = Layer.effect(
               message: "city taken",
             });
           }
+
           const updated: Department = { id, ...draft };
           yield* Ref.set(
             db.departments,
-            rows.map((row) => (row.id === id ? updated : row)),
+            Arr.map(rows, (row) => (row.id === id ? updated : row))
           );
+
           return updated;
         }),
     });
-  }),
+  })
 );
 
 const SemesterRepositoryTest = Layer.effect(
   SemesterRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* SemesterRepositoryTest() {
     const db = yield* TestDb;
-    const same = (a: { term: string; year: number }, b: { term: string; year: number }) =>
-      a.term === b.term && a.year === b.year;
+
     return SemesterRepository.of({
-      list: Ref.get(db.semesters),
-      find: (semester) =>
-        Effect.map(Ref.get(db.semesters), (rows) =>
-          Option.fromNullishOr(rows.find((row) => same(row, semester))),
-        ),
       create: (semester) =>
-        Effect.gen(function* () {
+        Effect.gen(function* create() {
           const id = SemesterId.make(yield* nextId(db));
+
           const created = yield* Ref.modify(db.semesters, (rows) =>
-            rows.some((row) => same(row, semester))
+            Arr.some(rows, (row) => sameSemester(row, semester))
               ? [Option.none<StoredSemester>(), rows]
-              : [Option.some({ id, ...semester }), [...rows, { id, ...semester }]],
+              : [
+                  Option.some({ id, ...semester }),
+                  [...rows, { id, ...semester }],
+                ]
           );
+
           if (Option.isNone(created)) {
             return yield* new AlreadyExists({
               entity: "Semester",
@@ -180,243 +243,344 @@ const SemesterRepositoryTest = Layer.effect(
               message: "unique (term, year)",
             });
           }
+
           return created.value;
         }),
       // Atomic like `INSERT … ON CONFLICT DO NOTHING` + select.
       ensure: (semester) =>
-        Effect.gen(function* () {
+        Effect.gen(function* ensure() {
           const id = SemesterId.make(yield* nextId(db));
+
           return yield* Ref.modify(db.semesters, (rows) => {
-            const existing = rows.find((row) => same(row, semester));
-            if (existing !== undefined) return [existing, rows];
+            const existing = Option.getOrUndefined(
+              Arr.findFirst(rows, (row) => sameSemester(row, semester))
+            );
+
+            if (existing !== undefined) {
+              return [existing, rows];
+            }
+
             const created: StoredSemester = { id, ...semester };
+
             return [created, [...rows, created]];
           });
         }),
+      find: (semester) =>
+        Effect.map(Ref.get(db.semesters), (rows) =>
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(rows, (row) => sameSemester(row, semester))
+            )
+          )
+        ),
+      list: Ref.get(db.semesters),
     });
-  }),
+  })
 );
 
 const FieldOfStudyRepositoryTest = Layer.effect(
   FieldOfStudyRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* FieldOfStudyRepositoryTest() {
     const db = yield* TestDb;
-    const notFound = (id: FieldOfStudyId) =>
-      new NotFound({ entity: "FieldOfStudy", key: String(id) });
+
     return FieldOfStudyRepository.of({
-      listByDepartment: (departmentId) =>
-        Effect.map(Ref.get(db.fieldsOfStudy), (rows) =>
-          rows.filter((row) => row.departmentId === departmentId),
-        ),
-      findById: (id) =>
-        Effect.flatMap(Ref.get(db.fieldsOfStudy), (rows) =>
-          findOr(rows, (row) => row.id === id, notFound(id)),
-        ),
       create: (draft) =>
-        Effect.gen(function* () {
-          const created: FieldOfStudy = { id: FieldOfStudyId.make(yield* nextId(db)), ...draft };
+        Effect.gen(function* create() {
+          const created: FieldOfStudy = {
+            id: FieldOfStudyId.make(yield* nextId(db)),
+            ...draft,
+          };
+
           yield* Ref.update(db.fieldsOfStudy, (rows) => [...rows, created]);
+
           return created;
         }),
+      findById: (id) =>
+        Effect.flatMap(Ref.get(db.fieldsOfStudy), (rows) =>
+          findOr(rows, (row) => row.id === id, notFoundFieldOfStudy(id))
+        ),
+      listByDepartment: (departmentId) =>
+        Effect.map(Ref.get(db.fieldsOfStudy), (rows) =>
+          Arr.filter(rows, (row) => row.departmentId === departmentId)
+        ),
       rename: (id, names) =>
-        Effect.gen(function* () {
+        Effect.gen(function* rename() {
           const rows = yield* Ref.get(db.fieldsOfStudy);
-          const existing = yield* findOr(rows, (row) => row.id === id, notFound(id));
+
+          const existing = yield* findOr(
+            rows,
+            (row) => row.id === id,
+            notFoundFieldOfStudy(id)
+          );
+
           const renamed: FieldOfStudy = { ...existing, ...names };
           yield* Ref.set(
             db.fieldsOfStudy,
-            rows.map((row) => (row.id === id ? renamed : row)),
+            Arr.map(rows, (row) => (row.id === id ? renamed : row))
           );
+
           return renamed;
         }),
     });
-  }),
+  })
 );
 
 const ArticleRepositoryTest = Layer.effect(
   ArticleRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* ArticleRepositoryTest() {
     const db = yield* TestDb;
-    const notFound = (id: ArticleId) => new NotFound({ entity: "Article", key: String(id) });
+
     return ArticleRepository.of({
       create: (draft) =>
-        Effect.gen(function* () {
+        Effect.gen(function* create() {
           const rows = yield* Ref.get(db.articles);
-          if (rows.some((row) => row.slug === draft.slug)) {
+
+          if (Arr.some(rows, (row) => row.slug === draft.slug)) {
             return yield* new AlreadyExists({
               entity: "Article",
               key: draft.slug,
               message: "slug taken",
             });
           }
-          const created: Article = { id: ArticleId.make(yield* nextId(db)), ...draft };
+
+          const created: Article = {
+            id: ArticleId.make(yield* nextId(db)),
+            ...draft,
+          };
+
           yield* Ref.set(db.articles, [...rows, created]);
+
           return created;
         }),
       findById: (id) =>
         Effect.flatMap(Ref.get(db.articles), (rows) =>
-          findOr(rows, (row) => row.id === id, notFound(id)),
+          findOr(rows, (row) => row.id === id, notFoundArticle(id))
         ),
       findBySlug: (slug) =>
         Effect.map(Ref.get(db.articles), (rows) =>
-          Option.fromNullishOr(rows.find((row) => row.slug === slug)),
-        ),
-      slugsLike: (base) =>
-        Effect.map(Ref.get(db.articles), (rows) =>
-          rows
-            .map((row) => row.slug)
-            .filter((slug) => slug === base || slug.startsWith(`${base}-`)),
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(rows, (row) => row.slug === slug)
+            )
+          )
         ),
       listPublished: Effect.map(Ref.get(db.articles), (rows) =>
-        rows.filter((row) => row.published),
+        Arr.filter(rows, (row) => row.published)
       ),
       setPublished: (id, published) =>
-        Effect.gen(function* () {
+        Effect.gen(function* setPublished() {
           const rows = yield* Ref.get(db.articles);
-          const existing = yield* findOr(rows, (row) => row.id === id, notFound(id));
+
+          const existing = yield* findOr(
+            rows,
+            (row) => row.id === id,
+            notFoundArticle(id)
+          );
+
           const updated: Article = { ...existing, published };
           yield* Ref.set(
             db.articles,
-            rows.map((row) => (row.id === id ? updated : row)),
+            Arr.map(rows, (row) => (row.id === id ? updated : row))
           );
+
           return updated;
         }),
+      slugsLike: (base) =>
+        Effect.map(Ref.get(db.articles), (rows) =>
+          Arr.filter(
+            Arr.map(rows, (row) => row.slug),
+            (slug) => slug === base || slug.startsWith(`${base}-`)
+          )
+        ),
     });
-  }),
+  })
 );
 
 const StaticContentRepositoryTest = Layer.effect(
   StaticContentRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* StaticContentRepositoryTest() {
     const db = yield* TestDb;
+
     return StaticContentRepository.of({
       find: (key: StaticContentKey) =>
         Effect.map(Ref.get(db.staticContent), (rows) =>
-          Option.fromNullishOr(rows.find((row) => row.key === key)),
+          Option.fromNullishOr(
+            Option.getOrUndefined(Arr.findFirst(rows, (row) => row.key === key))
+          )
         ),
       upsert: (key: StaticContentKey, html: SanitizedHtml) =>
         Ref.modify(db.staticContent, (rows) => {
-          const saved: StaticContent = { key, html };
-          return [saved, [...rows.filter((row) => row.key !== key), saved]];
+          const saved: StaticContent = { html, key };
+
+          return [
+            saved,
+            [...Arr.filter(rows, (row) => row.key !== key), saved],
+          ];
         }),
     });
-  }),
+  })
 );
 
 const SponsorRepositoryTest = Layer.effect(
   SponsorRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* SponsorRepositoryTest() {
     const db = yield* TestDb;
+
     return SponsorRepository.of({
-      list: Ref.get(db.sponsors),
       create: (draft) =>
-        Effect.gen(function* () {
-          const created: Sponsor = { id: SponsorId.make(yield* nextId(db)), ...draft };
+        Effect.gen(function* create() {
+          const created: Sponsor = {
+            id: SponsorId.make(yield* nextId(db)),
+            ...draft,
+          };
+
           yield* Ref.update(db.sponsors, (rows) => [...rows, created]);
+
           return created;
         }),
+      list: Ref.get(db.sponsors),
     });
-  }),
+  })
 );
 
 const SocialEventRepositoryTest = Layer.effect(
   SocialEventRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* SocialEventRepositoryTest() {
     const db = yield* TestDb;
+
     return SocialEventRepository.of({
-      list: (filter) =>
-        Effect.map(Ref.get(db.socialEvents), (rows) =>
-          rows.filter(
-            (row) =>
-              row.departmentId === filter.departmentId && row.semesterId === filter.semesterId,
-          ),
-        ),
       create: (draft) =>
-        Effect.gen(function* () {
-          const created: SocialEvent = { id: SocialEventId.make(yield* nextId(db)), ...draft };
+        Effect.gen(function* create() {
+          const created: SocialEvent = {
+            id: SocialEventId.make(yield* nextId(db)),
+            ...draft,
+          };
+
           yield* Ref.update(db.socialEvents, (rows) => [...rows, created]);
+
           return created;
         }),
+      list: (filter) =>
+        Effect.map(Ref.get(db.socialEvents), (rows) =>
+          Arr.filter(
+            rows,
+            (row) =>
+              row.departmentId === filter.departmentId &&
+              row.semesterId === filter.semesterId
+          )
+        ),
     });
-  }),
+  })
 );
 
 const PublicFileRepositoryTest = Layer.effect(
   PublicFileRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* PublicFileRepositoryTest() {
     const db = yield* TestDb;
+
     return PublicFileRepository.of({
       findByKey: (key) =>
         Effect.map(Ref.get(db.publicFiles), (rows) =>
-          Option.fromNullishOr(rows.find((row) => row.key === key)),
+          Option.fromNullishOr(
+            Option.getOrUndefined(Arr.findFirst(rows, (row) => row.key === key))
+          )
         ),
       findByLegacyPath: (legacyPath) =>
         Effect.map(Ref.get(db.publicFiles), (rows) =>
-          Option.fromNullishOr(rows.find((row) => row.legacyPath === legacyPath)),
+          Option.fromNullishOr(
+            Option.getOrUndefined(
+              Arr.findFirst(rows, (row) => row.legacyPath === legacyPath)
+            )
+          )
         ),
       register: (file) =>
         Ref.modify(db.publicFiles, (rows) => {
-          const existing = rows.find((row) => row.key === file.key);
-          return existing === undefined ? [file, [...rows, file]] : [existing, rows];
+          const existing = Option.getOrUndefined(
+            Arr.findFirst(rows, (row) => row.key === file.key)
+          );
+
+          return existing === undefined
+            ? [file, [...rows, file]]
+            : [existing, rows];
         }),
     });
-  }),
+  })
 );
 
 const FileStoreTest = Layer.effect(
   FileStore,
-  Effect.gen(function* () {
+  Effect.gen(function* FileStoreTest() {
     const db = yield* TestDb;
+
     return FileStore.of({
-      put: ({ key, bytes, contentType }) =>
-        Ref.update(db.objects, (objects) => new Map([...objects, [key, { bytes, contentType }]])),
       get: (key) =>
         Effect.map(Ref.get(db.objects), (objects) =>
           Option.map(Option.fromNullishOr(objects.get(key)), (stored) => ({
             body: Stream.make(stored.bytes),
             size: stored.bytes.byteLength,
-          })),
+          }))
+        ),
+      put: ({ key, bytes, contentType }) =>
+        Ref.update(
+          db.objects,
+          (objects) => new Map([...objects, [key, { bytes, contentType }]])
         ),
     });
-  }),
+  })
 );
 
 const OutboxTest = Layer.effect(
   Outbox,
-  Effect.gen(function* () {
+  Effect.gen(function* OutboxTest() {
     const db = yield* TestDb;
+
     return Outbox.of({
       enqueue: (messages) =>
-        Effect.gen(function* () {
+        Effect.gen(function* enqueue() {
           const start = (yield* Ref.get(db.outbox)).length;
           yield* Ref.update(db.outbox, (rows) => [...rows, ...messages]);
-          return messages.map((_, index) => OutboxMessageId.make(`outbox-${start + index + 1}`));
+
+          return Arr.map(messages, (_, index) =>
+            OutboxMessageId.make(`outbox-${start + index + 1}`)
+          );
         }),
     });
-  }),
+  })
 );
 
 const AuditLogTest = Layer.effect(
   AuditLog,
-  Effect.gen(function* () {
+  Effect.gen(function* AuditLogTest() {
     const db = yield* TestDb;
-    return AuditLog.of({ record: (entry) => Ref.update(db.audit, (rows) => [...rows, entry]) });
-  }),
+
+    return AuditLog.of({
+      record: (entry) => Ref.update(db.audit, (rows) => [...rows, entry]),
+    });
+  })
 );
 
 /** Stands in for `packages/db`'s transaction runner. */
-const InTransactionTest = Layer.succeed(InTransaction)({ kind: "database-transaction" });
+const InTransactionTest = Layer.succeed(InTransaction)({
+  kind: "database-transaction",
+});
 
 /** Web Crypto from the Node test runtime (Workers provide the same API). */
-export const CryptoTest = Layer.succeed(Crypto.Crypto)(
+const CryptoTest = Layer.succeed(Crypto.Crypto)(
   Crypto.make({
-    randomBytes: (size) => globalThis.crypto.getRandomValues(new Uint8Array(size)),
     digest: (algorithm, data) =>
       Effect.map(
-        Effect.promise(() => globalThis.crypto.subtle.digest(algorithm, new Uint8Array(data))),
-        (buffer) => new Uint8Array(buffer),
+        Effect.promise(
+          globalThis.crypto.subtle.digest.bind(
+            globalThis.crypto.subtle,
+            algorithm,
+            new Uint8Array(data)
+          )
+        ),
+        (buffer) => new Uint8Array(buffer)
       ),
-  }),
+    randomBytes: (size) =>
+      globalThis.crypto.getRandomValues(new Uint8Array(size)),
+  })
 );
 
 /** Every service except `CurrentActor`; `TestDb` stays visible for assertions. */
@@ -431,8 +595,12 @@ export const TestServices = Layer.mergeAll(
   PublicFileRepositoryTest,
   FileStoreTest,
   OutboxTest,
-  AuditLogTest,
-).pipe(Layer.provideMerge(TestDb.layer), Layer.merge(InTransactionTest), Layer.merge(CryptoTest));
+  AuditLogTest
+).pipe(
+  Layer.provideMerge(TestDb.layer),
+  Layer.merge(InTransactionTest),
+  Layer.merge(CryptoTest)
+);
 
 /** Runs `effect` as `actor`. */
 export const asActor =
@@ -442,56 +610,91 @@ export const asActor =
 
 // Fake same-shape identities; no legacy personal data.
 export const TRONDHEIM = DepartmentId.make(1);
+
 export const BERGEN = DepartmentId.make(2);
 
-const staff = (fields: Omit<Staff, "_tag">): Staff => ({ _tag: "Staff", ...fields });
+const staff = (fields: Omit<Staff, "_tag">): Staff =>
+  Actor.cases.Staff.make(fields);
 
 export const admin = staff({
-  userId: UserId.make(100),
   departmentId: TRONDHEIM,
+  executiveBoard: false,
   role: "admin",
-  executiveBoard: false,
+  userId: UserId.make(100),
 });
+
 export const boardMember = staff({
-  userId: UserId.make(101),
   departmentId: TRONDHEIM,
-  role: "teamMember",
   executiveBoard: true,
-});
-export const teamLeaderTrondheim = staff({
-  userId: UserId.make(102),
-  departmentId: TRONDHEIM,
-  role: "teamLeader",
-  executiveBoard: false,
-});
-export const teamMemberBergen = staff({
-  userId: UserId.make(103),
-  departmentId: BERGEN,
   role: "teamMember",
+  userId: UserId.make(101),
+});
+
+export const teamLeaderTrondheim = staff({
+  departmentId: TRONDHEIM,
   executiveBoard: false,
+  role: "teamLeader",
+  userId: UserId.make(102),
+});
+
+export const teamMemberBergen = staff({
+  departmentId: BERGEN,
+  executiveBoard: false,
+  role: "teamMember",
+  userId: UserId.make(103),
 });
 
 /** Seeds rows directly, bypassing commands. */
 export const seed = {
-  department: (department: Department) =>
-    TestDb.use((db) => Ref.update(db.departments, (rows) => [...rows, department])),
-  publicFile: (file: PublicFile) =>
-    TestDb.use((db) => Ref.update(db.publicFiles, (rows) => [...rows, file])),
   article: (article: Article) =>
     TestDb.use((db) => Ref.update(db.articles, (rows) => [...rows, article])),
+  department: (department: Department) =>
+    TestDb.use((db) =>
+      Ref.update(db.departments, (rows) => [...rows, department])
+    ),
   fieldOfStudy: (field: FieldOfStudy) =>
-    TestDb.use((db) => Ref.update(db.fieldsOfStudy, (rows) => [...rows, field])),
+    TestDb.use((db) =>
+      Ref.update(db.fieldsOfStudy, (rows) => [...rows, field])
+    ),
+  publicFile: (file: PublicFile) =>
+    TestDb.use((db) => Ref.update(db.publicFiles, (rows) => [...rows, file])),
 };
 
 /** Reads one in-memory table. */
 export const table = <A>(select: (db: TestDb["Service"]) => Ref.Ref<A>) =>
   TestDb.use((db) => Ref.get(select(db)));
 
+/** The action of each audit row, in insertion order. */
+export const auditActions = Effect.map(
+  table((db) => db.audit),
+  (audit) => Arr.map(audit, (entry) => entry.action)
+);
+
+/** Asserts all supplied in-memory rows remain absent after a refused command. */
+export const assertNoRows = (tables: readonly (readonly unknown[])[]) => {
+  assert.deepStrictEqual(
+    tables,
+    Arr.map(tables, () => [])
+  );
+};
+
+export const assertAuditEntries = (
+  audit: readonly AuditEntry[],
+  expected: readonly (readonly [string, string])[]
+) => {
+  assert.deepStrictEqual(
+    Arr.map(audit, (entry) => [entry.action, entry.entityKey]),
+    expected
+  );
+};
+
 /** A UTC instant from an ISO string (fixtures only). */
 export const at = (iso: string): DateTime.Utc => DateTime.makeUnsafe(iso);
 
 /** The failure's `_tag`, `"defect"` for a die, or `"success"`. */
-export const failureTag = (exit: Exit.Exit<unknown, { readonly _tag: string }>): string =>
+export const failureTag = (
+  exit: Exit.Exit<unknown, { readonly _tag: string }>
+): string =>
   Exit.isSuccess(exit)
     ? "success"
     : Option.match(Exit.findErrorOption(exit), {

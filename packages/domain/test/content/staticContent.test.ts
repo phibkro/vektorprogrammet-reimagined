@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Option, Schema } from "effect";
+import { Array as Arr, Effect, Option, Predicate, Schema } from "effect";
+
 import {
   EDITOR_ID_REQUIRED_MESSAGE,
   SanitizedHtml,
@@ -11,6 +12,7 @@ import {
   updateStaticContent,
 } from "../../src/index.ts";
 import {
+  assertNoRows,
   TestServices,
   admin,
   asActor,
@@ -23,90 +25,117 @@ import {
 const ABOUT_INTRO = StaticContentKey.make("about-intro");
 
 describe("C4 static content", () => {
-  it.effect("RULE-296: a team leader who is not on the executive board is denied", () =>
-    Effect.gen(function* () {
-      const exit = yield* Effect.exit(
-        asActor(teamLeaderTrondheim)(
-          updateStaticContent({ editorId: "about-intro", html: "<p>Ny</p>" }),
-        ),
-      );
-      assert.strictEqual(failureTag(exit), "Forbidden");
-      const anonymousExit = yield* Effect.exit(
-        asActor(anonymous)(updateStaticContent({ editorId: "about-intro", html: "<p>Ny</p>" })),
-      );
-      assert.strictEqual(failureTag(anonymousExit), "Forbidden");
-      assert.deepStrictEqual(yield* table((db) => db.staticContent), []);
-      assert.deepStrictEqual(yield* table((db) => db.audit), []);
-    }).pipe(Effect.provide(TestServices)),
+  it.effect(
+    "RULE-296: a team leader who is not on the executive board is denied",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const exit = yield* Effect.exit(
+          asActor(teamLeaderTrondheim)(
+            updateStaticContent({ editorId: "about-intro", html: "<p>Ny</p>" })
+          )
+        );
+
+        assert.strictEqual(failureTag(exit), "Forbidden");
+
+        const anonymousExit = yield* Effect.exit(
+          asActor(anonymous)(
+            updateStaticContent({ editorId: "about-intro", html: "<p>Ny</p>" })
+          )
+        );
+
+        assert.strictEqual(failureTag(anonymousExit), "Forbidden");
+        assertNoRows([
+          yield* table((db) => db.staticContent),
+          yield* table((db) => db.audit),
+        ]);
+      }).pipe(Effect.provide(TestServices))
   );
 
-  it.effect("RULE-296: an admin's post creates the missing block, then replaces it", () =>
-    Effect.gen(function* () {
-      yield* asActor(admin)(updateStaticContent({ editorId: "about-intro", html: "<p>Først</p>" }));
-      const replaced = yield* asActor(admin)(
-        updateStaticContent({ editorId: "about-intro", html: "<p>Deretter</p>" }),
-      );
-      assert.strictEqual(replaced.html, "<p>Deretter</p>");
-      const stored = yield* asActor(admin)(getStaticContent(ABOUT_INTRO));
-      assert.deepStrictEqual(
-        Option.map(stored, (block) => block.html),
-        Option.some("<p>Deretter</p>"),
-      );
-      assert.strictEqual((yield* table((db) => db.staticContent)).length, 1);
-      const audit = yield* table((db) => db.audit);
-      assert.deepStrictEqual(
-        audit.map((e) => [e.action, e.entityKey]),
-        [
-          ["staticContent.updated", "about-intro"],
-          ["staticContent.updated", "about-intro"],
-        ],
-      );
-    }).pipe(Effect.provide(TestServices)),
+  it.effect(
+    "RULE-296: an admin's post creates the missing block, then replaces it",
+    () =>
+      Effect.gen(function* effectProgram() {
+        yield* asActor(admin)(
+          updateStaticContent({ editorId: "about-intro", html: "<p>Først</p>" })
+        );
+
+        const replaced = yield* asActor(admin)(
+          updateStaticContent({
+            editorId: "about-intro",
+            html: "<p>Deretter</p>",
+          })
+        );
+
+        assert.strictEqual(replaced.html, "<p>Deretter</p>");
+        const stored = yield* asActor(admin)(getStaticContent(ABOUT_INTRO));
+        assert.deepStrictEqual(
+          Option.map(stored, (block) => block.html),
+          Option.some("<p>Deretter</p>")
+        );
+        assert.strictEqual((yield* table((db) => db.staticContent)).length, 1);
+        const audit = yield* table((db) => db.audit);
+        assert.deepStrictEqual(
+          Arr.map(audit, (e) => [e.action, e.entityKey]),
+          [
+            ["staticContent.updated", "about-intro"],
+            ["staticContent.updated", "about-intro"],
+          ]
+        );
+      }).pipe(Effect.provide(TestServices))
   );
 
   it.effect("RULE-296: an executive-board member may edit", () =>
-    Effect.gen(function* () {
+    Effect.gen(function* effectProgram() {
       const saved = yield* asActor(boardMember)(
-        updateStaticContent({ editorId: "parents", html: "<p>Hei</p>" }),
+        updateStaticContent({ editorId: "parents", html: "<p>Hei</p>" })
       );
+
       assert.strictEqual(saved.key, "parents");
-    }).pipe(Effect.provide(TestServices)),
+    }).pipe(Effect.provide(TestServices))
   );
 
-  it.effect("RULE-296: a post without editorID is ValidationFailed and nothing is saved", () =>
-    Effect.gen(function* () {
-      for (const input of [
-        { html: "<p>x</p>" },
-        { editorId: "", html: "<p>x</p>" },
-        { editorId: "   " },
-      ]) {
-        const error = yield* Effect.flip(asActor(admin)(updateStaticContent(input)));
-        assert.strictEqual(error._tag, "ValidationFailed");
-        if (error._tag === "ValidationFailed") {
-          assert.deepStrictEqual(error.issues, [
-            { path: ["editorId"], message: EDITOR_ID_REQUIRED_MESSAGE },
-          ]);
+  it.effect(
+    "RULE-296: a post without editorID is ValidationFailed and nothing is saved",
+    () =>
+      Effect.gen(function* effectProgram() {
+        for (const input of [
+          { html: "<p>x</p>" },
+          { editorId: "", html: "<p>x</p>" },
+          { editorId: "   " },
+        ]) {
+          const error = yield* Effect.flip(
+            asActor(admin)(updateStaticContent(input))
+          );
+
+          assert.strictEqual(error._tag, "ValidationFailed");
+
+          if (Predicate.isTagged(error, "ValidationFailed")) {
+            assert.deepStrictEqual(error.issues, [
+              { message: EDITOR_ID_REQUIRED_MESSAGE, path: ["editorId"] },
+            ]);
+          }
         }
-      }
-      assert.deepStrictEqual(yield* table((db) => db.staticContent), []);
-    }).pipe(Effect.provide(TestServices)),
+
+        assertNoRows([yield* table((db) => db.staticContent)]);
+      }).pipe(Effect.provide(TestServices))
   );
 
   it.effect("RULE-133: static content HTML is sanitized on save", () =>
-    Effect.gen(function* () {
+    Effect.gen(function* effectProgram() {
       const saved = yield* asActor(admin)(
         updateStaticContent({
           editorId: "about-intro",
           html: '<p onclick="steal()">Hei<script>alert(1)</script><a href="javascript:alert(1)">x</a></p>',
-        }),
+        })
       );
+
       assert.strictEqual(saved.html, "<p>Hei<a>x</a></p>");
-    }).pipe(Effect.provide(TestServices)),
+    }).pipe(Effect.provide(TestServices))
   );
 });
 
 describe("RULE-133 rich-text sanitizer (replacement: maintained allowlist)", () => {
-  const xss: ReadonlyArray<readonly [string, string]> = [
+  const xss: readonly (readonly [string, string])[] = [
     ["<script>alert(1)</script><p>ok</p>", "<p>ok</p>"],
     ['<img src="x" onerror="alert(1)">', '<img src="x" />'],
     ['<a href="javascript:alert(1)">x</a>', "<a>x</a>"],
@@ -120,8 +149,9 @@ describe("RULE-133 rich-text sanitizer (replacement: maintained allowlist)", () 
   ];
 
   it("RULE-133: strips scripts, event handlers, javascript: URLs, svg, object, iframe and styles", () => {
-    for (const [input, expected] of xss)
+    for (const [input, expected] of xss) {
       assert.strictEqual(sanitizeRichText(input), expected, input);
+    }
   });
 
   it("RULE-133: keeps editor tags, http/https/mailto links, images and tables", () => {
@@ -130,6 +160,7 @@ describe("RULE-133 rich-text sanitizer (replacement: maintained allowlist)", () 
       '<a href="mailto:post@example.org">e-post</a></p><ul><li>én</li></ul>' +
       '<img src="/filer/abc.png" alt="Bilde" />' +
       '<table><thead><tr><th colspan="2">A</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>';
+
     assert.strictEqual(sanitizeRichText(html), html);
   });
 
@@ -139,13 +170,19 @@ describe("RULE-133 rich-text sanitizer (replacement: maintained allowlist)", () 
       assert.strictEqual(sanitizeRichText(once), once);
       assert.isTrue(Schema.is(SanitizedHtml)(once));
     }
+
     assert.isFalse(Schema.is(SanitizedHtml)("<script>x</script>"));
   });
 
-  it("RULE-133: stored rich text is re-sanitized when decoded (the render-time half)", () => {
-    const decoded = Schema.decodeUnknownSync(SanitizedHtmlFromString)(
-      '<p onmouseover="x()">Hei</p>',
-    );
-    assert.strictEqual(decoded, "<p>Hei</p>");
-  });
+  it.effect(
+    "RULE-133: stored rich text is re-sanitized when decoded (the render-time half)",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const decoded = yield* Schema.decodeEffect(SanitizedHtmlFromString)(
+          '<p onmouseover="x()">Hei</p>'
+        );
+
+        assert.strictEqual(decoded, "<p>Hei</p>");
+      })
+  );
 });
