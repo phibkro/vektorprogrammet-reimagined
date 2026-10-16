@@ -5,6 +5,14 @@
  * AE/O/A, soft hyphens, `-`, `!`, `,` and `.` are dropped, then every run of
  * other non-alphanumerics becomes one `-`. Unlike legacy, leading and trailing
  * dashes are trimmed and an empty result falls back to `artikkel`.
+ *
+ * Approved differences from legacy (operator decision, 2026-10-16):
+ * - F20: a real U+00AD soft hyphen is dropped, so "Real\u00ADfag\u00ADtimer" is
+ *   `realfagtimer`. Legacy only dropped the HTML entity `&shy;`, so a real soft
+ *   hyphen became a stray dash.
+ * - F22: a base slug is capped at 240 characters, so a `-NN` suffix still fits
+ *   `varchar(255)`. Legacy let a 255-character title fill the column and the
+ *   uniqueness suffix overflow it.
  */
 import { Array as Arr, Schema } from "effect";
 
@@ -24,6 +32,7 @@ const REPLACEMENTS: readonly (readonly [string, string])[] = [
   ["ø", "o"],
   ["å", "a"],
   ["&shy;", ""],
+  // F20: legacy kept the real character, which became a stray dash.
   ["\u00AD", ""],
   ["-", ""],
   ["!", ""],
@@ -32,6 +41,9 @@ const REPLACEMENTS: readonly (readonly [string, string])[] = [
 ];
 
 const FALLBACK_SLUG = "artikkel";
+
+/** F22: room for a `-NN` uniqueness suffix inside the 255-character column. */
+const MAX_BASE_LENGTH = 240;
 
 /** The base slug of a title, before uniqueness. */
 export const slugify = (title: string): Slug => {
@@ -43,7 +55,7 @@ export const slugify = (title: string): Slug => {
     .replaceAll(/[^A-Za-z0-9-]+/gu, "-")
     .replaceAll(/^-+|-+$/gu, "")
     .toLowerCase()
-    .slice(0, 240)
+    .slice(0, MAX_BASE_LENGTH)
     .replace(/-+$/u, "");
 
   return Slug.make(base.length > 0 ? base : FALLBACK_SLUG);

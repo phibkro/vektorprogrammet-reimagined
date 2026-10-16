@@ -98,6 +98,25 @@ describe("C5 slugs", () => {
     assert.strictEqual(slugify("  !!!  "), "artikkel");
   });
 
+  it("RULE-096 F20: a real soft hyphen (U+00AD) is dropped, so the slug is realfagtimer (legacy left a stray dash)", () => {
+    assert.strictEqual(slugify("Real\u00ADfag\u00ADtimer"), "realfagtimer");
+  });
+
+  it("RULE-096 F22: slugs are capped at 240 characters so a -NN suffix fits varchar(255) (legacy could overflow)", () => {
+    const title = "abcde".repeat(51);
+    const base = slugify(title);
+    assert.strictEqual(base.length, 240);
+    assert.strictEqual(base, title.slice(0, 240));
+
+    const taken = Arr.makeBy(11, (index) =>
+      index === 0 ? base : `${base}-${index + 1}`
+    );
+
+    const suffixed = uniqueSlug(title, taken);
+    assert.strictEqual(suffixed, `${base}-12`);
+    assert.isTrue(suffixed.length <= 255);
+  });
+
   it("RULE-096: a taken slug gets the first free numeric suffix", () => {
     assert.strictEqual(uniqueSlug("Opptak åpner!", []), "opptak-apner");
     assert.strictEqual(
