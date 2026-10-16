@@ -14,87 +14,140 @@ import {
   StaticContentRepository,
   slugify,
   uniqueSlug,
-  type ArticleDraft,
-  type ArticleId,
-  type DepartmentId,
-  type SanitizedHtml,
-  type SemesterId,
-  type Slug,
-  type SocialEventDraft,
-  type SponsorDraft,
-  type StaticContentKey,
+} from "@vektorprogrammet/domain";
+import type {
+  ArticleDraft,
+  ArticleId,
+  DepartmentId,
+  SanitizedHtml,
+  SemesterId,
+  Slug,
+  SocialEventDraft,
+  SponsorDraft,
+  StaticContentKey,
 } from "@vektorprogrammet/domain";
 import { and, asc, eq, inArray, like, or, sql } from "drizzle-orm";
-import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Layer,
+  Option,
+  pipe,
+  Schema,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+
 import { classifySqlFailure } from "../classifySqlFailure.ts";
-import { Drizzle, decodeWith, single } from "../internal/drizzle.ts";
-import { article, articleDepartment, socialEvent, sponsor, staticContent } from "../schema.ts";
+import {
+  Drizzle,
+  decodeFirstOption,
+  decodeWith,
+  single,
+} from "../internal/drizzle.ts";
+import {
+  article,
+  articleDepartment,
+  socialEvent,
+  sponsor,
+  staticContent,
+} from "../schema.ts";
 
 /** An article row as stored: `createdAt` is a `Date` from the driver. */
-const ArticleRow = Schema.Struct({ ...Article.fields, createdAt: Schema.DateTimeUtcFromDate });
+const ArticleRow = Schema.Struct({
+  ...Article.fields,
+  createdAt: Schema.DateTimeUtcFromDate,
+});
 
 const articleColumns = {
-  id: article.id,
-  title: article.title,
-  slug: article.slug,
-  body: article.body,
-  imageSmallKey: article.imageSmallKey,
-  imageLargeKey: article.imageLargeKey,
-  sticky: article.sticky,
-  published: article.published,
   authorId: article.authorId,
+  body: article.body,
   createdAt: article.createdAt,
+  id: article.id,
+  imageLargeKey: article.imageLargeKey,
+  imageSmallKey: article.imageSmallKey,
+  published: article.published,
+  slug: article.slug,
+  sticky: article.sticky,
+  title: article.title,
 };
 
 export const ArticleRepositoryLive = Layer.effect(
   ArticleRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* ArticleRepositoryLive() {
     const db = yield* Drizzle;
     const sqlClient = yield* SqlClient;
     const decodeAll = decodeWith(Schema.Array(ArticleRow));
 
-    interface StoredArticleRow {
-      readonly id: number;
-      readonly [column: string]: unknown;
-    }
+    type StoredArticleRow = typeof article.$inferSelect;
 
     /** Attaches the department tags (one query for all rows) and decodes. */
-    const withDepartments = Effect.fnUntraced(function* (rows: ReadonlyArray<StoredArticleRow>) {
-      if (rows.length === 0) return [];
+    const withDepartments = Effect.fnUntraced(function* withDepartments(
+      rows: readonly StoredArticleRow[]
+    ) {
+      if (rows.length === 0) {
+        return [];
+      }
+
       const tags = yield* db
         .select()
         .from(articleDepartment)
         .where(
           inArray(
             articleDepartment.articleId,
-            rows.map((row) => row.id),
-          ),
+            pipe(
+              rows,
+              Arr.map((row) => row.id)
+            )
+          )
         )
         .orderBy(asc(articleDepartment.departmentId))
         .pipe(Effect.orDie);
+
       return yield* decodeAll(
-        rows.map((row) => ({
-          ...row,
-          departmentIds: tags
-            .filter((tag) => tag.articleId === row.id)
-            .map((tag) => tag.departmentId),
-        })),
+        pipe(
+          rows,
+          Arr.map((row) => ({
+            ...row,
+            departmentIds: pipe(
+              tags,
+              Arr.filter((tag) => tag.articleId === row.id),
+              Arr.map((tag) => tag.departmentId)
+            ),
+          }))
+        )
       );
     });
 
-    const one = (rows: ReadonlyArray<StoredArticleRow>) =>
+    const one = (rows: readonly StoredArticleRow[]) =>
       Effect.flatMap(withDepartments(rows), single);
 
-    const slugsLike = Effect.fn("ArticleRepository.slugsLike")(function* (base: Slug) {
-      const rows = yield* db
-        .select({ slug: article.slug })
-        .from(article)
-        .where(or(eq(article.slug, base), like(article.slug, `${base}-%`)))
-        .pipe(Effect.orDie);
-      // `Slug` admits only [a-z0-9-], so `base` holds no LIKE wildcard; stored slugs pass the same check.
-      return yield* decodeWith(Schema.Array(Article.fields.slug))(rows.map((row) => row.slug));
-    });
+    const oneById = (id: ArticleId, rows: readonly StoredArticleRow[]) =>
+      Effect.gen(function* findOneById() {
+        if (rows.length === 0) {
+          return yield* new NotFound({ entity: "Article", key: String(id) });
+        }
+
+        return yield* one(rows);
+      });
+
+    const slugsLike = Effect.fn("ArticleRepository.slugsLike")(
+      function* slugsLike(base: Slug) {
+        const rows = yield* db
+          .select({ slug: article.slug })
+          .from(article)
+          .where(or(eq(article.slug, base), like(article.slug, `${base}-%`)))
+          .pipe(Effect.orDie);
+
+        // `Slug` admits only [a-z0-9-], so `base` holds no LIKE wildcard; stored slugs pass the same check.
+        return yield* decodeWith(Schema.Array(Article.fields.slug))(
+          pipe(
+            rows,
+            Arr.map((row) => row.slug)
+          )
+        );
+      }
+    );
 
     /**
      * One savepoint per attempt: a unique violation inside the caller's
@@ -103,32 +156,41 @@ export const ArticleRepositoryLive = Layer.effect(
     const insertOnce = (draft: ArticleDraft, slug: Slug) =>
       sqlClient
         .withTransaction(
-          Effect.gen(function* () {
+          Effect.gen(function* insertAttempt() {
             const row = yield* db
               .insert(article)
               .values({
-                title: draft.title,
-                slug,
-                body: draft.body,
-                imageSmallKey: draft.imageSmallKey,
-                imageLargeKey: draft.imageLargeKey,
-                sticky: draft.sticky,
-                published: draft.published,
                 authorId: draft.authorId,
+                body: draft.body,
                 createdAt: DateTime.toDateUtc(draft.createdAt),
+                imageLargeKey: draft.imageLargeKey,
+                imageSmallKey: draft.imageSmallKey,
+                published: draft.published,
+                slug,
+                sticky: draft.sticky,
+                title: draft.title,
               })
               .returning(articleColumns)
               .pipe(Effect.flatMap(single));
+
             const departmentIds = Arr.dedupe(draft.departmentIds);
+
             if (Arr.isReadonlyArrayNonEmpty(departmentIds)) {
-              yield* db
-                .insert(articleDepartment)
-                .values(departmentIds.map((departmentId) => ({ articleId: row.id, departmentId })));
+              yield* db.insert(articleDepartment).values(
+                pipe(
+                  departmentIds,
+                  Arr.map((departmentId) => ({
+                    articleId: row.id,
+                    departmentId,
+                  }))
+                )
+              );
             }
+
             return row;
-          }),
+          })
         )
-        .pipe(Effect.catch((failure) => classifySqlFailure(failure, slug)));
+        .pipe(Effect.catch((error) => classifySqlFailure(error, slug)));
 
     /**
      * RULE-096 race: the domain picked a free slug, but a concurrent create may
@@ -136,55 +198,63 @@ export const ArticleRepositoryLive = Layer.effect(
      * re-reads the taken slugs and picks the next suffix. A second collision
      * surfaces as `AlreadyExists`.
      */
-    const create = Effect.fn("ArticleRepository.create")(function* (draft: ArticleDraft) {
+    const create = Effect.fn("ArticleRepository.create")(function* create(
+      draft: ArticleDraft
+    ) {
       const row = yield* insertOnce(draft, draft.slug).pipe(
         Effect.catchTag("AlreadyExists", () =>
           Effect.flatMap(slugsLike(slugify(draft.title)), (taken) =>
-            insertOnce(draft, uniqueSlug(draft.title, taken)),
-          ),
-        ),
+            insertOnce(draft, uniqueSlug(draft.title, taken))
+          )
+        )
       );
+
       return yield* one([row]);
     });
 
-    const findById = Effect.fn("ArticleRepository.findById")(function* (id: ArticleId) {
-      const rows = yield* db
-        .select(articleColumns)
-        .from(article)
-        .where(eq(article.id, id))
-        .pipe(Effect.orDie);
-      if (rows.length === 0) return yield* new NotFound({ entity: "Article", key: String(id) });
-      return yield* one(rows);
-    });
-
-    const findBySlug = Effect.fn("ArticleRepository.findBySlug")(function* (slug: Slug) {
-      const rows = yield* db
-        .select(articleColumns)
-        .from(article)
-        .where(eq(article.slug, slug))
-        .pipe(Effect.orDie);
-      return rows.length === 0 ? Option.none() : Option.some(yield* one(rows));
-    });
-
-    const setPublished = Effect.fn("ArticleRepository.setPublished")(function* (
-      id: ArticleId,
-      published: boolean,
+    const findById = Effect.fn("ArticleRepository.findById")(function* findById(
+      id: ArticleId
     ) {
       const rows = yield* db
-        .update(article)
-        .set({ published })
+        .select(articleColumns)
+        .from(article)
         .where(eq(article.id, id))
-        .returning(articleColumns)
         .pipe(Effect.orDie);
-      if (rows.length === 0) return yield* new NotFound({ entity: "Article", key: String(id) });
-      return yield* one(rows);
+
+      return yield* oneById(id, rows);
     });
+
+    const findBySlug = Effect.fn("ArticleRepository.findBySlug")(
+      function* findBySlug(slug: Slug) {
+        const rows = yield* db
+          .select(articleColumns)
+          .from(article)
+          .where(eq(article.slug, slug))
+          .pipe(Effect.orDie);
+
+        return rows.length === 0
+          ? Option.none()
+          : Option.some(yield* one(rows));
+      }
+    );
+
+    const setPublished = Effect.fn("ArticleRepository.setPublished")(
+      function* setPublished(id: ArticleId, published: boolean) {
+        const rows = yield* db
+          .update(article)
+          .set({ published })
+          .where(eq(article.id, id))
+          .returning(articleColumns)
+          .pipe(Effect.orDie);
+
+        return yield* oneById(id, rows);
+      }
+    );
 
     return ArticleRepository.of({
       create,
       findById,
       findBySlug,
-      slugsLike,
       listPublished: db
         .select(articleColumns)
         .from(article)
@@ -192,138 +262,162 @@ export const ArticleRepositoryLive = Layer.effect(
         .pipe(
           Effect.orDie,
           Effect.flatMap(withDepartments),
-          Effect.withSpan("ArticleRepository.listPublished"),
+          Effect.withSpan("ArticleRepository.listPublished")
         ),
       setPublished,
+      slugsLike,
     });
-  }),
+  })
 );
 
-const staticContentColumns = { key: staticContent.key, html: staticContent.html };
+const staticContentColumns = {
+  html: staticContent.html,
+  key: staticContent.key,
+};
 
 export const StaticContentRepositoryLive = Layer.effect(
   StaticContentRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* StaticContentRepositoryLive() {
     const db = yield* Drizzle;
     const decode = decodeWith(StaticContent);
+    const decodeOptional = decodeFirstOption(decode);
 
-    const find = Effect.fn("StaticContentRepository.find")(function* (key: StaticContentKey) {
+    const find = Effect.fn("StaticContentRepository.find")(function* find(
+      key: StaticContentKey
+    ) {
       const rows = yield* db
         .select(staticContentColumns)
         .from(staticContent)
         .where(eq(staticContent.key, key))
         .pipe(Effect.orDie);
-      const row = rows[0];
-      return row === undefined ? Option.none() : Option.some(yield* decode(row));
+
+      return yield* decodeOptional(rows);
     });
 
     /** RULE-296: replaces the block, creating it when missing, in one statement. */
-    const upsert = Effect.fn("StaticContentRepository.upsert")(function* (
+    const upsert = Effect.fn("StaticContentRepository.upsert")(function* upsert(
       key: StaticContentKey,
-      html: SanitizedHtml,
+      html: SanitizedHtml
     ) {
       const rows = yield* db
         .insert(staticContent)
-        .values({ key, html })
-        .onConflictDoUpdate({ target: staticContent.key, set: { html: sql`excluded.html` } })
+        .values({ html, key })
+        .onConflictDoUpdate({
+          set: { html: sql`excluded.html` },
+          target: staticContent.key,
+        })
         .returning(staticContentColumns)
         .pipe(Effect.orDie);
+
       return yield* decode(yield* single(rows));
     });
 
     return StaticContentRepository.of({ find, upsert });
-  }),
+  })
 );
 
 const sponsorColumns = {
   id: sponsor.id,
-  name: sponsor.name,
-  url: sponsor.url,
-  size: sponsor.size,
   logoKey: sponsor.logoKey,
+  name: sponsor.name,
+  size: sponsor.size,
+  url: sponsor.url,
 };
 
 export const SponsorRepositoryLive = Layer.effect(
   SponsorRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* SponsorRepositoryLive() {
     const db = yield* Drizzle;
     const decode = decodeWith(Sponsor);
     const decodeAll = decodeWith(Schema.Array(Sponsor));
 
-    const create = Effect.fn("SponsorRepository.create")(function* (draft: SponsorDraft) {
+    const create = Effect.fn("SponsorRepository.create")(function* create(
+      draft: SponsorDraft
+    ) {
       const rows = yield* db
         .insert(sponsor)
         .values(draft)
         .returning(sponsorColumns)
         .pipe(Effect.orDie);
+
       return yield* decode(yield* single(rows));
     });
 
     return SponsorRepository.of({
+      create,
       list: db
         .select(sponsorColumns)
         .from(sponsor)
-        .pipe(Effect.orDie, Effect.flatMap(decodeAll), Effect.withSpan("SponsorRepository.list")),
-      create,
+        .pipe(
+          Effect.orDie,
+          Effect.flatMap(decodeAll),
+          Effect.withSpan("SponsorRepository.list")
+        ),
     });
-  }),
+  })
 );
 
 /** A social event row as stored: the window bounds are `Date`s from the driver. */
 const SocialEventRow = Schema.Struct({
   ...SocialEvent.fields,
-  startsAt: Schema.DateTimeUtcFromDate,
   endsAt: Schema.DateTimeUtcFromDate,
+  startsAt: Schema.DateTimeUtcFromDate,
 });
 
 const socialEventColumns = {
-  id: socialEvent.id,
-  title: socialEvent.title,
-  description: socialEvent.description,
-  startsAt: socialEvent.startsAt,
-  endsAt: socialEvent.endsAt,
-  link: socialEvent.link,
   departmentId: socialEvent.departmentId,
+  description: socialEvent.description,
+  endsAt: socialEvent.endsAt,
+  id: socialEvent.id,
+  link: socialEvent.link,
   semesterId: socialEvent.semesterId,
+  startsAt: socialEvent.startsAt,
+  title: socialEvent.title,
 };
 
 export const SocialEventRepositoryLive = Layer.effect(
   SocialEventRepository,
-  Effect.gen(function* () {
+  Effect.gen(function* SocialEventRepositoryLive() {
     const db = yield* Drizzle;
     const decode = decodeWith(SocialEventRow);
     const decodeAll = decodeWith(Schema.Array(SocialEventRow));
 
-    const list = Effect.fn("SocialEventRepository.list")(function* (filter: {
-      readonly departmentId: DepartmentId;
-      readonly semesterId: SemesterId;
-    }) {
-      const rows = yield* db
-        .select(socialEventColumns)
-        .from(socialEvent)
-        .where(
-          and(
-            eq(socialEvent.departmentId, filter.departmentId),
-            eq(socialEvent.semesterId, filter.semesterId),
-          ),
-        )
-        .pipe(Effect.orDie);
-      return yield* decodeAll(rows);
-    });
+    const list = Effect.fn("SocialEventRepository.list")(
+      function* list(filter: {
+        readonly departmentId: DepartmentId;
+        readonly semesterId: SemesterId;
+      }) {
+        const rows = yield* db
+          .select(socialEventColumns)
+          .from(socialEvent)
+          .where(
+            and(
+              eq(socialEvent.departmentId, filter.departmentId),
+              eq(socialEvent.semesterId, filter.semesterId)
+            )
+          )
+          .pipe(Effect.orDie);
 
-    const create = Effect.fn("SocialEventRepository.create")(function* (draft: SocialEventDraft) {
+        return yield* decodeAll(rows);
+      }
+    );
+
+    const create = Effect.fn("SocialEventRepository.create")(function* create(
+      draft: SocialEventDraft
+    ) {
       const rows = yield* db
         .insert(socialEvent)
         .values({
           ...draft,
-          startsAt: DateTime.toDateUtc(draft.startsAt),
           endsAt: DateTime.toDateUtc(draft.endsAt),
+          startsAt: DateTime.toDateUtc(draft.startsAt),
         })
         .returning(socialEventColumns)
         .pipe(Effect.orDie);
+
       return yield* decode(yield* single(rows));
     });
 
-    return SocialEventRepository.of({ list, create });
-  }),
+    return SocialEventRepository.of({ create, list });
+  })
 );

@@ -8,8 +8,10 @@
  * locks, LISTEN/NOTIFY or session `SET` anywhere in this package.
  */
 import { PgClient } from "@effect/sql-pg";
-import { Effect, Layer, type Redacted } from "effect";
+import { Effect, Layer } from "effect";
+import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+
 import { Drizzle } from "./internal/drizzle.ts";
 import {
   ArticleRepositoryLive,
@@ -23,7 +25,11 @@ import {
   FieldOfStudyRepositoryLive,
   SemesterRepositoryLive,
 } from "./repositories/organisation.ts";
-import { AuditLogLive, OutboxDeliveryLive, OutboxLive } from "./repositories/outbox.ts";
+import {
+  AuditLogLive,
+  OutboxDeliveryLive,
+  OutboxLive,
+} from "./repositories/outbox.ts";
 
 /**
  * Every repository Layer over an abstract `Drizzle` and `SqlClient`. Internal:
@@ -40,11 +46,11 @@ export const RepositoriesLayer = Layer.mergeAll(
   PublicFileRepositoryLive,
   OutboxLive,
   OutboxDeliveryLive,
-  AuditLogLive,
+  AuditLogLive
 );
 
 export interface DatabaseConfig {
-  readonly url: Redacted.Redacted<string>;
+  readonly url: Redacted.Redacted;
   /** Pool size; keep it small behind Hyperdrive. */
   readonly maxConnections?: number | undefined;
 }
@@ -57,14 +63,14 @@ export interface DatabaseConfig {
 export const DatabaseLive = (config: DatabaseConfig) =>
   Layer.mergeAll(
     RepositoriesLayer.pipe(Layer.provide(Drizzle.layerPg)),
-    Layer.effect(SqlClient, Effect.service(SqlClient)),
+    Layer.effect(SqlClient, Effect.service(SqlClient))
   ).pipe(
     Layer.provide(
       PgClient.layer({
-        url: config.url,
-        prepare: false,
-        multiplex: false,
         maxConnections: config.maxConnections,
-      }),
-    ),
+        multiplex: false,
+        prepare: false,
+        url: config.url,
+      })
+    )
   );

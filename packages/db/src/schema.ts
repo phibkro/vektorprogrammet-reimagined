@@ -22,7 +22,8 @@ import {
   StoredContentType,
   Term,
 } from "@vektorprogrammet/domain";
-import { sql, type SQL } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import {
   boolean,
   check,
@@ -39,76 +40,92 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { Array as Arr, pipe, Record as Rec } from "effect";
 
 /** A SQL string literal for a code constant (never user input). */
 const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
 /** `<column> IN ('a', 'b', …)` over a closed set from the domain. */
-const oneOf = (column: SQL, values: ReadonlyArray<string>): SQL =>
-  sql`${column} in (${sql.raw(values.map(literal).join(", "))})`;
+const oneOf = (column: SQL, values: readonly string[]): SQL =>
+  sql`${column} in (${sql.raw(pipe(values, Arr.map(literal), Arr.join(", ")))})`;
 
-const instant = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+const instant = (name: string) =>
+  timestamp(name, { mode: "date", withTimezone: true });
 
 export const semesterTerm = pgEnum("semester_term", Term.literals);
+
 export const sponsorSize = pgEnum("sponsor_size", SponsorSize.literals);
-export const outboxStatus = pgEnum("outbox_status", ["pending", "delivered", "dead"]);
+
+export const outboxStatus = pgEnum("outbox_status", [
+  "pending",
+  "delivered",
+  "dead",
+]);
 
 /** Unique constraint names; `classifySqlFailure` maps each to `AlreadyExists`. */
 export const UniqueConstraint = {
+  articleSlug: "article_slug_unique",
   departmentCity: "department_city_unique",
   semesterTermYear: "semester_term_year_unique",
-  articleSlug: "article_slug_unique",
 } as const;
-export type UniqueConstraint = (typeof UniqueConstraint)[keyof typeof UniqueConstraint];
 
-const fileKeyPattern = `^[0-9a-f]{64}\\.(${FileExtension.literals.join("|")})$`;
+export type UniqueConstraint =
+  (typeof UniqueConstraint)[keyof typeof UniqueConstraint];
+
+const fileKeyPattern = `^[0-9a-f]{64}\\.(${Arr.join(FileExtension.literals, "|")})$`;
 
 /** C11: registered public files. Only registered keys are served (RULE-290 replacement). */
 export const publicFile = pgTable(
   "public_file",
   {
-    key: text("key").primaryKey(),
-    name: varchar("name", { length: 255 }).notNull(),
     contentType: text("content_type").notNull(),
-    size: integer("size").notNull(),
-    sha256: text("sha256").notNull(),
-    uploadedBy: integer("uploaded_by"),
-    legacyPath: text("legacy_path"),
-    uploadedAt: instant("uploaded_at").notNull(),
     deletedAt: instant("deleted_at"),
+    key: text("key").primaryKey(),
+    legacyPath: text("legacy_path"),
+    name: varchar("name", { length: 255 }).notNull(),
+    sha256: text("sha256").notNull(),
+    size: integer("size").notNull(),
+    uploadedAt: instant("uploaded_at").notNull(),
+    uploadedBy: integer("uploaded_by"),
   },
   (t) => [
     unique("public_file_legacy_path_unique").on(t.legacyPath),
-    check("public_file_key_format", sql`${t.key} ~ ${sql.raw(literal(fileKeyPattern))}`),
+    check(
+      "public_file_key_format",
+      sql`${t.key} ~ ${sql.raw(literal(fileKeyPattern))}`
+    ),
     check("public_file_key_hash", sql`left(${t.key}, 64) = ${t.sha256}`),
-    check("public_file_content_type", oneOf(sql`${t.contentType}`, StoredContentType.literals)),
+    check(
+      "public_file_content_type",
+      oneOf(sql`${t.contentType}`, StoredContentType.literals)
+    ),
     check("public_file_size", sql`${t.size} >= 0`),
     check("public_file_name", sql`length(${t.name}) > 0`),
-  ],
+  ]
 );
 
 /** C1 departments. Legacy ids are kept by the importer; the city is unique. */
 export const department = pgTable(
   "department",
   {
+    active: boolean("active").notNull().default(true),
+    address: text("address"),
+    city: text("city").notNull(),
+    email: text("email").notNull(),
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    latitude: doublePrecision("latitude"),
+    logoKey: text("logo_key").references(() => publicFile.key),
+    longitude: doublePrecision("longitude"),
     name: text("name").notNull(),
     shortName: text("short_name").notNull(),
-    email: text("email").notNull(),
-    city: text("city").notNull(),
-    address: text("address"),
-    active: boolean("active").notNull().default(true),
     slackChannel: text("slack_channel"),
-    logoKey: text("logo_key").references(() => publicFile.key),
-    latitude: doublePrecision("latitude"),
-    longitude: doublePrecision("longitude"),
   },
   (t) => [
     unique(UniqueConstraint.departmentCity).on(t.city),
     check("department_name", sql`length(${t.name}) > 0`),
     check("department_short_name", sql`length(${t.shortName}) > 0`),
     check("department_city", sql`length(${t.city}) > 0`),
-  ],
+  ]
 );
 
 /** C2 semesters: (term, year) is unique (RULE-144, RULE-237); the year is an integer (RULE-050). */
@@ -122,17 +139,17 @@ export const semester = pgTable(
   (t) => [
     unique(UniqueConstraint.semesterTermYear).on(t.term, t.year),
     check("semester_year", sql`${t.year} between 1900 and 9999`),
-  ],
+  ]
 );
 
 /** C1 fields of study: every row belongs to exactly one department. */
 export const fieldOfStudy = pgTable(
   "field_of_study",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     departmentId: integer("department_id")
       .notNull()
       .references(() => department.id),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     name: text("name").notNull(),
     shortName: text("short_name").notNull(),
   },
@@ -140,54 +157,54 @@ export const fieldOfStudy = pgTable(
     index("field_of_study_department_idx").on(t.departmentId),
     check("field_of_study_name", sql`length(${t.name}) > 0`),
     check("field_of_study_short_name", sql`length(${t.shortName}) > 0`),
-  ],
+  ]
 );
 
 /** C2 admission periods. Phase 1 imports them; Phase 3 adds the repository and the editor. */
 export const admissionPeriod = pgTable(
   "admission_period",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     departmentId: integer("department_id")
       .notNull()
       .references(() => department.id),
+    endsAt: instant("ends_at").notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     semesterId: integer("semester_id")
       .notNull()
       .references(() => semester.id),
     startsAt: instant("starts_at").notNull(),
-    endsAt: instant("ends_at").notNull(),
   },
   (t) => [
     index("admission_period_department_idx").on(t.departmentId, t.semesterId),
     check("admission_period_window", sql`${t.endsAt} > ${t.startsAt}`),
-  ],
+  ]
 );
 
 /** C5 news articles. The slug is unique (RULE-096); images are registered files. */
 export const article = pgTable(
   "article",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    title: text("title").notNull(),
-    slug: varchar("slug", { length: 255 }).notNull(),
+    /** Legacy user id; no foreign key until Phase 2 adds users. */
+    authorId: integer("author_id"),
     body: text("body").notNull(),
-    imageSmallKey: text("image_small_key")
-      .notNull()
-      .references(() => publicFile.key),
+    createdAt: instant("created_at").notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     imageLargeKey: text("image_large_key")
       .notNull()
       .references(() => publicFile.key),
-    sticky: boolean("sticky").notNull().default(false),
+    imageSmallKey: text("image_small_key")
+      .notNull()
+      .references(() => publicFile.key),
     published: boolean("published").notNull().default(false),
-    /** Legacy user id; no foreign key until Phase 2 adds users. */
-    authorId: integer("author_id"),
-    createdAt: instant("created_at").notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    sticky: boolean("sticky").notNull().default(false),
+    title: text("title").notNull(),
   },
   (t) => [
     unique(UniqueConstraint.articleSlug).on(t.slug),
     check("article_slug_format", sql`${t.slug} ~ '^[a-z0-9-]+$'`),
     check("article_title", sql`length(${t.title}) > 0`),
-  ],
+  ]
 );
 
 /** C5 article tags. No rows means "all departments". */
@@ -204,17 +221,17 @@ export const articleDepartment = pgTable(
   (t) => [
     primaryKey({ columns: [t.articleId, t.departmentId] }),
     index("article_department_department_idx").on(t.departmentId),
-  ],
+  ]
 );
 
 /** C4 editable static text blocks, keyed by the legacy `html_id`. */
 export const staticContent = pgTable(
   "static_content",
   {
-    key: varchar("key", { length: 50 }).primaryKey(),
     html: text("html").notNull(),
+    key: varchar("key", { length: 50 }).primaryKey(),
   },
-  (t) => [check("static_content_key", sql`length(${t.key}) > 0`)],
+  (t) => [check("static_content_key", sql`length(${t.key}) > 0`)]
 );
 
 /** C6 sponsors (RULE-189). */
@@ -222,40 +239,43 @@ export const sponsor = pgTable(
   "sponsor",
   {
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    name: text("name").notNull(),
-    url: text("url").notNull(),
-    size: sponsorSize("size").notNull(),
     logoKey: text("logo_key").references(() => publicFile.key),
+    name: text("name").notNull(),
+    size: sponsorSize("size").notNull(),
+    url: text("url").notNull(),
   },
   (t) => [
     check("sponsor_name", sql`length(${t.name}) > 0`),
     check("sponsor_url", sql`${t.url} ~ '^https?://'`),
-  ],
+  ]
 );
 
 /** C8 social events (RULE-188): the end is after the start. */
 export const socialEvent = pgTable(
   "social_event",
   {
-    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    title: text("title").notNull(),
-    description: text("description").notNull().default(""),
-    startsAt: instant("starts_at").notNull(),
-    endsAt: instant("ends_at").notNull(),
-    link: varchar("link", { length: 250 }),
     departmentId: integer("department_id")
       .notNull()
       .references(() => department.id),
+    description: text("description").notNull().default(""),
+    endsAt: instant("ends_at").notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    link: varchar("link", { length: 250 }),
     semesterId: integer("semester_id")
       .notNull()
       .references(() => semester.id),
+    startsAt: instant("starts_at").notNull(),
+    title: text("title").notNull(),
   },
   (t) => [
-    index("social_event_department_semester_idx").on(t.departmentId, t.semesterId),
+    index("social_event_department_semester_idx").on(
+      t.departmentId,
+      t.semesterId
+    ),
     check("social_event_window", sql`${t.endsAt} > ${t.startsAt}`),
     check("social_event_title", sql`length(${t.title}) > 0`),
     check("social_event_description", sql`length(${t.description}) <= 5000`),
-  ],
+  ]
 );
 
 /**
@@ -265,45 +285,51 @@ export const socialEvent = pgTable(
 export const outbox = pgTable(
   "outbox",
   {
+    /** Claims so far, including the current one. */
+    attempts: integer("attempts").notNull().default(0),
+    claimToken: uuid("claim_token"),
+    claimedUntil: instant("claimed_until"),
+    createdAt: instant("created_at").notNull(),
+    deliveredAt: instant("delivered_at"),
     /** Identity integer (Drizzle casts `bigint` to text in selects, which breaks `IN (subquery)`). */
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     kind: text("kind").notNull(),
+    lastError: text("last_error"),
+    nextAttemptAt: instant("next_attempt_at").notNull(),
     payload: jsonb("payload").notNull(),
     status: outboxStatus("status").notNull().default("pending"),
-    /** Claims so far, including the current one. */
-    attempts: integer("attempts").notNull().default(0),
-    nextAttemptAt: instant("next_attempt_at").notNull(),
-    claimToken: uuid("claim_token"),
-    claimedUntil: instant("claimed_until"),
-    lastError: text("last_error"),
-    deliveredAt: instant("delivered_at"),
-    createdAt: instant("created_at").notNull(),
   },
   (t) => [
     index("outbox_due_idx").on(t.status, t.nextAttemptAt),
-    check("outbox_kind", oneOf(sql`${t.kind}`, Object.keys(OutboxMessage.cases))),
+    check("outbox_kind", oneOf(sql`${t.kind}`, Rec.keys(OutboxMessage.cases))),
     check("outbox_payload_kind", sql`${t.payload} ->> '_tag' = ${t.kind}`),
     check("outbox_attempts", sql`${t.attempts} >= 0`),
-    check("outbox_claim", sql`(${t.claimToken} is null) = (${t.claimedUntil} is null)`),
-    check("outbox_delivered", sql`(${t.status} = 'delivered') = (${t.deliveredAt} is not null)`),
-  ],
+    check(
+      "outbox_claim",
+      sql`(${t.claimToken} is null) = (${t.claimedUntil} is null)`
+    ),
+    check(
+      "outbox_delivered",
+      sql`(${t.status} = 'delivered') = (${t.deliveredAt} is not null)`
+    ),
+  ]
 );
 
 /** C12 change audit: one row per staff write, in the write's transaction. */
 export const auditLog = pgTable(
   "audit_log",
   {
-    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     action: text("action").notNull(),
     actorId: integer("actor_id").notNull(),
+    at: instant("at").notNull(),
     entity: text("entity").notNull(),
     entityKey: text("entity_key").notNull(),
-    at: instant("at").notNull(),
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   },
   (t) => [
     index("audit_log_entity_idx").on(t.entity, t.entityKey),
     check("audit_log_action", oneOf(sql`${t.action}`, AuditAction.literals)),
     check("audit_log_entity", oneOf(sql`${t.entity}`, EntityName.literals)),
     check("audit_log_actor", sql`${t.actorId} > 0`),
-  ],
+  ]
 );
