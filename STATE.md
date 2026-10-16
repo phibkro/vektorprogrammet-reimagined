@@ -5,7 +5,7 @@
 ## Done
 
 - Phase 1 architecture approved at Checkpoint 2 (2026-10-15).
-- Scaffolded and verified: `packages/domain` (94 tests), `packages/db` (36, 23 on real PostgreSQL), `tools/import` (17, real MySQL → PostgreSQL round trip), `apps/web` (46 tests, build, dev-server journeys). 193 tests executed, 193 passing, 0 pending.
+- Scaffolded and verified: `packages/domain` (98 tests), `packages/db` (36, 23 on real PostgreSQL), `tools/import` (19, real MySQL → PostgreSQL round trip), `apps/web` (53 tests, build, dev-server journeys). 206 tests executed, 206 passing, 0 pending.
 
 ## Next
 
