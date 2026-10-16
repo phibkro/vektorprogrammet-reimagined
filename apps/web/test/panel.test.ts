@@ -6,12 +6,7 @@
  * text). The domain-level proofs of the same rules live in `packages/domain`.
  */
 import { assert, describe, it } from "@effect/vitest";
-import {
-  SemesterId,
-  createSemester,
-  selectableYears,
-  updateStaticContent,
-} from "@vektorprogrammet/domain";
+import { SemesterId, updateStaticContent } from "@vektorprogrammet/domain";
 import type { Actor, StoredUpload } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Layer, Predicate } from "effect";
 import { TestClock } from "effect/testing";
@@ -21,8 +16,6 @@ import { homePage } from "../src/server/pages";
 import {
   dashboardView,
   readFile,
-  semesterInput,
-  semestersView,
   staticContentInput,
   storeOptional,
 } from "../src/server/panel";
@@ -32,8 +25,6 @@ import { form, makeTables, memoryLayer } from "./support/memory";
 import { assertValidationFailure } from "./support/outcomes";
 
 const { signal } = new AbortController();
-
-const SAVED = "Lagret.";
 
 // ---------------------------------------------------------------- RULE-033
 
@@ -86,50 +77,6 @@ describe("C1/C2 semesters through the panel", () => {
             at
           );
         }
-      })
-  );
-
-  it.effect(
-    "RULE-033: a semester the panel creates is saved and listed with its label",
-    () =>
-      Effect.gen(function* createSemesterEffect() {
-        const tables = makeTables();
-        const layer = memoryLayer(tables, TEST_ACTORS.admin);
-        const year = selectableYears(DateTime.nowUnsafe())[0] ?? 0;
-
-        const outcome = yield* Effect.promise(
-          async () =>
-            await runCommandOutcome(
-              layer,
-              Effect.void,
-              () =>
-                Effect.as(
-                  createSemester(
-                    semesterInput(form({ term: "VAR", year: String(year) }))
-                  ),
-                  SAVED
-                ),
-              signal
-            )
-        );
-
-        assert.isTrue(Predicate.isTagged(outcome, "Success"));
-        assert.deepStrictEqual(
-          Predicate.isTagged(outcome, "Success") ? outcome.value.value : null,
-          SAVED
-        );
-        assert.deepStrictEqual(tables.semesters, [
-          { id: SemesterId.make(1), term: "VAR", year },
-        ]);
-
-        const listed = yield* Effect.promise(
-          async () => await runOutcome(layer, semestersView, signal)
-        );
-
-        assert.deepStrictEqual(
-          Predicate.isTagged(listed, "Success") ? listed.value.semesters : [],
-          [{ id: SemesterId.make(1), label: `Vår ${year}` }]
-        );
       })
   );
 });

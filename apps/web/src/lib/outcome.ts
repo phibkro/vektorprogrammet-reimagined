@@ -63,6 +63,34 @@ export const fieldErrors = (
   return Rec.fromEntries(fields);
 };
 
+/**
+ * The text of a failure that no field shows: every failure but a validation one (a refusal, a
+ * duplicate, a missing row), and a validation issue that names no field.
+ */
+export const formLevelMessage = (
+  result: Outcome<unknown> | null | undefined
+): string | null => {
+  if (!result || Predicate.isTagged(result, "Success")) {
+    return null;
+  }
+
+  if (!Predicate.isTagged(result.error, "ValidationFailed")) {
+    return result.message;
+  }
+
+  const general = Arr.filter(
+    result.error.issues,
+    (issue) => issue.path.length === 0
+  );
+
+  return general.length === 0
+    ? null
+    : Arr.join(
+        Arr.map(general, (issue) => issue.message),
+        " "
+      );
+};
+
 /** Tagged router error for a non-404 page failure. */
 class PageFailureError extends Schema.TaggedError<
   PageFailureError,

@@ -41,7 +41,7 @@ flowchart LR
 | --- | --- | --- |
 | `packages/domain` | rules, branded types, capabilities (deny by default, department-scoped), service interfaces, commands | rule-named acceptance tests |
 | `packages/db` | Drizzle schema (single source) → `drizzle/` migrations, `DatabaseLive`, `transactional`, `OutboxDelivery`, `classifySqlFailure` | PGlite + real PostgreSQL (concurrency, transactions, negative controls) |
-| `apps/web` | routes, server functions, per-request Effect runtime, error table, `/filer` header policy, redirects, `alchemy.run.ts` | Node tests + `vp build` |
+| `apps/web` | routes, server functions, per-request Effect runtime, error table, `/filer` header policy, redirects, `alchemy.run.ts` | Node tests + `vp build`; Playwright browser tests (`apps/web/e2e`) against `vp dev` |
 | `tools/import` | deterministic, rerunnable legacy import with a reconciliation report holding no personal data | real MySQL → PostgreSQL round trip |
 | `tools/db-path-spike` | slice 0000: a throwaway Worker and a smoke command that check Worker → Hyperdrive → Neon → `@effect/sql-pg` → Drizzle on the real platform; also the deployed preview smoke test | local PostgreSQL rehearsal with negative controls; the deployed run in `docs/specs/0000-results.md` |
 
@@ -54,6 +54,7 @@ devenv up -d                                   # PostgreSQL + MySQL; stop with: 
 devenv shell -- bun install
 devenv shell -- bash -c 'cd packages/db && bun run db:migrate'   # local schema
 devenv shell -- bunx vp run -r test            # every unit's tests
+devenv shell -- bun run e2e                    # browser tests: Playwright + devenv's Chromium; check CPU and memory first
 devenv shell -- bunx vp check                  # format, lint, type check
 devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://localhost:3000
 ```
@@ -61,8 +62,8 @@ devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://local
 - Environment variables (`DATABASE_URL`, `TEST_DATABASE_ADMIN_URL`, `LEGACY_MYSQL_URL`) come from `devenv.nix`, derived from the ports devenv allocates. Deployed environments get the database through the Hyperdrive binding declared in `apps/web/alchemy.run.ts`.
 - Secrets (Turnstile, Slack webhooks) are Worker secrets set with `cf`, never files.
 - Neon secrets are declared in `secretspec.toml` and read only through `secretspec run -- <command>` with a `SECRETSPEC_REASON`, so a value never enters devenv evaluation, the Nix store or a shell. `packages/db/README.md` (Neon) has the branch, role and connection details.
-- Real-PostgreSQL tests create and drop their own `vp_db_test_*` / `import_test_*` databases.
-- The local test actor exists only when `DEPLOYMENT=local` (`vp dev`), via the `vp-test-actor` cookie.
+- Real-PostgreSQL tests create and drop their own `vp_db_test_*` databases, through one helper (`@vektorprogrammet/db/testing`). The importer's MySQL fixture databases are `import_test_*`.
+- The local test actor exists only when `DEPLOYMENT=local` (`vp dev`), via the `vp-test-actor` cookie. The browser tests use it.
 
 ## Quality gates
 
@@ -71,12 +72,13 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Gate | What enforces it | Run it |
 | --- | --- | --- |
 | Format, lint, type check | Oxfmt; Oxlint with Ultracite (`core`, `anti-slop`, `shadcn`), `@effect/tsgo` (`strict`, `effectNative`), the Effect plugin (all rules), mono-web's anti-slop plugins (`tools/oxlint/anti-slop/`), cognitive complexity ≤ 15, import boundaries; type-aware via tsgolint | `devenv shell -- bunx vp check` |
-| Everything at once | check, tests, web build, knip, jscpd, gitleaks, exception registry | `devenv shell -- bun run ready` |
+| Everything at once | check, tests, web build, knip, jscpd, gitleaks, exception registry (the browser tests are a separate, heavier gate) | `devenv shell -- bun run ready` |
 | Pre-commit | `vp staged` (`vp check --fix` on staged files) + gitleaks on staged changes (secrets, Norwegian national ids, SQL user dumps) | automatic (`.vite-hooks/pre-commit`) |
 | Commit message | commitlint, Conventional Commits | automatic (`.vite-hooks/commit-msg`) |
 | Pre-push | `vp run -r test` | automatic (`.vite-hooks/pre-push`) |
 | Suppressions | every `oxlint-disable` / `@ts-expect-error` needs an entry in `tools/quality/effect-exceptions.json` | `devenv shell -- bun run check:exceptions` |
-| CI | the same gates on every pull request | `.github/workflows/checks.yml` |
+| Browser tests | Playwright 1.63.0 (pinned to nixpkgs' `playwright-driver`) on devenv's Chromium, against `vp dev` and a disposable migrated database that the real importer fills from its fake fixture; one Effect program owns the lifecycle (`apps/web/e2e/run.ts`) | `devenv shell -- bun run e2e` |
+| CI | the same gates, including the browser tests, on every pull request | `.github/workflows/checks.yml` |
 
 - Hooks are installed by `vp config` (the `prepare` script, which also runs `effect-tsgo patch`). Never use `--no-verify`.
 - Fix the code, not the rule. A rule that is wrong for a file class gets a narrow `overrides` entry with a one-line reason. Two presets that contradict each other get one global switch with a comment naming both rules.

@@ -115,11 +115,15 @@ layer(postgresDatabase(), { excludeTestServices: true })(
   "unique (term, year) on PostgreSQL",
   (it) => {
     it.effect(
-      "RULE-237: 20 concurrent ensure calls yield exactly one row",
+      "RULE-237: 20 concurrent ensure calls on an empty table yield exactly one row",
       () =>
         Effect.gen(function* effectProgram() {
+          const db = yield* Drizzle;
+          assert.strictEqual(yield* db.$count(schema.semester), 0);
+
           const outcome = yield* ensureRace({ term: "HOST", year: 2026 });
           assert.strictEqual(outcome.rows.length, 1);
+          assert.strictEqual(yield* db.$count(schema.semester), 1);
           assert.isTrue(pipe(outcome.exits, Arr.every(Exit.isSuccess)));
           assert.isTrue(outcome.holds);
         })

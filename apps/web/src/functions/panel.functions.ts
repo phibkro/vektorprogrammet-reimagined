@@ -8,34 +8,28 @@ import { createServerFn } from "@tanstack/react-start";
  */
 import {
   ArticleId,
-  DepartmentId,
-  FieldOfStudyId,
   createArticle,
-  createDepartment,
-  createFieldOfStudy,
-  createSemester,
   createSocialEvent,
   createSponsor,
   decodeInput,
   registerPublicFile,
-  renameFieldOfStudy,
   setArticlePublished,
-  updateDepartment,
   updateStaticContent,
 } from "@vektorprogrammet/domain";
 import { Effect, Schema } from "effect";
 
 import {
+  SAVED,
   articleInput,
   articlesView,
   checkbox,
   dashboardView,
-  departmentInput,
-  fieldOfStudyInput,
-  fieldOfStudyRename,
+  departmentsView,
   fieldsOfStudyView,
   readFile,
-  semesterInput,
+  saveDepartmentProgram,
+  saveFieldOfStudyProgram,
+  saveSemesterProgram,
   semestersView,
   socialEventInput,
   socialEventsView,
@@ -49,13 +43,7 @@ import {
 import { runCommand, runPreparedCommand, runQuery } from "../server/runtime";
 import { requestScope } from "../server/scope";
 
-const SAVED = "Lagret.";
-
 const formData = Schema.toStandardSchemaV1(Schema.FormData);
-
-const decodeDepartmentId = decodeInput(DepartmentId);
-
-const decodeFieldOfStudyId = decodeInput(FieldOfStudyId);
 
 const decodeArticleId = decodeInput(ArticleId);
 
@@ -63,6 +51,10 @@ const decodeArticleId = decodeInput(ArticleId);
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), dashboardView)
+);
+
+export const getDepartments = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), departmentsView)
 );
 
 export const getSemesters = createServerFn({ method: "GET" }).handler(
@@ -93,45 +85,21 @@ export const getSocialEvents = createServerFn({ method: "GET" }).handler(
 
 export const saveDepartment = createServerFn({ method: "POST" })
   .validator(formData)
-  .handler(({ context, data }) => {
-    const id = text(data, "id");
-    const input = departmentInput(data);
-
-    return runCommand(
-      requestScope(context),
-      (id === ""
-        ? createDepartment(input)
-        : Effect.flatMap(decodeDepartmentId(Number(id)), (departmentId) =>
-            updateDepartment(departmentId, input)
-          )
-      ).pipe(Effect.as(SAVED))
-    );
-  });
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), saveDepartmentProgram(data))
+  );
 
 export const saveSemester = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
-    runCommand(
-      requestScope(context),
-      Effect.as(createSemester(semesterInput(data)), SAVED)
-    )
+    runCommand(requestScope(context), saveSemesterProgram(data))
   );
 
 export const saveFieldOfStudy = createServerFn({ method: "POST" })
   .validator(formData)
-  .handler(({ context, data }) => {
-    const id = text(data, "id");
-
-    return runCommand(
-      requestScope(context),
-      (id === ""
-        ? createFieldOfStudy(fieldOfStudyInput(data))
-        : Effect.flatMap(decodeFieldOfStudyId(Number(id)), (fieldOfStudyId) =>
-            renameFieldOfStudy(fieldOfStudyId, fieldOfStudyRename(data))
-          )
-      ).pipe(Effect.as(SAVED))
-    );
-  });
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), saveFieldOfStudyProgram(data))
+  );
 
 // ---------------------------------------------------------------- C4
 

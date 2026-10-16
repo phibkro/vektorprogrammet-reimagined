@@ -6,7 +6,8 @@
   "scripts": {
     "test": "devenv shell -- bunx vp test",
     "check": "vp check",
-    "import": "bun src/main.ts"
+    "import": "bun src/main.ts",
+    "import:fixture": "bun test/support/importFixture.ts"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",

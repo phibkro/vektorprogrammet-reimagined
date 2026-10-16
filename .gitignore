@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Playwright output (the apps/web browser tests)
+test-results
+playwright-report
+
 # dotenv environment variable files
 .env
 .env.*

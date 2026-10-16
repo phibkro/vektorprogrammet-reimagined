@@ -1,31 +1,42 @@
 /**
- * `/kontrollpanel` (C1, C2, C4, C5, C6, C8) at stub depth: view programs over
- * the domain's queries and services, and form → command-input mapping. The
- * domain decodes and validates every input; this module only turns form text
- * into the shapes the domain's input schemas expect (numbers, booleans,
- * nulls, UTC instants). Authorization happens inside each command (in its
- * transaction); the route guard is UX only.
+ * `/kontrollpanel` (C1, C2, C4, C5, C6, C8): view programs over the domain's queries and services,
+ * the command programs a server function runs, and form → command-input mapping. C1 and C2
+ * (departments, semesters, fields of study; spec 0001) are complete; the other capabilities are at stub
+ * depth. The domain decodes and validates every input; this module only turns form text into the
+ * shapes the domain's input schemas expect (numbers, booleans, nulls, UTC instants). Authorization
+ * happens inside each command (in its transaction); the route guard is UX only.
  */
 import {
   ArticleRepository,
   CurrentActor,
+  DepartmentId,
   DepartmentRepository,
   EVENT_BADGE_LABEL,
+  FieldOfStudyId,
   SocialEventRepository,
   StaticContentKey,
+  createDepartment,
+  createFieldOfStudy,
+  createSemester,
+  decodeInput,
   ensureCurrentSemester,
   eventBadge,
   getStaticContent,
   listFieldsOfStudy,
   listSemestersNewestFirst,
   listSponsorsForFooter,
+  nextSemester,
   osloWallClock,
+  renameFieldOfStudy,
   selectableYears,
   semesterLabel,
   storeUpload,
+  updateDepartment,
 } from "@vektorprogrammet/domain";
 import type {
+  Actor,
   Article,
+  Department,
   StoredUpload,
   UploadAccept,
 } from "@vektorprogrammet/domain";
@@ -103,6 +114,9 @@ export const osloLocalToIso = (raw: string): string => {
 
 // ---------------------------------------------------------------- C1 / C2
 
+/** What every successful panel command answers with. */
+export const SAVED = "Lagret.";
+
 export const departmentInput = (form: FormData) => ({
   active: checkbox(form, "active"),
   address: optionalText(form, "address"),
@@ -141,6 +155,50 @@ export const fieldOfStudyRename = (form: FormData) => ({
   shortName: text(form, "shortName"),
 });
 
+const decodeDepartmentId = decodeInput(DepartmentId);
+
+const decodeFieldOfStudyId = decodeInput(FieldOfStudyId);
+
+/**
+ * C1: a blank `id` creates a department, an `id` updates it. The commands authorize inside their
+ * transaction (an admin creates; an admin or the department's team leader updates), and a repeated
+ * city is refused by the unique constraint.
+ */
+export const saveDepartmentProgram = (form: FormData) => {
+  const id = text(form, "id");
+  const input = departmentInput(form);
+
+  return Effect.as(
+    id === ""
+      ? createDepartment(input)
+      : Effect.flatMap(decodeDepartmentId(Number(id)), (departmentId) =>
+          updateDepartment(departmentId, input)
+        ),
+    SAVED
+  );
+};
+
+/** C1, RULE-144: an admin creates a semester; a duplicate is refused and nothing is saved. */
+export const saveSemesterProgram = (form: FormData) =>
+  Effect.as(createSemester(semesterInput(form)), SAVED);
+
+/**
+ * C1, RULE-139: a blank `id` creates a field of study (in the named department, by default the
+ * actor's own), an `id` renames one. A team leader is refused outside their own department.
+ */
+export const saveFieldOfStudyProgram = (form: FormData) => {
+  const id = text(form, "id");
+
+  return Effect.as(
+    id === ""
+      ? createFieldOfStudy(fieldOfStudyInput(form))
+      : Effect.flatMap(decodeFieldOfStudyId(Number(id)), (fieldOfStudyId) =>
+          renameFieldOfStudy(fieldOfStudyId, fieldOfStudyRename(form))
+        ),
+    SAVED
+  );
+};
+
 export interface DepartmentRow {
   readonly id: number;
   readonly name: string;
@@ -150,7 +208,35 @@ export interface DepartmentRow {
   readonly address: string | null;
   readonly active: boolean;
   readonly slackChannel: string | null;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+  readonly logoKey: string | null;
 }
+
+/** Everything the edit form needs, so saving a department never blanks a field it did not show. */
+const departmentRow = (department: Department): DepartmentRow => ({
+  active: department.active,
+  address: department.address,
+  city: department.city,
+  email: department.email,
+  id: department.id,
+  latitude: department.latitude,
+  logoKey: department.logoKey,
+  longitude: department.longitude,
+  name: department.name,
+  shortName: department.shortName,
+  slackChannel: department.slackChannel,
+});
+
+/** Who is acting, for the buttons the page offers; the commands decide (the buttons are UX only). */
+const actorSummary = (actor: Actor) =>
+  Predicate.isTagged("Staff")(actor)
+    ? {
+        departmentId: actor.departmentId,
+        executiveBoard: actor.executiveBoard,
+        role: actor.role,
+      }
+    : null;
 
 const byDepartmentName = Order.mapInput(
   Order.make((left: string, right: string): -1 | 0 | 1 => {
@@ -174,64 +260,74 @@ const newestArticleOrder = Order.mapInput(
   (article: Article) => -DateTime.toEpochMillis(article.createdAt)
 );
 
-/** C1 departments (all, including inactive) and C2 the current semester (RULE-033/237). */
+/** C2 the current semester (RULE-033/237: the one answer, created when missing) and who is acting. */
 export const dashboardView = Effect.gen(function* dashboardView() {
   const actor = yield* CurrentActor;
-  const departments = yield* DepartmentRepository;
   const current = yield* ensureCurrentSemester;
 
-  const rows = Arr.map(
-    yield* departments.list,
-    (department): DepartmentRow => ({
-      active: department.active,
-      address: department.address,
-      city: department.city,
-      email: department.email,
-      id: department.id,
-      name: department.name,
-      shortName: department.shortName,
-      slackChannel: department.slackChannel,
-    })
-  );
-
   return {
-    actor: Predicate.isTagged("Staff")(actor)
-      ? {
-          departmentId: actor.departmentId,
-          executiveBoard: actor.executiveBoard,
-          role: actor.role,
-        }
-      : null,
+    actor: actorSummary(actor),
     currentSemester: semesterLabel(current),
-    departments: Arr.sort(rows, byDepartmentName),
   };
 });
 
-/** C1 semesters newest first (RULE-084) and the selectable years (RULE-190). */
-export const semestersView = Effect.gen(function* semestersView() {
-  const semesters = yield* listSemestersNewestFirst;
+/** C1 departments (all, including inactive), by name. */
+export const departmentsView = Effect.gen(function* departmentsView() {
+  const actor = yield* CurrentActor;
+  const departments = yield* DepartmentRepository;
 
   return {
+    actor: actorSummary(actor),
+    departments: Arr.sort(
+      Arr.map(yield* departments.list, departmentRow),
+      byDepartmentName
+    ),
+  };
+});
+
+/**
+ * C1 semesters newest first (RULE-084, the current one marked, RULE-237), the selectable years
+ * (RULE-190) and the semester the form proposes: the successor of the newest one (RULE-050), unless
+ * that year is not selectable yet.
+ */
+export const semestersView = Effect.gen(function* semestersView() {
+  const current = yield* ensureCurrentSemester;
+  const semesters = yield* listSemestersNewestFirst;
+  const years = selectableYears(yield* DateTime.now);
+  const successor = nextSemester(semesters[0] ?? current);
+  const proposed = years.includes(successor.year) ? successor : current;
+
+  return {
+    proposed: { term: proposed.term, year: proposed.year },
     semesters: Arr.map(semesters, (semester) => ({
+      current: semester.id === current.id,
       id: semester.id,
       label: semesterLabel(semester),
     })),
-    years: selectableYears(yield* DateTime.now),
+    years,
   };
 });
 
-/** C1 fields of study of the actor's own department (RULE-139). */
+/** C1 fields of study of the actor's own department (RULE-139), with its name. */
 export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
   const actor = yield* CurrentActor;
 
   if (!Predicate.isTagged("Staff")(actor)) {
-    return { departmentId: null, fieldsOfStudy: [] };
+    return { department: null, fieldsOfStudy: [] };
   }
 
+  const departments = yield* DepartmentRepository;
   const fields = yield* listFieldsOfStudy(actor.departmentId);
 
+  const department = yield* departments.findById(actor.departmentId).pipe(
+    Effect.map((found) => found.name),
+    Effect.catchTag("NotFound", () =>
+      Effect.succeed(`Avdeling ${actor.departmentId}`)
+    )
+  );
+
   return {
-    departmentId: actor.departmentId,
+    department: { id: actor.departmentId, name: department },
     fieldsOfStudy: Arr.map(fields, (field) => ({
       id: field.id,
       name: field.name,

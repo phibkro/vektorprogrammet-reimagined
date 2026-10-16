@@ -1,0 +1,1655 @@
+{
+  "brokenReferences": [
+    {
+      "field": "imageLarge",
+      "id": "10",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageSmall",
+      "id": "10",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageLarge",
+      "id": "11",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageSmall",
+      "id": "11",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageLarge",
+      "id": "12",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageSmall",
+      "id": "12",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageLarge",
+      "id": "13",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "imageSmall",
+      "id": "13",
+      "kind": "not-a-legacy-file",
+      "table": "article",
+      "target": "public_file",
+      "targetId": null
+    },
+    {
+      "field": "article_id",
+      "id": "10:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "10"
+    },
+    {
+      "field": "article_id",
+      "id": "11:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "11"
+    },
+    {
+      "field": "article_id",
+      "id": "11:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "11"
+    },
+    {
+      "field": "article_id",
+      "id": "11:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "11"
+    },
+    {
+      "field": "article_id",
+      "id": "12:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "12"
+    },
+    {
+      "field": "article_id",
+      "id": "12:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "12"
+    },
+    {
+      "field": "article_id",
+      "id": "12:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "12"
+    },
+    {
+      "field": "article_id",
+      "id": "12:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "12"
+    },
+    {
+      "field": "article_id",
+      "id": "13:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "13"
+    },
+    {
+      "field": "article_id",
+      "id": "13:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "13"
+    },
+    {
+      "field": "article_id",
+      "id": "13:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "13"
+    },
+    {
+      "field": "article_id",
+      "id": "13:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "13"
+    },
+    {
+      "field": "article_id",
+      "id": "15:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "15"
+    },
+    {
+      "field": "article_id",
+      "id": "15:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "15"
+    },
+    {
+      "field": "article_id",
+      "id": "15:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "15"
+    },
+    {
+      "field": "article_id",
+      "id": "15:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "15"
+    },
+    {
+      "field": "article_id",
+      "id": "16:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "16"
+    },
+    {
+      "field": "article_id",
+      "id": "16:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "16"
+    },
+    {
+      "field": "article_id",
+      "id": "16:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "16"
+    },
+    {
+      "field": "article_id",
+      "id": "16:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "16"
+    },
+    {
+      "field": "article_id",
+      "id": "17:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "17"
+    },
+    {
+      "field": "article_id",
+      "id": "17:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "17"
+    },
+    {
+      "field": "article_id",
+      "id": "17:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "17"
+    },
+    {
+      "field": "article_id",
+      "id": "17:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "17"
+    },
+    {
+      "field": "article_id",
+      "id": "18:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "18"
+    },
+    {
+      "field": "article_id",
+      "id": "18:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "18"
+    },
+    {
+      "field": "article_id",
+      "id": "18:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "18"
+    },
+    {
+      "field": "article_id",
+      "id": "18:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "18"
+    },
+    {
+      "field": "article_id",
+      "id": "19:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "19"
+    },
+    {
+      "field": "article_id",
+      "id": "19:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "19"
+    },
+    {
+      "field": "article_id",
+      "id": "19:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "19"
+    },
+    {
+      "field": "article_id",
+      "id": "19:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "19"
+    },
+    {
+      "field": "article_id",
+      "id": "20:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "20"
+    },
+    {
+      "field": "article_id",
+      "id": "21:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "21"
+    },
+    {
+      "field": "article_id",
+      "id": "25:6",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "25"
+    },
+    {
+      "field": "article_id",
+      "id": "26:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "26"
+    },
+    {
+      "field": "article_id",
+      "id": "28:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "28"
+    },
+    {
+      "field": "article_id",
+      "id": "28:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "28"
+    },
+    {
+      "field": "article_id",
+      "id": "28:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "28"
+    },
+    {
+      "field": "article_id",
+      "id": "28:5",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "28"
+    },
+    {
+      "field": "article_id",
+      "id": "28:6",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "28"
+    },
+    {
+      "field": "article_id",
+      "id": "29:6",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "29"
+    },
+    {
+      "field": "article_id",
+      "id": "30:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "30"
+    },
+    {
+      "field": "article_id",
+      "id": "31:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "31"
+    },
+    {
+      "field": "article_id",
+      "id": "32:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "32"
+    },
+    {
+      "field": "article_id",
+      "id": "33:4",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "33"
+    },
+    {
+      "field": "article_id",
+      "id": "35:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "35"
+    },
+    {
+      "field": "article_id",
+      "id": "36:1",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "36"
+    },
+    {
+      "field": "article_id",
+      "id": "36:3",
+      "kind": "quarantined-row",
+      "table": "article_department",
+      "target": "article",
+      "targetId": "36"
+    }
+  ],
+  "collapsedSemesters": [],
+  "droppedColumns": [
+    {
+      "column": "role_id",
+      "reason": "RULE-188: the sign-up role was never enforced",
+      "table": "event"
+    },
+    {
+      "column": "updated",
+      "reason": "not part of the Phase 1 article model",
+      "table": "article"
+    },
+    {
+      "column": "infoMeeting_id",
+      "reason": "info meetings belong to Phase 3",
+      "table": "AdmissionPeriod"
+    },
+    {
+      "column": "id",
+      "reason": "the block is keyed by html_id",
+      "table": "static_content"
+    }
+  ],
+  "fileSource": "none",
+  "files": {
+    "pathsSharingContent": 0,
+    "registered": 0
+  },
+  "formatVersion": 1,
+  "missingFiles": {
+    "distinctFiles": 42,
+    "references": [
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-27",
+        "id": "14",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-38",
+        "id": "14",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-23",
+        "id": "15",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-36",
+        "id": "15",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-22",
+        "id": "16",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-35",
+        "id": "16",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-34",
+        "id": "17",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-33",
+        "id": "17",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-41",
+        "id": "18",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-37",
+        "id": "18",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-18",
+        "id": "19",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-17",
+        "id": "19",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-21",
+        "id": "20",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-32",
+        "id": "20",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-25",
+        "id": "21",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-31",
+        "id": "21",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-41",
+        "id": "22",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-39",
+        "id": "22",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-24",
+        "id": "24",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-29",
+        "id": "24",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-41",
+        "id": "25",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-26",
+        "id": "25",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-20",
+        "id": "26",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-29",
+        "id": "26",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-41",
+        "id": "27",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-41",
+        "id": "27",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-42",
+        "id": "28",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-42",
+        "id": "28",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-41",
+        "id": "29",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-39",
+        "id": "29",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-19",
+        "id": "30",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-30",
+        "id": "30",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-19",
+        "id": "31",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-30",
+        "id": "31",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-41",
+        "id": "32",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-40",
+        "id": "32",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-28",
+        "id": "33",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-28",
+        "id": "33",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-14",
+        "id": "34",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-13",
+        "id": "34",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-12",
+        "id": "35",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-11",
+        "id": "35",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageLarge",
+        "file": "missing-file-16",
+        "id": "36",
+        "table": "article"
+      },
+      {
+        "area": "images/article_images",
+        "field": "imageSmall",
+        "file": "missing-file-15",
+        "id": "36",
+        "table": "article"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-6",
+        "id": "1",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-7",
+        "id": "4",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-8",
+        "id": "5",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-1",
+        "id": "6",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-9",
+        "id": "7",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-4",
+        "id": "9",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-5",
+        "id": "14",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-3",
+        "id": "17",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-2",
+        "id": "18",
+        "table": "sponsor"
+      },
+      {
+        "area": "images/Logo images",
+        "field": "logoImagePath",
+        "file": "missing-file-10",
+        "id": "19",
+        "table": "sponsor"
+      }
+    ]
+  },
+  "normalisations": [],
+  "quarantine": [
+    {
+      "id": "45",
+      "reasons": ["end_date is not after start_date"],
+      "table": "admission_period"
+    },
+    {
+      "id": "10",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "11",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "12",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "13",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "14",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "15",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "16",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "17",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "18",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "19",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "20",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "21",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "22",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "24",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "25",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "26",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "27",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "28",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "29",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "30",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "31",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "32",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "33",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "34",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "35",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "36",
+      "reasons": [
+        "imageLarge has no registered file",
+        "imageSmall has no registered file"
+      ],
+      "table": "article"
+    },
+    {
+      "id": "10:1",
+      "reasons": ["article_id references quarantined article 10"],
+      "table": "article_department"
+    },
+    {
+      "id": "11:1",
+      "reasons": ["article_id references quarantined article 11"],
+      "table": "article_department"
+    },
+    {
+      "id": "11:3",
+      "reasons": ["article_id references quarantined article 11"],
+      "table": "article_department"
+    },
+    {
+      "id": "11:4",
+      "reasons": ["article_id references quarantined article 11"],
+      "table": "article_department"
+    },
+    {
+      "id": "12:1",
+      "reasons": ["article_id references quarantined article 12"],
+      "table": "article_department"
+    },
+    {
+      "id": "12:3",
+      "reasons": ["article_id references quarantined article 12"],
+      "table": "article_department"
+    },
+    {
+      "id": "12:4",
+      "reasons": ["article_id references quarantined article 12"],
+      "table": "article_department"
+    },
+    {
+      "id": "12:5",
+      "reasons": ["article_id references quarantined article 12"],
+      "table": "article_department"
+    },
+    {
+      "id": "13:1",
+      "reasons": ["article_id references quarantined article 13"],
+      "table": "article_department"
+    },
+    {
+      "id": "13:3",
+      "reasons": ["article_id references quarantined article 13"],
+      "table": "article_department"
+    },
+    {
+      "id": "13:4",
+      "reasons": ["article_id references quarantined article 13"],
+      "table": "article_department"
+    },
+    {
+      "id": "13:5",
+      "reasons": ["article_id references quarantined article 13"],
+      "table": "article_department"
+    },
+    {
+      "id": "15:1",
+      "reasons": ["article_id references quarantined article 15"],
+      "table": "article_department"
+    },
+    {
+      "id": "15:3",
+      "reasons": ["article_id references quarantined article 15"],
+      "table": "article_department"
+    },
+    {
+      "id": "15:4",
+      "reasons": ["article_id references quarantined article 15"],
+      "table": "article_department"
+    },
+    {
+      "id": "15:5",
+      "reasons": ["article_id references quarantined article 15"],
+      "table": "article_department"
+    },
+    {
+      "id": "16:1",
+      "reasons": ["article_id references quarantined article 16"],
+      "table": "article_department"
+    },
+    {
+      "id": "16:3",
+      "reasons": ["article_id references quarantined article 16"],
+      "table": "article_department"
+    },
+    {
+      "id": "16:4",
+      "reasons": ["article_id references quarantined article 16"],
+      "table": "article_department"
+    },
+    {
+      "id": "16:5",
+      "reasons": ["article_id references quarantined article 16"],
+      "table": "article_department"
+    },
+    {
+      "id": "17:1",
+      "reasons": ["article_id references quarantined article 17"],
+      "table": "article_department"
+    },
+    {
+      "id": "17:3",
+      "reasons": ["article_id references quarantined article 17"],
+      "table": "article_department"
+    },
+    {
+      "id": "17:4",
+      "reasons": ["article_id references quarantined article 17"],
+      "table": "article_department"
+    },
+    {
+      "id": "17:5",
+      "reasons": ["article_id references quarantined article 17"],
+      "table": "article_department"
+    },
+    {
+      "id": "18:1",
+      "reasons": ["article_id references quarantined article 18"],
+      "table": "article_department"
+    },
+    {
+      "id": "18:3",
+      "reasons": ["article_id references quarantined article 18"],
+      "table": "article_department"
+    },
+    {
+      "id": "18:4",
+      "reasons": ["article_id references quarantined article 18"],
+      "table": "article_department"
+    },
+    {
+      "id": "18:5",
+      "reasons": ["article_id references quarantined article 18"],
+      "table": "article_department"
+    },
+    {
+      "id": "19:1",
+      "reasons": ["article_id references quarantined article 19"],
+      "table": "article_department"
+    },
+    {
+      "id": "19:3",
+      "reasons": ["article_id references quarantined article 19"],
+      "table": "article_department"
+    },
+    {
+      "id": "19:4",
+      "reasons": ["article_id references quarantined article 19"],
+      "table": "article_department"
+    },
+    {
+      "id": "19:5",
+      "reasons": ["article_id references quarantined article 19"],
+      "table": "article_department"
+    },
+    {
+      "id": "20:1",
+      "reasons": ["article_id references quarantined article 20"],
+      "table": "article_department"
+    },
+    {
+      "id": "21:1",
+      "reasons": ["article_id references quarantined article 21"],
+      "table": "article_department"
+    },
+    {
+      "id": "25:6",
+      "reasons": ["article_id references quarantined article 25"],
+      "table": "article_department"
+    },
+    {
+      "id": "26:1",
+      "reasons": ["article_id references quarantined article 26"],
+      "table": "article_department"
+    },
+    {
+      "id": "28:1",
+      "reasons": ["article_id references quarantined article 28"],
+      "table": "article_department"
+    },
+    {
+      "id": "28:3",
+      "reasons": ["article_id references quarantined article 28"],
+      "table": "article_department"
+    },
+    {
+      "id": "28:4",
+      "reasons": ["article_id references quarantined article 28"],
+      "table": "article_department"
+    },
+    {
+      "id": "28:5",
+      "reasons": ["article_id references quarantined article 28"],
+      "table": "article_department"
+    },
+    {
+      "id": "28:6",
+      "reasons": ["article_id references quarantined article 28"],
+      "table": "article_department"
+    },
+    {
+      "id": "29:6",
+      "reasons": ["article_id references quarantined article 29"],
+      "table": "article_department"
+    },
+    {
+      "id": "30:1",
+      "reasons": ["article_id references quarantined article 30"],
+      "table": "article_department"
+    },
+    {
+      "id": "31:1",
+      "reasons": ["article_id references quarantined article 31"],
+      "table": "article_department"
+    },
+    {
+      "id": "32:1",
+      "reasons": ["article_id references quarantined article 32"],
+      "table": "article_department"
+    },
+    {
+      "id": "33:4",
+      "reasons": ["article_id references quarantined article 33"],
+      "table": "article_department"
+    },
+    {
+      "id": "35:1",
+      "reasons": ["article_id references quarantined article 35"],
+      "table": "article_department"
+    },
+    {
+      "id": "36:1",
+      "reasons": ["article_id references quarantined article 36"],
+      "table": "article_department"
+    },
+    {
+      "id": "36:3",
+      "reasons": ["article_id references quarantined article 36"],
+      "table": "article_department"
+    },
+    {
+      "id": "4",
+      "reasons": ["endTime is not after startTime"],
+      "table": "social_event"
+    }
+  ],
+  "richText": {
+    "rewrittenReferences": 0,
+    "sanitizedRows": [
+      {
+        "id": "10",
+        "table": "article"
+      },
+      {
+        "id": "11",
+        "table": "article"
+      },
+      {
+        "id": "12",
+        "table": "article"
+      },
+      {
+        "id": "13",
+        "table": "article"
+      },
+      {
+        "id": "14",
+        "table": "article"
+      },
+      {
+        "id": "15",
+        "table": "article"
+      },
+      {
+        "id": "16",
+        "table": "article"
+      },
+      {
+        "id": "17",
+        "table": "article"
+      },
+      {
+        "id": "18",
+        "table": "article"
+      },
+      {
+        "id": "19",
+        "table": "article"
+      },
+      {
+        "id": "20",
+        "table": "article"
+      },
+      {
+        "id": "21",
+        "table": "article"
+      },
+      {
+        "id": "22",
+        "table": "article"
+      },
+      {
+        "id": "24",
+        "table": "article"
+      },
+      {
+        "id": "25",
+        "table": "article"
+      },
+      {
+        "id": "26",
+        "table": "article"
+      },
+      {
+        "id": "27",
+        "table": "article"
+      },
+      {
+        "id": "28",
+        "table": "article"
+      },
+      {
+        "id": "29",
+        "table": "article"
+      },
+      {
+        "id": "30",
+        "table": "article"
+      },
+      {
+        "id": "31",
+        "table": "article"
+      },
+      {
+        "id": "32",
+        "table": "article"
+      },
+      {
+        "id": "33",
+        "table": "article"
+      },
+      {
+        "id": "34",
+        "table": "article"
+      },
+      {
+        "id": "35",
+        "table": "article"
+      },
+      {
+        "id": "36",
+        "table": "article"
+      },
+      {
+        "id": "1",
+        "table": "static_content"
+      },
+      {
+        "id": "2",
+        "table": "static_content"
+      },
+      {
+        "id": "8",
+        "table": "static_content"
+      },
+      {
+        "id": "9",
+        "table": "static_content"
+      },
+      {
+        "id": "10",
+        "table": "static_content"
+      },
+      {
+        "id": "11",
+        "table": "static_content"
+      },
+      {
+        "id": "12",
+        "table": "static_content"
+      },
+      {
+        "id": "13",
+        "table": "static_content"
+      },
+      {
+        "id": "14",
+        "table": "static_content"
+      },
+      {
+        "id": "15",
+        "table": "static_content"
+      },
+      {
+        "id": "21",
+        "table": "static_content"
+      },
+      {
+        "id": "22",
+        "table": "static_content"
+      },
+      {
+        "id": "23",
+        "table": "static_content"
+      },
+      {
+        "id": "24",
+        "table": "static_content"
+      },
+      {
+        "id": "25",
+        "table": "static_content"
+      },
+      {
+        "id": "26",
+        "table": "static_content"
+      },
+      {
+        "id": "27",
+        "table": "static_content"
+      },
+      {
+        "id": "28",
+        "table": "static_content"
+      },
+      {
+        "id": "29",
+        "table": "static_content"
+      },
+      {
+        "id": "30",
+        "table": "static_content"
+      },
+      {
+        "id": "31",
+        "table": "static_content"
+      },
+      {
+        "id": "32",
+        "table": "static_content"
+      },
+      {
+        "id": "33",
+        "table": "static_content"
+      },
+      {
+        "id": "34",
+        "table": "static_content"
+      },
+      {
+        "id": "35",
+        "table": "static_content"
+      },
+      {
+        "id": "36",
+        "table": "static_content"
+      },
+      {
+        "id": "37",
+        "table": "static_content"
+      },
+      {
+        "id": "38",
+        "table": "static_content"
+      },
+      {
+        "id": "39",
+        "table": "static_content"
+      },
+      {
+        "id": "40",
+        "table": "static_content"
+      },
+      {
+        "id": "41",
+        "table": "static_content"
+      },
+      {
+        "id": "42",
+        "table": "static_content"
+      },
+      {
+        "id": "43",
+        "table": "static_content"
+      },
+      {
+        "id": "44",
+        "table": "static_content"
+      }
+    ]
+  },
+  "tables": [
+    {
+      "quarantined": 0,
+      "rowsIn": 42,
+      "rowsOut": 0,
+      "source": "(files referenced by the tables below)",
+      "table": "public_file"
+    },
+    {
+      "quarantined": 0,
+      "rowsIn": 5,
+      "rowsOut": 5,
+      "source": "department",
+      "table": "department"
+    },
+    {
+      "quarantined": 0,
+      "rowsIn": 28,
+      "rowsOut": 28,
+      "source": "semester",
+      "table": "semester"
+    },
+    {
+      "quarantined": 0,
+      "rowsIn": 110,
+      "rowsOut": 110,
+      "source": "field_of_study",
+      "table": "field_of_study"
+    },
+    {
+      "quarantined": 1,
+      "rowsIn": 93,
+      "rowsOut": 92,
+      "source": "AdmissionPeriod",
+      "table": "admission_period"
+    },
+    {
+      "quarantined": 26,
+      "rowsIn": 26,
+      "rowsOut": 0,
+      "source": "article",
+      "table": "article"
+    },
+    {
+      "quarantined": 49,
+      "rowsIn": 49,
+      "rowsOut": 0,
+      "source": "articles_departments",
+      "table": "article_department"
+    },
+    {
+      "quarantined": 0,
+      "rowsIn": 44,
+      "rowsOut": 44,
+      "source": "static_content",
+      "table": "static_content"
+    },
+    {
+      "quarantined": 0,
+      "rowsIn": 10,
+      "rowsOut": 10,
+      "source": "sponsor",
+      "table": "sponsor"
+    },
+    {
+      "quarantined": 1,
+      "rowsIn": 10,
+      "rowsOut": 9,
+      "source": "event",
+      "table": "social_event"
+    }
+  ]
+}

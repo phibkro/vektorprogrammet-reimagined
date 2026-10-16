@@ -35,7 +35,7 @@ Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; 
 
 - Methods require nothing and fail only with the listed domain errors. Everything else (lost connection, unexpected SQL state) is a defect (`Effect.orDie` after `classifySqlFailure`).
 - Unique constraints map to `AlreadyExists` (entity, key, Norwegian message): department `city`, article `slug`, semester `(term, year)`. Commands may replace the message (e.g. RULE-144's "Semesteret Høst 2026 finnes allerede").
-- `SemesterRepository.create` is `INSERT … ON CONFLICT (term, year) DO NOTHING RETURNING`; no row → `AlreadyExists`. `ensure` is the same insert followed by a select, so concurrent callers get one row (RULE-237).
+- `SemesterRepository.create` is `INSERT … ON CONFLICT (term, year) DO NOTHING RETURNING`; no row → `AlreadyExists`. `ensure` is `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`, one statement that returns the existing row too, so concurrent callers all get the one row (RULE-237, spec 0001 R1).
 - `PublicFileRepository.register` is idempotent on `key`.
 - Repositories do not order rows; rule functions do (`sortNewestFirst`, `selectFrontPageNews`, `sortSponsorsForFooter`).
 - Decode rows with the domain schemas (`Department`, `StoredSemester`, `Article`, `StaticContent`, `Sponsor`, `SocialEvent`, `PublicFile`, `OutboxMessage`, `AuditEntry`). `Article.body` and `StaticContent.html` use `SanitizedHtmlFromString`, which re-sanitizes stored HTML on every read (RULE-133 replacement: sanitize on save and on render).

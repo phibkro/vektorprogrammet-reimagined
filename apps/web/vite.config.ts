@@ -114,7 +114,30 @@ const standaloneWorker = (devServer: boolean) => {
   });
 };
 
+/**
+ * Dependencies that only lazily loaded route components import. Vite finds them on the first visit to such a
+ * page, bundles them, and reloads, and a dev server that did so can end up with two copies of React ("Invalid
+ * hook call"). Listing them makes a fresh `vp dev` bundle them at start-up, so it is stable from the first request.
+ */
+const LAZY_ROUTE_DEPENDENCIES = [
+  "@base-ui/react/button",
+  "@base-ui/react/dialog",
+  "@base-ui/react/input",
+  "@base-ui/react/merge-props",
+  "@base-ui/react/select",
+  "@base-ui/react/switch",
+  "@base-ui/react/use-render",
+  "class-variance-authority",
+  "clsx",
+  "lucide-react",
+  "tailwind-merge",
+];
+
 export default defineConfig(({ command }) => ({
+  environments: {
+    ssr: { optimizeDeps: { include: LAZY_ROUTE_DEPENDENCIES } },
+  },
+  optimizeDeps: { include: LAZY_ROUTE_DEPENDENCIES },
   plugins: testing
     ? []
     : [

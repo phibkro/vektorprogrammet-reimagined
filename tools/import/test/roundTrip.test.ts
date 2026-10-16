@@ -10,6 +10,10 @@
 import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
 import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "@vektorprogrammet/db/testing";
+import {
   Array as Arr,
   Config,
   Crypto,
@@ -33,7 +37,7 @@ import { ReportFromJson } from "../src/report.ts";
 import type { ReconciliationReport } from "../src/report.ts";
 import { TARGET_TABLES } from "../src/transform/plan.ts";
 import type { TargetTable } from "../src/transform/plan.ts";
-import { LegacyTestDatabase, TargetTestDatabase } from "./support/databases.ts";
+import { LegacyTestDatabase } from "./support/databases.ts";
 import {
   ARTICLE_1_BODY,
   FAKE_FILES,
@@ -44,7 +48,7 @@ const IMPORT_DIR = new URL("..", import.meta.url);
 
 const Databases = Layer.mergeAll(
   LegacyTestDatabase.layer,
-  TargetTestDatabase.layer
+  migratedTestDatabase
 ).pipe(Layer.provideMerge(nodeServicesLayer));
 
 /** Runs the import in-process; returns the report and the report files' text. */
@@ -53,7 +57,7 @@ const importOnce = Effect.fn("importOnce")(function* importOnce(
 ) {
   const fs = yield* FileSystem.FileSystem;
   const legacy = yield* LegacyTestDatabase;
-  const target = yield* TargetTestDatabase;
+  const targetUrl = yield* TestDatabaseUrl;
   const reportDir = yield* fs.makeTempDirectoryScoped();
 
   const { report, written } = yield* runImport(reportDir).pipe(
@@ -61,7 +65,7 @@ const importOnce = Effect.fn("importOnce")(function* importOnce(
       importLayer({
         legacyFilesDir,
         legacyMysqlUrl: legacy.url,
-        targetUrl: target.url,
+        targetUrl,
       })
     )
   );
@@ -94,12 +98,12 @@ const queryTarget = <A>(
   query: (sql: PgClient.PgClient) => Effect.Effect<A, SqlError>
 ) =>
   Effect.gen(function* queryTargetProgram() {
-    const target = yield* TargetTestDatabase;
+    const targetUrl = yield* TestDatabaseUrl;
 
     return yield* Effect.gen(function* runTargetQuery() {
       return yield* query(yield* PgClient.PgClient);
     }).pipe(
-      Effect.provide(PgClient.layer({ maxConnections: 1, url: target.url })),
+      Effect.provide(PgClient.layer({ maxConnections: 1, url: targetUrl })),
       Effect.orDie
     );
   });
@@ -224,11 +228,11 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           const fs = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
           const legacy = yield* LegacyTestDatabase;
-          const target = yield* TargetTestDatabase;
+          const targetUrl = yield* TestDatabaseUrl;
           const reportDir = yield* fs.makeTempDirectoryScoped();
 
           const cli = yield* runCli(["--report-dir", reportDir], {
-            IMPORT_TARGET_DATABASE_URL: Redacted.value(target.url),
+            IMPORT_TARGET_DATABASE_URL: Redacted.value(targetUrl),
             LEGACY_MYSQL_URL: Redacted.value(legacy.url),
           });
 

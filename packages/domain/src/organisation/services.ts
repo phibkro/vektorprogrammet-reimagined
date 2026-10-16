@@ -46,8 +46,9 @@ export class SemesterRepository extends Context.Service<
       semester: Semester
     ) => Effect.Effect<StoredSemester, AlreadyExists>;
     /**
-     * RULE-237: atomic find-or-create on the unique (term, year) constraint
-     * (`INSERT … ON CONFLICT DO NOTHING` then select). Concurrent calls yield one row.
+     * RULE-237: atomic find-or-create on the unique (term, year) constraint, one statement:
+     * `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`
+     * (spec 0001, R1). Concurrent calls all get the single row.
      */
     readonly ensure: (semester: Semester) => Effect.Effect<StoredSemester>;
   }
