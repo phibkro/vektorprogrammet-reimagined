@@ -28,6 +28,10 @@ SELECT NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'emdash_app') AS missing
 
 SELECT format('GRANT CONNECT ON DATABASE %I TO emdash_app', current_database()) \gexec
 
+-- On PostgreSQL 16+ a non-superuser administrator (Neon's `neondb_owner`) may give a schema to a role only if it
+-- can SET ROLE to it ("must be able to SET ROLE", seen on Neon `dev` on 2026-10-16). Grant that to the running
+-- administrator; a superuser (devenv) gets a harmless no-op grant.
+SELECT format('GRANT emdash_app TO %I WITH SET TRUE, INHERIT FALSE', current_user) \gexec
 CREATE SCHEMA IF NOT EXISTS emdash AUTHORIZATION emdash_app;
 
 ALTER SCHEMA emdash OWNER TO emdash_app;
