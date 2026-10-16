@@ -1,6 +1,6 @@
 # @vektorprogrammet/web
 
-The one deployable: TanStack Start on one Cloudflare Worker. Public pages, `/kontrollpanel`, server functions (the only write path), legacy 301 redirects, `/filer/{key}`, and the outbox sweep. It holds no business rules; those live in `@vektorprogrammet/domain` and the database in `@vektorprogrammet/db`. This README covers the runtime model, the env and bindings, local development, the tests (Node and browser), and what slice 0000 left unproven.
+The one deployable: TanStack Start on one Cloudflare Worker. Public pages, `/kontrollpanel`, server functions (the only write path besides the cron), legacy 301 redirects, `/filer/{key}`, the outbox sweep and the semester job. It holds no business rules; those live in `@vektorprogrammet/domain` and the database in `@vektorprogrammet/db`. This README covers the runtime model, the env and bindings, local development, the tests (Node and browser), and what slice 0000 left unproven.
 
 ## Runtime model
 
@@ -14,6 +14,7 @@ request ─► src/server.ts  fetch
                   ├─ server routes: /filer/$key (GET), /kontakt + /kontakt/avdeling/$id (POST, no-JS form)
                   └─ SSR routes (loaders call server functions)
 cron ────► src/server.ts  scheduled → ctx.waitUntil(runDelivery(env))           (outbox sweep)
+                                     → ctx.waitUntil(runSemesterJob(env))       (semester job: the current and the next semester)
 ```
 
 Each server function or server route:
@@ -58,7 +59,7 @@ Each server function or server route:
 | `/nyhet/{slug}` | C5 | RULE-267 (draft → 404) |
 | `/kontakt`, `/kontakt/avdeling/{id}` (GET + no-JS POST → 303 / 422) | C10 | RULE-156, 167, 249; per-IP rate limit |
 | `/filer/{key}` | C11 | RULE-290 replacement |
-| `/kontrollpanel` + `avdelinger`, `semestre`, `linjer` | C1, C2 | RULE-033/237, 084, 139, 144, 190 (spec 0001) |
+| `/kontrollpanel` + `avdelinger`, `semestre`, `linjer` | C1, C2 | RULE-033/237, 084, 139 (spec 0001); `semestre` is a list only, no create form (spec 0003, RULE-144 and 190 retired) |
 | `/kontrollpanel/statisk-innhold` | C4 | RULE-296, RULE-133 |
 | `/kontrollpanel/artikler` | C5 | RULE-096, 182, 266 (fixed) |
 | `/kontrollpanel/sponsorer` | C6 | RULE-189 |
@@ -66,7 +67,7 @@ Each server function or server route:
 
 `/filer/{key}` uses the domain's `servingHeaders` verbatim. Only JPEG, PNG, WebP, GIF and PDF are served inline; everything else is an attachment. Every response carries `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` and `Cache-Control: public, max-age=31536000, immutable`. Error responses also carry `nosniff` and the sandbox CSP.
 
-Departments, semesters and fields of study (spec 0001) have their full control-panel journey: a table, a dialog form per create or edit, field-level messages, and a form-level alert for a refusal. A team leader sees and changes only their own department's fields of study. The other control-panel pages are at stub depth: one list plus one create (or edit) form per capability. A staff listing of draft articles is not built: the domain has no query for it yet (`ArticleRepository.listPublished` only). Publish or unpublish a draft by id.
+Departments and fields of study (spec 0001) have their full control-panel journey: a table, a dialog form per create or edit, field-level messages, and a form-level alert for a refusal. A team leader sees and changes only their own department's fields of study. Semesters (spec 0003) have no form: the list shows them newest first with the current one marked. The other control-panel pages are at stub depth: one list plus one create (or edit) form per capability. A staff listing of draft articles is not built: the domain has no query for it yet (`ArticleRepository.listPublished` only). Publish or unpublish a draft by id.
 
 ## Env and bindings
 
@@ -90,11 +91,11 @@ Deploy-time env (`alchemy.run.ts`): `NEON_HOST`, `NEON_DATABASE`, `NEON_USER`, `
 
 | Stage | What it is | Database | Deployed by |
 | --- | --- | --- | --- |
-| `main` | the base Worker, built from `main`; parent of every Preview; runs the outbox cron | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
+| `main` | the base Worker, built from `main`; parent of every Preview; runs the cron (outbox sweep and semester job) | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
 | `pr-<n>` | a [Cloudflare Worker Preview](https://developers.cloudflare.com/workers/previews/) of `main`: own URL, bindings, Hyperdrive config and R2 bucket; no crons | Neon `preview/pr-<n>`, forked from `dev` and migrated before the deploy; expires 14 days after the last push | the same workflow on every push to a pull request; destroyed when it closes |
 | `production` | the production deployment (not deployed yet) | Neon `production` | operator only |
 
-Base and previews are the `preview` deployment: no mail or Slack binding, and no test actor, so the control panel refuses every staff write (403). Preview URLs are public; they serve fake data only.
+Base and previews are the `preview` deployment: no mail or Slack binding, and no test actor, so the control panel refuses every staff write (403). Preview URLs are public; they serve fake data only. A Preview runs no cron, so its semester rows are the ones its Neon branch forked from `dev`, where the base stage's cron wrote them. If the current semester has no row there yet, the Semestre and Arrangementer pages say so and write nothing.
 
 Deploy a stage by hand (base example; `CI` is unset because Alchemy reads only environment credentials when `CI` is set):
 
@@ -127,6 +128,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 - **`vp dev` = the `local` deployment.** Hyperdrive's `localConnectionString` is `DATABASE_URL` (Miniflare needs a user and password in the URL; devenv's trust auth ignores the placeholder password). R2 and the rate limiter are simulated. There is no `send_email`, so outbox messages go to the capture sink and the Worker log. Set `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` to Cloudflare's published test keys to try the contact form. Without them, every contact post is rejected (RULE-167 fails closed).
 - **A standalone `vp build` is labelled `preview`** (no test actor, no secrets in `dist/server/wrangler.json`). Real deployments go through Alchemy, which injects its own Cloudflare plugin (`ALCHEMY_CLOUDFLARE_VITE_INJECTED=1`); this config's plugin then stands down.
 - Under `vp test` (Vitest 5, Node) no Vite plugins load. The tests run in Node with in-memory Layers (`test/support/memory.ts`). workerd tests cannot run under Vite+ (architecture, Checkpoint 2: `vitest-pool-workers` needs Vitest 4).
+- **Semesters in `vp dev`.** No page creates a semester (spec 0003). Run the cron once and the current and the next semester exist: `curl http://localhost:3000/cdn-cgi/handler/scheduled`. It also runs the outbox sweep. The browser tests do this for you.
 
 ## Tests
 
@@ -139,23 +141,24 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `test/contact.test.ts` | RULE-167: no or invalid token → rejected, no outbox rows, no commit; RULE-156; RULE-249; rate limit |
 | `test/news.test.ts` | RULE-267 (draft → `notFound` at the loader), RULE-326 (35 → 10/10/10/5) |
 | `test/outboxDelivery.test.ts` | delivered, ids-only claim, backoff, dead after `MAX_ATTEMPTS` |
-| `test/organisationPanel.test.ts` | spec 0001: the departments, semesters and fields-of-study programs a server function runs: create, edit, refusals (repeated city, repeated semester, another department's field of study), what the views return |
-| `e2e/journey.spec.ts` | spec 0001 in a real browser (below): steps 1 to 4 and falsifier 5 |
+| `test/organisationPanel.test.ts` | spec 0001: the departments, semesters and fields-of-study programs a server function runs: create, edit, refusals (repeated city, another department's field of study), what the views return; spec 0003: the semester views are reads (a missing row stays missing and is shown as such) |
+| `test/readsNeverWrite.postgres.test.ts` | spec 0003, falsifier 3 (real PostgreSQL): every read program behind a `runQuery` call site (public pages, control-panel views, `/filer/{key}`, the legacy file redirect) runs as anonymous, admin and team leader through a database role with `SELECT` only, on empty and on seeded tables; a negative control (a read that writes) dies in the same harness; a source scan keeps the list of read paths complete and shows that no create-semester command or server function exists |
+| `e2e/journey.spec.ts` | specs 0001 and 0003 in a real browser (below): steps 1 to 4 and falsifier 5 |
 
 Real-database behaviour (transactions, constraints, `FOR UPDATE SKIP LOCKED`) is tested in `packages/db`.
 
 ## Browser tests
 
-`bun run e2e` (from the repository root or from `apps/web`, inside devenv) runs the spec 0001 journey in a real browser, on migrated data. One Effect program, `e2e/run.ts`, owns everything the run starts in a single scope and releases it in reverse order on success, failure and Ctrl-C:
+`bun run e2e` (from the repository root or from `apps/web`, inside devenv) runs the journey (specs 0001 and 0003) in a real browser, on migrated data. One Effect program, `e2e/run.ts`, owns everything the run starts in a single scope and releases it in reverse order on success, failure and Ctrl-C:
 
 ```
 disposable PostgreSQL database (migrated, filled by the real importer)  →  vp dev on a free port  →  playwright test
 ```
 
 - **Database:** `vp_db_test_<random>` on the devenv server (`TEST_DATABASE_ADMIN_URL`), from `@vektorprogrammet/db/testing`: the one migrated-disposable-database helper that `packages/db`'s tests and the importer's round trip use too. It is created, migrated with `packages/db`'s generated `drizzle/` migrations, and then filled by `tools/import`'s `import:fixture` script: the real importer pipeline on the importer's fake legacy fixture (a throwaway MySQL database, dropped again). The data is therefore migrated data with the importer's own quirks: the fixture's third department is quarantined (an invalid e-mail address), five duplicate semester rows are collapsed to two, and the orphan fields of study are left out. The database is dropped (forcibly) at the end; the developer's `vektorprogrammet` database is never touched. It needs the devenv MySQL service, as the importer's own tests do.
-- **App:** the real `vp dev` (the `local` deployment: the test actor chosen by the `vp-test-actor` cookie, a simulated R2 and rate limiter) with `DATABASE_URL` pointing at that database. The harness waits for `http://localhost:<port>` (Vite binds `localhost`, which is `::1` on some hosts) and fetches the four control-panel pages once, so the server has compiled them before the browser asks.
+- **App:** the real `vp dev` (the `local` deployment: the test actor chosen by the `vp-test-actor` cookie, a simulated R2 and rate limiter) with `DATABASE_URL` pointing at that database. The harness waits for `http://localhost:<port>` (Vite binds `localhost`, which is `::1` on some hosts), then runs the Worker's `scheduled` handler once (`GET /cdn-cgi/handler/scheduled`, which the Cloudflare Vite plugin forwards to it), so the semester job has written the current and the next semester, and fetches the four control-panel pages once, so the server has compiled them before the browser asks.
 - **Browser:** Playwright 1.63.0 driving the Chromium that devenv provides. `devenv.nix` sets `PLAYWRIGHT_BROWSERS_PATH` to a Chromium-only build of nixpkgs' `playwright-driver.browsers` (no Firefox or WebKit, which keeps the closure small) and `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS`. Playwright never downloads a browser.
-- **Specs:** `e2e/journey.spec.ts` is one serial story over one database (`workers: 1`). Each test selects its actor with the cookie, finds elements by role and label as a person reads the page, and reads database effects back through typed probes (`e2e/support/probes.ts`, Effect Schema decoded). The refusals are asserted on the HTTP status the server sent (403, 409), not only on the message the page shows. Falsifier 5 changes a hidden form field in the browser (the field of study's id, then the department id) and expects a 403 and no change in the database.
+- **Specs:** `e2e/journey.spec.ts` is one serial story over one database (`workers: 1`). Each test selects its actor with the cookie, finds elements by role and label as a person reads the page, and reads database effects back through typed probes (`e2e/support/probes.ts`, Effect Schema decoded). The refusals are asserted on the HTTP status the server sent (403, 409), not only on the message the page shows. Falsifier 5 changes a hidden form field in the browser (the field of study's id, then the department id) and expects a 403 and no change in the database. Step 2 (spec 0003) opens the Semestre page: the current and the next semester are listed because the harness ran the cron once, there is no create form, and opening the page changes no row.
 
 **Why `@playwright/test` and not Vitest browser mode.** Vitest's browser mode runs the test code inside the page and serves the module graph itself. This journey needs the opposite: a separately started application, real HTTP cookies, real server-function round trips, and the status of each response, observed from outside. Playwright's own runner does exactly that; Vitest's Playwright provider would add a second runner and its page-side execution model for no gain here.
 
@@ -174,7 +177,7 @@ These checks run only on a deployed preview (workerd + Hyperdrive + Neon). Slice
 5. 20 concurrent requests, each building its own per-request Layer, stay within Hyperdrive's pool and the Worker CPU budget.
 6. `sanitize-html` runs in workerd against the XSS corpus.
 7. A timed bcrypt `$2y$12$` verification (Phase 2 dependency).
-8. Web-specific: `ctx.waitUntil` delivery completes after the response; the cron `scheduled` sweep runs; `send_email` delivers in production only; Turnstile siteverify works with real keys; the Rate Limiting binding limits per IP; R2 streaming through `/filer/{key}` works with the `nosniff` and sandbox headers; Workers Logs show defect logs.
+8. Web-specific: `ctx.waitUntil` delivery completes after the response; the cron `scheduled` handler runs the outbox sweep and the semester job (spec 0003: the first deployed run of the semester job is the check that the base stage `main` holds the current and the next semester); `send_email` delivers in production only; Turnstile siteverify works with real keys; the Rate Limiting binding limits per IP; R2 streaming through `/filer/{key}` works with the `nosniff` and sandbox headers; Workers Logs show defect logs.
 
 Slice 0000 did not need the architecture §4 fallback. Its verdict holds on one condition: `enable_request_signal` stays in `worker.config.ts`.
 

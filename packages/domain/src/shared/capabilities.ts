@@ -14,8 +14,6 @@ import type { DepartmentId } from "./ids.ts";
 export type Capability = Data.TaggedEnum<{
   /** C4, RULE-296: admin or executive-board member. */
   EditStaticContent: Record<never, never>;
-  /** C1, RULE-144: admin. */
-  ManageSemesters: Record<never, never>;
   /** C1: admin creates departments. */
   CreateDepartment: Record<never, never>;
   /** C1: admin, or a team leader of that department. */
@@ -52,7 +50,6 @@ export const authorize = (actor: Actor, capability: Capability): boolean => {
     EditStaticContent: () => isAdmin || actor.executiveBoard,
     ManageArticles: () => true,
     ManageFieldsOfStudy: ({ departmentId }) => isAdmin || leads(departmentId),
-    ManageSemesters: () => isAdmin,
     ManageSocialEvents: ({ departmentId }) =>
       isAdmin || actor.departmentId === departmentId,
     ManageSponsors: () => true,

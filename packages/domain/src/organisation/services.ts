@@ -39,16 +39,10 @@ export class SemesterRepository extends Context.Service<
       semester: Semester
     ) => Effect.Effect<Option.Option<StoredSemester>>;
     /**
-     * RULE-144: `INSERT … ON CONFLICT (term, year) DO NOTHING RETURNING`; no
-     * returned row fails with `AlreadyExists` and nothing is saved.
-     */
-    readonly create: (
-      semester: Semester
-    ) => Effect.Effect<StoredSemester, AlreadyExists>;
-    /**
      * RULE-237: atomic find-or-create on the unique (term, year) constraint, one statement:
      * `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`
-     * (spec 0001, R1). Concurrent calls all get the single row.
+     * (spec 0001, R1). Concurrent calls all get the single row. Only the scheduled semester job
+     * calls it (spec 0003); a read never does.
      */
     readonly ensure: (semester: Semester) => Effect.Effect<StoredSemester>;
   }

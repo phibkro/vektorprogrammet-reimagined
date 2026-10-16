@@ -13,22 +13,21 @@ import {
   DepartmentRepository,
   EVENT_BADGE_LABEL,
   FieldOfStudyId,
+  SemesterOrder,
   SocialEventRepository,
   StaticContentKey,
   createDepartment,
   createFieldOfStudy,
-  createSemester,
+  currentSemester,
   decodeInput,
-  ensureCurrentSemester,
   eventBadge,
+  findCurrentSemester,
   getStaticContent,
   listFieldsOfStudy,
   listSemestersNewestFirst,
   listSponsorsForFooter,
-  nextSemester,
   osloWallClock,
   renameFieldOfStudy,
-  selectableYears,
   semesterLabel,
   storeUpload,
   updateDepartment,
@@ -37,6 +36,7 @@ import type {
   Actor,
   Article,
   Department,
+  Semester,
   StoredUpload,
   UploadAccept,
 } from "@vektorprogrammet/domain";
@@ -130,11 +130,6 @@ export const departmentInput = (form: FormData) => ({
   slackChannel: optionalText(form, "slackChannel"),
 });
 
-export const semesterInput = (form: FormData) => ({
-  term: text(form, "term"),
-  year: integer(text(form, "year")),
-});
-
 export const fieldOfStudyInput = (form: FormData) => {
   const departmentId = optionalText(form, "departmentId");
 
@@ -177,10 +172,6 @@ export const saveDepartmentProgram = (form: FormData) => {
     SAVED
   );
 };
-
-/** C1, RULE-144: an admin creates a semester; a duplicate is refused and nothing is saved. */
-export const saveSemesterProgram = (form: FormData) =>
-  Effect.as(createSemester(semesterInput(form)), SAVED);
 
 /**
  * C1, RULE-139: a blank `id` creates a field of study (in the named department, by default the
@@ -260,14 +251,13 @@ const newestArticleOrder = Order.mapInput(
   (article: Article) => -DateTime.toEpochMillis(article.createdAt)
 );
 
-/** C2 the current semester (RULE-033/237: the one answer, created when missing) and who is acting. */
+/** C2 the current semester (RULE-033, answered by the calendar, no row needed) and who is acting. */
 export const dashboardView = Effect.gen(function* dashboardView() {
   const actor = yield* CurrentActor;
-  const current = yield* ensureCurrentSemester;
 
   return {
     actor: actorSummary(actor),
-    currentSemester: semesterLabel(current),
+    currentSemester: semesterLabel(yield* currentSemester),
   };
 });
 
@@ -286,25 +276,27 @@ export const departmentsView = Effect.gen(function* departmentsView() {
 });
 
 /**
- * C1 semesters newest first (RULE-084, the current one marked, RULE-237), the selectable years
- * (RULE-190) and the semester the form proposes: the successor of the newest one (RULE-050), unless
- * that year is not selectable yet.
+ * C1 semesters newest first (RULE-084) with the current one marked (RULE-033). The scheduled job
+ * writes them (spec 0003, RULE-237); this read never does. While the current semester has no row
+ * yet, `current.stored` is false and the page says so.
  */
 export const semestersView = Effect.gen(function* semestersView() {
-  const current = yield* ensureCurrentSemester;
+  const current = yield* currentSemester;
   const semesters = yield* listSemestersNewestFirst;
-  const years = selectableYears(yield* DateTime.now);
-  const successor = nextSemester(semesters[0] ?? current);
-  const proposed = years.includes(successor.year) ? successor : current;
+
+  const isCurrent = (semester: Semester) =>
+    SemesterOrder(semester, current) === 0;
 
   return {
-    proposed: { term: proposed.term, year: proposed.year },
+    current: {
+      label: semesterLabel(current),
+      stored: Arr.some(semesters, isCurrent),
+    },
     semesters: Arr.map(semesters, (semester) => ({
-      current: semester.id === current.id,
+      current: isCurrent(semester),
       id: semester.id,
       label: semesterLabel(semester),
     })),
-    years,
   };
 });
 
@@ -478,23 +470,30 @@ export const socialEventInput = (form: FormData) => ({
   title: text(form, "title"),
 });
 
-/** The actor's department's events this semester, with the RULE-085 badge. */
+/**
+ * The actor's department's events this semester, with the RULE-085 badge. The events need the current
+ * semester's row; until the scheduled job has written it (spec 0003) the page says so
+ * (`currentSemesterId` is null) and lists none. A read: it never inserts.
+ */
 export const socialEventsView = Effect.gen(function* socialEventsView() {
   const actor = yield* CurrentActor;
   const departments = yield* DepartmentRepository;
-  const current = yield* ensureCurrentSemester;
+  const current = yield* findCurrentSemester;
+  const currentRow = Option.getOrNull(current.stored);
   const now = yield* DateTime.now;
   const allSemesters = yield* listSemestersNewestFirst;
 
-  const events = Predicate.isTagged("Staff")(actor)
-    ? yield* (yield* SocialEventRepository).list({
-        departmentId: actor.departmentId,
-        semesterId: current.id,
-      })
-    : [];
+  const events =
+    Predicate.isTagged("Staff")(actor) && currentRow !== null
+      ? yield* (yield* SocialEventRepository).list({
+          departmentId: actor.departmentId,
+          semesterId: currentRow.id,
+        })
+      : [];
 
   return {
-    currentSemesterId: current.id,
+    currentSemesterId: currentRow?.id ?? null,
+    currentSemesterLabel: semesterLabel(current.semester),
     departmentId: Predicate.isTagged("Staff")(actor)
       ? actor.departmentId
       : null,

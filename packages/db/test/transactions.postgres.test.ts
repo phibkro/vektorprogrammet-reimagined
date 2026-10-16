@@ -25,9 +25,9 @@ import { AT } from "./support/fixtures.ts";
 /** One semester row, its audit row and one outbox row, all keyed by the year. */
 const writeAll = Effect.fnUntraced(function* writeAll(semester: Semester) {
   yield* InTransaction;
-  const created = yield* (yield* SemesterRepository).create(semester);
+  const created = yield* (yield* SemesterRepository).ensure(semester);
   yield* (yield* AuditLog).record({
-    action: "semester.created",
+    action: "department.created",
     actorId: UserId.make(1),
     at: AT,
     entity: "Semester",

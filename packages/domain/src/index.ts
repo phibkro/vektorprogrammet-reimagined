@@ -37,7 +37,6 @@ export * from "./organisation/fieldOfStudy.ts";
 // assemble a second "current semester" or "admission is open" rule. `test/organisation/oneDefinition.test.ts`
 // pins this surface.
 export {
-  FIRST_SELECTABLE_YEAR,
   Semester,
   SemesterOrder,
   SemesterYear,
@@ -45,7 +44,6 @@ export {
   Term,
   isBetween,
   nextSemester,
-  selectableYears,
   semesterLabel,
   sortNewestFirst,
   termLabel,

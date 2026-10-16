@@ -6,7 +6,7 @@
  * text). The domain-level proofs of the same rules live in `packages/domain`.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { SemesterId, updateStaticContent } from "@vektorprogrammet/domain";
+import { updateStaticContent } from "@vektorprogrammet/domain";
 import type { Actor, StoredUpload } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Layer, Predicate } from "effect";
 import { TestClock } from "effect/testing";
@@ -50,7 +50,7 @@ const SEMESTER_BY_OSLO_DATE = [
 
 describe("C1/C2 semesters through the panel", () => {
   it.effect(
-    "RULE-033: the panel's current semester follows the Oslo calendar month, and the missing row is created",
+    "RULE-033: the panel's current semester follows the Oslo calendar month, and the read writes no row (spec 0003)",
     () =>
       Effect.gen(function* currentSemesterEffect() {
         for (const { at, expected } of SEMESTER_BY_OSLO_DATE) {
@@ -65,17 +65,7 @@ describe("C1/C2 semesters through the panel", () => {
           );
 
           assert.strictEqual(view.currentSemester, expected.label, at);
-          assert.deepStrictEqual(
-            tables.semesters,
-            [
-              {
-                id: SemesterId.make(1),
-                term: expected.term,
-                year: expected.year,
-              },
-            ],
-            at
-          );
+          assert.deepStrictEqual(tables.semesters, [], at);
         }
       })
   );

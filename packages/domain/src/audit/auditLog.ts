@@ -10,7 +10,6 @@ import { EntityName, UserId } from "../shared/ids.ts";
 export const AuditAction = Schema.Literals([
   "department.created",
   "department.updated",
-  "semester.created",
   "fieldOfStudy.created",
   "fieldOfStudy.updated",
   "staticContent.updated",

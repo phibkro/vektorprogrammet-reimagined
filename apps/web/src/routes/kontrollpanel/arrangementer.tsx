@@ -2,6 +2,7 @@ import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr, pipe } from "effect";
 
 import { CommandForm, Field, nativeSelectClass } from "@/components/forms";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getSocialEvents, saveSocialEvent } from "@/functions/panel.functions";
@@ -10,12 +11,27 @@ import { pageData } from "@/lib/outcome";
 const routeApi = getRouteApi("/kontrollpanel/arrangementer");
 
 const SocialEventsPage = () => {
-  const { events, departments, semesters, departmentId, currentSemesterId } =
-    routeApi.useLoaderData();
+  const {
+    events,
+    departments,
+    semesters,
+    departmentId,
+    currentSemesterId,
+    currentSemesterLabel,
+  } = routeApi.useLoaderData();
 
   return (
     <section className="grid gap-6">
       <h1 className="text-2xl font-bold">Arrangementer</h1>
+      {currentSemesterId === null && (
+        <Alert>
+          <AlertTitle>{currentSemesterLabel} er ikke opprettet ennå</AlertTitle>
+          <AlertDescription>
+            Semestre opprettes automatisk. Arrangementene i dette semesteret
+            vises her så snart den planlagte jobben har kjørt.
+          </AlertDescription>
+        </Alert>
+      )}
       <ul className="grid gap-1">
         {pipe(
           events,
@@ -66,7 +82,7 @@ const SocialEventsPage = () => {
             id="semesterId"
             name="semesterId"
             className={nativeSelectClass}
-            defaultValue={currentSemesterId}
+            defaultValue={currentSemesterId ?? undefined}
           >
             {pipe(
               semesters,

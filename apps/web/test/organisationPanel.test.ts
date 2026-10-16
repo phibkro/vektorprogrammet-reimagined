@@ -1,8 +1,9 @@
 /**
  * Spec 0001, journey steps 1 to 3 at the server function: each test runs the program a server function
- * runs (`saveDepartmentProgram`, `saveSemesterProgram`, `saveFieldOfStudyProgram`, the views) through the
+ * runs (`saveDepartmentProgram`, `saveFieldOfStudyProgram`, the views) through the
  * per-request runtime and the error table, over in-memory repositories. The browser tests
- * (`apps/web/e2e`) drive the same functions over HTTP against real PostgreSQL.
+ * (`apps/web/e2e`) drive the same functions over HTTP against real PostgreSQL. Spec 0003: semesters
+ * are written only by the scheduled job; the semester views are reads.
  */
 import { assert, describe, it } from "@effect/vitest";
 import {
@@ -31,7 +32,6 @@ import {
   fieldsOfStudyView,
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
-  saveSemesterProgram,
   semestersView,
 } from "../src/server/panel";
 import { runCommandOutcome, runOutcome } from "../src/server/runtime";
@@ -113,13 +113,6 @@ const departmentFields = (
 
 const auditActions = (tables: MemoryTables) =>
   Arr.map(tables.audit, (entry) => entry.action);
-
-/** The semester the create form proposes, given the semesters stored before the page loads. */
-const proposedAfter = (semesters: MemoryTables["semesters"]) =>
-  Effect.map(
-    viewAs(makeTables({ semesters }), anonymous, semestersView),
-    (listed) => assertSuccess(listed).proposed
-  );
 
 describe("C1 departments through the panel", () => {
   it.effect(
@@ -353,50 +346,19 @@ describe("C1 departments through the panel", () => {
   );
 });
 
-describe("C2 semesters through the panel", () => {
+describe("C2 semesters through the panel (spec 0003)", () => {
   it.effect(
-    "RULE-144: creating the same semester twice is refused with 'Semesteret Høst 2026 finnes allerede' and nothing is saved",
-    () =>
-      Effect.gen(function* duplicateSemesterEffect() {
-        yield* TestClock.setTime(OCTOBER_15);
-        const tables = makeTables();
-        const created = form({ term: "HOST", year: "2026" });
-
-        assertSuccess(
-          yield* runAs(tables, TEST_ACTORS.admin, saveSemesterProgram(created))
-        );
-
-        const refused = assertRefused(
-          yield* runAs(tables, TEST_ACTORS.admin, saveSemesterProgram(created)),
-          "AlreadyExists"
-        );
-
-        assert.strictEqual(
-          refused.message,
-          "Semesteret Høst 2026 finnes allerede"
-        );
-        assert.strictEqual(refused.status, 409);
-        assert.deepStrictEqual(tables.semesters, [
-          { id: SemesterId.make(1), term: "HOST", year: 2026 },
-        ]);
-        assert.deepStrictEqual(auditActions(tables), ["semester.created"]);
-      })
-  );
-
-  it.effect(
-    "RULE-084, RULE-237: the list is newest first and marks the current semester, which is created when missing",
+    "RULE-084, RULE-033: the list is newest first, marks the current semester, and is read as stored",
     () =>
       Effect.gen(function* listedNewestFirstEffect() {
         yield* TestClock.setTime(OCTOBER_15);
-        const tables = makeTables();
 
-        assertSuccess(
-          yield* runAs(
-            tables,
-            TEST_ACTORS.admin,
-            saveSemesterProgram(form({ term: "VAR", year: "2027" }))
-          )
-        );
+        const tables = makeTables({
+          semesters: [
+            { id: SemesterId.make(1), term: "HOST", year: 2026 },
+            { id: SemesterId.make(2), term: "VAR", year: 2027 },
+          ],
+        });
 
         const listed = assertSuccess(
           yield* viewAs(tables, TEST_ACTORS.admin, semestersView)
@@ -412,98 +374,30 @@ describe("C2 semesters through the panel", () => {
             ["Høst 2026", true],
           ]
         );
-      })
-  );
-
-  it.effect("RULE-190: the years offered run from 2012 to next year", () =>
-    Effect.gen(function* yearsEffect() {
-      yield* TestClock.setTime(OCTOBER_15);
-
-      const { years } = assertSuccess(
-        yield* viewAs(makeTables(), anonymous, semestersView)
-      );
-
-      assert.strictEqual(years[0], 2027);
-      assert.strictEqual(years.at(-1), 2012);
-      assert.strictEqual(years.length, 2027 - 2012 + 1);
-    })
-  );
-
-  it.effect(
-    "RULE-144: a year outside 2012 to next year is refused under its field",
-    () =>
-      Effect.gen(function* yearOutsideEffect() {
-        yield* TestClock.setTime(OCTOBER_15);
-        const tables = makeTables();
-
-        for (const year of ["2011", "2028"]) {
-          const failure = assertValidationFailure(
-            yield* runAs(
-              tables,
-              TEST_ACTORS.admin,
-              saveSemesterProgram(form({ term: "VAR", year }))
-            )
-          );
-
-          assert.deepStrictEqual(
-            Arr.map(failure.issues, (issue) => issue.path),
-            [["year"]]
-          );
-        }
-
-        assert.strictEqual(tables.semesters.length, 0);
-      })
-  );
-
-  it.effect(
-    "RULE-050: the form proposes the semester after the newest one, and the current one when that year is not offered yet",
-    () =>
-      Effect.gen(function* proposedEffect() {
-        yield* TestClock.setTime(OCTOBER_15);
-
-        // Only the current semester exists: the next one is Vår 2027.
-        assert.deepStrictEqual(yield* proposedAfter([]), {
-          term: "VAR",
-          year: 2027,
+        assert.deepStrictEqual(listed.current, {
+          label: "Høst 2026",
+          stored: true,
         });
-        // Vår 2027 exists: Høst 2027 follows.
-        assert.deepStrictEqual(
-          yield* proposedAfter([
-            { id: SemesterId.make(100), term: "VAR", year: 2027 },
-          ]),
-          { term: "HOST", year: 2027 }
-        );
-        // Høst 2027 exists: Vår 2028 is not offered yet, so the current semester stays proposed.
-        assert.deepStrictEqual(
-          yield* proposedAfter([
-            { id: SemesterId.make(100), term: "HOST", year: 2027 },
-          ]),
-          { term: "HOST", year: 2026 }
-        );
       })
   );
 
   it.effect(
-    "RULE-144: only an admin creates a semester (403 for a team leader and for an anonymous visitor)",
+    "RULE-237: with no semester rows the page names the current semester as not created, and the read inserts nothing",
     () =>
-      Effect.gen(function* semesterAuthorityEffect() {
+      Effect.gen(function* missingRowEffect() {
         yield* TestClock.setTime(OCTOBER_15);
         const tables = makeTables();
 
-        for (const actor of [TEST_ACTORS.teamLeader, anonymous]) {
-          const refused = assertRefused(
-            yield* runAs(
-              tables,
-              actor,
-              saveSemesterProgram(form({ term: "HOST", year: "2026" }))
-            ),
-            "Forbidden"
-          );
+        const listed = assertSuccess(
+          yield* viewAs(tables, TEST_ACTORS.admin, semestersView)
+        );
 
-          assert.strictEqual(refused.status, 403);
-        }
-
-        assert.strictEqual(tables.semesters.length, 0);
+        assert.deepStrictEqual(listed.semesters, []);
+        assert.deepStrictEqual(listed.current, {
+          label: "Høst 2026",
+          stored: false,
+        });
+        assert.deepStrictEqual(tables.semesters, []);
         assert.strictEqual(tables.commits, 0);
       })
   );

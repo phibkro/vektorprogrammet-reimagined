@@ -10,7 +10,7 @@ A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organ
 | Capabilities, domain model, interface contracts, Behavior Contract | `../../analysis/vektorprogrammet/AI_NATIVE_SPEC.md` |
 | Architecture, decisions and their sources | `../../analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` |
 | Business rules (RULE-nnn) with legacy citations | `../../analysis/vektorprogrammet/BUSINESS_RULES.md` |
-| Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`) |
+| Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`, `0002-worker-previews.md`, `0003-semesters-by-schedule.md`) |
 | Mission state | `STATE.md` |
 | Package details | each package's `README.md` |
 
@@ -34,6 +34,7 @@ flowchart LR
 - **Only production can send real mail or Slack.** Local and preview deployments get a capture sink (structural, tested).
 - **Database rules for every phase:** no advisory locks, LISTEN/NOTIFY or session `SET` (Hyperdrive). Invariants live in constraints and `INSERT … ON CONFLICT … RETURNING`.
 - **A cancelled request interrupts its program** (and rolls back an open transaction) only because `apps/web/worker.config.ts` sets `enable_request_signal`, which has no default compatibility date. Slice 0000 check 3b measured both sides: without the flag the transaction committed after the client had gone.
+- **Reads never write** (spec 0003). The only writers are staff commands and the cron job (`scheduled`: outbox sweep and semester job). `apps/web/test/readsNeverWrite.postgres.test.ts` proves it by running every `runQuery` read path through a SELECT-only database role; a new `runQuery` call site must be registered there.
 
 ## Units
 
@@ -62,7 +63,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://local
 - Environment variables (`DATABASE_URL`, `TEST_DATABASE_ADMIN_URL`, `LEGACY_MYSQL_URL`) come from `devenv.nix`, derived from the ports devenv allocates. Deployed environments get the database through the Hyperdrive binding declared in `apps/web/alchemy.run.ts`.
 - Secrets (Turnstile, Slack webhooks) are Worker secrets set with `cf`, never files.
 - Neon secrets are declared in `secretspec.toml` and read only through `secretspec run -- <command>` with a `SECRETSPEC_REASON`, so a value never enters devenv evaluation, the Nix store or a shell. `packages/db/README.md` (Neon) has the branch, role and connection details.
-- Real-PostgreSQL tests create and drop their own `vp_db_test_*` databases, through one helper (`@vektorprogrammet/db/testing`). The importer's MySQL fixture databases are `import_test_*`.
+- Real-PostgreSQL tests create and drop their own `vp_db_test_*` databases, through one helper (`@vektorprogrammet/db/testing`; `@vektorprogrammet/db/testing/read-only-role` adds a SELECT-only role on top). The importer's MySQL fixture databases are `import_test_*`.
 - The local test actor exists only when `DEPLOYMENT=local` (`vp dev`), via the `vp-test-actor` cookie. The browser tests use it.
 
 ## Quality gates
@@ -96,8 +97,8 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 
 | Legacy (`src/AppBundle/…`) | Rules | New home |
 | --- | --- | --- |
-| `Entity/Semester.php`, `Utils/SemesterUtil.php`, `Entity/Repository/SemesterRepository.php` | 022, 033, 050, 051, 084, 190, 237 | `domain/src/organisation/semester.ts`; `db` `SemesterRepository.ensure` |
-| `Controller/SemesterController.php`, `Form/Type/CreateSemesterType.php` | 144, 190 | `domain` `createSemester`; `web` `/kontrollpanel/semestre` |
+| `Entity/Semester.php`, `Utils/SemesterUtil.php`, `Entity/Repository/SemesterRepository.php` | 022, 033, 050, 051, 084, 237 | `domain/src/organisation/semester.ts`; `db` `SemesterRepository.ensure` (only the scheduled job calls it) |
+| `Controller/SemesterController.php`, `Form/Type/CreateSemesterType.php` | 144 and 190 retired (spec 0003) | no manual creation: `domain` `ensureScheduledSemesters` (the cron job, `nextSemester` for the one after the current), `currentSemester`/`findCurrentSemester` (reads); `web` `/kontrollpanel/semestre` is a list only |
 | `Entity/Department.php` (admission helpers) | 015ʳ, 119ʳ | `domain/src/organisation/admission.ts` |
 | `Controller/FieldOfStudyController.php` | 139 | `domain/src/organisation/fieldOfStudy.ts` + capabilities; `web` `/kontrollpanel/linjer` |
 | `Controller/StaticContentController.php` | 296 | `domain/src/content/staticContent.ts`; `web` `/kontrollpanel/statisk-innhold` |

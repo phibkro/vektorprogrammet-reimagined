@@ -6,7 +6,7 @@
  * `migratedTestDatabase` creates a uniquely named `vp_db_test_<random>` database on devenv's PostgreSQL
  * (`TEST_DATABASE_ADMIN_URL`) per Layer build, applies the generated `drizzle/` migrations to it, provides
  * its URL as `TestDatabaseUrl`, and drops it (forcibly) when the Layer's scope closes. A missing
- * `TEST_DATABASE_ADMIN_URL` fails; it never skips.
+ * `TEST_DATABASE_ADMIN_URL` fails; it never skips. `readOnlyRole.ts` adds a SELECT-only login role on it.
  */
 import { PgClient } from "@effect/sql-pg";
 import * as PgDrizzle from "drizzle-orm/effect-postgres";

@@ -1,5 +1,5 @@
 /**
- * C2 semester primitives (RULE-022, 033, 050, 051, 084, 190).
+ * C2 semester primitives (RULE-022, 033, 050, 051, 084).
  *
  * A semester is (term, year) with a numeric year, so the legacy int-vs-string
  * comparison defect (RULE-050) cannot occur. Windows are half-open in Europe/Oslo:
@@ -14,12 +14,7 @@
 import type { DateTime } from "effect";
 import { Array as Arr, Order, Schema } from "effect";
 
-import {
-  isBefore,
-  osloParts,
-  osloWallClock,
-  osloYear,
-} from "../shared/clock.ts";
+import { isBefore, osloParts, osloWallClock } from "../shared/clock.ts";
 import { SemesterId } from "../shared/ids.ts";
 
 export const Term = Schema.Literals(["VAR", "HOST"]);
@@ -94,7 +89,10 @@ export const sortNewestFirst = <S extends Semester>(
   semesters: Iterable<S>
 ): S[] => Arr.sort(semesters, Order.flip(SemesterOrder));
 
-/** RULE-050: the semester right after this one (Vår Y → Høst Y → Vår Y+1); none lies between. */
+/**
+ * RULE-050: the semester right after this one (Vår Y → Høst Y → Vår Y+1); none lies between. The
+ * scheduled job ensures the current semester and this successor of it (spec 0003, RULE-237).
+ */
 export const nextSemester = (semester: Semester): Semester =>
   semester.term === "VAR"
     ? { term: "HOST", year: semester.year }
@@ -111,10 +109,3 @@ export const isBetween = (
 ): boolean =>
   (from === null || SemesterOrder(semester, from) >= 0) &&
   (to === null || SemesterOrder(semester, to) <= 0);
-
-/** The first year offered when creating a semester. */
-export const FIRST_SELECTABLE_YEAR = 2012;
-
-/** RULE-190 / RULE-144: selectable years, newest first: next Oslo year down to 2012. */
-export const selectableYears = (today: DateTime.DateTime): readonly number[] =>
-  Arr.reverse(Arr.range(FIRST_SELECTABLE_YEAR, osloYear(today) + 1));

@@ -138,34 +138,27 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
   );
 
   it.effect(
-    "RULE-144: semester create refuses an existing (term, year) and saves nothing",
+    "RULE-237: semester find answers the stored row or none, and never inserts",
     () =>
       Effect.gen(function* effectProgram() {
         const semesters = yield* SemesterRepository;
-        const first = yield* semesters.create({ term: "HOST", year: 2030 });
 
-        const again = yield* Effect.flip(
-          semesters.create({ term: "HOST", year: 2030 })
+        assert.isTrue(
+          Option.isNone(yield* semesters.find({ term: "HOST", year: 2030 }))
         );
 
-        assert.strictEqual(
-          again.message,
-          "Semesteret Høst 2030 finnes allerede"
-        );
-        assert.strictEqual(again.key, "HOST 2030");
+        const first = yield* semesters.ensure({ term: "HOST", year: 2030 });
 
-        const rows = Arr.filter(
-          yield* semesters.list,
-          (s) => s.term === "HOST" && s.year === 2030
-        );
-
-        assert.deepStrictEqual(rows, [first]);
         assert.deepStrictEqual(
           yield* semesters.find({ term: "HOST", year: 2030 }),
           Option.some(first)
         );
         assert.isTrue(
           Option.isNone(yield* semesters.find({ term: "VAR", year: 2030 }))
+        );
+        assert.deepStrictEqual(
+          Arr.filter(yield* semesters.list, (s) => s.year === 2030),
+          [first]
         );
       })
   );

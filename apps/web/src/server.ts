@@ -1,8 +1,8 @@
 /**
  * The Worker entry (Cloudflare's documented custom-entry pattern for TanStack
  * Start): `fetch` answers legacy redirects, then delegates to TanStack's
- * server entry with `{ env, ctx }` as the request context; `scheduled` is the
- * outbox sweep (cron, every 10 minutes; see `alchemy.run.ts`).
+ * server entry with `{ env, ctx }` as the request context; `scheduled` runs the
+ * outbox sweep and the semester job (spec 0003), one cron every 10 minutes (see `alchemy.run.ts`).
  */
 import type {
   ExecutionContext,
@@ -17,7 +17,7 @@ import {
   legacyFileLocation,
   permanentRedirect,
 } from "./server/redirects";
-import { runDelivery, runQuery } from "./server/runtime";
+import { runDelivery, runQuery, runSemesterJob } from "./server/runtime";
 
 const startFetch = (
   request: Request,
@@ -63,6 +63,8 @@ export default {
     env: WorkerEnv,
     ctx: ExecutionContext
   ): void {
+    // Two independent jobs on one cron: neither promise rejects, so one failing never cancels the other.
     ctx.waitUntil(runDelivery(env));
+    ctx.waitUntil(runSemesterJob(env));
   },
 };

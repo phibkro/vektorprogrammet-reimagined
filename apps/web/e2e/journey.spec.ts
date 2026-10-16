@@ -1,5 +1,6 @@
 /**
- * Spec 0001, journey steps 1 to 4 in a browser, against `vp dev` (the `local` deployment, a test actor chosen
+ * Spec 0001, journey steps 1 to 4 in a browser (step 2 is spec 0003: semesters come from the cron job, not
+ * from a form), against `vp dev` (the `local` deployment, a test actor chosen
  * by cookie) and a PostgreSQL database that the real importer filled from its fake legacy fixture
  * (`e2e/support/database.ts`): this is migrated data, with the importer's own quirks. The fixture's third
  * department (an invalid e-mail address) is quarantined, its five duplicate semester rows are collapsed to
@@ -8,20 +9,17 @@
  * study, by a request the page itself would never send.
  */
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
 import { Array as Arr, Order } from "effect";
 
 import {
-  chosenOf,
   dialogOf,
   fillDialog,
-  nextOsloYear,
   openPage,
   semesterKey,
   semesterLabelsOf,
   signInAs,
-  statusOfClick,
   submitDialog,
+  successorOf,
   tamperWith,
   textOf,
 } from "./support/panel.ts";
@@ -39,9 +37,6 @@ import {
 test.describe.configure({ mode: "serial" });
 
 const NOT_ALLOWED = "Du har ikke tilgang til dette.";
-
-const createSemesterButton = (page: Page) =>
-  page.getByRole("button", { name: "Opprett semester" });
 
 test("step 1: an administrator sees the migrated departments, creates and edits them, and a repeated city is refused", async ({
   page,
@@ -135,58 +130,50 @@ test("step 1: an administrator sees the migrated departments, creates and edits 
   expect(await runDatabase(departmentsInCity("Alfaby"))).toBe(1);
 });
 
-test("step 2 (RULE-144, RULE-050): the semesters come newest first, the next one is created, a duplicate is refused, the years run 2012 to next year", async ({
+test("step 2 (RULE-237, RULE-050, spec 0003): the semesters come newest first, the job made the current and the next one, and the page has no create form and writes nothing", async ({
   page,
   context,
 }) => {
   await signInAs(context, "admin");
+
+  // The harness ran the cron once before the first request: the rows below were written by the job.
+  const stored = await runDatabase(semesterCount);
+
   await openPage(page, "/kontrollpanel/semestre");
 
   // The importer collapsed the fixture's five rows for two semesters; none is listed twice.
-  const before = await semesterLabelsOf(page);
-  const keys = Arr.map(before, semesterKey);
+  const labels = await semesterLabelsOf(page);
+  const keys = Arr.map(labels, semesterKey);
 
-  expect(before).toEqual(expect.arrayContaining(["Vår 2024", "Høst 2024"]));
-  expect(Arr.dedupe(before)).toEqual(before);
+  expect(labels).toEqual(expect.arrayContaining(["Vår 2024", "Høst 2024"]));
+  expect(Arr.dedupe(labels)).toEqual(labels);
   expect(keys).toEqual(Arr.sort(keys, Order.flip(Order.Number)));
+
+  // The current semester is marked once, and the job made the one after it: it is listed right above it.
   await expect(page.getByText("Nåværende", { exact: true })).toHaveCount(1);
 
-  // The form proposes the next semester; creating it puts it first.
-  const term = page.getByRole("combobox", { name: "Semester" });
-  const year = page.getByRole("combobox", { name: "År" });
-  const termLabel = await chosenOf(term);
-  const yearLabel = await chosenOf(year);
-  const proposed = `${termLabel} ${yearLabel}`;
+  const currentRow = page
+    .getByRole("row")
+    .filter({ has: page.getByText("Nåværende", { exact: true }) });
 
-  expect(await statusOfClick(page, createSemesterButton(page))).toBe(200);
-  await expect(page.getByRole("row").nth(1)).toContainText(proposed);
+  const current = await textOf(currentRow);
+  const currentLabel = current.replace("Nåværende", "").trim();
 
-  const after = await semesterLabelsOf(page);
-  const saved = await runDatabase(semesterCount);
-
-  expect(after[0]).toBe(proposed);
-  expect(after).toHaveLength(before.length + 1);
-
-  // The same semester again is refused with its name, and nothing is saved.
-  await term.click();
-  await page.getByRole("option", { exact: true, name: termLabel }).click();
-  await year.click();
-  await page.getByRole("option", { exact: true, name: yearLabel }).click();
-
-  expect(await statusOfClick(page, createSemesterButton(page))).toBe(409);
-  await expect(page.getByRole("alert")).toHaveText(
-    `Semesteret ${proposed} finnes allerede`
+  expect(labels.indexOf(currentLabel)).toBeGreaterThan(0);
+  expect(labels[labels.indexOf(currentLabel) - 1]).toBe(
+    successorOf(currentLabel)
   );
-  expect(await semesterLabelsOf(page)).toEqual(after);
-  expect(await runDatabase(semesterCount)).toBe(saved);
+  expect(labels[0]).toBe(successorOf(currentLabel));
 
-  // The years offered run from next year down to 2012, with none missing.
-  const newestYear = nextOsloYear();
+  // Nobody creates semesters: no form, no button, no field.
+  await expect(page.getByRole("button", { name: /opprett/iu })).toHaveCount(0);
+  await expect(page.getByRole("combobox")).toHaveCount(0);
+  await expect(page.locator("main form")).toHaveCount(0);
 
-  await year.click();
-  await expect(page.getByRole("option")).toHaveText(
-    Arr.makeBy(newestYear - 2012 + 1, (offset) => String(newestYear - offset))
-  );
+  // Opening the page, and opening it again, writes nothing.
+  await openPage(page, "/kontrollpanel/semestre");
+  expect(await runDatabase(semesterCount)).toBe(stored);
+  expect(await semesterLabelsOf(page)).toEqual(labels);
 });
 
 test("step 3 (RULE-139): a team leader lists, creates and renames the fields of study of their own department only", async ({

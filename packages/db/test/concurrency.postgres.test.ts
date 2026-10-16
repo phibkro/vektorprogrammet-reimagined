@@ -2,9 +2,8 @@
  * Constraint-backed concurrency on real PostgreSQL (devenv), each suite on its
  * own disposable database:
  * - RULE-237: 20 concurrent `ensure` calls yield exactly one row.
- * - RULE-144: 20 concurrent `create` calls yield exactly one success.
- * - Negative control: the same checks against a schema without the unique
- *   (term, year) constraint must fail, proving the constraint carries them.
+ * - Negative control: the same check against a schema without the unique
+ *   (term, year) constraint must fail, proving the constraint carries it.
  * - RULE-096: concurrent article creates with the same slug both succeed with distinct slugs.
  */
 import { assert, layer } from "@effect/vitest";
@@ -17,16 +16,7 @@ import {
 } from "@vektorprogrammet/domain";
 import type { Semester } from "@vektorprogrammet/domain";
 import { and, eq, sql } from "drizzle-orm";
-import {
-  Array as Arr,
-  Deferred,
-  Effect,
-  Exit,
-  Option,
-  Order,
-  Predicate,
-  pipe,
-} from "effect";
+import { Array as Arr, Deferred, Effect, Exit, Order, pipe } from "effect";
 
 import { schema, transactional } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
@@ -86,31 +76,6 @@ const ensureRace = Effect.fnUntraced(function* ensureRace(wanted: Semester) {
   return { exits, holds, rows };
 });
 
-/** RULE-144 property: exactly one success, every other caller refused with `AlreadyExists`, one row. */
-const createRace = Effect.fnUntraced(function* createRace(wanted: Semester) {
-  const semesters = yield* SemesterRepository;
-  const exits = yield* race(semesters.create(wanted));
-  const rows = yield* semesterRows(wanted);
-  const successes = pipe(exits, Arr.filter(Exit.isSuccess));
-
-  const refusals = pipe(
-    exits,
-    Arr.filter((exit) =>
-      pipe(
-        Exit.findErrorOption(exit),
-        Option.exists(Predicate.isTagged("AlreadyExists"))
-      )
-    )
-  );
-
-  const holds =
-    rows.length === 1 &&
-    successes.length === 1 &&
-    refusals.length === CALLERS - 1;
-
-  return { exits, holds, rows, successes };
-});
-
 layer(postgresDatabase(), { excludeTestServices: true })(
   "unique (term, year) on PostgreSQL",
   (it) => {
@@ -125,17 +90,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           assert.strictEqual(outcome.rows.length, 1);
           assert.strictEqual(yield* db.$count(schema.semester), 1);
           assert.isTrue(pipe(outcome.exits, Arr.every(Exit.isSuccess)));
-          assert.isTrue(outcome.holds);
-        })
-    );
-
-    it.effect(
-      "RULE-144: 20 concurrent create calls yield exactly one success",
-      () =>
-        Effect.gen(function* effectProgram() {
-          const outcome = yield* createRace({ term: "VAR", year: 2027 });
-          assert.strictEqual(outcome.successes.length, 1);
-          assert.strictEqual(outcome.rows.length, 1);
           assert.isTrue(outcome.holds);
         })
     );
@@ -212,17 +166,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             )
           );
           assert.strictEqual(outcome.rows.length, 0);
-        })
-    );
-
-    it.effect(
-      "RULE-144 negative control: without the constraint the create race check fails",
-      () =>
-        Effect.gen(function* effectProgram() {
-          yield* dropConstraint;
-          const outcome = yield* createRace({ term: "VAR", year: 2027 });
-          assert.isFalse(outcome.holds);
-          assert.strictEqual(outcome.successes.length, 0);
         })
     );
   }

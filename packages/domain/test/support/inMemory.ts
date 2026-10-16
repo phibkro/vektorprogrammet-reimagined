@@ -223,30 +223,7 @@ const SemesterRepositoryTest = Layer.effect(
     const db = yield* TestDb;
 
     return SemesterRepository.of({
-      create: (semester) =>
-        Effect.gen(function* create() {
-          const id = SemesterId.make(yield* nextId(db));
-
-          const created = yield* Ref.modify(db.semesters, (rows) =>
-            Arr.some(rows, (row) => sameSemester(row, semester))
-              ? [Option.none<StoredSemester>(), rows]
-              : [
-                  Option.some({ id, ...semester }),
-                  [...rows, { id, ...semester }],
-                ]
-          );
-
-          if (Option.isNone(created)) {
-            return yield* new AlreadyExists({
-              entity: "Semester",
-              key: `${semester.term} ${semester.year}`,
-              message: "unique (term, year)",
-            });
-          }
-
-          return created.value;
-        }),
-      // Atomic like `INSERT … ON CONFLICT DO NOTHING` + select.
+      // Atomic like `INSERT … ON CONFLICT DO UPDATE … RETURNING`.
       ensure: (semester) =>
         Effect.gen(function* ensure() {
           const id = SemesterId.make(yield* nextId(db));
