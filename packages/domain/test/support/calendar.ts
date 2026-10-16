@@ -25,7 +25,7 @@ export const YEARS = Arr.range(2012, 2040);
  * The EU summer-time rule, written down independently of the time-zone database the code under test
  * uses: clocks change on the last Sunday of March and of October at 01:00 UTC.
  */
-export const euClockChange = (year: number, month: 3 | 10): DateTime.Utc => {
+const euClockChange = (year: number, month: 3 | 10): DateTime.Utc => {
   const lastDay = DateTime.makeUnsafe({ day: 31, hour: 1, month, year });
 
   return DateTime.subtract(lastDay, {
