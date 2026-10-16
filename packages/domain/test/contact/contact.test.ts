@@ -251,7 +251,7 @@ describe("RULE-249 legacy-equal Slack text", () => {
         assert.deepStrictEqual(yield* slackTexts(null, "Hei!"), [
           Arr.join(
             [
-              "Kristiansand: Ny melding mottatt fra *Ola Nordmann*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no.",
+              "Kristiansand: Ny melding mottatt fra *Ola Nordmann*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no. ",
               "Emne: `Assistent til 9A`",
               "Meldingen har blitt videresendt til kristiansand@example.org",
             ],

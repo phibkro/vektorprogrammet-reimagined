@@ -101,7 +101,8 @@ export const supportTicketMessages = (
     target: SlackTarget.cases.Notifications.make({}),
     text: Arr.join(
       [
-        `${department.city}: Ny melding mottatt fra *${ticket.name}*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no.`,
+        // Legacy ends this line with a space (SupportTicketSubscriber); kept byte-equal by operator decision (F43).
+        `${department.city}: Ny melding mottatt fra *${ticket.name}*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no. `,
         `Emne: \`${ticket.subject}\``,
         `Meldingen har blitt videresendt til ${department.email}`,
       ],
