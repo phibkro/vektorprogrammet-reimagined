@@ -1,12 +1,13 @@
-/** Pure mapping functions: legacy file references, rich text, date-times and the target guard. */
+/** Pure mapping functions: legacy file references, rich text, date-times, the import plan's guards and the target guard. */
 import { assert, describe, it } from "@effect/vitest";
 import { FileKey } from "@vektorprogrammet/domain";
-import { DateTime, Option, Predicate, Redacted } from "effect";
+import { Array as Arr, DateTime, Option, Predicate, Redacted } from "effect";
 
 import { checkTarget, sameDatabase } from "../src/config.ts";
+import type { LegacyDepartment, LegacySnapshot } from "../src/legacy/rows.ts";
 import type { LegacyReference } from "../src/transform/legacyPath.ts";
 import { classifyReference } from "../src/transform/legacyPath.ts";
-import { parseLegacyDateTime } from "../src/transform/plan.ts";
+import { parseLegacyDateTime, planImport } from "../src/transform/plan.ts";
 import { importRichText } from "../src/transform/richText.ts";
 
 const KEY = FileKey.make(
@@ -209,5 +210,58 @@ describe("target guard", () => {
         checkTarget({ ...config, developmentUrl: Option.none() }, false)
       )
     );
+  });
+});
+
+const NO_ROWS: LegacySnapshot = {
+  admissionPeriods: [],
+  articleDepartments: [],
+  articles: [],
+  departments: [],
+  fieldsOfStudy: [],
+  semesters: [],
+  socialEvents: [],
+  sponsors: [],
+  staticContents: [],
+};
+
+const legacyDepartment = (id: number, city: string): LegacyDepartment => ({
+  active: 1,
+  address: null,
+  city,
+  email: `kontakt${id}@example.org`,
+  id,
+  latitude: null,
+  logoPath: null,
+  longitude: null,
+  name: `Avdeling ${id}`,
+  shortName: `A${id}`,
+  slackChannel: null,
+});
+
+describe("the import plan", () => {
+  it("keeps the first department of a repeated city and quarantines the rest (the target's unique city; legacy has the same key, so this guards the target rather than the source)", () => {
+    const plan = planImport(
+      {
+        ...NO_ROWS,
+        departments: [
+          legacyDepartment(1, "Alfaby"),
+          legacyDepartment(2, "Alfaby"),
+        ],
+      },
+      new Map()
+    );
+
+    assert.deepStrictEqual(
+      Arr.map(plan.rows.department, (row) => row.id),
+      [1]
+    );
+    assert.deepStrictEqual(plan.quarantine, [
+      {
+        id: "2",
+        reasons: ["city duplicates department 1"],
+        table: "department",
+      },
+    ]);
   });
 });
