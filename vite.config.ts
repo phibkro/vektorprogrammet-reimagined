@@ -248,6 +248,13 @@ export default defineConfig({
           "typescript/promise-function-async": "off",
         },
       },
+      {
+        // Schema.TaggedError class definitions are falsely treated as throw sites by Unicorn.
+        files: ["tools/import/src/config.ts"],
+        rules: {
+          "unicorn/throw-new-error": "off",
+        },
+      },
     ],
     rules: {
       ...effectConfigResult.rules,
