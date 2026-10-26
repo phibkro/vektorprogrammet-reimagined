@@ -207,4 +207,19 @@ describe("the Membership machine (ADR 0007)", () => {
       assert.isFalse(can("createTeam", state, host(2027)));
     }
   });
+
+  it("startsFrom answers which controls a state offers, whatever the guards say", () => {
+    const offered = (state: MembershipState) =>
+      Arr.filter(
+        ["cancel", "change", "endEarly", "extend"] as const,
+        (command) => Machine.startsFrom(MembershipMachine, command, state)
+      );
+
+    assert.deepStrictEqual(offered("Planned"), ["cancel"]);
+    assert.deepStrictEqual(offered("Active"), ["change", "endEarly", "extend"]);
+    assert.deepStrictEqual(offered("Ended"), []);
+    assert.isTrue(
+      Machine.startsFrom(MembershipMachine, "addMember", Machine.Boundary)
+    );
+  });
 });
