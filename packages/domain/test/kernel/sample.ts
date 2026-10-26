@@ -47,9 +47,12 @@ export const Notes = RpcGroup.make(create, publish, sweep);
 
 export const NoteStates = Schema.TaggedUnion({ Draft: {}, Published: {} });
 
+const NoteContext = Schema.Struct({ words: Schema.Finite });
+
 /** The guard reads what the caller supplies: how many words the note has. */
 export const NoteMachine = Machine.make({
   commands: Notes,
+  context: NoteContext,
   name: "Note",
   states: NoteStates,
   transitions: [
@@ -57,7 +60,10 @@ export const NoteMachine = Machine.make({
     {
       command: "publish",
       from: ["Draft"],
-      guard: ({ words }: { readonly words: number }) => words > 0,
+      guard: Schema.makeFilter(
+        ({ words }: typeof NoteContext.Type) => words > 0,
+        { representation: { id: "test/note/hasWords", payload: null } }
+      ),
       to: "Published",
       when: "the note has words",
     },

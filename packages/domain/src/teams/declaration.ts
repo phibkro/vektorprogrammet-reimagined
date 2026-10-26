@@ -9,10 +9,11 @@ import { Rpc, RpcGroup } from "effect/rpc";
 import * as Commands from "../kernel/commands.ts";
 import * as Domain from "../kernel/domain.ts";
 import * as Grant from "../kernel/grant.ts";
+import * as Guard from "../kernel/guard.ts";
 import * as Machine from "../kernel/machine.ts";
 import { TeamFunction } from "../kernel/principal.ts";
 import * as Subject from "../kernel/subject.ts";
-import { Semester, SemesterOrder } from "../organisation/semester.ts";
+import { Semester } from "../organisation/semester.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import {
   AdminGrantId,
@@ -33,7 +34,6 @@ import {
   TeamDetails,
 } from "./entities.ts";
 import { MembershipState } from "./term.ts";
-import type { MembershipTerm } from "./term.ts";
 
 // ---------------------------------------------------------------- commands
 
@@ -226,25 +226,23 @@ export const TeamsRpc = RpcGroup.make(
 
 // ---------------------------------------------------------------- the Membership machine
 
-/** What a Membership guard reads: the term the command is about, the current semester, the semester it names. */
-export interface MembershipMoment {
-  readonly term: MembershipTerm;
-  readonly current: Semester;
-  /** The new end of `extend`, the first semester without the membership of `endEarly` and `change`, the start of `addMember`. */
-  readonly requested: Semester;
-}
+/** The inputs the membership guards read. A term here is the two stored semesters, already validated at entry. */
+export const MembershipMoment = Schema.Struct({
+  current: Semester,
+  requested: Semester,
+  term: Schema.Struct({ end: Semester, start: Semester }),
+});
 
-const after = (left: Semester, right: Semester): boolean =>
-  SemesterOrder(left, right) > 0;
+export type MembershipMoment = typeof MembershipMoment.Type;
 
-const same = (left: Semester, right: Semester): boolean =>
-  SemesterOrder(left, right) === 0;
+const guard = Guard.semesters(MembershipMoment);
 
-/** `endEarly` and `change` end the old row before `requested`: inside the term, and not in the past. */
-const endsBefore = ({ current, requested, term }: MembershipMoment): boolean =>
-  after(requested, term.start) &&
-  !after(requested, term.end) &&
-  !after(current, requested);
+/** End the old row before the requested semester, inside its term and not in the past. */
+const endsBefore = Schema.makeFilterGroup([
+  guard.after(["requested"], ["term", "start"]),
+  guard.not(guard.after(["requested"], ["term", "end"])),
+  guard.not(guard.after(["current"], ["requested"])),
+]);
 
 export const MembershipMachine = Machine.make({
   calculated: [
@@ -252,29 +250,28 @@ export const MembershipMachine = Machine.make({
     { from: "Active", to: "Ended", when: "the end semester has passed" },
   ],
   commands: TeamsRpc,
+  context: MembershipMoment,
   name: "Membership",
   states: MembershipState,
   transitions: [
     {
       command: "addMember",
       from: [Machine.Boundary],
-      guard: ({ current, term }: MembershipMoment) =>
-        after(term.start, current),
+      guard: guard.after(["term", "start"], ["current"]),
       to: "Planned",
       when: "later start",
     },
     {
       command: "addMember",
       from: [Machine.Boundary],
-      guard: ({ current, term }: MembershipMoment) => same(term.start, current),
+      guard: guard.same(["term", "start"], ["current"]),
       to: "Active",
       when: "start this semester",
     },
     {
       command: "extend",
       from: ["Active"],
-      guard: ({ requested, term }: MembershipMoment) =>
-        after(requested, term.end),
+      guard: guard.after(["requested"], ["term", "end"]),
       to: "Active",
       when: "new end",
     },
@@ -295,16 +292,14 @@ export const MembershipMachine = Machine.make({
     {
       command: "change",
       from: [Machine.Boundary],
-      guard: ({ current, requested }: MembershipMoment) =>
-        after(requested, current),
+      guard: guard.after(["requested"], ["current"]),
       to: "Planned",
       when: "the new membership, starting later",
     },
     {
       command: "change",
       from: [Machine.Boundary],
-      guard: ({ current, requested }: MembershipMoment) =>
-        same(requested, current),
+      guard: guard.same(["requested"], ["current"]),
       to: "Active",
       when: "the new membership, starting now",
     },

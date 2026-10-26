@@ -10,9 +10,17 @@
  * `make` takes the domain's `RpcGroup`, so a transition that names a command outside it is a compile error, as is
  * a transition to a state outside the union.
  */
-import { Array as Arr, Option, Record as Rec } from "effect";
-import type { Schema } from "effect";
+import {
+  Array as Arr,
+  Option,
+  Record as Rec,
+  Schema,
+  SchemaRepresentation,
+} from "effect";
+import type { SchemaAST } from "effect";
 import type { Rpc, RpcGroup } from "effect/rpc";
+
+import * as Guard from "./guard.ts";
 
 /** The pseudo-state before a row exists (`from`) and after it is gone (`to`), as in a Mermaid state diagram. */
 export const Boundary = "[*]";
@@ -31,8 +39,12 @@ export interface Transition<
   readonly to: State | Boundary;
   /** Shown on the diagram beside the command: what chooses this transition. */
   readonly when?: string;
-  /** A pure check over what the caller supplies; the transition applies only when it holds. */
-  readonly guard?: (context: Context) => boolean;
+  /** A native schema check over the machine's context. */
+  readonly guard?: SchemaAST.Check<Context>;
+  /** A JSON representation of the checked context, exposed to downstream generators. */
+  readonly guardRepresentation?: Schema.Json;
+  /** Compiled once at declaration time from the context schema and guard. */
+  readonly accepts?: (context: Context) => boolean;
 }
 
 /** A change of state that no command makes: time passes (a membership's start semester arrives, its end has passed). */
@@ -65,6 +77,8 @@ export interface Description {
     readonly from: readonly string[];
     readonly to: string;
     readonly when?: string;
+    /** JSON representation of the guard, including its operand paths and logical checks. */
+    readonly guardRepresentation?: Schema.Json;
   }[];
   readonly calculated: readonly {
     readonly from: string;
@@ -95,6 +109,7 @@ export const make = <
   Context = void,
 >(definition: {
   readonly name: string;
+  readonly context: Schema.Schema<Context>;
   readonly commands: RpcGroup.RpcGroup<Rpcs>;
   readonly states: States;
   readonly transitions: readonly Transition<
@@ -110,7 +125,25 @@ export const make = <
     Rec.keys(definition.states.cases),
     isTagOf(definition.states)
   ),
-  transitions: definition.transitions,
+  transitions: Arr.map(definition.transitions, (transition) => {
+    if (transition.guard === undefined) {
+      return transition;
+    }
+
+    const schema = definition.context.check(transition.guard);
+
+    const compiled = {
+      ...transition,
+      accepts: Schema.is(schema),
+      guardRepresentation: SchemaRepresentation.toJson(
+        SchemaRepresentation.toRepresentation(schema.ast)
+      ),
+    };
+
+    const when = transition.when ?? Guard.describe(transition.guard);
+
+    return { ...compiled, when };
+  }),
 });
 
 /** The transitions of `command` that start from `state` and whose guard holds for `context`. */
@@ -129,7 +162,7 @@ export const available = <
     (transition) =>
       transition.command === command &&
       Arr.contains(transition.from, state) &&
-      (transition.guard === undefined || transition.guard(context))
+      (transition.accepts === undefined || transition.accepts(context))
   );
 
 /** Whether `command` may be applied in `state`. Pure. */

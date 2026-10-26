@@ -18,6 +18,8 @@ export * as Domain from "./kernel/domain.ts";
 
 export * as Grant from "./kernel/grant.ts";
 
+export * as Guard from "./kernel/guard.ts";
+
 export * as Machine from "./kernel/machine.ts";
 
 export * as Subject from "./kernel/subject.ts";
