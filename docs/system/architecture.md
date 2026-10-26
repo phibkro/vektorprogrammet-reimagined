@@ -143,6 +143,8 @@ Jobs are declared in code (`packages/domain`): name, when the job is due, its Sy
   - **Customisation:** Odoo Online does not allow custom Python modules. Placement with school capacity, permissions derived from memberships, and explicit terms would need custom modules on Odoo.sh or a self-hosted server.
   - **Permissions:** Odoo assigns access groups to each user by hand, which conflicts with ADR 0001.
 
+- **Volunteer, staffing and open-source tools** (evaluated 2026-10-26; `../../../../analysis/vektorprogrammet/research/tools-*.md`). None covers capacity per weekday and bolk, access derived from memberships with terms, and scored interviews leading to placement. The operator declined both partial options: Rubic Utlegg for expense claims, and posting admission periods on Frivillig.no.
+
 effx is a candidate generator for later, when hand-written declarations multiply.
 
 ## Packages and their dependencies
