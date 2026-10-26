@@ -14,6 +14,7 @@ import type { CmsFailure } from "@vektorprogrammet/cms-client";
  */
 import {
   AlreadyExists,
+  Conflict,
   Forbidden,
   NotFound,
   ValidationFailed,
@@ -36,6 +37,7 @@ export const RequestErrorSchema = Schema.Union([
   NotFound,
   Forbidden,
   AlreadyExists,
+  Conflict,
   ValidationFailed,
   RateLimited,
   CmsUnavailable,
@@ -58,6 +60,7 @@ export const ERROR_TABLE = {
   CmsInvalidContent: { formStatus: 502, status: 502 },
   CmsRejected: { formStatus: 502, status: 502 },
   CmsUnavailable: { formStatus: 503, status: 503 },
+  Conflict: { formStatus: 409, status: 409 },
   Forbidden: { formStatus: 403, status: 403 },
   NotFound: { formStatus: 404, status: 404 },
   RateLimited: { formStatus: 429, status: 429 },
@@ -82,6 +85,7 @@ const messageOf = (error: EncodedRequestError): string =>
         "Innholdstjenesten avviste forespørselen. Prøv igjen senere.",
       CmsUnavailable: () =>
         "Innholdet er midlertidig utilgjengelig. Prøv igjen om litt.",
+      Conflict: (failure) => failure.message,
       Forbidden: () => "Du har ikke tilgang til dette.",
       NotFound: () => "Fant ikke siden eller elementet.",
       RateLimited: () => "For mange forsøk. Vent litt og prøv igjen.",

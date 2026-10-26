@@ -1,57 +1,52 @@
 /**
- * What the control-panel shell shows an actor, derived from the one authorization decision table: the
- * domain's `authorize`, the function every command's `requireCapability` calls. Each section lists the
- * capabilities its page exercises, and the sidebar offers the section to an actor who holds one of them
- * (a section that lists none is for any staff member). There is no second who-may-do-what list: this module
- * names the capability a page exercises, never the role that holds it. Hiding is presentation; the commands
- * still refuse a forged request with 403.
+ * What the control-panel shell shows a principal, derived from the one grant table: the domain's `canAnywhere`,
+ * which reads the same rows as every command's `authorize`. Each section lists the commands and reads its page
+ * exercises, and the sidebar offers the section to a principal who holds one of them for some department it
+ * belongs to, or for everything. There is no second who-may-do-what list: this module names what a page exercises,
+ * never the role that holds it (ADR 0001). Hiding is presentation; the commands still refuse a forged request
+ * with 403.
  */
-import { Capability, CurrentActor, authorize } from "@vektorprogrammet/domain";
-import type { Actor, Staff, StaffRole } from "@vektorprogrammet/domain";
+import {
+  CurrentPrincipal,
+  PersonRepository,
+  PrincipalDirectory,
+  canAnywhere,
+} from "@vektorprogrammet/domain";
+import type { Command, Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Predicate } from "effect";
+import type { NonEmptyReadonlyArray } from "effect/Array";
 
 import { PANEL_SECTIONS } from "../lib/panelSections";
 import type { NavigationGroup, SectionKey } from "../lib/panelSections";
 import type { Deployment } from "./deployment";
 
-/**
- * The capabilities each section's page exercises. A department-scoped capability is asked for the actor's
- * own department: that is the department the domain scopes a staff member's capabilities to.
- */
-const SECTION_CAPABILITIES: Readonly<
-  Record<SectionKey, (actor: Staff) => readonly Capability[]>
+/** The commands and reads each section's page exercises. */
+const SECTION_COMMANDS: Readonly<
+  Record<SectionKey, NonEmptyReadonlyArray<Command>>
 > = {
-  departments: (actor) => [
-    Capability.CreateDepartment(),
-    Capability.UpdateDepartment({ departmentId: actor.departmentId }),
-  ],
-  fieldsOfStudy: (actor) => [
-    Capability.ManageFieldsOfStudy({ departmentId: actor.departmentId }),
-  ],
-  overview: () => [],
-  semesters: () => [],
-  socialEvents: (actor) => [
-    Capability.ManageSocialEvents({ departmentId: actor.departmentId }),
-  ],
+  admins: ["grantAdmin", "revokeAdmin"],
+  departments: ["createDepartment", "updateDepartment"],
+  fieldsOfStudy: ["createFieldOfStudy", "renameFieldOfStudy"],
+  overview: ["openControlPanel"],
+  people: ["viewPeople", "registerPerson"],
+  semesters: ["openControlPanel"],
+  socialEvents: ["createSocialEvent"],
+  teams: ["viewTeams", "createTeam"],
 };
 
-const mayUseSection = (actor: Staff, key: SectionKey): boolean => {
-  const exercised = SECTION_CAPABILITIES[key](actor);
+const mayUseSection = (principal: Principal, key: SectionKey): boolean =>
+  Arr.some(SECTION_COMMANDS[key], (command) => canAnywhere(principal, command));
 
-  return (
-    exercised.length === 0 ||
-    Arr.some(exercised, (capability) => authorize(actor, capability))
-  );
-};
-
-/** The sidebar for `actor`: the sections they may use, grouped; nothing for an actor who is not staff. */
-export const navigationFor = (actor: Actor): readonly NavigationGroup[] => {
-  if (!Predicate.isTagged(actor, "Staff")) {
+/** The sidebar for `principal`: the sections they may use, grouped; nothing for a principal that is not a person. */
+export const navigationFor = (
+  principal: Principal
+): readonly NavigationGroup[] => {
+  if (!Predicate.isTagged(principal, "Person")) {
     return [];
   }
 
   const usable = Arr.filter(PANEL_SECTIONS, (section) =>
-    mayUseSection(actor, section.key)
+    mayUseSection(principal, section.key)
   );
 
   return Arr.map(
@@ -65,27 +60,54 @@ export const navigationFor = (actor: Actor): readonly NavigationGroup[] => {
 
 /** Who is acting, as the shell shows it; null for a visitor who is not signed in. */
 export interface ActorSummary {
-  readonly departmentId: number;
-  readonly executiveBoard: boolean;
-  readonly role: StaffRole;
+  readonly name: string;
+  readonly admin: boolean;
+  readonly leader: boolean;
+  readonly member: boolean;
 }
 
-export const actorSummary = (actor: Actor): ActorSummary | null =>
-  Predicate.isTagged(actor, "Staff")
+export const actorSummary = (
+  principal: Principal,
+  name: string
+): ActorSummary | null =>
+  Predicate.isTagged(principal, "Person")
     ? {
-        departmentId: actor.departmentId,
-        executiveBoard: actor.executiveBoard,
-        role: actor.role,
+        admin: principal.adminUntil !== undefined,
+        leader: Arr.some(principal.memberships, (fact) => fact.leader),
+        member: Arr.isReadonlyArrayNonEmpty(principal.memberships),
+        name,
       }
     : null;
 
+/** The name of the person who is acting; empty for a principal that is not a person. */
+export const nameOfActor = Effect.gen(function* nameOfActor() {
+  const principal = yield* CurrentPrincipal;
+
+  if (!Predicate.isTagged(principal, "Person")) {
+    return "";
+  }
+
+  const people = yield* PersonRepository;
+
+  return yield* people.findById(principal.personId).pipe(
+    Effect.map((person) => person.name),
+    Effect.orElseSucceed(() => "")
+  );
+});
+
 /**
- * The control-panel layout's data: who is acting, the sidebar they get, and whether the local test-actor
- * switch is offered (only in a `local` deployment, the one place a test actor exists).
+ * The control-panel layout's data: who is acting, the sidebar they get, and the people the local test-actor switch
+ * offers (only in a `local` deployment, the one place a test actor exists).
  */
 export const shellView = (deployment: Deployment) =>
-  Effect.map(CurrentActor, (actor) => ({
-    actor: actorSummary(actor),
-    navigation: navigationFor(actor),
-    testActors: deployment === "local",
-  }));
+  Effect.gen(function* shellProgram() {
+    const principal = yield* CurrentPrincipal;
+    const name = yield* nameOfActor;
+    const directory = yield* PrincipalDirectory;
+
+    return {
+      actor: actorSummary(principal, name),
+      navigation: navigationFor(principal),
+      testActors: deployment === "local" ? yield* directory.names(50) : null,
+    };
+  });

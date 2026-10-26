@@ -31,6 +31,7 @@ const environment = Effect.runSync(
     CMS_URL: Config.String("CMS_URL").pipe(Config.withDefault("")),
     DATABASE_URL: Config.option(Config.String("DATABASE_URL")),
     PGUSER: Config.option(Config.String("PGUSER")),
+    SITE_URL: Config.String("SITE_URL").pipe(Config.withDefault("")),
     TURNSTILE_SECRET_KEY: Config.String("TURNSTILE_SECRET_KEY").pipe(
       Config.withDefault("")
     ),
@@ -110,6 +111,7 @@ const standaloneWorker = (devServer: boolean) => {
         CMS_TOKEN: devServer ? environment.CMS_TOKEN : "",
         CMS_URL: environment.CMS_URL,
         DEPLOYMENT: devServer ? "local" : "preview",
+        SITE_URL: environment.SITE_URL,
         // Dev only: a secret must never be baked into dist/server/wrangler.json.
         TURNSTILE_SECRET_KEY: devServer ? environment.TURNSTILE_SECRET_KEY : "",
         TURNSTILE_SITE_KEY: environment.TURNSTILE_SITE_KEY,

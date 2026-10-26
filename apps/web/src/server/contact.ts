@@ -4,11 +4,11 @@
  * it here (outside Effect), and the pipeline runs as one prepared command:
  *
  *   prepare (no transaction): per-IP rate limit → Turnstile siteverify
- *   command (transaction):    submitContact → outbox rows (delivered after commit)
+ *   command (transaction):    ContactEndpoints.submitContact → outbox rows (delivered after commit)
  *
  * A rejected captcha never reaches `submitContact`, so nothing is enqueued.
  */
-import { submitContact } from "@vektorprogrammet/domain";
+import { ContactEndpoints } from "@vektorprogrammet/domain";
 import { Effect, Option, Schema } from "effect";
 
 import { ContactRateLimiter } from "./rateLimit";
@@ -75,7 +75,7 @@ export const prepareContact = (submission: ContactSubmission) =>
 export const contactCommand = (submission: ContactSubmission) => {
   const { departmentId, ...rest } = submission.values;
 
-  return submitContact({
+  return ContactEndpoints.submitContact({
     ...rest,
     departmentId: /^\d+$/u.test(departmentId)
       ? Number(departmentId)

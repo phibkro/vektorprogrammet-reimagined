@@ -61,13 +61,16 @@ export const CommandSheet = ({
   action,
   submitLabel,
   children,
+  defaultOpen = false,
   ...frame
 }: SheetFrame & {
   action: (options: { data: FormData }) => Promise<Outcome<string>>;
   submitLabel: string;
   children: ReactNode;
+  /** Open on first render: the extend link of the "ending soon" e-mail opens the form it names. */
+  defaultOpen?: boolean;
 }) => {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <PanelSheet {...frame} open={open} onOpenChange={setOpen}>

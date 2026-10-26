@@ -12,6 +12,7 @@ import { TestClock } from "effect/testing";
 
 import { dashboardView } from "../src/server/panel";
 import { makeTables, memoryLayer } from "./support/memory";
+import { ADMIN } from "./support/principals";
 // ---------------------------------------------------------------- RULE-033
 
 /** The RULE-033 cut-over: January–July is Vår, August–December is Høst. */
@@ -47,7 +48,7 @@ describe("C1/C2 semesters through the panel", () => {
           const tables = makeTables();
 
           const view = yield* dashboardView.pipe(
-            Effect.provide(memoryLayer(tables))
+            Effect.provide(memoryLayer(tables, ADMIN))
           );
 
           assert.strictEqual(view.currentSemester, expected.label, at);

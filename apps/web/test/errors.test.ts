@@ -1,6 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
   AlreadyExists,
+  Conflict,
   Forbidden,
   NotFound,
   ValidationFailed,
@@ -15,11 +16,11 @@ import { runOutcome } from "../src/server/runtime";
 const { signal } = new AbortController();
 
 describe("the one error table", () => {
-  it("maps the domain's closed error set: NotFound 404, Forbidden 403, AlreadyExists 409, ValidationFailed 400", () => {
+  it("maps the domain's closed error set: NotFound 404, Forbidden 403, AlreadyExists 409, Conflict 409, ValidationFailed 400", () => {
     assert.deepStrictEqual(
       [
         failureOf(new NotFound({ entity: "Article", key: "x" })).status,
-        failureOf(new Forbidden({ capability: "CreateDepartment" })).status,
+        failureOf(new Forbidden({ command: "createDepartment" })).status,
         failureOf(
           new AlreadyExists({
             entity: "Department",
@@ -27,10 +28,17 @@ describe("the one error table", () => {
             message: "finnes",
           })
         ).status,
+        failureOf(
+          new Conflict({
+            entity: "Membership",
+            key: "1",
+            message: "Medlemskapet er endret av noen andre.",
+          })
+        ).status,
         failureOf(validationFailed(["name"], "Feletet kan ikke være tomt."))
           .status,
       ],
-      [404, 403, 409, 400]
+      [404, 403, 409, 409, 400]
     );
   });
 
@@ -92,7 +100,7 @@ describe("runOutcome", () => {
         async () =>
           await runOutcome(
             Layer.empty,
-            Effect.fail(new Forbidden({ capability: "EditStaticContent" })),
+            Effect.fail(new Forbidden({ command: "createDepartment" })),
             signal
           )
       );
