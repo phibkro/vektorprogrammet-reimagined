@@ -7,6 +7,7 @@
  * | NotFound         | 404                              |
  * | Forbidden        | 403                              |
  * | AlreadyExists    | 409                              |
+ * | Conflict         | 409                              |
  * | ValidationFailed | 400 / 422 (form re-render)        |
  */
 import { Schema } from "effect";
@@ -26,8 +27,8 @@ export class Forbidden extends Schema.TaggedError<
   Forbidden,
   { readonly brand: unique symbol }
 >()("Forbidden", {
-  /** The `_tag` of the capability the actor lacked. */
-  capability: Schema.String,
+  /** The command (or read) that no grant of the principal covers. */
+  command: Schema.String,
 }) {}
 
 export class AlreadyExists extends Schema.TaggedError<
@@ -37,6 +38,20 @@ export class AlreadyExists extends Schema.TaggedError<
   entity: EntityName,
   key: Schema.String,
   /** User-facing Norwegian text. */
+  message: Schema.String,
+}) {}
+
+/**
+ * A transition could not be applied: the resource is not in a state that the command starts from, or it
+ * changed between the read and the conditional update (a lost race). Nothing was written. `message` is
+ * user-facing Norwegian text.
+ */
+export class Conflict extends Schema.TaggedError<
+  Conflict,
+  { readonly brand: unique symbol }
+>()("Conflict", {
+  entity: EntityName,
+  key: Schema.String,
   message: Schema.String,
 }) {}
 
@@ -59,7 +74,17 @@ export type DomainError =
   | NotFound
   | Forbidden
   | AlreadyExists
+  | Conflict
   | ValidationFailed;
+
+/** The error schema every command declares: the closed set above, so one error table serves all of them. */
+export const DomainErrorSchema = Schema.Union([
+  NotFound,
+  Forbidden,
+  AlreadyExists,
+  Conflict,
+  ValidationFailed,
+]);
 
 /** One issue at one path. */
 export const validationFailed = (

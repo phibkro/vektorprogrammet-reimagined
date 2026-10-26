@@ -23,9 +23,9 @@ export const FieldOfStudyDraft = Schema.Struct({
 
 export type FieldOfStudyDraft = typeof FieldOfStudyDraft.Type;
 
-/** Form input for create. `departmentId` defaults to the actor's own department (RULE-139). */
+/** Form input for create: the department is named (RULE-139), and the grant table decides whether the principal may use it. */
 export const FieldOfStudyInput = Schema.Struct({
-  departmentId: Schema.optionalKey(DepartmentId),
+  departmentId: DepartmentId,
   name: requiredText({ maxLength: 250 }),
   shortName: requiredText({ maxLength: 50 }),
 });

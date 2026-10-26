@@ -1,0 +1,628 @@
+/**
+ * In-memory implementations of the teams repositories, for the tests of this package and of `apps/web`
+ * (`@vektorprogrammet/domain/testing`). They keep the contracts that `packages/db` keeps with constraints and
+ * conditional updates: one e-mail address is one person, a team name is unique within its department, a person's
+ * memberships in one team never overlap, and a write that finds the row changed since it was read is a `Conflict`.
+ * `packages/db` has the real behaviour under test (`test/teams.postgres.test.ts`); these fakes are as far as the
+ * domain's handlers need.
+ */
+import {
+  Array as Arr,
+  Context,
+  DateTime,
+  Effect,
+  Layer,
+  Option,
+  Order,
+  Ref,
+} from "effect";
+
+import {
+  AdminGrantId,
+  AdminGrantRepository,
+  AlreadyExists,
+  Conflict,
+  DigestLedger,
+  FieldOfStudyRepository,
+  MEMBERSHIP_CHANGED,
+  MEMBERSHIP_OVERLAPS,
+  MembershipId,
+  MembershipRepository,
+  NotFound,
+  PERSON_EXISTS,
+  PersonId,
+  PersonRepository,
+  PositionId,
+  PositionRepository,
+  PrincipalDirectory,
+  TEAM_EXISTS,
+  TeamId,
+  TeamRepository,
+  membershipState,
+  personPrincipal,
+  semesterOrdinal,
+} from "../../src/index.ts";
+import type {
+  ActiveMembership,
+  AdminGrant,
+  AdminGrantView,
+  EntityName,
+  Membership,
+  MembershipFact,
+  MembershipView,
+  Person,
+  Position,
+  Semester,
+  Team,
+} from "../../src/index.ts";
+
+/** The value list the migration seeds (`Leder`, `Medlem`), with the ids it gets there. */
+export const LEADER_POSITION = PositionId.make(1);
+
+export const MEMBER_POSITION = PositionId.make(2);
+
+/** The fake tables of the teams; tests seed and read them directly. */
+export class TeamTables extends Context.Service<
+  TeamTables,
+  {
+    readonly adminGrants: Ref.Ref<readonly AdminGrant[]>;
+    readonly digests: Ref.Ref<ReadonlySet<string>>;
+    readonly memberships: Ref.Ref<readonly Membership[]>;
+    readonly nextId: Ref.Ref<number>;
+    readonly people: Ref.Ref<readonly Person[]>;
+    readonly positions: Ref.Ref<readonly Position[]>;
+    readonly teams: Ref.Ref<readonly Team[]>;
+  }
+>()("test/TeamTables") {
+  static readonly layer = Layer.effect(
+    TeamTables,
+    Effect.gen(function* layer() {
+      return TeamTables.of({
+        adminGrants: yield* Ref.make<readonly AdminGrant[]>([]),
+        digests: yield* Ref.make<ReadonlySet<string>>(new Set()),
+        memberships: yield* Ref.make<readonly Membership[]>([]),
+        nextId: yield* Ref.make(1000),
+        people: yield* Ref.make<readonly Person[]>([]),
+        positions: yield* Ref.make<readonly Position[]>([
+          { id: LEADER_POSITION, name: "Leder" },
+          { id: MEMBER_POSITION, name: "Medlem" },
+        ]),
+        teams: yield* Ref.make<readonly Team[]>([]),
+      });
+    })
+  );
+}
+
+type Tables = TeamTables["Service"];
+
+const nextId = (tables: Tables) =>
+  Ref.getAndUpdate(tables.nextId, (id) => id + 1);
+
+const findOrNotFound = <A extends { readonly id: number }>(
+  rows: Ref.Ref<readonly A[]>,
+  entity: EntityName,
+  id: number
+) =>
+  Effect.flatMap(Ref.get(rows), (all) =>
+    Effect.mapError(
+      Effect.fromOption(Arr.findFirst(all, (row) => row.id === id)),
+      () => new NotFound({ entity, key: String(id) })
+    )
+  );
+
+const byName = <A extends { readonly name: string }>(): Order.Order<A> =>
+  Order.mapInput(Order.String, (row: A) => row.name);
+
+const overlaps = (
+  left: Pick<Membership, "end" | "start">,
+  right: Pick<Membership, "end" | "start">
+): boolean =>
+  semesterOrdinal(left.start) <= semesterOrdinal(right.end) &&
+  semesterOrdinal(right.start) <= semesterOrdinal(left.end);
+
+const sameSemester = (left: Semester, right: Semester): boolean =>
+  semesterOrdinal(left) === semesterOrdinal(right);
+
+const overlapping = (rows: readonly Membership[], next: Membership) =>
+  Arr.some(
+    rows,
+    (row) =>
+      row.id !== next.id &&
+      row.personId === next.personId &&
+      row.teamId === next.teamId &&
+      overlaps(row, next)
+  );
+
+const nameOf = (rows: readonly { id: number; name: string }[], id: number) =>
+  Option.match(
+    Arr.findFirst(rows, (row) => row.id === id),
+    { onNone: () => "", onSome: (row) => row.name }
+  );
+
+const lostRace = (id: MembershipId) =>
+  new Conflict({
+    entity: "Membership",
+    key: String(id),
+    message: MEMBERSHIP_CHANGED,
+  });
+
+const overlapRefused = (membership: Membership) =>
+  new AlreadyExists({
+    entity: "Membership",
+    key: String(membership.id),
+    message: MEMBERSHIP_OVERLAPS,
+  });
+
+const personRepository = Layer.effect(
+  PersonRepository,
+  Effect.gen(function* personRepository() {
+    const tables = yield* TeamTables;
+    const fields = yield* FieldOfStudyRepository;
+
+    return PersonRepository.of({
+      create: (draft) =>
+        Effect.gen(function* create() {
+          const people = yield* Ref.get(tables.people);
+
+          if (Arr.some(people, (person) => person.email === draft.email)) {
+            return yield* new AlreadyExists({
+              entity: "Person",
+              key: draft.email,
+              message: PERSON_EXISTS,
+            });
+          }
+
+          const field = yield* Effect.orDie(
+            fields.findById(draft.fieldOfStudyId)
+          );
+
+          const person: Person = {
+            departmentId: field.departmentId,
+            email: draft.email,
+            fieldOfStudyId: draft.fieldOfStudyId,
+            id: PersonId.make(yield* nextId(tables)),
+            name: draft.name,
+          };
+
+          yield* Ref.update(tables.people, (rows) => [...rows, person]);
+
+          return person;
+        }),
+      findById: (id) => findOrNotFound(tables.people, "Person", id),
+      list: (departmentId) =>
+        Effect.map(Ref.get(tables.people), (people) =>
+          Arr.sort(
+            Arr.filter(
+              people,
+              (person) =>
+                departmentId === null || person.departmentId === departmentId
+            ),
+            byName<Person>()
+          )
+        ),
+    });
+  })
+);
+
+const teamRepository = Layer.effect(
+  TeamRepository,
+  Effect.gen(function* teamRepository() {
+    const tables = yield* TeamTables;
+
+    const nameTaken = (team: Team) =>
+      Effect.flatMap(Ref.get(tables.teams), (teams) =>
+        Arr.some(
+          teams,
+          (other) =>
+            other.id !== team.id &&
+            other.departmentId === team.departmentId &&
+            other.name === team.name
+        )
+          ? Effect.fail(
+              new AlreadyExists({
+                entity: "Team",
+                key: team.name,
+                message: TEAM_EXISTS,
+              })
+            )
+          : Effect.void
+      );
+
+    const replace = (team: Team) =>
+      Ref.update(tables.teams, (rows) =>
+        Arr.map(rows, (row) => (row.id === team.id ? team : row))
+      );
+
+    return TeamRepository.of({
+      create: (draft) =>
+        Effect.gen(function* create() {
+          const team: Team = {
+            ...draft,
+            active: true,
+            id: TeamId.make(yield* nextId(tables)),
+          };
+
+          yield* nameTaken(team);
+          yield* Ref.update(tables.teams, (rows) => [...rows, team]);
+
+          return team;
+        }),
+      deactivate: (id) =>
+        Effect.gen(function* deactivate() {
+          const team = {
+            ...(yield* findOrNotFound(tables.teams, "Team", id)),
+            active: false,
+          };
+
+          yield* replace(team);
+
+          return team;
+        }),
+      findById: (id) => findOrNotFound(tables.teams, "Team", id),
+      list: (departmentId) =>
+        Effect.map(Ref.get(tables.teams), (teams) =>
+          Arr.sort(
+            Arr.filter(
+              teams,
+              (team) =>
+                departmentId === null || team.departmentId === departmentId
+            ),
+            byName<Team>()
+          )
+        ),
+      update: (id, details) =>
+        Effect.gen(function* update() {
+          const team = {
+            ...(yield* findOrNotFound(tables.teams, "Team", id)),
+            ...details,
+          };
+
+          yield* nameTaken(team);
+          yield* replace(team);
+
+          return team;
+        }),
+    });
+  })
+);
+
+const positionRepository = Layer.effect(
+  PositionRepository,
+  Effect.gen(function* positionRepository() {
+    const tables = yield* TeamTables;
+
+    return PositionRepository.of({
+      findById: (id) => findOrNotFound(tables.positions, "Position", id),
+      list: Effect.map(Ref.get(tables.positions), (positions) =>
+        Arr.sort(positions, byName<Position>())
+      ),
+    });
+  })
+);
+
+const membershipRepository = Layer.effect(
+  MembershipRepository,
+  Effect.gen(function* membershipRepository() {
+    const tables = yield* TeamTables;
+
+    const view = Effect.fn("view")(function* view(
+      memberships: readonly Membership[]
+    ): Effect.fn.Return<readonly MembershipView[]> {
+      const people = yield* Ref.get(tables.people);
+      const positions = yield* Ref.get(tables.positions);
+
+      return Arr.map(memberships, (membership) => ({
+        ...membership,
+        personName: nameOf(people, membership.personId),
+        positionName: nameOf(positions, membership.positionId),
+      }));
+    });
+
+    return MembershipRepository.of({
+      activeIn: (semester) =>
+        Effect.gen(function* activeIn() {
+          const people = yield* Ref.get(tables.people);
+          const positions = yield* Ref.get(tables.positions);
+          const teams = yield* Ref.get(tables.teams);
+
+          return Arr.flatMap(
+            yield* Ref.get(tables.memberships),
+            (membership): readonly ActiveMembership[] => {
+              const person = Arr.findFirst(
+                people,
+                (row) => row.id === membership.personId
+              );
+
+              const team = Arr.findFirst(
+                teams,
+                (row) => row.id === membership.teamId
+              );
+
+              return membershipState(membership, semester) === "Active" &&
+                Option.isSome(person) &&
+                Option.isSome(team)
+                ? [
+                    {
+                      ...membership,
+                      departmentId: team.value.departmentId,
+                      personEmail: person.value.email,
+                      personName: person.value.name,
+                      positionName: nameOf(positions, membership.positionId),
+                      teamName: team.value.name,
+                    },
+                  ]
+                : [];
+            }
+          );
+        }),
+      findById: (id) => findOrNotFound(tables.memberships, "Membership", id),
+      insert: (draft) =>
+        Effect.gen(function* insert() {
+          const membership: Membership = {
+            ...draft,
+            id: MembershipId.make(yield* nextId(tables)),
+          };
+
+          if (overlapping(yield* Ref.get(tables.memberships), membership)) {
+            return yield* overlapRefused(membership);
+          }
+
+          yield* Ref.update(tables.memberships, (rows) => [
+            ...rows,
+            membership,
+          ]);
+
+          return membership;
+        }),
+      listByPerson: (personId) =>
+        Effect.flatMap(Ref.get(tables.memberships), (rows) =>
+          view(
+            Arr.sort(
+              Arr.filter(rows, (row) => row.personId === personId),
+              Order.flip(
+                Order.mapInput(Order.Number, (row: Membership) =>
+                  semesterOrdinal(row.start)
+                )
+              )
+            )
+          )
+        ),
+      listByTeam: (teamId) =>
+        Effect.flatMap(Ref.get(tables.memberships), (rows) =>
+          view(
+            Arr.sort(
+              Arr.filter(rows, (row) => row.teamId === teamId),
+              Order.mapInput(Order.Number, (row: Membership) =>
+                semesterOrdinal(row.start)
+              )
+            )
+          )
+        ),
+      remove: ({ current, id, observed }) =>
+        Effect.gen(function* remove() {
+          const row = Arr.findFirst(
+            yield* Ref.get(tables.memberships),
+            (membership) => membership.id === id
+          );
+
+          if (
+            Option.isNone(row) ||
+            !sameSemester(row.value.start, observed.start) ||
+            !sameSemester(row.value.end, observed.end) ||
+            membershipState(row.value, current) !== "Planned"
+          ) {
+            return yield* lostRace(id);
+          }
+
+          yield* Ref.update(tables.memberships, (rows) =>
+            Arr.filter(rows, (membership) => membership.id !== id)
+          );
+
+          return yield* Effect.void;
+        }),
+      setEnd: ({ activeIn, id, newEnd, observedEnd }) =>
+        Effect.gen(function* setEnd() {
+          const rows = yield* Ref.get(tables.memberships);
+
+          const row = Arr.findFirst(rows, (membership) => membership.id === id);
+
+          if (
+            Option.isNone(row) ||
+            !sameSemester(row.value.end, observedEnd) ||
+            membershipState(row.value, activeIn) !== "Active"
+          ) {
+            return yield* lostRace(id);
+          }
+
+          const updated: Membership = { ...row.value, end: newEnd };
+
+          if (overlapping(rows, updated)) {
+            return yield* overlapRefused(updated);
+          }
+
+          yield* Ref.update(tables.memberships, (all) =>
+            Arr.map(all, (membership) =>
+              membership.id === id ? updated : membership
+            )
+          );
+
+          return updated;
+        }),
+    });
+  })
+);
+
+const adminGrantRepository = Layer.effect(
+  AdminGrantRepository,
+  Effect.gen(function* adminGrantRepository() {
+    const tables = yield* TeamTables;
+
+    return AdminGrantRepository.of({
+      create: (draft) =>
+        Effect.gen(function* create() {
+          const grant: AdminGrant = {
+            ...draft,
+            id: AdminGrantId.make(yield* nextId(tables)),
+          };
+
+          yield* Ref.update(tables.adminGrants, (rows) => [...rows, grant]);
+
+          return grant;
+        }),
+      findById: (id) => findOrNotFound(tables.adminGrants, "AdminGrant", id),
+      list: Effect.gen(function* list() {
+        const people = yield* Ref.get(tables.people);
+
+        return Arr.sort(
+          Arr.map(
+            yield* Ref.get(tables.adminGrants),
+            (grant): AdminGrantView => ({
+              ...grant,
+              personName: Option.match(
+                Arr.findFirst(people, (person) => person.id === grant.personId),
+                { onNone: () => "", onSome: (person) => person.name }
+              ),
+            })
+          ),
+          Order.flip(
+            Order.mapInput(Order.Number, (grant: AdminGrant) =>
+              DateTime.toEpochMillis(grant.until)
+            )
+          )
+        );
+      }),
+      revoke: (id, validAfter) =>
+        Effect.gen(function* revoke() {
+          const grants = yield* Ref.get(tables.adminGrants);
+
+          const grant = yield* findOrNotFound(
+            tables.adminGrants,
+            "AdminGrant",
+            id
+          );
+
+          const valid = Arr.filter(grants, (row) =>
+            DateTime.isGreaterThan(row.until, validAfter)
+          );
+
+          if (
+            DateTime.isGreaterThan(grant.until, validAfter) &&
+            valid.length === 1
+          ) {
+            return "last" as const;
+          }
+
+          yield* Ref.update(tables.adminGrants, (rows) =>
+            Arr.filter(rows, (row) => row.id !== id)
+          );
+
+          return "revoked" as const;
+        }),
+    });
+  })
+);
+
+const digestLedger = Layer.effect(
+  DigestLedger,
+  Effect.gen(function* digestLedger() {
+    const tables = yield* TeamTables;
+
+    return DigestLedger.of({
+      claim: (personId, semester) =>
+        Ref.modify(tables.digests, (claimed) => {
+          const key = `${personId}:${semesterOrdinal(semester)}`;
+
+          return claimed.has(key)
+            ? [false, claimed]
+            : [true, new Set([...claimed, key])];
+        }),
+    });
+  })
+);
+
+const principalDirectory = Layer.effect(
+  PrincipalDirectory,
+  Effect.gen(function* principalDirectory() {
+    const tables = yield* TeamTables;
+
+    return PrincipalDirectory.of({
+      byName: (name, { current, now }) =>
+        Effect.gen(function* load() {
+          const person = Arr.findFirst(
+            yield* Ref.get(tables.people),
+            (row) => row.name === name
+          );
+
+          if (Option.isNone(person)) {
+            return Option.none();
+          }
+
+          const teams = yield* Ref.get(tables.teams);
+
+          const stored = yield* Ref.get(tables.memberships);
+
+          const memberships = Arr.flatMap(
+            Arr.filter(
+              stored,
+              (membership) =>
+                membership.personId === person.value.id &&
+                membershipState(membership, current) === "Active"
+            ),
+            (membership: Membership): readonly MembershipFact[] =>
+              Option.match(
+                Arr.findFirst(teams, (team) => team.id === membership.teamId),
+                {
+                  onNone: () => [],
+                  onSome: (team) => [
+                    {
+                      departmentId: team.departmentId,
+                      function: team.function,
+                      leader: membership.leader,
+                      teamId: team.id,
+                    },
+                  ],
+                }
+              )
+          );
+
+          const grants = yield* Ref.get(tables.adminGrants);
+
+          return Option.some(
+            personPrincipal({
+              memberships,
+              now,
+              personId: person.value.id,
+              placeEnds: Arr.flatMap(grants, (grant) =>
+                grant.personId === person.value.id ? [grant.until] : []
+              ),
+            })
+          );
+        }),
+      names: (limit) =>
+        Effect.map(Ref.get(tables.people), (people) =>
+          Arr.take(
+            Arr.sort(
+              Arr.map(people, (person) => person.name),
+              Order.String
+            ),
+            limit
+          )
+        ),
+    });
+  })
+);
+
+/** The teams repositories, the digest ledger and the principal directory over one set of `TeamTables`. */
+export const TeamsInMemory = Layer.mergeAll(
+  personRepository,
+  teamRepository,
+  positionRepository,
+  membershipRepository,
+  adminGrantRepository,
+  digestLedger,
+  principalDirectory
+).pipe(Layer.provideMerge(TeamTables.layer));
+
+/** Reads one fake teams table; the tests assert what was (not) written. */
+export const teamRows = <A>(select: (tables: Tables) => Ref.Ref<A>) =>
+  TeamTables.use((tables) => Ref.get(select(tables)));

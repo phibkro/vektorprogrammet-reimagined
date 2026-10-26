@@ -25,10 +25,27 @@ export const SocialEventId = PositiveInt.pipe(Schema.brand("SocialEventId"));
 
 export type SocialEventId = typeof SocialEventId.Type;
 
-/** A user id. Phase 1 has no user table; it carries the legacy user id (Phase 2 adds the foreign key). */
-export const UserId = PositiveInt.pipe(Schema.brand("UserId"));
+/** A person: one human, whatever engagements they hold (spec 0006). */
+export const PersonId = PositiveInt.pipe(Schema.brand("PersonId"));
 
-export type UserId = typeof UserId.Type;
+export type PersonId = typeof PersonId.Type;
+
+export const TeamId = PositiveInt.pipe(Schema.brand("TeamId"));
+
+export type TeamId = typeof TeamId.Type;
+
+export const MembershipId = PositiveInt.pipe(Schema.brand("MembershipId"));
+
+export type MembershipId = typeof MembershipId.Type;
+
+/** An entry of the position value list ("Leder", "Medlem", …). */
+export const PositionId = PositiveInt.pipe(Schema.brand("PositionId"));
+
+export type PositionId = typeof PositionId.Type;
+
+export const AdminGrantId = PositiveInt.pipe(Schema.brand("AdminGrantId"));
+
+export type AdminGrantId = typeof AdminGrantId.Type;
 
 /** Outbox row id, chosen by `packages/db`. */
 export const OutboxMessageId = Schema.NonEmptyString.pipe(
@@ -66,6 +83,11 @@ export const EntityName = Schema.Literals([
   "Article",
   "SocialEvent",
   "PublicFile",
+  "Person",
+  "Team",
+  "Position",
+  "Membership",
+  "AdminGrant",
 ]);
 
 export type EntityName = typeof EntityName.Type;

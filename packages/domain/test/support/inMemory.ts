@@ -17,10 +17,9 @@ import {
 } from "effect";
 
 import {
-  Actor,
   AlreadyExists,
   AuditLog,
-  CurrentActor,
+  CurrentPrincipal,
   DepartmentId,
   DepartmentRepository,
   EmailAddress,
@@ -31,13 +30,16 @@ import {
   NotFound,
   Outbox,
   OutboxMessageId,
+  PersonId,
+  Principal,
   PublicFileRepository,
   SemesterId,
   SemesterRepository,
+  SiteOrigin,
   SlackChannel,
   SocialEventId,
   SocialEventRepository,
-  UserId,
+  TeamId,
 } from "../../src/index.ts";
 import type {
   AuditEntry,
@@ -49,8 +51,8 @@ import type {
   SocialEvent,
   StoredContentType,
   StoredSemester,
-  Staff,
 } from "../../src/index.ts";
+import { TeamsInMemory } from "./teamsInMemory.ts";
 
 export interface StoredBytes {
   readonly bytes: Uint8Array;
@@ -394,6 +396,10 @@ const AuditLogTest = Layer.effect(
     const db = yield* TestDb;
 
     return AuditLog.of({
+      latest: (limit) =>
+        Effect.map(Ref.get(db.audit), (rows) =>
+          Arr.take(Arr.reverse(rows), limit)
+        ),
       record: (entry) => Ref.update(db.audit, (rows) => [...rows, entry]),
     });
   })
@@ -423,8 +429,11 @@ const CryptoTest = Layer.succeed(Crypto.Crypto)(
   })
 );
 
-/** Every service except `CurrentActor`; `TestDb` stays visible for assertions. */
-export const TestServices = Layer.mergeAll(
+/** The origin that links in test messages carry. */
+export const SITE_ORIGIN = "https://vektorprogrammet.test";
+
+/** The repositories of the Phase 1 domains; `TestDb` stays visible for assertions. */
+const Phase1Services = Layer.mergeAll(
   DepartmentRepositoryTest,
   SemesterRepositoryTest,
   FieldOfStudyRepositoryTest,
@@ -433,45 +442,60 @@ export const TestServices = Layer.mergeAll(
   FileStoreTest,
   OutboxTest,
   AuditLogTest
-).pipe(
-  Layer.provideMerge(TestDb.layer),
+).pipe(Layer.provideMerge(TestDb.layer));
+
+/** Every service except `CurrentPrincipal`; `TestDb` and `TeamTables` stay visible for assertions. */
+export const TestServices = TeamsInMemory.pipe(
+  Layer.provideMerge(Phase1Services),
   Layer.merge(InTransactionTest),
-  Layer.merge(CryptoTest)
+  Layer.merge(CryptoTest),
+  Layer.merge(Layer.succeed(SiteOrigin)(SITE_ORIGIN))
 );
 
-/** Runs `effect` as `actor`. */
-export const asActor =
-  (actor: Actor) =>
+/** Runs `effect` as `principal`. */
+export const asPrincipal =
+  (principal: Principal) =>
   <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    Effect.provideService(effect, CurrentActor, actor);
+    Effect.provideService(effect, CurrentPrincipal, principal);
 
 // Fake same-shape identities; no legacy personal data.
 export const TRONDHEIM = DepartmentId.make(1);
 
 export const BERGEN = DepartmentId.make(2);
 
-const staff = (fields: Omit<Staff, "_tag">): Staff =>
-  Actor.cases.Staff.make(fields);
+export const LATE = DateTime.makeUnsafe("2099-12-31T23:59:59Z");
 
-export const admin = staff({
-  departmentId: TRONDHEIM,
-  executiveBoard: false,
-  role: "admin",
-  userId: UserId.make(100),
+/** A person holding an admin place. */
+export const admin = Principal.cases.Person.make({
+  adminUntil: LATE,
+  memberships: [],
+  personId: PersonId.make(100),
 });
 
-export const teamLeaderTrondheim = staff({
-  departmentId: TRONDHEIM,
-  executiveBoard: false,
-  role: "teamLeader",
-  userId: UserId.make(102),
+/** A leader of a team in Trondheim. */
+export const teamLeaderTrondheim = Principal.cases.Person.make({
+  memberships: [
+    {
+      departmentId: TRONDHEIM,
+      function: "recruitment",
+      leader: true,
+      teamId: TeamId.make(10),
+    },
+  ],
+  personId: PersonId.make(102),
 });
 
-export const teamMemberBergen = staff({
-  departmentId: BERGEN,
-  executiveBoard: false,
-  role: "teamMember",
-  userId: UserId.make(103),
+/** A member of a team in Bergen, not its leader. */
+export const teamMemberBergen = Principal.cases.Person.make({
+  memberships: [
+    {
+      departmentId: BERGEN,
+      function: "recruitment",
+      leader: false,
+      teamId: TeamId.make(20),
+    },
+  ],
+  personId: PersonId.make(103),
 });
 
 /** Seeds rows directly, bypassing commands. */

@@ -13,17 +13,15 @@ import { TestClock } from "effect/testing";
 import type { DepartmentId } from "../../src/index.ts";
 import {
   FieldOfStudyId,
+  OrganisationEndpoints,
   SemesterRepository,
-  createDepartment,
-  createFieldOfStudy,
   currentSemester,
-  ensureScheduledSemesters,
   findCurrentSemester,
   listFieldsOfStudy,
   listSemestersNewestFirst,
-  renameFieldOfStudy,
+  semesterJob,
   semesterLabel,
-  updateDepartment,
+  systemPrincipal,
 } from "../../src/index.ts";
 import { oslo } from "../support/calendar.ts";
 import {
@@ -31,7 +29,7 @@ import {
   TRONDHEIM,
   TestServices,
   admin,
-  asActor,
+  asPrincipal,
   auditActions,
   departmentForTest,
   failureTag,
@@ -52,6 +50,9 @@ const department = (id: DepartmentId, city: string) =>
 const storedLabels = Effect.map(listSemestersNewestFirst, (rows) =>
   Arr.map(rows, semesterLabel)
 );
+
+/** The semester job, as the Worker's `scheduled` handler runs it: as `System("semesters")`, through `authorize`. */
+const ensureScheduled = asPrincipal(systemPrincipal("semesters"))(semesterJob);
 
 /** The semester job's one instant, in Oslo wall-clock time, and the two semesters it must leave behind. */
 const JOB_BOUNDARIES = [
@@ -80,14 +81,14 @@ describe("C2 semesters by schedule (spec 0003)", () => {
       Effect.gen(function* effectProgram() {
         yield* TestClock.setTime(OCTOBER_15);
 
-        const first = yield* ensureScheduledSemesters;
+        const first = yield* ensureScheduled;
 
         assert.deepStrictEqual(yield* storedLabels, ["Vår 2027", "Høst 2026"]);
         assert.strictEqual(semesterLabel(first.current), "Høst 2026");
         assert.strictEqual(semesterLabel(first.next), "Vår 2027");
 
         const rows = yield* table((db) => db.semesters);
-        const second = yield* ensureScheduledSemesters;
+        const second = yield* ensureScheduled;
 
         assert.deepStrictEqual(second, first);
         assert.deepStrictEqual(yield* table((db) => db.semesters), rows);
@@ -99,7 +100,7 @@ describe("C2 semesters by schedule (spec 0003)", () => {
     ({ now, expected }) =>
       Effect.gen(function* effectProgram() {
         yield* TestClock.setTime(DateTime.toEpochMillis(oslo(now)));
-        yield* ensureScheduledSemesters;
+        yield* ensureScheduled;
 
         assert.deepStrictEqual(yield* storedLabels, expected);
       }).pipe(Effect.provide(TestServices))
@@ -112,7 +113,7 @@ describe("C2 semesters by schedule (spec 0003)", () => {
         yield* TestClock.setTime(OCTOBER_15);
 
         const runs = yield* Effect.all(
-          Array.from({ length: 20 }, () => ensureScheduledSemesters),
+          Array.from({ length: 20 }, () => ensureScheduled),
           { concurrency: "unbounded" }
         );
 
@@ -135,7 +136,7 @@ describe("C2 semesters by schedule (spec 0003)", () => {
 
       const semesters = yield* SemesterRepository;
       yield* semesters.ensure({ term: "HOST", year: 2025 });
-      yield* ensureScheduledSemesters;
+      yield* ensureScheduled;
 
       assert.deepStrictEqual(yield* storedLabels, [
         "Vår 2027",
@@ -158,7 +159,7 @@ describe("C2 semesters by schedule (spec 0003)", () => {
         assert.isTrue(Option.isNone((yield* findCurrentSemester).stored));
         assert.strictEqual((yield* table((db) => db.semesters)).length, 0);
 
-        yield* ensureScheduledSemesters;
+        yield* ensureScheduled;
 
         const found = yield* findCurrentSemester;
 
@@ -189,6 +190,34 @@ describe("C2 semesters by schedule (spec 0003)", () => {
       ]);
     }).pipe(Effect.provide(TestServices))
   );
+
+  it.effect(
+    "R1: the job holds its own grant and nobody else's: a person, an admin or another job is refused",
+    () =>
+      Effect.gen(function* effectProgram() {
+        yield* TestClock.setTime(OCTOBER_15);
+
+        const asTeamLeader = asPrincipal(teamLeaderTrondheim);
+        const asAdmin = asPrincipal(admin);
+        const asOtherJob = asPrincipal(systemPrincipal("endingSoon"));
+
+        const refused = yield* Effect.all(
+          [
+            Effect.exit(asTeamLeader(semesterJob)),
+            Effect.exit(asAdmin(semesterJob)),
+            Effect.exit(asOtherJob(semesterJob)),
+          ],
+          { concurrency: 1 }
+        );
+
+        assert.deepStrictEqual(Arr.map(refused, failureTag), [
+          "Forbidden",
+          "Forbidden",
+          "Forbidden",
+        ]);
+        assert.strictEqual((yield* table((db) => db.semesters)).length, 0);
+      }).pipe(Effect.provide(TestServices))
+  );
 });
 
 describe("C1 fields of study", () => {
@@ -196,8 +225,9 @@ describe("C1 fields of study", () => {
     "RULE-139: a team leader creates fields of study in their own department",
     () =>
       Effect.gen(function* effectProgram() {
-        const created = yield* asActor(teamLeaderTrondheim)(
-          createFieldOfStudy({
+        const created = yield* asPrincipal(teamLeaderTrondheim)(
+          OrganisationEndpoints.createFieldOfStudy({
+            departmentId: TRONDHEIM,
             name: "Matematikk og fysikk",
             shortName: "MTFYMA",
           })
@@ -205,7 +235,7 @@ describe("C1 fields of study", () => {
 
         assert.strictEqual(created.departmentId, TRONDHEIM);
 
-        const listed = yield* asActor(teamLeaderTrondheim)(
+        const listed = yield* asPrincipal(teamLeaderTrondheim)(
           listFieldsOfStudy(TRONDHEIM)
         );
 
@@ -232,22 +262,23 @@ describe("C1 fields of study", () => {
 
         yield* seed.fieldOfStudy(bergenField);
 
+        const asLeader = asPrincipal(teamLeaderTrondheim);
+
         const rename = yield* Effect.exit(
-          asActor(teamLeaderTrondheim)(
-            renameFieldOfStudy(bergenField.id, {
+          asLeader(
+            OrganisationEndpoints.renameFieldOfStudy({
+              id: bergenField.id,
               name: "Endret",
               shortName: "X",
             })
           )
         );
 
-        const list = yield* Effect.exit(
-          asActor(teamLeaderTrondheim)(listFieldsOfStudy(BERGEN))
-        );
+        const list = yield* Effect.exit(asLeader(listFieldsOfStudy(BERGEN)));
 
         const create = yield* Effect.exit(
-          asActor(teamLeaderTrondheim)(
-            createFieldOfStudy({
+          asLeader(
+            OrganisationEndpoints.createFieldOfStudy({
               departmentId: BERGEN,
               name: "Ny",
               shortName: "NY",
@@ -276,8 +307,9 @@ describe("C1 fields of study", () => {
           shortName: "G",
         });
 
-        const renamed = yield* asActor(teamLeaderTrondheim)(
-          renameFieldOfStudy(FieldOfStudyId.make(7), {
+        const renamed = yield* asPrincipal(teamLeaderTrondheim)(
+          OrganisationEndpoints.renameFieldOfStudy({
+            id: FieldOfStudyId.make(7),
             name: " Ny linje ",
             shortName: "NL",
           })
@@ -293,8 +325,12 @@ describe("C1 fields of study", () => {
     () =>
       Effect.gen(function* effectProgram() {
         const exit = yield* Effect.exit(
-          asActor(teamMemberBergen)(
-            createFieldOfStudy({ name: "Fysikk", shortName: "FYS" })
+          asPrincipal(teamMemberBergen)(
+            OrganisationEndpoints.createFieldOfStudy({
+              departmentId: BERGEN,
+              name: "Fysikk",
+              shortName: "FYS",
+            })
           )
         );
 
@@ -321,18 +357,23 @@ describe("C1 departments", () => {
     "an admin creates a department; a duplicate city is AlreadyExists",
     () =>
       Effect.gen(function* effectProgram() {
-        const created = yield* asActor(admin)(createDepartment(input));
+        const created = yield* asPrincipal(admin)(
+          OrganisationEndpoints.createDepartment(input)
+        );
+
         assert.strictEqual(created.city, "Tromsø");
 
         const duplicate = yield* Effect.flip(
-          asActor(admin)(createDepartment({ ...input, name: "Andre" }))
+          asPrincipal(admin)(
+            OrganisationEndpoints.createDepartment({ ...input, name: "Andre" })
+          )
         );
 
         assert.strictEqual(duplicate._tag, "AlreadyExists");
 
         const leader = yield* Effect.exit(
-          asActor(teamLeaderTrondheim)(
-            createDepartment({ ...input, city: "Bodø" })
+          asPrincipal(teamLeaderTrondheim)(
+            OrganisationEndpoints.createDepartment({ ...input, city: "Bodø" })
           )
         );
 
@@ -345,10 +386,11 @@ describe("C1 departments", () => {
       yield* seed.department(department(TRONDHEIM, "Trondheim"));
       yield* seed.department(department(BERGEN, "Bergen"));
 
-      const own = yield* asActor(teamLeaderTrondheim)(
-        updateDepartment(TRONDHEIM, {
+      const own = yield* asPrincipal(teamLeaderTrondheim)(
+        OrganisationEndpoints.updateDepartment({
           ...input,
           city: "Trondheim",
+          id: TRONDHEIM,
           name: "Vektor NTNU",
         })
       );
@@ -356,8 +398,12 @@ describe("C1 departments", () => {
       assert.strictEqual(own.name, "Vektor NTNU");
 
       const other = yield* Effect.exit(
-        asActor(teamLeaderTrondheim)(
-          updateDepartment(BERGEN, { ...input, city: "Bergen" })
+        asPrincipal(teamLeaderTrondheim)(
+          OrganisationEndpoints.updateDepartment({
+            ...input,
+            city: "Bergen",
+            id: BERGEN,
+          })
         )
       );
 
@@ -370,8 +416,12 @@ describe("C1 departments", () => {
     () =>
       Effect.gen(function* effectProgram() {
         const error = yield* Effect.flip(
-          asActor(admin)(
-            createDepartment({ ...input, email: "tromso@", name: "  " })
+          asPrincipal(admin)(
+            OrganisationEndpoints.createDepartment({
+              ...input,
+              email: "tromso@",
+              name: "  ",
+            })
           )
         );
 

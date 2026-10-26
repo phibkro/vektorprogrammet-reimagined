@@ -2,11 +2,11 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect, Predicate } from "effect";
 
 import {
+  ContentEndpoints,
   END_BEFORE_START_MESSAGE,
   EVENT_BADGE_LABEL,
   REQUIRED_FIELD_MESSAGE,
   SemesterId,
-  createSocialEvent,
   eventBadge,
 } from "../../src/index.ts";
 import type { DomainError, ValidationIssue } from "../../src/index.ts";
@@ -14,7 +14,7 @@ import {
   BERGEN,
   TRONDHEIM,
   TestServices,
-  asActor,
+  asPrincipal,
   at,
   auditActions,
   failureTag,
@@ -39,8 +39,8 @@ describe("C8 social events", () => {
   it.effect("RULE-188: a blank title is rejected", () =>
     Effect.gen(function* effectProgram() {
       const error = yield* Effect.flip(
-        asActor(teamMemberBergen)(
-          createSocialEvent({ ...eventInput, title: "  " })
+        asPrincipal(teamMemberBergen)(
+          ContentEndpoints.createSocialEvent({ ...eventInput, title: "  " })
         )
       );
 
@@ -54,8 +54,8 @@ describe("C8 social events", () => {
   it.effect("RULE-188: the link is at most 250 characters", () =>
     Effect.gen(function* effectProgram() {
       const error = yield* Effect.flip(
-        asActor(teamMemberBergen)(
-          createSocialEvent({
+        asPrincipal(teamMemberBergen)(
+          ContentEndpoints.createSocialEvent({
             ...eventInput,
             link: `https://example.org/${"x".repeat(240)}`,
           })
@@ -74,8 +74,11 @@ describe("C8 social events", () => {
     () =>
       Effect.gen(function* effectProgram() {
         const error = yield* Effect.flip(
-          asActor(teamMemberBergen)(
-            createSocialEvent({ ...eventInput, endsAt: eventInput.startsAt })
+          asPrincipal(teamMemberBergen)(
+            ContentEndpoints.createSocialEvent({
+              ...eventInput,
+              endsAt: eventInput.startsAt,
+            })
           )
         );
 
@@ -89,8 +92,11 @@ describe("C8 social events", () => {
     "RULE-188: a titled event is saved for the chosen region and semester; no role field",
     () =>
       Effect.gen(function* effectProgram() {
-        const created = yield* asActor(teamMemberBergen)(
-          createSocialEvent({ ...eventInput, role: "ROLE_ADMIN" })
+        const created = yield* asPrincipal(teamMemberBergen)(
+          ContentEndpoints.createSocialEvent({
+            ...eventInput,
+            role: "ROLE_ADMIN",
+          })
         );
 
         assert.strictEqual(created.departmentId, BERGEN);
@@ -105,8 +111,11 @@ describe("C8 social events", () => {
     () =>
       Effect.gen(function* effectProgram() {
         const exit = yield* Effect.exit(
-          asActor(teamMemberBergen)(
-            createSocialEvent({ ...eventInput, departmentId: TRONDHEIM })
+          asPrincipal(teamMemberBergen)(
+            ContentEndpoints.createSocialEvent({
+              ...eventInput,
+              departmentId: TRONDHEIM,
+            })
           )
         );
 
