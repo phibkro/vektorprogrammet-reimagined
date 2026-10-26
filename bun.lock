@@ -117,6 +117,7 @@
         "effect": "catalog:",
       },
       "devDependencies": {
+        "@effect/platform-node": "catalog:",
         "@effect/sql-pglite": "catalog:",
         "@effect/vitest": "catalog:",
         "@electric-sql/pglite": "catalog:",

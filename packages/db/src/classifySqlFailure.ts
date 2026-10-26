@@ -9,9 +9,22 @@
  * The result is an `Exit`, which is an `Effect`, so a repository can write
  * `Effect.catch((failure) => classifySqlFailure(failure, key))`.
  */
-import { AlreadyExists } from "@vektorprogrammet/domain";
+import {
+  AlreadyExists,
+  MEMBERSHIP_OVERLAPS,
+  PERSON_EXISTS,
+  TEAM_EXISTS,
+} from "@vektorprogrammet/domain";
 import type { EntityName } from "@vektorprogrammet/domain";
-import { Cause, Exit, Option, Predicate, Record as Rec, Schema } from "effect";
+import {
+  Cause,
+  Exit,
+  Match,
+  Option,
+  Predicate,
+  Record as Rec,
+  Schema,
+} from "effect";
 import { isSqlError } from "effect/sql/SqlError";
 import type { SqlError } from "effect/sql/SqlError";
 
@@ -28,9 +41,21 @@ const uniqueOutcomes: Record<UniqueConstraint, UniqueOutcome> = {
     entity: "Department",
     message: (key) => `Det finnes allerede en avdeling i ${key}.`,
   },
+  [UniqueConstraint.membershipOverlap]: {
+    entity: "Membership",
+    message: () => MEMBERSHIP_OVERLAPS,
+  },
+  [UniqueConstraint.personEmail]: {
+    entity: "Person",
+    message: () => PERSON_EXISTS,
+  },
   [UniqueConstraint.semesterTermYear]: {
     entity: "Semester",
     message: (key) => `Semesteret ${key} finnes allerede`,
+  },
+  [UniqueConstraint.teamName]: {
+    entity: "Team",
+    message: () => TEAM_EXISTS,
   },
 };
 
@@ -62,14 +87,32 @@ const findSqlError = (failure: unknown, depth = 0): Option.Option<SqlError> => {
   return Option.none();
 };
 
-/** The unique constraint a failure violated, if it is a unique violation. */
+/** SQLSTATE of an exclusion violation; the driver reports it as a plain `ConstraintError` with the driver's error as `cause`. */
+const EXCLUSION_VIOLATION = "23P01";
+
+const exclusionConstraintOf = (reason: {
+  readonly cause?: unknown;
+}): Option.Option<string> => {
+  const { cause } = reason;
+
+  return Predicate.hasProperty(cause, "code") &&
+    cause.code === EXCLUSION_VIOLATION &&
+    Predicate.hasProperty(cause, "constraint") &&
+    Predicate.isString(cause.constraint)
+    ? Option.some(cause.constraint)
+    : Option.none();
+};
+
+/** The unique or exclusion constraint a failure violated, if it is such a violation. */
 export const violatedUniqueConstraint = (
   failure: unknown
 ): Option.Option<string> =>
   Option.flatMap(findSqlError(failure), (error) =>
-    Predicate.isTagged(error.reason, "UniqueViolation")
-      ? Option.some(error.reason.constraint)
-      : Option.none()
+    Match.value(error.reason).pipe(
+      Match.tag("UniqueViolation", ({ constraint }) => Option.some(constraint)),
+      Match.tag("ConstraintError", exclusionConstraintOf),
+      Match.orElse(() => Option.none())
+    )
   );
 
 /**

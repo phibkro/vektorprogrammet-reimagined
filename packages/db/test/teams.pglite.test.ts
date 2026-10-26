@@ -1,0 +1,454 @@
+/**
+ * The teams repositories (spec 0006) on PGlite behind the same `RepositoriesLayer` as production: the constraints
+ * that map to `AlreadyExists`, the conditional updates that turn a lost race into `Conflict`, the reads, the digest
+ * ledger and the principal directory. The real-PostgreSQL races are `teams.postgres.test.ts`.
+ */
+import { assert, layer } from "@effect/vitest";
+import {
+  AdminGrantRepository,
+  DigestLedger,
+  EmailAddress,
+  MembershipRepository,
+  PersonRepository,
+  PositionRepository,
+  PrincipalDirectory,
+  TeamRepository,
+} from "@vektorprogrammet/domain";
+import { Array as Arr, DateTime, Effect, Exit, Option } from "effect";
+
+import { pgliteDatabase } from "./support/database.ts";
+import { insertMembership, semester, world } from "./support/teamsWorld.ts";
+
+const HOST_2026 = semester("HOST", 2026);
+
+const VAR_2027 = semester("VAR", 2027);
+
+const HOST_2027 = semester("HOST", 2027);
+
+const NOW = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
+
+const LATER = DateTime.makeUnsafe("2099-12-31T23:59:59Z");
+
+layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
+  it.effect(
+    "the position value list starts with the legacy fixtures, Leder and Medlem",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const positions = yield* (yield* PositionRepository).list;
+
+        assert.deepStrictEqual(
+          Arr.map(positions, (position) => position.name),
+          ["Leder", "Medlem"]
+        );
+      })
+  );
+
+  it.effect(
+    "a person has the department of their field of study, and one e-mail address is one person",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { department, fieldOfStudy, person } = yield* world("alfa");
+        const people = yield* PersonRepository;
+
+        assert.strictEqual(person.departmentId, department.id);
+
+        const again = yield* Effect.flip(
+          people.create({
+            email: person.email,
+            fieldOfStudyId: fieldOfStudy.id,
+            name: "Annen Person",
+          })
+        );
+
+        assert.strictEqual(again._tag, "AlreadyExists");
+        assert.deepStrictEqual(
+          Arr.map(yield* people.list(department.id), (found) => found.id),
+          [person.id]
+        );
+        assert.deepStrictEqual(yield* people.findById(person.id), person);
+      })
+  );
+
+  it.effect("the database keeps e-mail addresses in lower case", () =>
+    Effect.gen(function* effectProgram() {
+      const { fieldOfStudy } = yield* world("beta");
+
+      const exit = yield* Effect.exit(
+        (yield* PersonRepository).create({
+          email: EmailAddress.make("Stor.Bokstav@example.org"),
+          fieldOfStudyId: fieldOfStudy.id,
+          name: "Stor Bokstav",
+        })
+      );
+
+      assert.isTrue(Exit.hasDies(exit));
+    })
+  );
+
+  it.effect(
+    "RULE-157: a team name is unique within a department, and a team is deactivated, never deleted",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { department, team } = yield* world("gamma");
+        const teams = yield* TeamRepository;
+
+        const duplicate = yield* Effect.flip(
+          teams.create({
+            defaultTerm: 1,
+            departmentId: department.id,
+            function: "it",
+            name: team.name,
+          })
+        );
+
+        const renamedToItself = yield* teams.update(team.id, {
+          defaultTerm: 1,
+          function: "it",
+          name: team.name,
+        });
+
+        const deactivated = yield* teams.deactivate(team.id);
+
+        assert.strictEqual(duplicate._tag, "AlreadyExists");
+        assert.strictEqual(renamedToItself.function, "it");
+        assert.isFalse(deactivated.active);
+        assert.deepStrictEqual(
+          Arr.map(yield* teams.list(department.id), (found) => found.id),
+          [team.id]
+        );
+      })
+  );
+
+  it.effect(
+    "a person's terms in one team never overlap; a term that starts the semester after another ends is fine",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { memberPosition, person, team } = yield* world("delta");
+
+        const who = {
+          personId: person.id,
+          positionId: memberPosition,
+          teamId: team.id,
+        };
+
+        const first = yield* insertMembership(who, {
+          end: VAR_2027,
+          start: HOST_2026,
+        });
+
+        const overlapping = yield* Effect.flip(
+          insertMembership(who, { end: HOST_2027, start: VAR_2027 })
+        );
+
+        const next = yield* insertMembership(who, {
+          end: HOST_2027,
+          start: HOST_2027,
+        });
+
+        const memberships = yield* MembershipRepository;
+
+        assert.strictEqual(overlapping._tag, "AlreadyExists");
+        assert.deepStrictEqual(
+          Arr.map(yield* memberships.listByTeam(team.id), (row) => row.id),
+          [first.id, next.id]
+        );
+        assert.deepStrictEqual(
+          Arr.map(yield* memberships.listByPerson(person.id), (row) => row.id),
+          [next.id, first.id]
+        );
+      })
+  );
+
+  it.effect(
+    "activeIn answers one definition of active: start ≤ the semester ≤ end, with the names the digest needs",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { department, leaderPosition, person, team } =
+          yield* world("epsilon");
+
+        const planned = yield* insertMembership(
+          { personId: person.id, positionId: leaderPosition, teamId: team.id },
+          { end: HOST_2027, start: HOST_2027 },
+          true
+        );
+
+        const memberships = yield* MembershipRepository;
+        const before = yield* memberships.activeIn(HOST_2026);
+        const active = yield* memberships.activeIn(HOST_2027);
+        const row = Arr.findFirst(active, (found) => found.id === planned.id);
+
+        assert.isFalse(Arr.some(before, (found) => found.id === planned.id));
+        assert.isTrue(Option.isSome(row));
+
+        assert.deepStrictEqual(
+          Option.map(row, (found) => [
+            found.teamName,
+            found.personName,
+            found.personEmail,
+            found.departmentId,
+            found.positionName,
+          ]),
+          Option.some([
+            team.name,
+            person.name,
+            person.email,
+            department.id,
+            "Leder",
+          ])
+        );
+      })
+  );
+
+  it.effect(
+    "setEnd is a conditional update: it matches only an Active membership that still ends where the caller read it",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { memberPosition, person, team } = yield* world("zeta");
+
+        const created = yield* insertMembership(
+          {
+            personId: person.id,
+            positionId: memberPosition,
+            teamId: team.id,
+          },
+          { end: VAR_2027, start: HOST_2026 }
+        );
+
+        const memberships = yield* MembershipRepository;
+
+        const stale = yield* Effect.flip(
+          memberships.setEnd({
+            activeIn: HOST_2026,
+            id: created.id,
+            newEnd: HOST_2027,
+            observedEnd: HOST_2026,
+          })
+        );
+
+        const notActive = yield* Effect.flip(
+          memberships.setEnd({
+            activeIn: HOST_2027,
+            id: created.id,
+            newEnd: HOST_2027,
+            observedEnd: VAR_2027,
+          })
+        );
+
+        const extended = yield* memberships.setEnd({
+          activeIn: HOST_2026,
+          id: created.id,
+          newEnd: HOST_2027,
+          observedEnd: VAR_2027,
+        });
+
+        const again = yield* Effect.flip(
+          memberships.setEnd({
+            activeIn: HOST_2026,
+            id: created.id,
+            newEnd: HOST_2027,
+            observedEnd: VAR_2027,
+          })
+        );
+
+        assert.deepStrictEqual(
+          Arr.map([stale, notActive, again], (failure) => failure._tag),
+          ["Conflict", "Conflict", "Conflict"]
+        );
+        assert.deepStrictEqual(extended.end, HOST_2027);
+        assert.deepStrictEqual(
+          (yield* memberships.findById(created.id)).end,
+          HOST_2027
+        );
+      })
+  );
+
+  it.effect(
+    "setEnd that would overlap the next term of the same person in the team is AlreadyExists",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { memberPosition, person, team } = yield* world("eta");
+
+        const who = {
+          personId: person.id,
+          positionId: memberPosition,
+          teamId: team.id,
+        };
+
+        const first = yield* insertMembership(who, {
+          end: HOST_2026,
+          start: HOST_2026,
+        });
+
+        yield* insertMembership(who, { end: HOST_2027, start: VAR_2027 });
+
+        const overlap = yield* Effect.flip(
+          (yield* MembershipRepository).setEnd({
+            activeIn: HOST_2026,
+            id: first.id,
+            newEnd: VAR_2027,
+            observedEnd: HOST_2026,
+          })
+        );
+
+        assert.strictEqual(overlap._tag, "AlreadyExists");
+      })
+  );
+
+  it.effect(
+    "remove deletes a membership that has not started and still has the term the caller read, and nothing else",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { memberPosition, person, team } = yield* world("theta");
+
+        const planned = yield* insertMembership(
+          {
+            personId: person.id,
+            positionId: memberPosition,
+            teamId: team.id,
+          },
+          { end: HOST_2027, start: HOST_2027 }
+        );
+
+        const memberships = yield* MembershipRepository;
+        const observed = { end: planned.end, start: planned.start };
+
+        const changed = yield* Effect.flip(
+          memberships.remove({
+            current: HOST_2026,
+            id: planned.id,
+            observed: { end: VAR_2027, start: HOST_2027 },
+          })
+        );
+
+        const started = yield* Effect.flip(
+          memberships.remove({ current: HOST_2027, id: planned.id, observed })
+        );
+
+        yield* memberships.remove({
+          current: HOST_2026,
+          id: planned.id,
+          observed,
+        });
+
+        const gone = yield* Effect.flip(memberships.findById(planned.id));
+
+        assert.deepStrictEqual(
+          Arr.map([changed, started], (failure) => failure._tag),
+          ["Conflict", "Conflict"]
+        );
+        assert.strictEqual(gone._tag, "NotFound");
+      })
+  );
+
+  it.effect(
+    "the admin list: the last place that ends after the cut-off cannot be revoked, an expired place does not count",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { person } = yield* world("iota");
+        const grants = yield* AdminGrantRepository;
+        const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
+
+        const expired = yield* grants.create({
+          grantedBy: null,
+          personId: person.id,
+          until: DateTime.makeUnsafe("2026-08-31T00:00:00Z"),
+        });
+
+        const only = yield* grants.create({
+          grantedBy: null,
+          personId: person.id,
+          until: LATER,
+        });
+
+        const last = yield* grants.revoke(only.id, cutoff);
+        const dropped = yield* grants.revoke(expired.id, cutoff);
+        const missing = yield* Effect.flip(grants.revoke(expired.id, cutoff));
+
+        assert.strictEqual(last, "last");
+        assert.strictEqual(dropped, "revoked");
+        assert.strictEqual(missing._tag, "NotFound");
+        assert.deepStrictEqual(
+          Arr.map(yield* grants.list, (grant) => grant.id),
+          [only.id]
+        );
+      })
+  );
+
+  it.effect("the digest ledger gives a leader's semester out once", () =>
+    Effect.gen(function* effectProgram() {
+      const { person } = yield* world("kappa");
+      const ledger = yield* DigestLedger;
+
+      assert.deepStrictEqual(
+        [
+          yield* ledger.claim(person.id, HOST_2026),
+          yield* ledger.claim(person.id, HOST_2026),
+          yield* ledger.claim(person.id, VAR_2027),
+        ],
+        [true, false, true]
+      );
+    })
+  );
+
+  it.effect(
+    "the principal directory loads a person's active memberships and valid admin places in one read",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { department, leaderPosition, person, team } =
+          yield* world("lambda");
+
+        yield* insertMembership(
+          { personId: person.id, positionId: leaderPosition, teamId: team.id },
+          { end: VAR_2027, start: HOST_2026 },
+          true
+        );
+
+        yield* (yield* AdminGrantRepository).create({
+          grantedBy: null,
+          personId: person.id,
+          until: LATER,
+        });
+
+        const directory = yield* PrincipalDirectory;
+
+        const found = yield* directory.byName(person.name, {
+          current: HOST_2026,
+          now: NOW,
+        });
+
+        const later = yield* directory.byName(person.name, {
+          current: HOST_2027,
+          now: DateTime.makeUnsafe("2100-01-01T00:00:00Z"),
+        });
+
+        const missing = yield* directory.byName("Finnes Ikke", {
+          current: HOST_2026,
+          now: NOW,
+        });
+
+        assert.isTrue(Option.isNone(missing));
+        assert.isTrue(Option.isSome(found));
+        assert.isTrue(Option.isSome(later));
+
+        if (Option.isSome(found)) {
+          assert.strictEqual(found.value.personId, person.id);
+          assert.deepStrictEqual(found.value.memberships, [
+            {
+              departmentId: department.id,
+              function: "recruitment",
+              leader: true,
+              teamId: team.id,
+            },
+          ]);
+          assert.isDefined(found.value.adminUntil);
+        }
+
+        if (Option.isSome(later)) {
+          assert.deepStrictEqual(later.value.memberships, []);
+          assert.isUndefined(later.value.adminUntil);
+        }
+
+        assert.isTrue(Arr.contains(yield* directory.names(50), person.name));
+      })
+  );
+});

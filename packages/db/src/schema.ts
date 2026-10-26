@@ -19,6 +19,8 @@ import {
   FileExtension,
   OutboxMessage,
   StoredContentType,
+  SystemJob,
+  TeamFunction,
   Term,
 } from "@vektorprogrammet/domain";
 import { sql } from "drizzle-orm";
@@ -32,6 +34,8 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -58,10 +62,18 @@ export const outboxStatus = pgEnum("outbox_status", [
   "dead",
 ]);
 
-/** Unique constraint names; `classifySqlFailure` maps each to `AlreadyExists`. */
+export const teamFunction = pgEnum("team_function", TeamFunction.literals);
+
+/**
+ * Constraint names that `classifySqlFailure` maps to `AlreadyExists`: the unique constraints and the exclusion
+ * constraint of the memberships.
+ */
 export const UniqueConstraint = {
   departmentCity: "department_city_unique",
+  membershipOverlap: "membership_no_overlap",
+  personEmail: "person_email_unique",
   semesterTermYear: "semester_term_year_unique",
+  teamName: "team_department_name_unique",
 } as const;
 
 export type UniqueConstraint =
@@ -155,6 +167,142 @@ export const fieldOfStudy = pgTable(
   ]
 );
 
+/** Spec 0006: one human known to Vektorprogrammet. The department is the field of study's (RULE-164). */
+export const person = pgTable(
+  "person",
+  {
+    email: text("email").notNull(),
+    fieldOfStudyId: integer("field_of_study_id")
+      .notNull()
+      .references(() => fieldOfStudy.id),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    name: text("name").notNull(),
+  },
+  (t) => [
+    unique(UniqueConstraint.personEmail).on(t.email),
+    index("person_field_of_study_idx").on(t.fieldOfStudyId),
+    check("person_email_lowercase", sql`${t.email} = lower(${t.email})`),
+    check("person_name", sql`length(${t.name}) > 0`),
+  ]
+);
+
+/** A team of one department (RULE-157: the name is unique there). Deactivated, never deleted (RULE-233). */
+export const team = pgTable(
+  "team",
+  {
+    active: boolean("active").notNull().default(true),
+    defaultTerm: smallint("default_term").notNull(),
+    departmentId: integer("department_id")
+      .notNull()
+      .references(() => department.id),
+    function: teamFunction("function").notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    name: text("name").notNull(),
+  },
+  (t) => [
+    unique(UniqueConstraint.teamName).on(t.departmentId, t.name),
+    check("team_default_term", sql`${t.defaultTerm} in (1, 2)`),
+    check("team_name", sql`length(${t.name}) > 0`),
+  ]
+);
+
+/** The value list of positions (`Leder`, `Medlem`, …); the first migration seeds the legacy fixtures. */
+export const position = pgTable(
+  "position",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    name: text("name").notNull(),
+  },
+  (t) => [
+    unique("position_name_unique").on(t.name),
+    check("position_name", sql`length(${t.name}) > 0`),
+  ]
+);
+
+/** Semesters in calendar order, one integer each: Vår before Høst, so Vår 2026 is 4052 and Høst 2026 is 4053. */
+const ordinalOf = (term: string, year: string): SQL =>
+  sql.raw(`${year} * 2 + (case when ${term} = 'HOST' then 1 else 0 end)`);
+
+/**
+ * A person's place in a team for a term (ADR 0002). The state (Planned, Active, Ended) is never stored: it is
+ * calculated from the term and the current semester. `start ≤ end` is a check; the exclusion constraint
+ * `membership_no_overlap` (a custom migration, which Drizzle cannot model) keeps one person's terms in one team from
+ * overlapping.
+ */
+export const membership = pgTable(
+  "membership",
+  {
+    endOrdinal: integer("end_ordinal").generatedAlwaysAs(
+      ordinalOf("end_term", "end_year")
+    ),
+    endTerm: semesterTerm("end_term").notNull(),
+    endYear: integer("end_year").notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    leader: boolean("leader").notNull().default(false),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    positionId: integer("position_id")
+      .notNull()
+      .references(() => position.id),
+    startOrdinal: integer("start_ordinal").generatedAlwaysAs(
+      ordinalOf("start_term", "start_year")
+    ),
+    startTerm: semesterTerm("start_term").notNull(),
+    startYear: integer("start_year").notNull(),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => team.id),
+  },
+  (t) => [
+    index("membership_team_idx").on(t.teamId),
+    index("membership_person_idx").on(t.personId),
+    check("membership_term_order", sql`${t.startOrdinal} <= ${t.endOrdinal}`),
+    check("membership_start_year", sql`${t.startYear} between 1900 and 9999`),
+    check("membership_end_year", sql`${t.endYear} between 1900 and 9999`),
+  ]
+);
+
+/** `docs/system/administration.md`: a place on the admin list. The first one has no granter (given outside the system). */
+export const adminGrant = pgTable(
+  "admin_grant",
+  {
+    grantedBy: integer("granted_by").references(() => person.id),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    until: instant("until").notNull(),
+  },
+  (t) => [
+    index("admin_grant_person_idx").on(t.personId),
+    index("admin_grant_until_idx").on(t.until),
+    check(
+      "admin_grant_not_self",
+      sql`${t.grantedBy} is null or ${t.grantedBy} <> ${t.personId}`
+    ),
+  ]
+);
+
+/** Which leader got the "ending soon" digest of which semester (spec 0006, falsifier 7): it goes out once. */
+export const endingSoonDigest = pgTable(
+  "ending_soon_digest",
+  {
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    recordedAt: instant("recorded_at").notNull(),
+    term: semesterTerm("term").notNull(),
+    year: integer("year").notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.personId, t.term, t.year],
+      name: "ending_soon_digest_pk",
+    }),
+  ]
+);
+
 /** C2 admission periods. Phase 1 imports them; Phase 3 adds the repository and the editor. */
 export const admissionPeriod = pgTable(
   "admission_period",
@@ -240,21 +388,34 @@ export const outbox = pgTable(
   ]
 );
 
-/** C12 change audit: one row per staff write, in the write's transaction. */
+/**
+ * C12 change audit: one row per write, in the write's transaction. It records the principal (spec 0006, R1): a
+ * person id or the name of a scheduled job, never both. There is no foreign key: the audit trail outlives whatever it
+ * names.
+ */
 export const auditLog = pgTable(
   "audit_log",
   {
     action: text("action").notNull(),
-    actorId: integer("actor_id").notNull(),
     at: instant("at").notNull(),
     entity: text("entity").notNull(),
     entityKey: text("entity_key").notNull(),
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    personId: integer("person_id"),
+    systemJob: text("system_job"),
   },
   (t) => [
     index("audit_log_entity_idx").on(t.entity, t.entityKey),
     check("audit_log_action", oneOf(sql`${t.action}`, AuditAction.literals)),
     check("audit_log_entity", oneOf(sql`${t.entity}`, EntityName.literals)),
-    check("audit_log_actor", sql`${t.actorId} > 0`),
+    check("audit_log_person", sql`${t.personId} is null or ${t.personId} > 0`),
+    check(
+      "audit_log_system_job",
+      oneOf(sql`${t.systemJob}`, SystemJob.literals)
+    ),
+    check(
+      "audit_log_principal",
+      sql`(${t.personId} is not null) <> (${t.systemJob} is not null)`
+    ),
   ]
 );
