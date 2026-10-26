@@ -10,6 +10,8 @@ The kernel uses the names and shapes of effx spec 0031 (`docs/specs/0031-domain-
 
 Grants (ADR 0001) stay the declaration of who may do what. Cedar policies, if wanted, are generated from the grants; they are never written by hand.
 
+- effx builds the declaration IR, the emitters and the checks in parallel (effx specs 0031, 0032). The runtime kernel (`authorize`, `Machine.can`, the guard revivers) stays here until the move, so there is one `authorize`. The kernel exports each domain as an effx `DomainDescription`, and its tests check `authorize` and `Machine.can` against the conformance vectors that effx generates.
+
 ## Consequences
 
 - Spec 0015 (simulation and model checking) generates the Alloy model from the kernel and replays its traces through `Commands.endpoint`, instead of driving random command sequences only.
