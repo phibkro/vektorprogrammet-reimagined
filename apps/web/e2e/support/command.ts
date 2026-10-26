@@ -14,6 +14,11 @@ export const importerDirectory = new URL(
 
 export const cmsDirectory = new URL("../../../cms/", import.meta.url).pathname;
 
+export const databaseDirectory = new URL(
+  "../../../../packages/db/",
+  import.meta.url
+).pathname;
+
 export class CommandFailed extends Schema.TaggedError<
   CommandFailed,
   { readonly brand: unique symbol }

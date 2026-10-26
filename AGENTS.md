@@ -1,6 +1,6 @@
 # vektorprogrammet (reimagined)
 
-A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organisation that places student assistants in schools. This repository is Phase 1 of a five-phase plan: the organisation core (departments, semesters, fields of study, admission periods) and the public site (home, about, assistants, team, parents, schools, news, sponsors, contact, files), whose editable texts, news and sponsors live in EmDash.
+A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organisation that places student assistants in schools. Phase 1 covers the public site and organisation core. Spec 0006 starts Phase 2 with people, teams and a declaration kernel.
 
 ## Where the truth lives
 
@@ -10,8 +10,8 @@ A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organ
 | Capabilities, domain model, interface contracts, Behavior Contract | `../../analysis/vektorprogrammet/AI_NATIVE_SPEC.md` |
 | Architecture, decisions and their sources | `../../analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` |
 | Business rules (RULE-nnn) with legacy citations | `../../analysis/vektorprogrammet/BUSINESS_RULES.md` |
-| Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`, `0002-worker-previews.md`, `0003-semesters-by-schedule.md`, `0004-dashboard-shell.md` with its screenshots, `0005-homepage-emdash.md` with its screenshots) |
-| The information system: domains, who does what, commands, grants, state machines, personal data (proposed) | `docs/system/` (`README.md` first); analysis in `../../analysis/vektorprogrammet/INFORMATION_MODEL.md` |
+| Slice specs | `docs/specs/`, including `0006-people-and-teams.md` |
+| Accepted information-system design | `docs/system/` (read `README.md` first); analysis in `../../analysis/vektorprogrammet/INFORMATION_MODEL.md` |
 | Names of domain concepts, with Norwegian terms | `GLOSSARY.md` |
 | Hard-to-reverse decisions | `docs/decisions/` |
 | Mission state | `STATE.md` |
@@ -23,7 +23,7 @@ Paths starting with `../../` are relative to this repository inside the moderniz
 
 ```mermaid
 flowchart LR
-  web["apps/web<br/>TanStack Start on one Cloudflare Worker<br/>fetch + scheduled"] --> domain["packages/domain<br/>Effect v4 rules, capabilities,<br/>service interfaces, commands"]
+  web["apps/web<br/>TanStack Start on one Cloudflare Worker<br/>fetch + scheduled"] --> domain["packages/domain<br/>Effect v4 rules, grants,<br/>service interfaces, commands"]
   web --> db["packages/db<br/>Drizzle schema + migrations,<br/>repositories, transactional, outbox"]
   db --> domain
   import["tools/import<br/>legacy MySQL → PostgreSQL + EmDash"] --> db
@@ -42,18 +42,19 @@ flowchart LR
 - **Only production can send real mail or Slack.** Local and preview deployments get a capture sink (structural, tested).
 - **Database rules for every phase:** no advisory locks, LISTEN/NOTIFY or session `SET` (Hyperdrive). Invariants live in constraints and `INSERT … ON CONFLICT … RETURNING`.
 - **A cancelled request interrupts its program** (and rolls back an open transaction) only because `apps/web/worker.config.ts` sets `enable_request_signal`, which has no default compatibility date. Slice 0000 check 3b measured both sides: without the flag the transaction committed after the client had gone.
-- **Reads never write** (spec 0003). The only writers are staff commands and the cron job (`scheduled`: outbox sweep and semester job). `apps/web/test/readsNeverWrite.postgres.test.ts` proves it by running every `runQuery` read path through a SELECT-only database role; a new `runQuery` call site must be registered there.
+- **Reads never write** (specs 0003 and 0006). Commands and the scheduled jobs are the write paths. Register each new `runQuery` path and principal read in `apps/web/test/readsNeverWrite.postgres.test.ts`.
 
 ## Units
 
 | Unit | Responsibility | Tests |
 | --- | --- | --- |
-| `packages/domain` | rules, branded types, capabilities (deny by default, department-scoped), service interfaces, commands | rule-named acceptance tests |
+| `packages/domain` | rules, branded types, grant declarations, subject sets, schema guards, service interfaces and RPC commands | rule-named acceptance tests |
 | `packages/db` | Drizzle schema (single source) → `drizzle/` migrations, `DatabaseLive`, `transactional`, `OutboxDelivery`, `classifySqlFailure` | PGlite + real PostgreSQL (concurrency, transactions, negative controls) |
 | `apps/web` | the public site (routes ported from mono-web), the control panel, server functions, per-request Effect runtime, error table, `/filer` header policy, redirects, `alchemy.run.ts` | Node tests + `vp build`; Playwright browser tests (`apps/web/e2e`) against `vp dev`, the CMS and a disposable database |
 | `apps/cms` | the editors' CMS: EmDash 1.3.0 headless on Astro (admin, REST API, no public page), its collections (`seed/seed.json`), its role and schema script, and the Alchemy build it ships with | `bun run check:cms` builds it as Alchemy does and runs that bundle in workerd on a disposable PostgreSQL; the browser tests run it for real, unbundled (`astro dev`) |
 | `packages/cms-client` | the typed client of EmDash's content API, generated from its OpenAPI document, and the collection schemas and Portable Text that `apps/web` and the importer share | Node tests (decoding, published-only reads, the generator's subset) |
 | `tools/import` | deterministic, rerunnable legacy import, in two programs: MySQL → PostgreSQL (organisation data, department logos) and MySQL → EmDash (articles, texts, sponsors), each with a reconciliation report holding no personal data | real MySQL → PostgreSQL round trip; a fake EmDash for the CMS program, and the real one in the browser tests |
+| `tools/docgen` | generates the marked system documentation from domain declarations | drift and mutation tests, `bun run check:docs` |
 | `tools/db-path-spike` | slice 0000: a throwaway Worker and a smoke command that check Worker → Hyperdrive → Neon → `@effect/sql-pg` → Drizzle on the real platform (torn down 2026-10-16; redeployable) | local PostgreSQL rehearsal with negative controls; the deployed run in `docs/specs/0000-results.md` |
 
 ## Run it
@@ -64,6 +65,7 @@ Everything runs inside devenv: it pins Bun 1.4.2 and Node 24 and runs PostgreSQL
 devenv up -d                                   # PostgreSQL + MySQL; stop with: devenv down
 devenv shell -- bun install
 devenv shell -- bash -c 'cd packages/db && bun run db:migrate'   # local schema
+devenv shell -- bash -c 'cd packages/db && bun run db:seed:local' # seeded local people
 devenv shell -- bunx vp run -r test            # every unit's tests
 devenv shell -- bun run e2e                    # browser tests: Playwright + devenv's Chromium, the CMS and the web app; check CPU and memory first
 devenv shell -- bunx vp check                  # format, lint, type check
@@ -75,7 +77,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://local
 - Neon secrets are declared in `secretspec.toml` and read only through `secretspec run -- <command>` with a `SECRETSPEC_REASON`, so a value never enters devenv evaluation, the Nix store or a shell. `packages/db/README.md` (Neon) has the branch, role and connection details.
 - Real-PostgreSQL tests create and drop their own `vp_db_test_*` databases, through one helper (`@vektorprogrammet/db/testing`; `@vektorprogrammet/db/testing/read-only-role` adds a SELECT-only role on top). The importer's MySQL fixture databases are `import_test_*`.
 - The CMS has its own run steps (`apps/cms/README.md` § Run it locally) and so does the importer's pair of programs (`tools/import/README.md`); the browser tests start the CMS themselves, put the importer's fixture in it twice, and need outbound network for Turnstile's always-pass test keys.
-- The local test actor exists only when `DEPLOYMENT=local` (`vp dev`), via the `vp-test-actor` cookie. The browser tests use it.
+- The local test actor exists only when `DEPLOYMENT=local`. The `vp-test-actor` cookie selects a seeded person by name. Run the local seed first. Preview and production remain anonymous.
 
 ## Quality gates
 
@@ -84,7 +86,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Gate | What enforces it | Run it |
 | --- | --- | --- |
 | Format, lint, type check | Oxfmt; Oxlint with Ultracite (`core`, `anti-slop`, `shadcn`), `@effect/tsgo` (`strict`, `effectNative`), the Effect plugin (all rules), mono-web's anti-slop plugins (`tools/oxlint/anti-slop/`), cognitive complexity ≤ 15, import boundaries; type-aware via tsgolint | `devenv shell -- bunx vp check` |
-| Everything at once | check, tests, web build, knip, jscpd, gitleaks, exception registry (the browser tests are a separate, heavier gate) | `devenv shell -- bun run ready` |
+| Everything at once | check, generated docs, tests, web build, knip, jscpd, gitleaks, exception registry (browser tests are separate) | `devenv shell -- bun run ready` |
 | Pre-commit | `vp staged` (`vp check --fix` on staged files) + gitleaks on staged changes (secrets, Norwegian national ids, SQL user dumps) | automatic (`.vite-hooks/pre-commit`) |
 | Commit message | commitlint, Conventional Commits | automatic (`.vite-hooks/commit-msg`) |
 | Pre-push | `vp run -r test` | automatic (`.vite-hooks/pre-push`) |
@@ -102,7 +104,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 - Tests are named by rule id (`RULE-022: …`). An unimplemented rule is `it.fails` with its id, never skipped.
 - Exact dependency pins live in the root `package.json` `catalog`. Drizzle is pinned to `1.0.0-rc.5-5935859`, because rc.4 can't load with Effect 4.0.5.
 - UI is shadcn/ui on Base UI (`base-nova`). Add components with `shadcn add`, then `bun add` any dependency it names (its npm install fails silently under the Bun `devEngines` rule). A component that imports `cn` from `"cn"` gets `@/lib/utils` instead (and no `cn` dependency), and a generated file is fixed until it passes lint; a component the shell does not use is not kept. Answer `n` to its prompt to overwrite `button.tsx` and `input.tsx`, which are the lint-fixed versions of the same registry files.
-- What the control panel shows derives from the domain's `authorize` (the function every command's `requireCapability` calls), computed on the server: `apps/web/src/server/shell.ts` for the sidebar, the page views in `server/panel.ts` for page controls. A role check in `apps/web` is a second who-may-do-what list: do not write one. A control the actor lacks is not rendered, and `apps/web/test/shell.test.ts` compares each control with its command.
+- The control panel derives its sidebar and controls from the domain's grant table. Handlers use `Domain.handle`, which asks the same table. `apps/web/test/shell.test.ts` and `teamsPanel.test.ts` compare controls with commands. Do not add a second role list in web code.
 - A release (a finalizer, `Effect.acquireRelease`'s second argument) never waits on a pooled client built earlier in its own scope. The pool retires an idle connection after 60 to 120 seconds, and a scope that is closing cannot grow it again (Effect 4.0.5), so the release never returns: the first CI browser-test run longer than two minutes hung for that reason. Run admin and cleanup statements through `withClient` (`@vektorprogrammet/db/testing`), a client with one connection that lives for the statement. `packages/db/test/disposableDatabase.postgres.test.ts` guards it.
 - Lint, format and staged-file checks are configured once, in the root `vite.config.ts`.
 - The public pages are mono-web's design, so their page theme (`.public-site` in `apps/web/src/styles.css`) sets the page colours and default border once, and no unlayered rule may set an element's colour: Tailwind's utilities live in a cascade layer and lose to it (the starter template's global `a` colour turned every ported link and button teal for a while). A text an editor owns is a CMS `texts` entry named in `src/lib/textSlots.ts`; a page shows layout, headings and pictures itself and everything else from the slot.
@@ -115,9 +117,10 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Legacy (`src/AppBundle/…`) | Rules | New home |
 | --- | --- | --- |
 | `Entity/Semester.php`, `Utils/SemesterUtil.php`, `Entity/Repository/SemesterRepository.php` | 022, 033, 050, 051, 084, 237 | `domain/src/organisation/semester.ts`; `db` `SemesterRepository.ensure` (only the scheduled job calls it) |
-| `Controller/SemesterController.php`, `Form/Type/CreateSemesterType.php` | 144 and 190 retired (spec 0003) | no manual creation: `domain` `ensureScheduledSemesters` (the cron job, `nextSemester` for the one after the current), `currentSemester`/`findCurrentSemester` (reads); `web` `/kontrollpanel/semestre` is a list only |
+| `Controller/SemesterController.php`, `Form/Type/CreateSemesterType.php` | 144 and 190 retired (spec 0003) | `domain` `semesterJob`; `currentSemester`/`findCurrentSemester` are reads; `web` `/kontrollpanel/semestre` is a list only |
 | `Entity/Department.php` (admission helpers) | 015ʳ, 119ʳ | `domain/src/organisation/admission.ts` |
-| `Controller/FieldOfStudyController.php` | 139 | `domain/src/organisation/fieldOfStudy.ts` + capabilities; `web` `/kontrollpanel/linjer` |
+| `Controller/FieldOfStudyController.php` | 139 | `domain/src/organisation/fieldOfStudy.ts` and the grant table; `web` `/kontrollpanel/linjer` |
+| `Entity/Team.php`, `Entity/TeamMembership.php`, `Entity/User.php` | 016, 023, 031, 048, 124, 157, 164, 206, 234, 251, 252, 284, 298 | `domain/src/teams`; `db` people and membership repositories; `web` Team and People pages |
 | `app/Resources/views/adminBase.html.twig`, `base/admin/main_navigation.html.twig`, `base/admin/mobile_navigation.html.twig` (menu entries hidden by `is_granted_team_leader()` and `is_granted_admin()`, a role list beside the security rules) | — (brief §7, spec 0004) | `web` shell: `server/shell.ts` derives the sidebar from `authorize`; `components/panel/` |
 | `Controller/StaticContentController.php`, `Twig/Extension/SafeHtmlExtension.php` | 296 retired (EmDash's role model), 133ʳ | the CMS's `texts` collection, keyed by the legacy `html_id` (`apps/cms/seed/seed.json`, `apps/web/src/lib/textSlots.ts`); `domain/src/content/sanitizer.ts` runs in the CMS importer; `web` `components/site/portableTextView.tsx` renders Portable Text without raw HTML |
 | `Controller/ArticleController.php`, `ArticleAdminController.php`, `Service/SlugMaker.php`, `Repository/ArticleRepository.php` | 096, 182, 266 (bug fixed), 267 → CMS drafts, 326, 331 | the CMS's `news` collection; `domain/src/content/{article,slug}.ts` keeps the pure rules (page size, front-page order, slugs); `web` `/nyheter`, `/nyhet/$slug` |

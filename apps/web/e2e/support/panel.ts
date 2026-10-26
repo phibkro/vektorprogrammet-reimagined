@@ -1,21 +1,24 @@
+import { expect } from "@playwright/test";
+import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
 /**
  * Helpers the specs share: the local test actor, the Sheet every control-panel form opens in, the server
  * function call a click makes, the sidebar, and the semester labels a page lists. Locators go by role and
  * visible label, as a person reads the page.
  */
-import { expect } from "@playwright/test";
-import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
+import { LOCAL_PEOPLE } from "@vektorprogrammet/db";
 import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
-/** The cookie `apps/web/src/server/actor.ts` reads in a `local` deployment (`TEST_ACTOR_COOKIE`). */
-const TEST_ACTOR_COOKIE = "vp-test-actor";
+import { TEST_ACTOR_COOKIE } from "../../src/lib/testActor.ts";
 
-export type Actor = "admin" | "teamLeader" | "anonymous";
+/** The seeded people the organisation and shell journeys use. */
+export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "@vektorprogrammet/db";
 
-/** Selects the local test actor for every page of `localhost` the context opens. */
-export const signInAs = async (context: BrowserContext, actor: Actor) => {
+export const [, TEST_LEADER] = LOCAL_PEOPLE;
+
+/** Select a local person for every page of localhost the context opens. */
+export const signInAs = async (context: BrowserContext, person: string) => {
   await context.addCookies([
-    { domain: "localhost", name: TEST_ACTOR_COOKIE, path: "/", value: actor },
+    { domain: "localhost", name: TEST_ACTOR_COOKIE, path: "/", value: person },
   ]);
 };
 

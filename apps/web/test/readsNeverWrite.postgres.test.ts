@@ -454,12 +454,12 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
   excludeTestServices: true,
 })("spec 0003: reads never write (SELECT-only role)", (it) => {
   it.effect(
-    "falsifier 3: every public and control-panel read path succeeds on empty tables, with no semester row yet",
+    "spec 0006 falsifier 9 and spec 0003 falsifier 3: every read path succeeds on empty tables",
     () => readEveryPath("empty")
   );
 
   it.effect(
-    "falsifier 3: every read path succeeds on seeded tables, with the job's semesters and an event in the current one",
+    "spec 0006 falsifier 9 and spec 0003 falsifier 3: every read path succeeds on seeded tables",
     () =>
       Effect.gen(function* seededEffect() {
         yield* seedDatabase;

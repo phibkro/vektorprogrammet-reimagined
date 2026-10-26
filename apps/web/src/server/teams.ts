@@ -191,8 +191,8 @@ const memberRow = (
 
   return {
     canCancel: may("cancel"),
-    canChange: may("change"),
-    canEnd: may("endEarly"),
+    canChange: may("change") && Arr.isReadonlyArrayNonEmpty(endings),
+    canEnd: may("endEarly") && Arr.isReadonlyArrayNonEmpty(endings),
     canExtend: may("extend"),
     changeChoices: endings,
     end: choiceOf(member.end),
