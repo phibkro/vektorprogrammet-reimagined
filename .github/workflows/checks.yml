@@ -42,6 +42,9 @@ jobs:
       - name: Effect exception registry
         shell: bash
         run: devenv shell -- bun run check:exceptions
+      - name: Generated documentation
+        shell: bash
+        run: devenv shell -- bun run check:docs
       - name: Workspace tests
         shell: bash
         run: devenv shell -- bunx vp run -r test

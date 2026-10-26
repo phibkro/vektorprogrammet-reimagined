@@ -165,6 +165,21 @@
         "vite-plus": "catalog:",
       },
     },
+    "tools/docgen": {
+      "name": "@vektorprogrammet/docgen",
+      "version": "0.0.0",
+      "dependencies": {
+        "@effect/platform-node": "catalog:",
+        "@vektorprogrammet/domain": "workspace:*",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+        "vite-plus": "catalog:",
+      },
+    },
     "tools/import": {
       "name": "@vektorprogrammet/import",
       "version": "0.0.0",
@@ -1404,6 +1419,8 @@
     "@vektorprogrammet/db": ["@vektorprogrammet/db@workspace:packages/db"],
 
     "@vektorprogrammet/db-path-spike": ["@vektorprogrammet/db-path-spike@workspace:tools/db-path-spike"],
+
+    "@vektorprogrammet/docgen": ["@vektorprogrammet/docgen@workspace:tools/docgen"],
 
     "@vektorprogrammet/domain": ["@vektorprogrammet/domain@workspace:packages/domain"],
 
