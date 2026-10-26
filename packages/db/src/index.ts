@@ -22,3 +22,9 @@ export {
   OutboxDelivery,
   type OutboxAck,
 } from "./repositories/outbox.ts";
+
+export {
+  DEFAULT_LOCAL_PERSON,
+  LOCAL_PEOPLE,
+  type LocalPerson,
+} from "./localPeople.ts";

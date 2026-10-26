@@ -12,8 +12,9 @@ import {
 import { Array as Arr, DateTime, Effect, Option } from "effect";
 import { TestClock } from "effect/testing";
 
+import { LOCAL_PEOPLE } from "../src/localPeople.ts";
 import { pgliteDatabase } from "./support/database.ts";
-import { SEEDED_NAMES, seedLocal } from "./support/localSeed.ts";
+import { seedLocal } from "./support/localSeed.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
 
@@ -35,7 +36,7 @@ layer(pgliteDatabase)("the local seed on PGlite", (outerTest) => {
           yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
           yield* seedLocal;
 
-          const found = yield* Effect.forEach(SEEDED_NAMES, (name) =>
+          const found = yield* Effect.forEach(LOCAL_PEOPLE, (name) =>
             Effect.map(
               principalOf(name),
               (principal) => [name, principal] as const
@@ -80,8 +81,8 @@ layer(pgliteDatabase)("the local seed on PGlite", (outerTest) => {
         const again = yield* seedLocal;
 
         assert.deepStrictEqual(yield* people.list(null), before);
-        assert.strictEqual(again.people, SEEDED_NAMES.length);
-        assert.strictEqual(before.length, SEEDED_NAMES.length);
+        assert.strictEqual(again.people, LOCAL_PEOPLE.length);
+        assert.strictEqual(before.length, LOCAL_PEOPLE.length);
       })
     );
   });

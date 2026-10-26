@@ -38,18 +38,7 @@ import type {
 } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
 
-/** The people of the seed, by the name that the test actor cookie carries. */
-export const SEEDED_NAMES = [
-  "Ada Admin",
-  "Lise Leder",
-  "Mats Medlem",
-  "Sofie Styre",
-  "Nora Nybegynner",
-  "Eva Ekstern",
-] as const;
-
-/** The name of the person that `vp dev` acts as when no cookie chooses another. */
-export const DEFAULT_SEEDED_NAME = "Ada Admin";
+import { LOCAL_PEOPLE } from "../../src/localPeople.ts";
 
 const byId = Order.mapInput(
   Order.Number,
@@ -206,5 +195,5 @@ export const seedLocal = Effect.gen(function* seedLocal() {
     start: advanceSemester(current, -2),
   });
 
-  return { department: department.city, people: SEEDED_NAMES.length };
+  return { department: department.city, people: LOCAL_PEOPLE.length };
 });

@@ -61,39 +61,71 @@ export const LEADER_POSITION = PositionId.make(1);
 
 export const MEMBER_POSITION = PositionId.make(2);
 
-/** The fake tables of the teams; tests seed and read them directly. */
-export class TeamTables extends Context.Service<
-  TeamTables,
-  {
-    readonly adminGrants: Ref.Ref<readonly AdminGrant[]>;
-    readonly digests: Ref.Ref<ReadonlySet<string>>;
-    readonly memberships: Ref.Ref<readonly Membership[]>;
-    readonly nextId: Ref.Ref<number>;
-    readonly people: Ref.Ref<readonly Person[]>;
-    readonly positions: Ref.Ref<readonly Position[]>;
-    readonly teams: Ref.Ref<readonly Team[]>;
-  }
->()("test/TeamTables") {
-  static readonly layer = Layer.effect(
-    TeamTables,
-    Effect.gen(function* layer() {
-      return TeamTables.of({
-        adminGrants: yield* Ref.make<readonly AdminGrant[]>([]),
-        digests: yield* Ref.make<ReadonlySet<string>>(new Set()),
-        memberships: yield* Ref.make<readonly Membership[]>([]),
-        nextId: yield* Ref.make(1000),
-        people: yield* Ref.make<readonly Person[]>([]),
-        positions: yield* Ref.make<readonly Position[]>([
-          { id: LEADER_POSITION, name: "Leder" },
-          { id: MEMBER_POSITION, name: "Medlem" },
-        ]),
-        teams: yield* Ref.make<readonly Team[]>([]),
-      });
-    })
-  );
+/** One `Ref` for the rows of each fake teams table. */
+export interface TeamTableRefs {
+  readonly adminGrants: Ref.Ref<readonly AdminGrant[]>;
+  readonly digests: Ref.Ref<ReadonlySet<string>>;
+  readonly memberships: Ref.Ref<readonly Membership[]>;
+  readonly nextId: Ref.Ref<number>;
+  readonly people: Ref.Ref<readonly Person[]>;
+  readonly positions: Ref.Ref<readonly Position[]>;
+  readonly teams: Ref.Ref<readonly Team[]>;
 }
 
-type Tables = TeamTables["Service"];
+/** Fresh, empty tables, with the seeded position list. */
+export const makeTeamTables = (): TeamTableRefs => ({
+  adminGrants: Ref.makeUnsafe<readonly AdminGrant[]>([]),
+  digests: Ref.makeUnsafe<ReadonlySet<string>>(new Set()),
+  memberships: Ref.makeUnsafe<readonly Membership[]>([]),
+  nextId: Ref.makeUnsafe(1000),
+  people: Ref.makeUnsafe<readonly Person[]>([]),
+  positions: Ref.makeUnsafe<readonly Position[]>([
+    { id: LEADER_POSITION, name: "Leder" },
+    { id: MEMBER_POSITION, name: "Medlem" },
+  ]),
+  teams: Ref.makeUnsafe<readonly Team[]>([]),
+});
+
+/** Puts the rows of every table back, as a rolled-back transaction does. */
+export type RestoreTeamTables = () => Effect.Effect<void>;
+
+/**
+ * The rows of every table now, and how to put them back. The id sequence is not put back, as a database sequence is
+ * not.
+ */
+export const snapshotTeamTables = (tables: TeamTableRefs) =>
+  Effect.gen(function* snapshot() {
+    const adminGrants = yield* Ref.get(tables.adminGrants);
+    const digests = yield* Ref.get(tables.digests);
+    const memberships = yield* Ref.get(tables.memberships);
+    const people = yield* Ref.get(tables.people);
+    const positions = yield* Ref.get(tables.positions);
+    const teams = yield* Ref.get(tables.teams);
+
+    const restore: RestoreTeamTables = () =>
+      Effect.all(
+        [
+          Ref.set(tables.adminGrants, adminGrants),
+          Ref.set(tables.digests, digests),
+          Ref.set(tables.memberships, memberships),
+          Ref.set(tables.people, people),
+          Ref.set(tables.positions, positions),
+          Ref.set(tables.teams, teams),
+        ],
+        { discard: true }
+      );
+
+    return restore;
+  });
+
+/** The fake tables of the teams; tests seed and read them directly. */
+export class TeamTables extends Context.Service<TeamTables, TeamTableRefs>()(
+  "test/TeamTables"
+) {
+  static readonly layer = Layer.sync(TeamTables, makeTeamTables);
+}
+
+type Tables = TeamTableRefs;
 
 const nextId = (tables: Tables) =>
   Ref.getAndUpdate(tables.nextId, (id) => id + 1);
@@ -612,8 +644,7 @@ const principalDirectory = Layer.effect(
   })
 );
 
-/** The teams repositories, the digest ledger and the principal directory over one set of `TeamTables`. */
-export const TeamsInMemory = Layer.mergeAll(
+const teamsRepositories = Layer.mergeAll(
   personRepository,
   teamRepository,
   positionRepository,
@@ -621,7 +652,19 @@ export const TeamsInMemory = Layer.mergeAll(
   adminGrantRepository,
   digestLedger,
   principalDirectory
-).pipe(Layer.provideMerge(TeamTables.layer));
+);
+
+/** The teams repositories, the digest ledger and the principal directory over one fresh set of `TeamTables`. */
+export const TeamsInMemory = teamsRepositories.pipe(
+  Layer.provideMerge(TeamTables.layer)
+);
+
+/**
+ * The same services over `tables` that the caller keeps, so a test that builds its layers once per call still
+ * sees one set of rows (`apps/web`'s `memoryLayer`).
+ */
+export const teamsInMemoryOver = (tables: TeamTableRefs) =>
+  teamsRepositories.pipe(Layer.provideMerge(Layer.succeed(TeamTables, tables)));
 
 /** Reads one fake teams table; the tests assert what was (not) written. */
 export const teamRows = <A>(select: (tables: Tables) => Ref.Ref<A>) =>

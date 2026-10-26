@@ -141,6 +141,25 @@ export const can = <State extends string, Command extends string, Context>(
 ): boolean =>
   Arr.isReadonlyArrayNonEmpty(available(table, command, state, context));
 
+/**
+ * Whether some transition of `command` starts from `state`, whatever its guard says. A page asks this to decide
+ * whether to offer the control at all; the guard needs the values the user is about to choose (`can` checks them).
+ */
+export const startsFrom = <
+  State extends string,
+  Command extends string,
+  Context,
+>(
+  table: Table<State, Command, Context>,
+  command: Command,
+  state: State | Boundary
+): boolean =>
+  Arr.some(
+    table.transitions,
+    (transition) =>
+      transition.command === command && Arr.contains(transition.from, state)
+  );
+
 /** The state `command` leaves the resource in, when it may be applied in `state`. */
 export const next = <State extends string, Command extends string, Context>(
   table: Table<State, Command, Context>,
