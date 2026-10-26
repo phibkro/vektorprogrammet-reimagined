@@ -20,13 +20,14 @@ import type { Rpc, RpcGroup } from "effect/rpc";
 
 import type { Forbidden } from "../shared/errors.ts";
 import { PersonId } from "../shared/ids.ts";
+import type { DepartmentId } from "../shared/ids.ts";
 import {
   authorizeWith,
   canAnywhereWith,
   requireGrantWith,
 } from "./authorize.ts";
 import type { Authorize, CanAnywhere, RequireGrant } from "./authorize.ts";
-import { infoOf } from "./commands.ts";
+import * as Commands from "./commands.ts";
 import * as Grant from "./grant.ts";
 import { Boundary } from "./machine.ts";
 import type { Description } from "./machine.ts";
@@ -34,11 +35,24 @@ import { Principal } from "./principal.ts";
 import type { CurrentPrincipal, SystemJob } from "./principal.ts";
 import * as Subject from "./subject.ts";
 
+export { Info, info } from "./commands.ts";
+
+export { make as grant } from "./grant.ts";
+
+export { anyone, board, leader, member, self, system } from "./subject.ts";
+
 /** A read the domain guards by name (a page, a list): it has a grant but no transition and no handler. */
 export interface ReadInfo {
   readonly summary: string;
   readonly replaces: readonly string[];
 }
+
+/** The resource of a command whose payload names its department. */
+export const departmentResource = ({
+  departmentId,
+}: {
+  readonly departmentId: DepartmentId;
+}) => Effect.succeed({ departmentId });
 
 /** The names a grant row of a domain may carry: the tags of its group and the names of its reads. */
 export type CommandOf<Rpcs extends Rpc.Any, Reads extends string> =
@@ -123,7 +137,7 @@ export type NamesOf<Declared> =
 
 /** The job that alone runs a command, `null` when a person may run it. */
 const jobOf = (rpc: Rpc.Any): SystemJob | null =>
-  infoOf(rpc).pipe(
+  Commands.infoOf(rpc).pipe(
     Option.flatMapNullishOr((info) => info.job),
     Option.getOrNull
   );
@@ -227,7 +241,9 @@ const unknown = (declaration: Declaration) =>
 
 const unannotated = (declaration: Declaration) =>
   Arr.flatMap(declaration.commands, (rpc) =>
-    Option.isNone(infoOf(rpc)) ? [`${rpc._tag} carries no Info annotation`] : []
+    Option.isNone(Commands.infoOf(rpc))
+      ? [`${rpc._tag} carries no Info annotation`]
+      : []
   );
 
 const misfitScopes = (declaration: Declaration) =>
@@ -320,7 +336,7 @@ const machineProblems = (declaration: Declaration) =>
 
     const orphans = Arr.flatMap(declaration.commands, (rpc) =>
       Option.exists(
-        Option.flatMapNullishOr(infoOf(rpc), (info) => info.machine),
+        Option.flatMapNullishOr(Commands.infoOf(rpc), (info) => info.machine),
         (name) => name === machine.name
       ) &&
       !Arr.some(

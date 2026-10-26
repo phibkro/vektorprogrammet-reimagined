@@ -17,21 +17,22 @@ type GrantRow = Grant.Row;
 const cell = (value: string): string =>
   value.replaceAll("|", "\\|").replaceAll("\n", " ");
 
+const tableRow = (values: readonly string[]): string =>
+  `| ${Arr.join(Arr.map(values, cell), " | ")} |`;
+
+/** Unlike an import report, a reference table keeps its header when no rows exist. */
 const table = (
   header: readonly string[],
   rows: readonly (readonly string[])[]
-): string =>
-  Arr.join(
-    [
-      `| ${Arr.join(header, " | ")} |`,
-      `| ${Arr.join(
-        Arr.map(header, () => "---"),
-        " | "
-      )} |`,
-      ...Arr.map(rows, (row) => `| ${Arr.join(Arr.map(row, cell), " | ")} |`),
-    ],
-    "\n"
-  );
+): string => {
+  const lines = [tableRow(header), tableRow(Arr.map(header, () => "---"))];
+
+  for (const row of rows) {
+    lines.push(tableRow(row));
+  }
+
+  return Arr.join(lines, "\n");
+};
 
 const entriesOf = (domain: Declaration): readonly Entry[] => [
   ...Arr.flatMap(domain.commands, (rpc) =>

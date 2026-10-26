@@ -7,10 +7,13 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
-import * as Grant from "../kernel/grant.ts";
-import * as Subject from "../kernel/subject.ts";
+import {
+  Info,
+  grant,
+  info,
+  system,
+  make as declareDomain,
+} from "../kernel/domain.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { OutboxMessageId } from "../shared/ids.ts";
 
@@ -34,8 +37,8 @@ export const sweepOutbox = Rpc.make("sweepOutbox", {
     Schema.Struct({ id: OutboxMessageId, outcome: DeliveryOutcome })
   ),
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     job: "outboxSweep",
     note: "Claims at most `limit` due rows, or only `ids`, and sends each one outside any transaction.",
     summary: "Deliver the outbox messages that are due, mail and Slack.",
@@ -44,9 +47,9 @@ export const sweepOutbox = Rpc.make("sweepOutbox", {
 
 export const OutboxRpc = RpcGroup.make(sweepOutbox);
 
-export const OutboxDomain = Domain.make({
+export const OutboxDomain = declareDomain({
   commands: OutboxRpc,
-  grants: [Grant.make([Subject.system("outboxSweep")], ["sweepOutbox"], "all")],
+  grants: [grant([system("outboxSweep")], ["sweepOutbox"], "all")],
   name: "outbox",
   reads: {},
   title: "Outbox",

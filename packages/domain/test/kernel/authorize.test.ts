@@ -4,13 +4,12 @@
  * `test/teams/grants.test.ts`; both use the oracle of `support/grantLaws.ts`, which reads a table by a second route.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Arbitrary, Array as Arr, DateTime, Effect, Predicate } from "effect";
+import { Arbitrary, Array as Arr, Effect, Predicate } from "effect";
 
 import {
   DepartmentId,
   Grant,
   PersonId,
-  Principal,
   Subject,
   TeamId,
   anonymous,
@@ -22,6 +21,8 @@ import {
   agreement,
   cases,
   oracle,
+  passes,
+  principalOf,
   principals,
   resources,
   without,
@@ -46,29 +47,16 @@ const fact = (
 const person = (
   memberships: readonly MembershipFact[],
   options: { readonly admin?: boolean; readonly personId?: number } = {}
-) => {
-  const personId = PersonId.make(options.personId ?? 7);
-
-  return options.admin === true
-    ? Principal.cases.Person.make({
-        adminUntil: DateTime.makeUnsafe("2099-01-01T00:00:00Z"),
-        memberships,
-        personId,
-      })
-    : Principal.cases.Person.make({ memberships, personId });
-};
+) =>
+  principalOf(
+    memberships,
+    PersonId.make(options.personId ?? 7),
+    options.admin === true
+  );
 
 const authorize = authorizeWith<string>(Sample.table);
 
 const names = [...Arr.map(Sample.commands, (rpc) => rpc._tag), "viewNotes"];
-
-const passes = <A, E>(result: Arbitrary.CheckResult<A, E>) => {
-  assert.strictEqual(
-    result._tag,
-    "Passed",
-    Arbitrary.formatCheckFailure(result)
-  );
-};
 
 describe("kernel: authorize reads the grant table and nothing else", () => {
   it.effect(

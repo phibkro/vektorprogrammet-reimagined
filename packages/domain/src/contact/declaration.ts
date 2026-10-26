@@ -5,10 +5,13 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
-import * as Grant from "../kernel/grant.ts";
-import * as Subject from "../kernel/subject.ts";
+import {
+  Info,
+  anyone,
+  grant,
+  info,
+  make as declareDomain,
+} from "../kernel/domain.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { DepartmentId, OutboxMessageId } from "../shared/ids.ts";
 import { SupportTicket } from "./supportTicket.ts";
@@ -22,8 +25,8 @@ export const submitContact = Rpc.make("submitContact", {
     notice: Schema.String,
   }),
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-156", "RULE-249"],
     summary: "Send a message to a department's contact address.",
   })
@@ -31,9 +34,9 @@ export const submitContact = Rpc.make("submitContact", {
 
 export const ContactRpc = RpcGroup.make(submitContact);
 
-export const ContactDomain = Domain.make({
+export const ContactDomain = declareDomain({
   commands: ContactRpc,
-  grants: [Grant.make([Subject.anyone], ["submitContact"], "all")],
+  grants: [grant([anyone], ["submitContact"], "all")],
   name: "contact",
   reads: {},
   title: "Contact",

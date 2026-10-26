@@ -6,10 +6,13 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
-import * as Grant from "../kernel/grant.ts";
-import * as Subject from "../kernel/subject.ts";
+import {
+  Info,
+  grant,
+  info,
+  member,
+  make as declareDomain,
+} from "../kernel/domain.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { FileKey } from "../shared/ids.ts";
 import { StoredContentType } from "./fileType.ts";
@@ -30,8 +33,8 @@ export const registerPublicFile = Rpc.make("registerPublicFile", {
   payload: StoredUpload,
   success: PublicFile,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-290"],
     summary: "Register an uploaded file so that it can be served.",
   })
@@ -39,9 +42,9 @@ export const registerPublicFile = Rpc.make("registerPublicFile", {
 
 export const FilesRpc = RpcGroup.make(registerPublicFile);
 
-export const FilesDomain = Domain.make({
+export const FilesDomain = declareDomain({
   commands: FilesRpc,
-  grants: [Grant.make([Subject.member], ["registerPublicFile"], "all")],
+  grants: [grant([member], ["registerPublicFile"], "all")],
   name: "files",
   reads: {},
   title: "Files",

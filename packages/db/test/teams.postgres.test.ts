@@ -28,7 +28,6 @@ import {
   Array as Arr,
   Cause,
   DateTime,
-  Deferred,
   Effect,
   Exit,
   Layer,
@@ -45,6 +44,7 @@ import {
   violatedUniqueConstraint,
 } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
+import { race } from "./support/race.ts";
 import { insertMembership, semester, world } from "./support/teamsWorld.ts";
 
 const HOST_2026 = semester("HOST", 2026);
@@ -62,26 +62,6 @@ const teamsDatabase = Layer.merge(
   postgresDatabase(),
   Layer.succeed(SiteOrigin)("https://vektorprogrammet.test")
 );
-
-/** Runs every effect from its own fiber, released together by one gate, and collects their exits. */
-const race = <A, E, R>(
-  effects: readonly Effect.Effect<A, E, R>[]
-): Effect.Effect<readonly Exit.Exit<A, E>[], never, R> =>
-  Effect.gen(function* raceProgram() {
-    const gate = yield* Deferred.make<null>();
-
-    const fibers = Effect.forEach(
-      effects,
-      (effect) => Effect.andThen(Deferred.await(gate), Effect.exit(effect)),
-      { concurrency: "unbounded" }
-    );
-
-    const [exits] = yield* Effect.all([fibers, Deferred.succeed(gate, null)], {
-      concurrency: "unbounded",
-    });
-
-    return exits;
-  });
 
 /** Caller `index`: an admin, so every command is allowed, with a person id of its own for the audit row. */
 const callerNumber = (index: number) => 2000 + index;

@@ -7,6 +7,7 @@ import { Effect } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import * as Commands from "../kernel/commands.ts";
+import { departmentResource } from "../kernel/domain.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { ContentDomain, ContentRpc, createSocialEvent } from "./declaration.ts";
 import { SocialEventRepository } from "./services.ts";
@@ -14,7 +15,7 @@ import { SocialEventRepository } from "./services.ts";
 export const ContentHandlers = ContentRpc.toLayer({
   /** RULE-188: saved for the chosen department and semester; no role field. */
   createSocialEvent: ContentDomain.handle(createSocialEvent, {
-    resource: ({ departmentId }) => Effect.succeed({ departmentId }),
+    resource: departmentResource,
     run: (event, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;

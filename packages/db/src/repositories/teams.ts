@@ -319,6 +319,20 @@ export const MembershipRepositoryLive = Layer.effect(
     const decodeViews = decodeWith(Schema.Array(MembershipView));
     const decodeActive = decodeWith(Schema.Array(ActiveMembership));
 
+    const decodeNamed = (
+      rows: readonly (MembershipRow & {
+        readonly personName: string;
+        readonly positionName: string;
+      })[]
+    ) =>
+      decodeViews(
+        Arr.map(rows, (row) => ({
+          ...termOf(row),
+          personName: row.personName,
+          positionName: row.positionName,
+        }))
+      );
+
     const named = () =>
       db
         .select({
@@ -351,13 +365,7 @@ export const MembershipRepositoryLive = Layer.effect(
           .orderBy(asc(membership.startOrdinal), asc(membership.id))
           .pipe(Effect.orDie);
 
-        return yield* decodeViews(
-          Arr.map(rows, (row) => ({
-            ...termOf(row),
-            personName: row.personName,
-            positionName: row.positionName,
-          }))
-        );
+        return yield* decodeNamed(rows);
       }
     );
 
@@ -368,13 +376,7 @@ export const MembershipRepositoryLive = Layer.effect(
           .orderBy(desc(membership.startOrdinal), desc(membership.id))
           .pipe(Effect.orDie);
 
-        return yield* decodeViews(
-          Arr.map(rows, (row) => ({
-            ...termOf(row),
-            personName: row.personName,
-            positionName: row.positionName,
-          }))
-        );
+        return yield* decodeNamed(rows);
       }
     );
 

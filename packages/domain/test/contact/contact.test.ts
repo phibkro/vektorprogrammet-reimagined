@@ -18,7 +18,7 @@ import {
   anonymous,
   supportTicketMessages,
 } from "../../src/index.ts";
-import type { DomainError } from "../../src/index.ts";
+import type { DomainError, ValidationIssue } from "../../src/index.ts";
 import {
   BERGEN,
   TRONDHEIM,
@@ -55,6 +55,21 @@ const fieldsOf = (error: DomainError) =>
       )
     : [];
 
+const assertIssues = (
+  error: DomainError,
+  expected: readonly ValidationIssue[]
+) => {
+  if (!Predicate.isTagged(error, "ValidationFailed")) {
+    assert.fail("expected a validation failure");
+  }
+
+  assert.deepStrictEqual(error.issues, expected);
+};
+
+const assertEmptyOutbox = Effect.gen(function* assertEmptyOutbox() {
+  assertNoRows([yield* table((db) => db.outbox)]);
+});
+
 describe("C10 contact form", () => {
   it.effect(
     "RULE-156: an invalid e-mail ('ola@') is rejected and nothing is sent",
@@ -70,15 +85,11 @@ describe("C10 contact form", () => {
           )
         );
 
-        assert.strictEqual(error._tag, "ValidationFailed");
+        assertIssues(error, [
+          { message: INVALID_EMAIL_MESSAGE, path: ["email"] },
+        ]);
 
-        if (Predicate.isTagged(error, "ValidationFailed")) {
-          assert.deepStrictEqual(error.issues, [
-            { message: INVALID_EMAIL_MESSAGE, path: ["email"] },
-          ]);
-        }
-
-        assertNoRows([yield* table((db) => db.outbox)]);
+        yield* assertEmptyOutbox;
       }).pipe(Effect.provide(TestServices))
   );
 
@@ -100,7 +111,7 @@ describe("C10 contact form", () => {
         "name",
         "subject",
       ]);
-      assertNoRows([yield* table((db) => db.outbox)]);
+      yield* assertEmptyOutbox;
     }).pipe(Effect.provide(TestServices))
   );
 
@@ -120,19 +131,12 @@ describe("C10 contact form", () => {
             )
           );
 
-          assert.strictEqual(error._tag, "ValidationFailed");
-
-          if (Predicate.isTagged(error, "ValidationFailed")) {
-            assert.deepStrictEqual(error.issues, [
-              {
-                message: DEPARTMENT_UNAVAILABLE_MESSAGE,
-                path: ["departmentId"],
-              },
-            ]);
-          }
+          assertIssues(error, [
+            { message: DEPARTMENT_UNAVAILABLE_MESSAGE, path: ["departmentId"] },
+          ]);
         }
 
-        assertNoRows([yield* table((db) => db.outbox)]);
+        yield* assertEmptyOutbox;
       }).pipe(Effect.provide(TestServices))
   );
 

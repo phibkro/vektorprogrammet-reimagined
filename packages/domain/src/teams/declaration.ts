@@ -6,13 +6,20 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
-import * as Grant from "../kernel/grant.ts";
+import {
+  Info,
+  board,
+  grant,
+  info,
+  leader,
+  member,
+  self,
+  system,
+  make as declareDomain,
+} from "../kernel/domain.ts";
 import * as Guard from "../kernel/guard.ts";
 import * as Machine from "../kernel/machine.ts";
 import { TeamFunction } from "../kernel/principal.ts";
-import * as Subject from "../kernel/subject.ts";
 import { Semester } from "../organisation/semester.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import {
@@ -47,8 +54,8 @@ export const createTeam = Rpc.make("createTeam", {
   },
   success: Team,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-157", "RULE-321"],
     summary: "Create a team in a department.",
   })
@@ -59,8 +66,8 @@ export const editTeam = Rpc.make("editTeam", {
   payload: { id: TeamId, ...TeamDetails.fields },
   success: Team,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-157", "RULE-321"],
     summary: "Change a team's name, function and default term.",
   })
@@ -71,8 +78,8 @@ export const deactivateTeam = Rpc.make("deactivateTeam", {
   payload: { id: TeamId },
   success: Team,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-233", "RULE-329"],
     summary: "Deactivate a team. A team is never deleted.",
   })
@@ -83,8 +90,8 @@ export const registerPerson = Rpc.make("registerPerson", {
   payload: PersonInput,
   success: Person,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     note: "Granted for the department of the chosen field of study.",
     replaces: ["RULE-164"],
     summary:
@@ -104,8 +111,8 @@ export const addMember = Rpc.make("addMember", {
   },
   success: Membership,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     machine: "Membership",
     replaces: ["RULE-164", "RULE-206", "RULE-284"],
     summary:
@@ -118,8 +125,8 @@ export const extend = Rpc.make("extend", {
   payload: { end: Semester, id: MembershipId },
   success: Membership,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     machine: "Membership",
     replaces: ["RULE-234", "RULE-251", "RULE-252"],
     summary: "Extend a membership to a later end semester.",
@@ -137,8 +144,8 @@ export const change = Rpc.make("change", {
   },
   success: Schema.Struct({ ended: Membership, started: Membership }),
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     machine: "Membership",
     note: "A move to a team in another department also needs the grant in the receiving department, in the same transaction.",
     summary:
@@ -151,8 +158,8 @@ export const endEarly = Rpc.make("endEarly", {
   payload: { id: MembershipId, semester: Semester },
   success: Membership,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     machine: "Membership",
     replaces: ["RULE-298"],
     summary: "End a membership from a semester. A member can end their own.",
@@ -164,8 +171,8 @@ export const cancel = Rpc.make("cancel", {
   payload: { id: MembershipId },
   success: Schema.Void,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     machine: "Membership",
     summary: "Cancel a membership that has not started.",
   })
@@ -176,8 +183,8 @@ export const grantAdmin = Rpc.make("grantAdmin", {
   payload: { personId: PersonId, until: Schema.DateTimeUtcFromString },
   success: AdminGrant,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     note: "Never for oneself.",
     replaces: ["RULE-113", "RULE-308"],
     summary: "Put a person on the admin list until a date.",
@@ -189,8 +196,8 @@ export const revokeAdmin = Rpc.make("revokeAdmin", {
   payload: { id: AdminGrantId },
   success: Schema.Void,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     note: "Never one's own, and never the last place that ends after the current semester.",
     replaces: ["RULE-113", "RULE-308"],
     summary: "Take a place off the admin list.",
@@ -201,8 +208,8 @@ export const sendEndingSoon = Rpc.make("sendEndingSoon", {
   error: DomainErrorSchema,
   success: Schema.Struct({ sent: Schema.Int }),
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     job: "endingSoon",
     summary:
       "Four weeks before the semester ends, e-mail each team leader the memberships of the department that end.",
@@ -309,11 +316,11 @@ export const MembershipMachine = Machine.make({
 
 // ---------------------------------------------------------------- the domain
 
-export const TeamsDomain = Domain.make({
+export const TeamsDomain = declareDomain({
   commands: TeamsRpc,
   grants: [
-    Grant.make(
-      [Subject.leader, Subject.board],
+    grant(
+      [leader, board],
       [
         "createTeam",
         "editTeam",
@@ -328,9 +335,9 @@ export const TeamsDomain = Domain.make({
       ],
       "department"
     ),
-    Grant.make([Subject.self], ["endEarly"], "own"),
-    Grant.make([Subject.member], ["viewTeams"], "department"),
-    Grant.make([Subject.system("endingSoon")], ["sendEndingSoon"], "all"),
+    grant([self], ["endEarly"], "own"),
+    grant([member], ["viewTeams"], "department"),
+    grant([system("endingSoon")], ["sendEndingSoon"], "all"),
   ],
   machines: [MembershipMachine],
   name: "teams",

@@ -9,32 +9,13 @@ import { assert, layer } from "@effect/vitest";
 import { SemesterRepository } from "@vektorprogrammet/domain";
 import type { Semester } from "@vektorprogrammet/domain";
 import { and, eq, sql } from "drizzle-orm";
-import { Array as Arr, Deferred, Effect, Exit, pipe } from "effect";
+import { Array as Arr, Effect, Exit, pipe } from "effect";
 
 import { schema } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
+import { race } from "./support/race.ts";
 
 const CALLERS = 20;
-
-/** Runs `self` from `CALLERS` fibers released together by one gate. */
-const race = <A, E, R>(
-  self: Effect.Effect<A, E, R>
-): Effect.Effect<readonly Exit.Exit<A, E>[], never, R> =>
-  Effect.gen(function* raceProgram() {
-    const gate = yield* Deferred.make<null>();
-
-    const fibers = Effect.forEach(
-      Array.from({ length: CALLERS }),
-      () => Effect.andThen(Deferred.await(gate), Effect.exit(self)),
-      { concurrency: "unbounded" }
-    );
-
-    const [exits] = yield* Effect.all([fibers, Deferred.succeed(gate, null)], {
-      concurrency: "unbounded",
-    });
-
-    return exits;
-  });
 
 const semesterRows = Effect.fnUntraced(function* semesterRows(
   wanted: Semester
@@ -55,7 +36,11 @@ const semesterRows = Effect.fnUntraced(function* semesterRows(
 /** RULE-237 property: one row, and every caller got that row. */
 const ensureRace = Effect.fnUntraced(function* ensureRace(wanted: Semester) {
   const semesters = yield* SemesterRepository;
-  const exits = yield* race(semesters.ensure(wanted));
+
+  const exits = yield* race(
+    Arr.makeBy(CALLERS, () => semesters.ensure(wanted))
+  );
+
   const rows = yield* semesterRows(wanted);
 
   const holds =

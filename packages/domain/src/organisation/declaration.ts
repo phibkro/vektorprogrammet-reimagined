@@ -6,10 +6,15 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
-import * as Grant from "../kernel/grant.ts";
-import * as Subject from "../kernel/subject.ts";
+import {
+  Info,
+  grant,
+  info,
+  leader,
+  member,
+  system,
+  make as declareDomain,
+} from "../kernel/domain.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { DepartmentId, FieldOfStudyId } from "../shared/ids.ts";
 import { Department, DepartmentInput } from "./department.ts";
@@ -34,24 +39,21 @@ export const createDepartment = Rpc.make("createDepartment", {
   error: DomainErrorSchema,
   payload: DepartmentInput,
   success: Department,
-}).annotate(Commands.Info, Commands.info({ summary: "Create a department." }));
+}).annotate(Info, info({ summary: "Create a department." }));
 
 export const updateDepartment = Rpc.make("updateDepartment", {
   error: DomainErrorSchema,
   payload: UpdateDepartmentInput,
   success: Department,
-}).annotate(
-  Commands.Info,
-  Commands.info({ summary: "Change a department's details." })
-);
+}).annotate(Info, info({ summary: "Change a department's details." }));
 
 export const createFieldOfStudy = Rpc.make("createFieldOfStudy", {
   error: DomainErrorSchema,
   payload: FieldOfStudyInput,
   success: FieldOfStudy,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-139"],
     summary: "Add a field of study to a department.",
   })
@@ -62,8 +64,8 @@ export const renameFieldOfStudy = Rpc.make("renameFieldOfStudy", {
   payload: RenameFieldOfStudyInput,
   success: FieldOfStudy,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-139"],
     summary: "Rename a field of study.",
   })
@@ -73,8 +75,8 @@ export const ensureSemesters = Rpc.make("ensureSemesters", {
   error: DomainErrorSchema,
   success: Schema.Struct({ current: StoredSemester, next: StoredSemester }),
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     job: "semesters",
     replaces: ["RULE-237"],
     summary: "Keep the current and the next semester present.",
@@ -89,16 +91,16 @@ export const OrganisationRpc = RpcGroup.make(
   ensureSemesters
 );
 
-export const OrganisationDomain = Domain.make({
+export const OrganisationDomain = declareDomain({
   commands: OrganisationRpc,
   grants: [
-    Grant.make(
-      [Subject.leader],
+    grant(
+      [leader],
       ["updateDepartment", "createFieldOfStudy", "renameFieldOfStudy"],
       "department"
     ),
-    Grant.make([Subject.member], ["openControlPanel"], "all"),
-    Grant.make([Subject.system("semesters")], ["ensureSemesters"], "all"),
+    grant([member], ["openControlPanel"], "all"),
+    grant([system("semesters")], ["ensureSemesters"], "all"),
   ],
   name: "organisation",
   reads: {
