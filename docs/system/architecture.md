@@ -130,7 +130,20 @@ Jobs are declared in code (`packages/domain`): name, when the job is due, its Sy
 | Tests | `@effect/vitest`, PGlite and real PostgreSQL, Schema arbitraries for property tests, Playwright | Running; property tests new |
 | Documentation | `docs/system/` with Reference sections generated from `packages/domain` (`check:docs`) | New |
 
-**Not used, and why:** XState and the Effect machine libraries (actor model, pre-1.0; ADR 0007), Effect Cluster and Workflow (need a long-running runner), `effect/eventlog` (built for local-first sync), event sourcing (the audit table answers "who changed what"), Cedar or OpenFGA (a service for a table of about 40 rows), SurveyJS (per-developer licence; ADR 0003). effx is a candidate generator for later, when hand-written declarations multiply.
+**Not used, and why:**
+
+- **XState and the Effect machine libraries:** actor model, pre-1.0 (ADR 0007).
+- **Effect Cluster and Workflow:** they need a long-running runner.
+- **`effect/eventlog`:** built for local-first sync.
+- **Event sourcing:** the audit table already answers "who changed what".
+- **Cedar or OpenFGA:** a separate service for a table of about 40 rows.
+- **SurveyJS:** per-developer licence (ADR 0003).
+- **Odoo** (evaluated 2026-10-26). Its Recruitment, Surveys, Expenses and Events apps cover the generic parts. Three things rule it out for the core:
+  - **Cost:** it bills per user. Since Odoo 20, every active employee record counts as at least a €7.90/month Light User, and a full Standard user is €19.90/month.
+  - **Customisation:** Odoo Online does not allow custom Python modules. Placement with school capacity, permissions derived from memberships, and explicit terms would need custom modules on Odoo.sh or a self-hosted server.
+  - **Permissions:** Odoo assigns access groups to each user by hand, which conflicts with ADR 0001.
+
+effx is a candidate generator for later, when hand-written declarations multiply.
 
 ## Packages and their dependencies
 
