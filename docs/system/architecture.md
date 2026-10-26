@@ -6,22 +6,110 @@
 
 The system is one website with one database. Each domain (`admission.md`, `economy.md` and the others) declares its things, its actions, who may do them and in which state. The website, the checks, the documentation and the tests all read those declarations. A change to a rule is made in one place, and every part that depends on it follows.
 
+## Logical view
+
+```mermaid
+flowchart TB
+  subgraph P["Principals (ADR 0008)"]
+    ANON["Anonymous"]
+    PERSON["Person"]
+    SYS["System jobs"]
+  end
+  subgraph CL["Clients"]
+    BROWSER["Browser: desktop, phone"]
+    CRON["Scheduler: one cron tick"]
+    TOOLS["Tools: importer, simulator"]
+  end
+  subgraph EDGE["Entry points (apps/web)"]
+    PAGES["Pages and server functions"]
+    SCHED["scheduled handler + job registry"]
+  end
+  subgraph CORE["Domain core (packages/domain)"]
+    AUTH["authorize: grants × principal facts"]
+    CMD["Commands (RpcGroup per domain)"]
+    SM["Transition tables"]
+    RULES["Pure rules"]
+    DOMAINS["Admission · Recruitment · Placement ·<br/>Teams and people · Economy · Administration"]
+  end
+  subgraph STATE["State (PostgreSQL)"]
+    DATA[("Domain rows")]
+    AUDIT[("Audit")]
+    OUTBOX[("Outbox")]
+    JOBRUN[("job_run")]
+  end
+  subgraph ADAPT["Adapters (apps/web, packages/db)"]
+    MAILA["Mail"]
+    GOOGLEA["Google directory"]
+    FILESA["Files (R2)"]
+    BOOKA["Bookkeeping export"]
+    CMSA["CMS client"]
+  end
+  PERSON --> BROWSER
+  ANON --> BROWSER
+  SYS --> CRON
+  BROWSER --> PAGES
+  CRON --> SCHED
+  TOOLS --> CMD
+  PAGES --> CMD
+  SCHED --> CMD
+  CMD --> AUTH
+  CMD --> SM
+  CMD --> RULES
+  CMD --> DATA
+  CMD --> AUDIT
+  CMD --> OUTBOX
+  SCHED --> JOBRUN
+  OUTBOX --> MAILA
+  OUTBOX --> GOOGLEA
+  CMD --> FILESA
+  CMD --> BOOKA
+  PAGES --> CMSA
+```
+
+- **Every write is a command.** Pages, the scheduler and the tools call the same commands. Each command runs `authorize` for its principal, checks its transition and writes domain rows, an audit row and outbox rows in one transaction.
+- **Principals act through clients.** A person through a browser session, a system job through the cron tick, a developer through a tool. A client never has more rights than its principal.
+- **Provider calls happen after commit**, from the outbox. The adapters are the only code that talks to e-mail, Google, R2 or the CMS.
+
 ## Deployment
 
 ```mermaid
 flowchart LR
-  B["Browser"] -->|HTTPS| W["apps/web<br/>TanStack Start on one Cloudflare Worker<br/>fetch + scheduled"]
-  W -->|"Hyperdrive (cache off)"| PG[("Neon PostgreSQL 18<br/>schema public")]
-  W -->|binding| R2[("R2: files, receipts")]
-  W -->|REST, read-only token| CMS["apps/cms<br/>EmDash on a second Worker"]
+  B["Browser"] -->|HTTPS| W["apps/web: one Cloudflare Worker<br/>fetch: pages, server functions<br/>scheduled: job registry"]
+  CT["Cron trigger<br/>every 10 minutes"] --> W
+  W -->|"Hyperdrive (cache off)"| PG[("Neon PostgreSQL 18, EU<br/>schema public: domain, audit,<br/>outbox, job_run, auth")]
+  W -->|binding| R2P[("R2: public files")]
+  W -->|binding| R2X[("R2: private files<br/>(receipts)")]
+  W -->|"REST, read-only token"| CMS["apps/cms: EmDash<br/>second Worker"]
   CMS -->|Hyperdrive| PGC[("Neon: schema emdash")]
-  W -->|outbox delivery| MAIL["Cloudflare Email Service"]
-  W -->|outbox delivery| GWS["Google Workspace<br/>(groups, accounts: one way)"]
-  W -->|file download| BOOK["Bookkeeping (Fiken): CSV + ZIP"]
+  CMS -->|binding| R2M[("R2: CMS media")]
+  W -->|"outbox, production only"| MAIL["Cloudflare Email Service"]
+  W -->|"outbox, behind a switch"| GWS["Google Workspace"]
   W -->|siteverify| TS["Turnstile"]
+  DEV["Developer machine<br/>importer, simulator"] -->|direct| PG
 ```
 
-Infrastructure is declared in `apps/web/alchemy.run.ts` (Alchemy v2), the single infrastructure root. Local development runs PostgreSQL and MySQL (the legacy import source) through devenv.
+| Stage | What runs | Data |
+| --- | --- | --- |
+| Local (devenv) | `vp dev` for web, `astro dev` for the CMS, PostgreSQL and MySQL in devenv | Fake fixtures; the legacy backup only on the operator's machine |
+| Preview (one per pull request) | Worker Previews of web and CMS; no cron | A Neon branch forked from `dev`, fake data |
+| Main | Long-lived Workers, cron on | Neon `dev`, fake data |
+| Production | Long-lived Workers, cron on, real e-mail | Neon production, EU |
+
+Infrastructure for every stage is declared in `apps/web/alchemy.run.ts` (Alchemy v2), the single infrastructure root. Only production binds the real e-mail sender. Every other stage builds a capture sink.
+
+## Scheduled jobs
+
+Jobs are declared in code (`packages/domain`): name, when the job is due, its System principal and its chunk size. Postgres holds only `job_run`, with one row per job and period, and the work the jobs produce in the outbox. The one cron tick claims each due job with `INSERT … ON CONFLICT DO NOTHING` on `(job, period)`, runs it through `authorize` as its System principal, and stores its outcome and cursor. A job that would exceed one cron run continues from its cursor on the next tick. When a job is due is read from domain rows, for example the start date of an admission period, never from a stored schedule.
+
+| Job | Due when |
+| --- | --- |
+| Semesters | Each tick; idempotent |
+| Outbox sweep | Each tick |
+| Admission alerts | An admission period has opened and has no alert run |
+| Ending soon | Four weeks before the semester ends; once per semester |
+| Alumni consent | A person's last engagement has ended and no consent mail has gone out |
+| Retention | Once per night |
+| Google directory sync | Once per night, in dry-run until switched on |
 
 ## Technology
 
@@ -37,7 +125,7 @@ Infrastructure is declared in `apps/web/alchemy.run.ts` (Alchemy v2), the single
 | Permissions | House grant table + `authorize` | New table; `authorize` exists (ADR 0001) |
 | Authentication | Better Auth (library), its own `pg` client for the auth tables only | Phase 2 (accepted brief revision) |
 | Content | EmDash 1.3 headless CMS | Running (spec 0005) |
-| Background work | Postgres outbox delivered by `waitUntil` and a cron sweep; cron jobs for semesters, "ending soon", retention | Outbox and semester job running; the rest new |
+| Background work | Postgres outbox delivered by `waitUntil` and the cron sweep; jobs declared in code, claimed per period in `job_run` (see Scheduled jobs) | Outbox and semester job running; the registry new (spec 0008) |
 | E-mail, spam protection | Cloudflare Email Service (production only; capture sink elsewhere), Turnstile | Running |
 | Tests | `@effect/vitest`, PGlite and real PostgreSQL, Schema arbitraries for property tests, Playwright | Running; property tests new |
 | Documentation | `docs/system/` with Reference sections generated from `packages/domain` (`check:docs`) | New |
@@ -71,6 +159,7 @@ flowchart TB
 | Commands | `Rpc.make(name, { payload, success, error })` in one `RpcGroup` per domain, annotated with its machine transition | server functions (in-process client), handlers (`RpcGroup.toLayer`), grant completeness test, docs |
 | Grants | `(subject set, commands, scope)` rows | `authorize`, UI, the "who does what" tables, property tests |
 | Reactions | `event → effect` rows | outbox writers, docs |
+| Jobs | `(name, due when, System principal, chunk size, handler)` | the scheduled handler, docs, the simulator |
 | Pure rules | Plain functions: `isOpen`, `answersSchema`, `score`, `proposePlacements`, semester calendar | handlers, browser, tests |
 | Ports | Service interfaces: repositories, `Mail`, `Files`, `BookkeepingExport`, `WorkspaceDirectory` | implemented in `db` and `apps/web` |
 
