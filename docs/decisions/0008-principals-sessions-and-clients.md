@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A person, a principal, a session and a client are four separate things
