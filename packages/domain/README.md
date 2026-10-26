@@ -12,7 +12,8 @@ Domains are declared as data; the runtime, the control panel, the tests and `doc
 | `subject.ts` | The subject sets (`Anyone`, `Admin`, `Member`, `Leader`, `Board`, `Fn`, `Self`, `System(job)`): pure functions of a principal's facts; `catalog` is what the docs list. |
 | `grant.ts` | `Grant.make(subjects, commands, scope)`: a row; scope `own`, `department` or `all`. Only additive: no deny, no precedence. |
 | `authorize.ts` | `authorize(principal, command, resource)` reads the rows and nothing else. `canAnywhere` is what the sidebar asks; `requireGrant` fails a handler with `Forbidden`. |
-| `machine.ts` | `Machine.make` (transition tables over a `Schema.TaggedUnion` of states, typed by the domain's `RpcGroup`), `can`, `available`, `next`. Calculated transitions (a membership becomes Active by the calendar) are declared, not stored. |
+| `guard.ts` | Native `Schema.makeFilter` semester checks (typed paths, after/same/not/or), `describe`, and `SchemaRepresentation` revivers. Their JSON representations are available to compilers as well as the runtime. |
+| `machine.ts` | `Machine.make` (transition tables over a `Schema.TaggedUnion` of states and a context schema, typed by the domain's `RpcGroup`), `can`, `startsFrom`, `available`, `next`. Guard checks are compiled once; their JSON is exposed in machine descriptions. Calculated transitions are declared, not stored. |
 | `commands.ts` | `Info` (the annotation each `Rpc` carries: summary, the legacy rules it replaces, the job that alone runs it, its machine), `inProcess` (the group's handlers behind a client in this process) and `endpoint` (untrusted input in, the command's own result out). |
 | `domain.ts` | `Domain.make({ commands, reads, grants, machines })` returns the declaration, `handle` (every handler is built with it: find the resource, ask the table, then run) and `problems`, the completeness check that the tests and the doc generator use. |
 
