@@ -32,6 +32,18 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Alumnus** (tidligere medlem): A person with no current engagement who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
 
+## Acting in the system
+
+**Principal** (aktør): The party that is accountable for an action: a person, a named system job, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
+
+**System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. _Avoid_: root, service account, bot
+
+**Credential** (innloggingsmiddel): What proves a principal: a password, a passkey, a single-use code, or the platform's trigger for a scheduled job. _Avoid_: login, auth
+
+**Session** (økt): A period in which one credential holds one principal on one client. A person can see and end their sessions. _Avoid_: login, token
+
+**Client** (klient): The software that acts on behalf of a principal: a browser on a desktop or a phone, the server that runs a request, the scheduler, or the import tool. A client never has more permissions than its principal. _Avoid_: device, agent, app
+
 ## Admission and recruitment
 
 **Admission period** (opptaksperiode): The window in which a department accepts applications for one semester. _Avoid_: admission, application window, intake
