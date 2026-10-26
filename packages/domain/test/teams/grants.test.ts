@@ -24,7 +24,7 @@ import {
 } from "../../src/index.ts";
 import type { Command, Principal, Resource } from "../../src/index.ts";
 import type { Declaration } from "../../src/kernel/domain.ts";
-import { agreement, cases, without } from "../support/grantLaws.ts";
+import { agreement, cases, passes, without } from "../support/grantLaws.ts";
 import { TRONDHEIM, admin, teamLeaderTrondheim } from "../support/inMemory.ts";
 
 /** Every name that a grant row may carry: the commands and the reads of every domain. */
@@ -54,14 +54,6 @@ const withoutCommand = (
       ? [{ ...row, commands: rest }]
       : [];
   });
-
-const passes = <A, E>(result: Arbitrary.CheckResult<A, E>) => {
-  assert.strictEqual(
-    result._tag,
-    "Passed",
-    Arbitrary.formatCheckFailure(result)
-  );
-};
 
 describe("falsifier 1: authorize equals the grant table", () => {
   it.effect(

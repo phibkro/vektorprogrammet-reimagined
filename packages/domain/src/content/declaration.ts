@@ -5,10 +5,13 @@
  */
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
-import * as Grant from "../kernel/grant.ts";
-import * as Subject from "../kernel/subject.ts";
+import {
+  Info,
+  grant,
+  info,
+  member,
+  make as declareDomain,
+} from "../kernel/domain.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { SocialEvent, SocialEventInput } from "./socialEvent.ts";
 
@@ -17,8 +20,8 @@ export const createSocialEvent = Rpc.make("createSocialEvent", {
   payload: SocialEventInput,
   success: SocialEvent,
 }).annotate(
-  Commands.Info,
-  Commands.info({
+  Info,
+  info({
     replaces: ["RULE-188"],
     summary: "Add a social event for a department and a semester.",
   })
@@ -26,9 +29,9 @@ export const createSocialEvent = Rpc.make("createSocialEvent", {
 
 export const ContentRpc = RpcGroup.make(createSocialEvent);
 
-export const ContentDomain = Domain.make({
+export const ContentDomain = declareDomain({
   commands: ContentRpc,
-  grants: [Grant.make([Subject.member], ["createSocialEvent"], "department")],
+  grants: [grant([member], ["createSocialEvent"], "department")],
   name: "content",
   reads: {},
   title: "Content",

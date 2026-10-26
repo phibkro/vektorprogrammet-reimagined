@@ -127,4 +127,4 @@ The Reference section of each domain page declares, for developers:
 - the personal data: purpose, legal basis and retention
 - the legacy rules (RULE-nnn) that each item replaces
 
-Today these sections are written by hand from `INFORMATION_MODEL.md`. When `packages/domain` exports the declarations as data, a script will generate the sections, and CI will fail if they are out of date. Until then, a Reference section must not contain a fact that is not in `INFORMATION_MODEL.md` or the code.
+Spec 0006 generates the marked teams blocks from `packages/domain`. Run `bun run docs` after changing declarations. CI runs `bun run check:docs`. Other domain references remain hand-written from `INFORMATION_MODEL.md` until their slices are built.

@@ -15,7 +15,7 @@ Domains are declared as data; the runtime, the control panel, the tests and `doc
 | `guard.ts` | Native `Schema.makeFilter` semester checks (typed paths, after/same/not/or), `describe`, and `SchemaRepresentation` revivers. Their JSON representations are available to compilers as well as the runtime. |
 | `machine.ts` | `Machine.make` (transition tables over a `Schema.TaggedUnion` of states and a context schema, typed by the domain's `RpcGroup`), `can`, `startsFrom`, `available`, `next`. Guard checks are compiled once; their JSON is exposed in machine descriptions. Calculated transitions are declared, not stored. |
 | `commands.ts` | `Info` (the annotation each `Rpc` carries: summary, the legacy rules it replaces, the job that alone runs it, its machine), `inProcess` (the group's handlers behind a client in this process) and `endpoint` (untrusted input in, the command's own result out). |
-| `domain.ts` | `Domain.make({ commands, reads, grants, machines })` returns the declaration, `handle` (every handler is built with it: find the resource, ask the table, then run) and `problems`, the completeness check that the tests and the doc generator use. |
+| `domain.ts` | `Domain.make({ commands, reads, grants, machines })`, `handle` and `problems`. It also exposes the existing command metadata, grant constructor and subject sets for declarations. `departmentResource` selects the department from a command payload. |
 
 `declarations.ts` lists every domain and builds `GrantTable` (the rows of all domains, and the one `Admin` row that names everything a person may run) and the root `authorize` and `canAnywhere`. A domain that is not in that list has no permissions and no page.
 

@@ -499,7 +499,7 @@ const transactor = Layer.effect(
 );
 
 /** The origin the in-memory site pretends to have (the "ending soon" e-mail's links start with it). */
-export const SITE_ORIGIN = "https://vektorprogrammet.test";
+const SITE_ORIGIN = "https://vektorprogrammet.test";
 
 /**
  * Every in-memory service over `tables` (fresh by default), acting as `principal` (anonymous by default). The teams

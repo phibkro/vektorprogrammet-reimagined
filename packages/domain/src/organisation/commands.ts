@@ -9,6 +9,7 @@ import { DateTime, Effect } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import * as Commands from "../kernel/commands.ts";
+import { departmentResource } from "../kernel/domain.ts";
 import type { DepartmentId } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import {
@@ -73,7 +74,7 @@ export const OrganisationHandlers = OrganisationRpc.toLayer({
       }),
   }),
   createFieldOfStudy: OrganisationDomain.handle(createFieldOfStudy, {
-    resource: ({ departmentId }) => Effect.succeed({ departmentId }),
+    resource: departmentResource,
     run: (draft, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;

@@ -238,6 +238,24 @@ const withMembership = (options: JoinOptions = {}) =>
     return { ...found, membership };
   });
 
+/** One active and one planned membership of the same person. */
+const withPlannedMembership = Effect.gen(function* withPlannedMembership() {
+  const found = yield* withMembership();
+
+  const planned = yield* addAs(
+    teamLeaderTrondheim,
+    found.team.id,
+    found.ola.id,
+    host(2028)
+  );
+
+  return { ...found, planned };
+});
+
+const assertNoMemberships = Effect.gen(function* assertNoMemberships() {
+  assert.deepStrictEqual(yield* teamRows((tables) => tables.memberships), []);
+});
+
 const memberOf = (id: MembershipId) =>
   MembershipRepository.use((memberships) => memberships.findById(id));
 
@@ -338,7 +356,7 @@ describe("teams: adding members (RULE-164, RULE-206, RULE-284, ADR 0002)", () =>
         );
 
         assert.deepStrictEqual(issuePaths(refused), ["personId"]);
-        assert.deepStrictEqual(yield* teamRows((t) => t.memberships), []);
+        yield* assertNoMemberships;
       }).pipe(Effect.provide(TestServices))
   );
 
@@ -430,7 +448,7 @@ describe("teams: adding members (RULE-164, RULE-206, RULE-284, ADR 0002)", () =>
 
         assert.deepStrictEqual(issuePaths(backwards), ["end"]);
         assert.deepStrictEqual(issuePaths(past), ["start"]);
-        assert.deepStrictEqual(yield* teamRows((t) => t.memberships), []);
+        yield* assertNoMemberships;
       }).pipe(Effect.provide(TestServices))
   );
 
@@ -537,14 +555,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
     "endEarly is refused for a membership that has not started, from the past, and from a semester after the term",
     () =>
       Effect.gen(function* effectProgram() {
-        const { membership, ola, team } = yield* withMembership();
-
-        const planned = yield* addAs(
-          teamLeaderTrondheim,
-          team.id,
-          ola.id,
-          host(2028)
-        );
+        const { membership, planned } = yield* withPlannedMembership;
 
         const notStarted = yield* endAsAdmin(planned.id, host(2028));
         const past = yield* endAsAdmin(membership.id, vaar(2026));
@@ -624,14 +635,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
     "cancel removes a membership that has not started, and refuses one that has",
     () =>
       Effect.gen(function* effectProgram() {
-        const { membership, ola, team } = yield* withMembership();
-
-        const planned = yield* addAs(
-          teamLeaderTrondheim,
-          team.id,
-          ola.id,
-          host(2028)
-        );
+        const { membership, planned } = yield* withPlannedMembership;
 
         const removed = yield* cancelAsLeader(planned.id);
         const started = yield* cancelAsLeader(membership.id);

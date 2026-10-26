@@ -5,8 +5,7 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import * as Commands from "../kernel/commands.ts";
-import * as Domain from "../kernel/domain.ts";
+import { Info, info, make as declareDomain } from "../kernel/domain.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { AuditEntry } from "./auditLog.ts";
 
@@ -17,13 +16,13 @@ export const readAudit = Rpc.make("readAudit", {
   },
   success: Schema.Array(AuditEntry),
 }).annotate(
-  Commands.Info,
-  Commands.info({ summary: "Read the newest entries of the audit log." })
+  Info,
+  info({ summary: "Read the newest entries of the audit log." })
 );
 
 export const AuditRpc = RpcGroup.make(readAudit);
 
-export const AuditDomain = Domain.make({
+export const AuditDomain = declareDomain({
   commands: AuditRpc,
   grants: [],
   name: "audit",

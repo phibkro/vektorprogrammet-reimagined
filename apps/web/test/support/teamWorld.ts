@@ -42,7 +42,7 @@ export const BERGEN = 2;
 
 export const TRONDHEIM_TEAM = TeamId.make(1);
 
-export const BERGEN_TEAM = TeamId.make(2);
+const BERGEN_TEAM = TeamId.make(2);
 
 const FIELD_TRONDHEIM = 10;
 

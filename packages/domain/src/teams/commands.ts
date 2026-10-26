@@ -9,6 +9,7 @@ import { DateTime, Effect, Predicate } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import * as Commands from "../kernel/commands.ts";
+import { departmentResource } from "../kernel/domain.ts";
 import * as Machine from "../kernel/machine.ts";
 import { currentSemester } from "../organisation/commands.ts";
 import { semesterWindow } from "../organisation/semester.ts";
@@ -85,7 +86,7 @@ const loadMembership = Effect.fn("loadMembership")(function* loadMembership(
   const membership = yield* memberships.findById(id);
   const team = yield* teams.findById(membership.teamId);
 
-  return { membership, team };
+  return { membership, memberships, team };
 });
 
 const teamOf = Effect.fn("teamOf")(function* teamOf(id: TeamId) {
@@ -110,7 +111,8 @@ const beginTransition = Effect.fn("beginTransition")(function* beginTransition(
   command: keyof typeof REFUSED,
   requested: Semester | null
 ) {
-  const { membership, team } = yield* loadMembership(id);
+  yield* InTransaction;
+  const { membership, memberships, team } = yield* loadMembership(id);
   const current = yield* currentSemester;
   const term = { end: membership.end, start: membership.start };
 
@@ -129,7 +131,7 @@ const beginTransition = Effect.fn("beginTransition")(function* beginTransition(
     });
   }
 
-  return { current, membership, team };
+  return { current, membership, memberships, team };
 });
 
 const belongsToDepartment = (
@@ -203,10 +205,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     resource: ({ id }) => aboutMembership(id),
     run: ({ id }, principal) =>
       Effect.gen(function* run() {
-        yield* InTransaction;
-        const memberships = yield* MembershipRepository;
-
-        const { current, membership } = yield* beginTransition(
+        const { current, membership, memberships } = yield* beginTransition(
           id,
           "cancel",
           null
@@ -245,11 +244,9 @@ export const TeamsHandlers = TeamsRpc.toLayer({
       }),
     run: (input, principal) =>
       Effect.gen(function* run() {
-        yield* InTransaction;
-        const memberships = yield* MembershipRepository;
         const positions = yield* PositionRepository;
 
-        const { current, membership } = yield* beginTransition(
+        const { current, membership, memberships } = yield* beginTransition(
           input.id,
           "change",
           input.from
@@ -290,7 +287,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
       }),
   }),
   createTeam: TeamsDomain.handle(createTeam, {
-    resource: ({ departmentId }) => Effect.succeed({ departmentId }),
+    resource: departmentResource,
     run: (draft, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;
@@ -332,10 +329,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     resource: ({ id }) => aboutMembership(id),
     run: ({ id, semester }, principal) =>
       Effect.gen(function* run() {
-        yield* InTransaction;
-        const memberships = yield* MembershipRepository;
-
-        const { current, membership } = yield* beginTransition(
+        const { current, membership, memberships } = yield* beginTransition(
           id,
           "endEarly",
           semester
@@ -363,10 +357,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     resource: ({ id }) => aboutMembership(id),
     run: ({ end, id }, principal) =>
       Effect.gen(function* run() {
-        yield* InTransaction;
-        const memberships = yield* MembershipRepository;
-
-        const { current, membership } = yield* beginTransition(
+        const { current, membership, memberships } = yield* beginTransition(
           id,
           "extend",
           end

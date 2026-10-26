@@ -5,6 +5,7 @@
  * whether a row needs one of them. `authorize` reads the same rows by evaluating each subject set against the
  * principal. The two routes share no code.
  */
+import { assert } from "@effect/vitest";
 import { Arbitrary, Array as Arr, DateTime, Effect, Schema } from "effect";
 
 import {
@@ -16,7 +17,12 @@ import {
   TeamFunction,
   TeamId,
 } from "../../src/index.ts";
-import type { Grant, Resource } from "../../src/index.ts";
+import type {
+  Grant,
+  MembershipFact,
+  PersonPrincipal,
+  Resource,
+} from "../../src/index.ts";
 
 const upTo = (limit: number) => Schema.Literals(Arr.range(1, limit));
 
@@ -43,15 +49,32 @@ const personFacts = Arbitrary.all({
   personId: persons,
 });
 
-const person = Arbitrary.map(personFacts, ({ admin, memberships, personId }) =>
+/** Construct a person from facts, including a long-lived admin place when requested. */
+export const principalOf = (
+  memberships: readonly MembershipFact[],
+  personId: PersonId,
+  admin: boolean
+): PersonPrincipal =>
   admin
     ? Principal.cases.Person.make({
         adminUntil: DateTime.makeUnsafe("2099-01-01T00:00:00Z"),
         memberships,
         personId,
       })
-    : Principal.cases.Person.make({ memberships, personId })
+    : Principal.cases.Person.make({ memberships, personId });
+
+const person = Arbitrary.map(personFacts, ({ admin, memberships, personId }) =>
+  principalOf(memberships, personId, admin)
 );
+
+/** A generated property must pass; include its counterexample in the failure. */
+export const passes = <A, E>(result: Arbitrary.CheckResult<A, E>) => {
+  assert.strictEqual(
+    result._tag,
+    "Passed",
+    Arbitrary.formatCheckFailure(result)
+  );
+};
 
 const system = Arbitrary.map(Arbitrary.schema(SystemJob), (job) =>
   Principal.cases.System.make({ job })
