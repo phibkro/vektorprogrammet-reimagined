@@ -8,12 +8,14 @@ import { checkDocument, renderDocument } from "./render.ts";
 
 const FILE = "../../docs/system/teams.md";
 
+// oxlint-disable unicorn/throw-new-error -- EX-0003: this is a Schema.TaggedError declaration, not a throw.
 class DocumentationError extends Schema.TaggedError<
   DocumentationError,
   { readonly brand: unique symbol }
 >()("DocumentationError", {
   message: Schema.String,
 }) {}
+// oxlint-enable unicorn/throw-new-error
 
 const command = Command.make(
   "vektorprogrammet-docgen",

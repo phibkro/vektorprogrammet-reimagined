@@ -1,4 +1,5 @@
 /** Spec 0006, falsifier 10: the real control panel, its server functions and migrated PostgreSQL. */
+// oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { LOCAL_PEOPLE } from "@vektorprogrammet/db";

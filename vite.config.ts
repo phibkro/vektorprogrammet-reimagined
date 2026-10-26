@@ -353,7 +353,6 @@ export default defineConfig({
         files: [
           "packages/domain/src/shared/errors.ts",
           "tools/import/src/config.ts",
-          "tools/docgen/src/main.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
           "tools/import/src/target.ts",
@@ -539,7 +538,6 @@ export default defineConfig({
           "tools/db-path-spike/test/pure.test.ts",
           "apps/web/e2e/journey.spec.ts",
           "apps/web/e2e/shell.spec.ts",
-          "apps/web/e2e/teams.spec.ts",
           "apps/web/e2e/support/panel.ts",
           "apps/web/e2e/public.spec.ts",
           "apps/web/e2e/support/editor.ts",
