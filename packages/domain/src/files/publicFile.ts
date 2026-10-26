@@ -1,7 +1,7 @@
 /** C11 registered public files. Only registered keys are reachable (RULE-290 replacement). */
 import { Schema } from "effect";
 
-import { FileKey, UserId } from "../shared/ids.ts";
+import { FileKey, PersonId } from "../shared/ids.ts";
 import { StoredContentType } from "./fileType.ts";
 
 export const PublicFile = Schema.Struct({
@@ -13,8 +13,8 @@ export const PublicFile = Schema.Struct({
   name: Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(255)),
   size: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   uploadedAt: Schema.DateTimeUtc,
-  /** Null for imported legacy files. */
-  uploadedBy: Schema.NullOr(UserId),
+  /** The person who registered it; null for imported legacy files and for files a job registered. */
+  uploadedBy: Schema.NullOr(PersonId),
 });
 
 export type PublicFile = typeof PublicFile.Type;

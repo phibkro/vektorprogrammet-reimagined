@@ -63,3 +63,27 @@
 Sign-in, invitations and personal-data mechanisms (spec 0007); Google group projection (spec 0008); retiring the social-events page (ADR 0005, its own slice); importing legacy teams and memberships (spec 0013).
 
 ## Revisions
+
+### R1 (2026-10-26): principals
+
+Operator input, relayed by the lead. It changes the vocabulary and adds one kind of acting party. Everything else in this spec stands.
+
+1. **The acting party is a principal, not an actor.** `CurrentPrincipal` replaces `CurrentActor`. Its value is `Anonymous`, `Person { personId, memberships, adminUntil? }` or `System { job }`, where `job` is `"semesters"`, `"outboxSweep"` or `"endingSoon"` (a closed set that later slices extend). "Actor" in the Constraints above reads "principal".
+2. **A grant may name `System(job)` as its subject set.** The scheduled jobs run as their `System` principal through the same `authorize` path, so no job bypasses it: `ensureSemesters` is granted only to `System("semesters")`, `sweepOutbox` only to `System("outboxSweep")` and the ending-soon digest `sendEndingSoon` only to `System("endingSoon")`. `Admin` holds every command that a person may run, which excludes the commands that only a job runs.
+3. **Every audit row records the principal:** a person id or a system job name, never both. Session and device fields come with sign-in (spec 0007).
+4. **The grant property test (falsifier 1) and the completeness test (falsifier 2) include `System` principals.** A job that holds no grant is refused like any other principal.
+
+### R2 (2026-10-26): what the build showed
+
+Found while building the kernel and the teams domain; none of it changes a falsifier.
+
+1. **`Machine.make` takes the domain's `RpcGroup`** (`Machine.make({ name, commands, states, transitions })`), so a transition that names a command outside the group is a compile error, as the Declarations section asks, and not only a failing test. A transition's guard reads a typed context (the term, the current semester, the semester the command names); `Machine.can(machine, command, state, context)`. Active, Planned and Ended are calculated, so the machine also lists the changes that time makes (`calculated`), and the generated diagram shows them.
+2. **Reads are named permissions.** A page or a list that a grant guards without a command (`openControlPanel`, `viewTeams`, `viewPeople`) is declared as a `read` of its domain and carries rows like a command, so the control panel asks `authorize` and nothing else. The grant table is typed by the names of the commands and reads of its domain.
+3. **`Admin` is one row.** Each domain adds no admin row of its own to the root table: `declarations.ts` builds the single `Admin` row, scope `all`, that names every command and read that a person may run (a job's command is in no person's row).
+4. **`registerPerson` is granted for the department of the chosen field of study.** A person has a required field of study (RULE-164: a member belongs to the team's department, and the department comes from the field of study, as in the legacy data). `registerPerson` is therefore a `Leader(d) ∪ Board(d) ∪ Admin` command for the department of that field. A cross-department `change` is the explicit exception to RULE-164 and needs the grant in both departments in the same transaction.
+5. **The position value list is a table**, seeded by the migration with `Leder` and `Medlem` (the legacy fixtures), so a later slice can extend it without a deploy.
+6. **`ReadAudit` is the real command `readAudit`** of the audit domain, granted through the `Admin` row only. `sweepOutbox` is declared in its own `outbox` domain with no person's grant; its handler lives in `apps/web`, where the transports are.
+7. **`Conflict` joins the typed errors.** A transition that could not be applied (the membership is not in a state the command starts from, or the conditional update found it changed) is `Conflict`, mapped to HTTP 409 beside `AlreadyExists`.
+8. **Server functions call `Commands.endpoint`.** It decodes untrusted input with the command's payload schema and calls the handler through the in-process client, inside the caller's `Transactor.run` (design: one transaction for the handler, its audit row and its outbox rows).
+9. **The ending-soon link** is `${SITE_URL}/kontrollpanel/team/<teamId>?forleng=<membershipId>`; `SITE_URL` is a Worker setting (a production deployment declares it, the local one derives it from the dev server). The digest goes to team leaders only, as the journey says; the admin digest of the information model is a later slice.
+10. **A member's own resignation** is `endEarly` granted to `Self`, scope `own`. `canAnywhere` does not count `own` rows, so the sidebar never offers a page for them alone; a member reaches the control on the Team page, which `viewTeams` opens to every member of the department, beside their own membership. The browser journey exercises the leader's `endEarly`.

@@ -24,7 +24,7 @@ import {
 /** What a caller may ask: the answers. */
 const ANSWERS = [
   "currentSemester",
-  "ensureScheduledSemesters",
+  "semesterJob",
   "isAdmissionOpen",
   "hasOpenAdmission",
   "currentOrLatestAdmissionPeriod",
