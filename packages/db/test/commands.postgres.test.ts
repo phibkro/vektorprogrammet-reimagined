@@ -5,10 +5,13 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
+  ContactEndpoints,
+  CurrentPrincipal,
   DepartmentRepository,
   OutboxMessage,
-  ensureScheduledSemesters,
-  submitContact,
+  anonymous,
+  semesterJob,
+  systemPrincipal,
 } from "@vektorprogrammet/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
@@ -25,6 +28,18 @@ import { TestClock } from "effect/testing";
 import { schema, transactional } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { AT, departmentDraft, slackChannel } from "./support/fixtures.ts";
+
+/** The semester job as the Worker's `scheduled` handler runs it: in a transaction, as `System("semesters")`. */
+const ensureScheduledSemesters = transactional(
+  Effect.provideService(
+    semesterJob,
+    CurrentPrincipal,
+    systemPrincipal("semesters")
+  )
+);
+
+/** A visitor submits the contact form: nobody is signed in. */
+const asVisitor = Effect.provideService(CurrentPrincipal, anonymous);
 
 const auditRows = Effect.fnUntraced(function* auditRows(
   entity: string,
@@ -111,7 +126,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
             assert.deepStrictEqual(second, first);
             assert.deepStrictEqual(yield* semesterRows, rows);
-            // Not a staff write: no actor, no audit entry.
+            // The job writes no audit entry: a semester row is not a person's change.
             assert.strictEqual(
               (yield* auditRows("Semester", String(first.current.id))).length,
               0
@@ -172,13 +187,13 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             );
 
             const receipt = yield* transactional(
-              submitContact({
+              ContactEndpoints.submitContact({
                 departmentId: department.id,
                 email: "besoker@innsender.example",
                 message: "Hei, når åpner opptaket?",
                 name: "Testperson",
                 subject: "Spørsmål",
-              })
+              }).pipe(asVisitor)
             );
 
             assert.strictEqual(receipt.messageIds.length, 4);
@@ -258,13 +273,13 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           const refused = yield* Effect.flip(
             transactional(
-              submitContact({
+              ContactEndpoints.submitContact({
                 departmentId: department.id,
                 email: "besoker@innsender.example",
                 message: "Hei",
                 name: "Testperson",
                 subject: "Spørsmål",
-              })
+              }).pipe(asVisitor)
             )
           );
 

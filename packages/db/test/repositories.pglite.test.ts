@@ -19,7 +19,8 @@ import {
   SemesterRepository,
   SocialEventRepository,
   SlackTarget,
-  UserId,
+  AuditPrincipal,
+  PersonId,
   hasOpenAdmission,
 } from "@vektorprogrammet/domain";
 import { eq } from "drizzle-orm";
@@ -444,26 +445,52 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
       })
   );
 
-  it.effect("audit log: record writes one row", () =>
-    Effect.gen(function* effectProgram() {
-      const audit = yield* AuditLog;
-      yield* audit.record({
-        action: "department.created",
-        actorId: UserId.make(7),
-        at: AT,
-        entity: "Department",
-        entityKey: "77",
-      });
-      const db = yield* Drizzle;
+  it.effect(
+    "audit log: record writes one row for a person and one for a job, and latest reads them back",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const audit = yield* AuditLog;
+        yield* audit.record({
+          action: "department.created",
+          at: AT,
+          entity: "Department",
+          entityKey: "77",
+          principal: AuditPrincipal.cases.Person.make({
+            personId: PersonId.make(7),
+          }),
+        });
+        yield* audit.record({
+          action: "endingSoon.sent",
+          at: AT,
+          entity: "Person",
+          entityKey: "8",
+          principal: AuditPrincipal.cases.System.make({ job: "endingSoon" }),
+        });
+        const db = yield* Drizzle;
 
-      const rows = yield* db
-        .select()
-        .from(schema.auditLog)
-        .where(eq(schema.auditLog.entityKey, "77"));
+        const rows = yield* db
+          .select()
+          .from(schema.auditLog)
+          .where(eq(schema.auditLog.entityKey, "77"));
 
-      assert.strictEqual(rows.length, 1);
-      assert.strictEqual(rows[0]?.action, "department.created");
-      assert.strictEqual(rows[0]?.at.toISOString(), "2026-10-15T10:00:00.000Z");
-    })
+        assert.strictEqual(rows.length, 1);
+        assert.strictEqual(rows[0]?.action, "department.created");
+        assert.strictEqual(rows[0]?.personId, 7);
+        assert.strictEqual(rows[0]?.systemJob, null);
+        assert.strictEqual(
+          rows[0]?.at.toISOString(),
+          "2026-10-15T10:00:00.000Z"
+        );
+
+        const latest = yield* audit.latest(2);
+
+        assert.deepStrictEqual(
+          Arr.map(latest, (entry) => entry.principal),
+          [
+            AuditPrincipal.cases.System.make({ job: "endingSoon" }),
+            AuditPrincipal.cases.Person.make({ personId: PersonId.make(7) }),
+          ]
+        );
+      })
   );
 });

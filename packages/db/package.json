@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./testing": "./test/support/disposableDatabase.ts",
+    "./testing/local-seed": "./test/support/localSeed.ts",
     "./testing/read-only-role": "./test/support/readOnlyRole.ts"
   },
   "scripts": {
@@ -13,7 +14,8 @@
     "check": "vp check",
     "db:generate": "bun --bun drizzle-kit generate",
     "db:migrate": "bun --bun drizzle-kit migrate",
-    "db:check": "bun --bun drizzle-kit check"
+    "db:check": "bun --bun drizzle-kit check",
+    "db:seed:local": "bun test/support/seedLocalMain.ts"
   },
   "dependencies": {
     "@effect/sql-pg": "catalog:",
@@ -22,6 +24,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
     "@effect/sql-pglite": "catalog:",
     "@effect/vitest": "catalog:",
     "@electric-sql/pglite": "catalog:",

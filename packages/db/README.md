@@ -1,14 +1,14 @@
 # @vektorprogrammet/db
 
-PostgreSQL for Phase 1: the Drizzle schema (single source), the generated migrations, and the Layers that implement `@vektorprogrammet/domain`'s repository services, the outbox and the audit log. Built on `@effect/sql-pg` and Drizzle `effect-postgres`. Consumers import only from the package root.
+PostgreSQL: the Drizzle schema (single source), the generated migrations, and the Layers that implement `@vektorprogrammet/domain`'s repository services, the outbox and the audit log. Built on `@effect/sql-pg` and Drizzle `effect-postgres`. Consumers import only from the package root.
 
 ## Public API (`src/index.ts`)
 
 | Export | What it is |
 | --- | --- |
-| `schema` | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `socialEvent`, `publicFile`, `outbox`, `auditLog`, and the enums `semesterTerm`, `outboxStatus`. TS names are camelCase, SQL names snake_case. |
-| `UniqueConstraint` | The unique constraint names (`department_city_unique`, `semester_term_year_unique`). |
-| `DatabaseLive({ url, maxConnections? })` | `Layer<DepartmentRepository \| AdmissionPeriodRepository \| SemesterRepository \| FieldOfStudyRepository \| SocialEventRepository \| PublicFileRepository \| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
+| `schema` | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `socialEvent`, `publicFile`, `person`, `team`, `position`, `membership`, `adminGrant`, `endingSoonDigest`, `outbox`, `auditLog`, and the enums `semesterTerm`, `teamFunction`, `outboxStatus`. TS names are camelCase, SQL names snake_case. |
+| `UniqueConstraint` | The constraint names that map to `AlreadyExists`: `department_city_unique`, `semester_term_year_unique`, `person_email_unique`, `team_department_name_unique` and the exclusion constraint `membership_no_overlap`. |
+| `DatabaseLive({ url, maxConnections? })` | `Layer<` every repository (`DepartmentRepository`, `AdmissionPeriodRepository`, `SemesterRepository`, `FieldOfStudyRepository`, `SocialEventRepository`, `PublicFileRepository`, `PersonRepository`, `TeamRepository`, `PositionRepository`, `MembershipRepository`, `AdminGrantRepository`, `DigestLedger`, `PrincipalDirectory`) `\| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
 | `transactional(effect)` | Runs the effect in `SqlClient.withTransaction` (a savepoint when nested) and provides `InTransaction`. The only provider of `InTransaction`. A typed failure, a defect or an interruption rolls back every row, including audit and outbox rows. A failing BEGIN/COMMIT is a defect. |
 | `OutboxDelivery` | `claimDue({ limit, leaseSeconds, ids? })`, `markDelivered(id, claimToken)`, `markFailed(id, claimToken, error, nextAttemptAt \| "dead")`. Acknowledgements return `"recorded"` or `"claimLost"`. |
 | `ClaimedOutboxMessage`, `OutboxClaimToken`, `OutboxAck` | The delivery-side schemas and types. |
@@ -25,6 +25,14 @@ PostgreSQL for Phase 1: the Drizzle schema (single source), the generated migrat
 - `PublicFileRepository.register` is idempotent on `key`, and the stored row wins. Deleted files (`deleted_at`) never resolve.
 - Outbox delivery is at least once. Rows are claimed in id order with `FOR UPDATE SKIP LOCKED` inside one `UPDATE … RETURNING`. A claim token fences every acknowledgement. The caller chooses the retry schedule and when a row is dead. Every timestamp comes from Effect's `Clock`.
 
+### People and teams (spec 0006)
+
+- Tables `person` (its department is its field of study's, joined, never stored), `team` (unique name per department, `default_term` 1 or 2, deactivated and never deleted), `position` (a value list; the migration `positions_seeded` inserts `Leder` and `Medlem`), `membership`, `admin_grant` and `ending_soon_digest`. The `audit_log` columns are `person_id` or `system_job`, exactly one of them (a check), and no foreign key.
+- A membership stores its term as `start_term`, `start_year`, `end_term`, `end_year`, and two generated columns, `start_ordinal` and `end_ordinal` (`year * 2 + (term = HOST)`, so Vår 2026 is 4052 and Høst 2026 is 4053). Its state (Planned, Active, Ended) is never stored. `start ≤ end` is the check `membership_term_order`. One person's terms in one team never overlap: the exclusion constraint `membership_no_overlap` (`EXCLUDE USING gist (person_id WITH =, team_id WITH =, int4range(start_ordinal, end_ordinal, '[]') WITH &&)`). A violation of it is `AlreadyExists` (`classifySqlFailure` reads SQLSTATE 23P01 from the driver's `ConstraintError`).
+- A transition is a conditional update. `MembershipRepository.setEnd` is `UPDATE … WHERE id = $1 AND end_ordinal = $observed AND start_ordinal <= $current AND end_ordinal >= $current`; `remove` is `DELETE … WHERE id = $1 AND start/end = $observed AND start_ordinal > $current`. A row that no longer matches is a `Conflict`, never a silent overwrite. `teams.postgres.test.ts` races twenty callers, and replays the successes in the order they committed to check that the row is consistent.
+- `AdminGrantRepository.revoke` locks the places that end after the cut-off (`SELECT … ORDER BY id FOR UPDATE`) before it deletes, so two revocations at once queue up and the second is told it is the last one. `DigestLedger.claim` is `INSERT … ON CONFLICT DO NOTHING RETURNING`.
+- `PrincipalDirectory.byName` loads a person's active memberships and admin places in one statement (`json_agg` subselects) and builds the principal with the domain's `personPrincipal`.
+
 ## Hyperdrive rules
 
 - `PgClient` runs with `prepare: false` (Hyperdrive pools in transaction mode), `multiplex: false`, and a small `maxConnections`. The settings live in `DatabaseLive`.
@@ -34,7 +42,7 @@ PostgreSQL for Phase 1: the Drizzle schema (single source), the generated migrat
 
 ## Migrations
 
-`src/schema.ts` is the only source. Never edit `drizzle/` by hand.
+`src/schema.ts` is the only source; the generated migrations are never edited by hand. What Drizzle cannot model is a custom migration (`drizzle-kit generate --custom --name <change>`, then the SQL is written): the exclusion constraint `membership_no_overlap` (with `CREATE EXTENSION btree_gist`) and the seed of the position value list. A rename that Drizzle cannot guess goes in as a hint: `drizzle-kit generate --name <change> --hints '[{"type":"rename","kind":"column","from":[…],"to":[…]}]'`.
 
 ```sh
 devenv shell -- bash -c 'cd packages/db && bunx drizzle-kit generate --name <change>'  # writes drizzle/<timestamp>_<change>/
@@ -84,6 +92,8 @@ devenv shell -- bash -c 'cd packages/db && bunx vp check'  # format, lint, type 
 - Every statement the helper runs as the admin (create, drop, the role's grants) goes through `withClient`: a client with one connection that lives only for that statement. A release must not wait on a client built earlier in its own scope. A pooled client retires a connection it finds idle for 60 to 120 seconds, and it cannot open another one while its scope is closing (Effect 4.0.5: `Pool.get` forks the replacement into the scope, which is already closed during its finalizers). A release after that window never returns. The browser tests in CI took more than two minutes, so the step ended its tests and then never exited. `test/disposableDatabase.postgres.test.ts` moves a `TestClock` five minutes with the database open and checks that the release still drops it (it fails with the old pooled release).
 - `readOnlyRole` (`test/support/readOnlyRole.ts`, exported as `@vektorprogrammet/db/testing/read-only-role`) adds a login role on the disposable database that holds `SELECT` and nothing else. Code run through it that succeeds wrote nothing; a write is refused with `permission denied`. `test/readOnlyRole.postgres.test.ts` proves it reads and refuses INSERT, UPDATE, DELETE, TRUNCATE, `ON CONFLICT DO UPDATE`, sequence use, temporary tables and `CREATE`. `apps/web`'s `readsNeverWrite.postgres.test.ts` uses it for spec 0003, falsifier 3. The role is cluster-wide: the layer drops it before it drops the database. Leftovers: `select rolname from pg_roles where rolname like 'vp_read_only_%'`.
 - Build the PostgreSQL layer with `excludeTestServices: true`. The pool reads the Clock it was built with to track connection age. When a test moved a shared `TestClock`, the suite hung. Tests that need fixed time nest `it.layer(TestClock.layer())`. At least one cause of that hang is gone: the disposable database's own release (see `withClient` above). The rule stays, because nobody has measured the suites without it.
+- The PGlite database loads `btree_gist` (`@electric-sql/pglite/contrib/btree_gist`), because the migration `membership_no_overlap` creates the extension.
+- The local seed (`test/support/localSeed.ts`, exported as `@vektorprogrammet/db/testing/local-seed`, run with `bun run db:seed:local`) gives `vp dev` and the browser tests the people they act as: Ada Admin (an admin place), Lise Leder (leads the recruitment team), Mats Medlem, Sofie Styre (the board team), Nora Nybegynner (no team) and Eva Ekstern (a membership that has ended). It reads `SEED_TARGET_DATABASE_URL`, else `DATABASE_URL`, and is safe to run again.
 
 Each Behavior Contract rule that the database enforces is covered by a test whose name contains the rule id. These rules are RULE-096, 133, 188, 189, 237, 249, 290 and 296.
 

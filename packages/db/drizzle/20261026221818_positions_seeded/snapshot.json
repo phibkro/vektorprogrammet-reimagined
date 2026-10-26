@@ -1,0 +1,2206 @@
+{
+  "id": "c771def0-cef2-489f-892b-7cb0a765e376",
+  "prevIds": ["3c684e72-2b9e-4002-bc5f-bd447a07c601"],
+  "version": "8",
+  "dialect": "postgres",
+  "ddl": [
+    {
+      "values": ["pending", "delivered", "dead"],
+      "name": "outbox_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": ["VAR", "HOST"],
+      "name": "semester_term",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": ["board", "economy", "it", "recruitment", "placement", "other"],
+      "name": "team_function",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "admin_grant",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "admission_period",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "audit_log",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "department",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "ending_soon_digest",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "field_of_study",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "membership",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "outbox",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "person",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "position",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "public_file",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "semester",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "social_event",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "team",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "granted_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "admin_grant_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "person_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "until",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "department_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ends_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "admission_period_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "semester_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "starts_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "action",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "entity",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "entity_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "audit_log_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "person_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "system_job",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "active",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "address",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "city",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "department_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "latitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "logo_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "longitude",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "short_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "slack_channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "person_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "ending_soon_digest"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recorded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "ending_soon_digest"
+    },
+    {
+      "type": "semester_term",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "term",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "ending_soon_digest"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "year",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "ending_soon_digest"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "department_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "field_of_study_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "short_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": {
+        "as": "end_year * 2 + (case when end_term = 'HOST' then 1 else 0 end)",
+        "type": "stored"
+      },
+      "identity": null,
+      "name": "end_ordinal",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "semester_term",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "end_term",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "end_year",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "membership_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "leader",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "person_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "position_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": {
+        "as": "start_year * 2 + (case when start_term = 'HOST' then 1 else 0 end)",
+        "type": "stored"
+      },
+      "identity": null,
+      "name": "start_ordinal",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "semester_term",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "start_term",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "start_year",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "team_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "claim_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "claimed_until",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "delivered_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "outbox_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_error",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "next_attempt_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payload",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "outbox_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "field_of_study_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "person_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "position_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "position"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "position"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "deleted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legacy_path",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sha256",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "uploaded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "uploaded_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "semester_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "semester"
+    },
+    {
+      "type": "semester_term",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "term",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "semester"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "year",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "semester"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "department_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ends_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "social_event_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "varchar(250)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "link",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "semester_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "starts_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "active",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_term",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "department_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "type": "team_function",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "function",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "team_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "2147483647",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "person_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "admin_grant_person_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "until",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "admin_grant_until_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "department_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "semester_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "admission_period_department_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "entity",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "entity_key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "audit_log_entity_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "department_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "field_of_study_department_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "team_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "membership_team_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "person_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "membership_person_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "next_attempt_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "outbox_due_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "field_of_study_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "person_field_of_study_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "department_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "semester_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "social_event_department_semester_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["granted_by"],
+      "schemaTo": "public",
+      "tableTo": "person",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "admin_grant_granted_by_person_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["person_id"],
+      "schemaTo": "public",
+      "tableTo": "person",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "admin_grant_person_id_person_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["department_id"],
+      "schemaTo": "public",
+      "tableTo": "department",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "admission_period_department_id_department_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["semester_id"],
+      "schemaTo": "public",
+      "tableTo": "semester",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "admission_period_semester_id_semester_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["logo_key"],
+      "schemaTo": "public",
+      "tableTo": "public_file",
+      "columnsTo": ["key"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "department_logo_key_public_file_key_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["person_id"],
+      "schemaTo": "public",
+      "tableTo": "person",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "ending_soon_digest_person_id_person_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "ending_soon_digest"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["department_id"],
+      "schemaTo": "public",
+      "tableTo": "department",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "field_of_study_department_id_department_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["person_id"],
+      "schemaTo": "public",
+      "tableTo": "person",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "membership_person_id_person_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["position_id"],
+      "schemaTo": "public",
+      "tableTo": "position",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "membership_position_id_position_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["team_id"],
+      "schemaTo": "public",
+      "tableTo": "team",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "membership_team_id_team_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["field_of_study_id"],
+      "schemaTo": "public",
+      "tableTo": "field_of_study",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "person_field_of_study_id_field_of_study_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["department_id"],
+      "schemaTo": "public",
+      "tableTo": "department",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "social_event_department_id_department_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["semester_id"],
+      "schemaTo": "public",
+      "tableTo": "semester",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "social_event_semester_id_semester_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["department_id"],
+      "schemaTo": "public",
+      "tableTo": "department",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "team_department_id_department_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "columns": ["person_id", "term", "year"],
+      "nameExplicit": true,
+      "name": "ending_soon_digest_pk",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "ending_soon_digest"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "admin_grant_pkey",
+      "schema": "public",
+      "table": "admin_grant",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "admission_period_pkey",
+      "schema": "public",
+      "table": "admission_period",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "audit_log_pkey",
+      "schema": "public",
+      "table": "audit_log",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "department_pkey",
+      "schema": "public",
+      "table": "department",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "field_of_study_pkey",
+      "schema": "public",
+      "table": "field_of_study",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "membership_pkey",
+      "schema": "public",
+      "table": "membership",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "outbox_pkey",
+      "schema": "public",
+      "table": "outbox",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "person_pkey",
+      "schema": "public",
+      "table": "person",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "position_pkey",
+      "schema": "public",
+      "table": "position",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["key"],
+      "nameExplicit": false,
+      "name": "public_file_pkey",
+      "schema": "public",
+      "table": "public_file",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "semester_pkey",
+      "schema": "public",
+      "table": "semester",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "social_event_pkey",
+      "schema": "public",
+      "table": "social_event",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "team_pkey",
+      "schema": "public",
+      "table": "team",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["city"],
+      "nullsNotDistinct": false,
+      "name": "department_city_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["email"],
+      "nullsNotDistinct": false,
+      "name": "person_email_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["name"],
+      "nullsNotDistinct": false,
+      "name": "position_name_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "position"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["legacy_path"],
+      "nullsNotDistinct": false,
+      "name": "public_file_legacy_path_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["term", "year"],
+      "nullsNotDistinct": false,
+      "name": "semester_term_year_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "semester"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["department_id", "name"],
+      "nullsNotDistinct": false,
+      "name": "team_department_name_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "value": "\"granted_by\" is null or \"granted_by\" <> \"person_id\"",
+      "name": "admin_grant_not_self",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "admin_grant"
+    },
+    {
+      "value": "\"ends_at\" > \"starts_at\"",
+      "name": "admission_period_window",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "admission_period"
+    },
+    {
+      "value": "\"action\" in ('department.created', 'department.updated', 'fieldOfStudy.created', 'fieldOfStudy.updated', 'socialEvent.created', 'publicFile.registered', 'person.registered', 'team.created', 'team.updated', 'team.deactivated', 'membership.added', 'membership.extended', 'membership.changed', 'membership.endedEarly', 'membership.cancelled', 'adminGrant.granted', 'adminGrant.revoked', 'endingSoon.sent')",
+      "name": "audit_log_action",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'SocialEvent', 'PublicFile', 'Person', 'Team', 'Position', 'Membership', 'AdminGrant')",
+      "name": "audit_log_entity",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "value": "\"person_id\" is null or \"person_id\" > 0",
+      "name": "audit_log_person",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "value": "\"system_job\" in ('semesters', 'outboxSweep', 'endingSoon')",
+      "name": "audit_log_system_job",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "value": "(\"person_id\" is not null) <> (\"system_job\" is not null)",
+      "name": "audit_log_principal",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "audit_log"
+    },
+    {
+      "value": "length(\"name\") > 0",
+      "name": "department_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "value": "length(\"short_name\") > 0",
+      "name": "department_short_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "value": "length(\"city\") > 0",
+      "name": "department_city",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "department"
+    },
+    {
+      "value": "length(\"name\") > 0",
+      "name": "field_of_study_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "value": "length(\"short_name\") > 0",
+      "name": "field_of_study_short_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "field_of_study"
+    },
+    {
+      "value": "\"start_ordinal\" <= \"end_ordinal\"",
+      "name": "membership_term_order",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "value": "\"start_year\" between 1900 and 9999",
+      "name": "membership_start_year",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "value": "\"end_year\" between 1900 and 9999",
+      "name": "membership_end_year",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "membership"
+    },
+    {
+      "value": "\"kind\" in ('Email', 'SlackPost')",
+      "name": "outbox_kind",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "value": "\"payload\" ->> '_tag' = \"kind\"",
+      "name": "outbox_payload_kind",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "value": "\"attempts\" >= 0",
+      "name": "outbox_attempts",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "value": "(\"claim_token\" is null) = (\"claimed_until\" is null)",
+      "name": "outbox_claim",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "value": "(\"status\" = 'delivered') = (\"delivered_at\" is not null)",
+      "name": "outbox_delivered",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "outbox"
+    },
+    {
+      "value": "\"email\" = lower(\"email\")",
+      "name": "person_email_lowercase",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "value": "length(\"name\") > 0",
+      "name": "person_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "person"
+    },
+    {
+      "value": "length(\"name\") > 0",
+      "name": "position_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "position"
+    },
+    {
+      "value": "\"key\" ~ '^[0-9a-f]{64}\\.(jpg|png|webp|gif|pdf|bin)$'",
+      "name": "public_file_key_format",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "value": "left(\"key\", 64) = \"sha256\"",
+      "name": "public_file_key_hash",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "value": "\"content_type\" in ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/octet-stream')",
+      "name": "public_file_content_type",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "value": "\"size\" >= 0",
+      "name": "public_file_size",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "value": "length(\"name\") > 0",
+      "name": "public_file_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "public_file"
+    },
+    {
+      "value": "\"year\" between 1900 and 9999",
+      "name": "semester_year",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "semester"
+    },
+    {
+      "value": "\"ends_at\" > \"starts_at\"",
+      "name": "social_event_window",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "value": "length(\"title\") > 0",
+      "name": "social_event_title",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "value": "length(\"description\") <= 5000",
+      "name": "social_event_description",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "social_event"
+    },
+    {
+      "value": "\"default_term\" in (1, 2)",
+      "name": "team_default_term",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "team"
+    },
+    {
+      "value": "length(\"name\") > 0",
+      "name": "team_name",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "team"
+    }
+  ],
+  "renames": []
+}

@@ -18,18 +18,24 @@
  * - Every timestamp comes from Effect's `Clock`.
  */
 import {
+  AuditAction,
   AuditLog,
+  AuditPrincipal,
+  EntityName,
   Outbox,
   OutboxMessage,
   OutboxMessageId,
+  PersonId,
+  SystemJob,
 } from "@vektorprogrammet/domain";
 import type { AuditEntry } from "@vektorprogrammet/domain";
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import {
   Context,
   DateTime,
   Effect,
   Layer,
+  Match,
   Order,
   Array as Arr,
   pipe,
@@ -263,6 +269,49 @@ export const OutboxDeliveryLive = Layer.effect(
   })
 );
 
+/** The audit row's principal columns: a person id or a job name, one of the two. */
+const principalColumns = (principal: AuditPrincipal) =>
+  Match.value(principal).pipe(
+    Match.tagsExhaustive({
+      Person: ({ personId }) => ({ personId, systemJob: null }),
+      System: ({ job }) => ({ personId: null, systemJob: job }),
+    })
+  );
+
+/** What `audit_log` stores; the check constraint keeps exactly one of the two principal columns set. */
+const StoredAuditEntry = Schema.Struct({
+  action: AuditAction,
+  at: Schema.DateTimeUtcFromDate,
+  entity: EntityName,
+  entityKey: Schema.String,
+  personId: Schema.NullOr(PersonId),
+  systemJob: Schema.NullOr(SystemJob),
+});
+
+const decodeStoredEntry = decodeWith(StoredAuditEntry);
+
+const entryOf = Effect.fnUntraced(function* entryOf(
+  row: typeof auditLog.$inferSelect
+) {
+  const { personId, systemJob, ...stored } = yield* decodeStoredEntry(row);
+
+  if (personId !== null) {
+    return {
+      ...stored,
+      principal: AuditPrincipal.cases.Person.make({ personId }),
+    };
+  }
+
+  if (systemJob !== null) {
+    return {
+      ...stored,
+      principal: AuditPrincipal.cases.System.make({ job: systemJob }),
+    };
+  }
+
+  return yield* Effect.die("an audit row names neither a person nor a job");
+});
+
 export const AuditLogLive = Layer.effect(
   AuditLog,
   Effect.gen(function* AuditLogLive() {
@@ -275,14 +324,27 @@ export const AuditLogLive = Layer.effect(
         .insert(auditLog)
         .values({
           action: entry.action,
-          actorId: entry.actorId,
           at: DateTime.toDateUtc(entry.at),
           entity: entry.entity,
           entityKey: entry.entityKey,
+          ...principalColumns(entry.principal),
         })
         .pipe(Effect.orDie);
     });
 
-    return AuditLog.of({ record });
+    const latest = Effect.fn("AuditLog.latest")(function* latest(
+      limit: number
+    ) {
+      const rows = yield* db
+        .select()
+        .from(auditLog)
+        .orderBy(desc(auditLog.id))
+        .limit(limit)
+        .pipe(Effect.orDie);
+
+      return yield* Effect.forEach(rows, entryOf);
+    });
+
+    return AuditLog.of({ latest, record });
   })
 );

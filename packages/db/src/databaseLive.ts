@@ -26,6 +26,15 @@ import {
   OutboxLive,
 } from "./repositories/outbox.ts";
 import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
+import {
+  AdminGrantRepositoryLive,
+  DigestLedgerLive,
+  MembershipRepositoryLive,
+  PersonRepositoryLive,
+  PositionRepositoryLive,
+  PrincipalDirectoryLive,
+  TeamRepositoryLive,
+} from "./repositories/teams.ts";
 
 /**
  * Every repository Layer over an abstract `Drizzle` and `SqlClient`. Internal:
@@ -38,6 +47,13 @@ export const RepositoriesLayer = Layer.mergeAll(
   FieldOfStudyRepositoryLive,
   SocialEventRepositoryLive,
   PublicFileRepositoryLive,
+  PersonRepositoryLive,
+  TeamRepositoryLive,
+  PositionRepositoryLive,
+  MembershipRepositoryLive,
+  AdminGrantRepositoryLive,
+  DigestLedgerLive,
+  PrincipalDirectoryLive,
   OutboxLive,
   OutboxDeliveryLive,
   AuditLogLive
