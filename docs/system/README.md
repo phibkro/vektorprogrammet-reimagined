@@ -13,6 +13,17 @@ Vektorprogrammet sends students to schools as assistants. Each semester, the org
 
 The system does this work where rules matter: who can apply, who can see what, which school has room, and who approves money. Other work stays in tools that the teams already use.
 
+In business terms, Vektorprogrammet works like a non-profit staffing agency:
+
+| Staffing agency | Vektorprogrammet |
+| --- | --- |
+| Clients | Schools |
+| Job orders | The number of assistants each school can take, per weekday and semester |
+| Candidates | Applicants, who are interviewed |
+| Assignments | Placements |
+
+Unlike a staffing agency, nobody pays: schools get assistants for free, the assistants are volunteers, and sponsors and the university fund the work. The students' experience is a goal of its own, not only a means of serving the schools.
+
 The names in these documents have one meaning each. `../../GLOSSARY.md` gives each name and its Norwegian word.
 
 ## What is in the system, and what is not
