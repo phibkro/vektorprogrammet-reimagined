@@ -11,6 +11,8 @@ import type { Locator } from "@playwright/test";
 import { Array as Arr, Record as Rec } from "effect";
 
 import {
+  TEST_ADMIN,
+  TEST_LEADER,
   expectPageNotReloaded,
   fillSheet,
   markPage,
@@ -29,15 +31,32 @@ import {
   runDatabase,
 } from "./support/probes.ts";
 
-/** The sections the sidebar lists, by actor: what each one's capabilities allow (domain `authorize`). */
+/** Sections derived from the grants held by each seeded person. */
 const SECTIONS_BY_ACTOR = {
-  admin: ["Oversikt", "Avdelinger", "Semestre", "Linjer", "Arrangementer"],
-  teamLeader: ["Oversikt", "Avdelinger", "Semestre", "Linjer", "Arrangementer"],
+  [TEST_ADMIN]: [
+    "Oversikt",
+    "Avdelinger",
+    "Semestre",
+    "Linjer",
+    "Team",
+    "Personer",
+    "Administratorer",
+    "Arrangementer",
+  ],
+  [TEST_LEADER]: [
+    "Oversikt",
+    "Avdelinger",
+    "Semestre",
+    "Linjer",
+    "Team",
+    "Personer",
+    "Arrangementer",
+  ],
 } as const;
 
-type Staff = keyof typeof SECTIONS_BY_ACTOR;
+type Staff = Extract<keyof typeof SECTIONS_BY_ACTOR, string>;
 
-const STAFF: readonly Staff[] = ["admin", "teamLeader"];
+const STAFF: readonly Staff[] = [TEST_ADMIN, TEST_LEADER];
 
 /** The page title of a section: the overview is called the control panel. */
 const titleOf = (section: string) =>
@@ -58,28 +77,42 @@ const GATED_CONTROLS: readonly {
   readonly control: string;
   readonly shownTo: readonly Staff[];
 }[] = [
-  { control: "Ny avdeling", path: DEPARTMENTS, shownTo: ["admin"] },
+  { control: "Ny avdeling", path: DEPARTMENTS, shownTo: [TEST_ADMIN] },
   {
     control: "Rediger Avdeling Alfa",
     path: DEPARTMENTS,
-    shownTo: ["admin", "teamLeader"],
+    shownTo: [TEST_ADMIN, TEST_LEADER],
   },
-  { control: "Rediger Avdeling Beta", path: DEPARTMENTS, shownTo: ["admin"] },
-  { control: "Vis Avdeling Beta", path: DEPARTMENTS, shownTo: ["teamLeader"] },
+  {
+    control: "Rediger Avdeling Beta",
+    path: DEPARTMENTS,
+    shownTo: [TEST_ADMIN],
+  },
+  { control: "Vis Avdeling Beta", path: DEPARTMENTS, shownTo: [TEST_LEADER] },
   {
     control: "Ny linje",
     path: "/kontrollpanel/linjer",
-    shownTo: ["admin", "teamLeader"],
+    shownTo: [TEST_ADMIN, TEST_LEADER],
   },
   {
     control: "Gi nytt navn til Fag Alfa",
     path: "/kontrollpanel/linjer",
-    shownTo: ["admin", "teamLeader"],
+    shownTo: [TEST_ADMIN, TEST_LEADER],
   },
   {
     control: "Nytt arrangement",
     path: "/kontrollpanel/arrangementer",
-    shownTo: ["admin", "teamLeader"],
+    shownTo: [TEST_ADMIN, TEST_LEADER],
+  },
+  {
+    control: "Nytt team",
+    path: "/kontrollpanel/team",
+    shownTo: [TEST_ADMIN, TEST_LEADER],
+  },
+  {
+    control: "Registrer person",
+    path: "/kontrollpanel/personer",
+    shownTo: [TEST_ADMIN, TEST_LEADER],
   },
 ];
 
@@ -187,7 +220,7 @@ test("falsifier 3: a forged request for a capability the page does not offer get
   page,
   context,
 }) => {
-  await signInAs(context, "teamLeader");
+  await signInAs(context, TEST_LEADER);
   await openPage(page, DEPARTMENTS);
 
   // One real save of the leader's own department, to learn where the department form sends its data.
@@ -245,7 +278,7 @@ test("falsifier 3: a forged request for a capability the page does not offer get
   expect(await runDatabase(auditEntryCount)).toBe(audited);
 
   // Control: the same request from an administrator is accepted, so the refusals above were about the actor.
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
 
   const accepted = await context.request.post(real.url(), {
     headers,
@@ -266,7 +299,7 @@ test("falsifier 4: create and edit happen in a right-hand Sheet; a saved edit sh
   page,
   context,
 }) => {
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
   await openPage(page, DEPARTMENTS);
   await markPage(page);
 
@@ -329,7 +362,7 @@ test("falsifier 5 (1280 px): the sidebar collapses to icons and back", async ({
   page,
   context,
 }) => {
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
   await page.setViewportSize({ height: 800, width: 1280 });
   await openPage(page, DEPARTMENTS);
 
@@ -375,7 +408,7 @@ test("falsifier 5 (390 px): the sidebar opens as an off-canvas panel", async ({
   page,
   context,
 }) => {
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
   await page.setViewportSize({ height: 844, width: 390 });
   await openPage(page, DEPARTMENTS);
 
@@ -386,7 +419,7 @@ test("falsifier 5 (390 px): the sidebar opens as an off-canvas panel", async ({
   await sidebarToggleOf(page).click();
   await expect(sheetOf(page)).toBeVisible();
   await expect(sidebarOf(page).getByRole("link")).toHaveText(
-    SECTIONS_BY_ACTOR.admin
+    SECTIONS_BY_ACTOR[TEST_ADMIN]
   );
   await page.waitForTimeout(400);
   await screenshot(page, "shell-390-offcanvas");

@@ -118,17 +118,17 @@ Jobs are declared in code (`packages/domain`): name, when the job is due, its Sy
 | Runtime and hosting | Cloudflare Workers (`enable_request_signal` required), Neon PostgreSQL through Hyperdrive with query caching off, R2 | Running (spec 0000) |
 | Language and tooling | TypeScript 7, Bun, Vite+ (Vitest, Oxlint, Oxfmt), `@effect/tsgo` diagnostics, devenv | Running |
 | Application | TanStack Start + React; shadcn/ui on Base UI (`base-nova`) | Running |
-| Domain and server | Effect v4: Schema, Effect, `effect/rpc` for command declarations | Effect running; `effect/rpc` new (ADR 0006) |
+| Domain and server | Effect v4: Schema, Effect, `effect/rpc` for command declarations | Running (spec 0006, ADR 0006) |
 | Data access | Drizzle `effect-postgres` on `@effect/sql-pg`; Drizzle schema is the table source, `drizzle-kit` the migrations | Running |
 | Forms | TanStack Form (`@tanstack/react-form-start`), validated through Standard Schema from Effect Schema | New (ADR 0003) |
-| State machines | House transition tables in `packages/domain` | New (ADR 0007) |
-| Permissions | House grant table + `authorize` | New table; `authorize` exists (ADR 0001) |
+| State machines | Transition tables with serializable Effect Schema guards | Running for Membership (spec 0006, ADR 0007) |
+| Permissions | Grant table + `authorize` | Running (spec 0006, ADR 0001) |
 | Authentication | Better Auth (library), its own `pg` client for the auth tables only | Phase 2 (accepted brief revision) |
 | Content | EmDash 1.3 headless CMS | Running (spec 0005) |
-| Background work | Postgres outbox delivered by `waitUntil` and the cron sweep; jobs declared in code, claimed per period in `job_run` (see Scheduled jobs) | Outbox and semester job running; the registry new (spec 0008) |
+| Background work | Postgres outbox delivered by `waitUntil` and the cron sweep; jobs declared in code, claimed per period in `job_run` (see Scheduled jobs) | Outbox, semester job and leader ending-soon digest running (spec 0006); the registry new (spec 0008); retention and admin reminders later |
 | E-mail, spam protection | Cloudflare Email Service (production only; capture sink elsewhere), Turnstile | Running |
-| Tests | `@effect/vitest`, PGlite and real PostgreSQL, Schema arbitraries for property tests, Playwright | Running; property tests new |
-| Documentation | `docs/system/` with Reference sections generated from `packages/domain` (`check:docs`) | New |
+| Tests | `@effect/vitest`, PGlite and real PostgreSQL, Schema arbitraries, Playwright | Running |
+| Documentation | `docs/system/` with generated reference blocks (`check:docs`) | Running for teams (spec 0006) |
 
 **Not used, and why:**
 
@@ -170,7 +170,7 @@ flowchart TB
 | --- | --- | --- |
 | Entities and value types | Effect Schema; branded ids; personal-data annotations on fields | `db` (via Drizzle-generated schemas), forms, retention job, privacy notice, docs |
 | States and events | `Schema.TaggedUnion` | machines, handlers, audit |
-| Machine | Transition table: `{ command: { from: [...], to, guard? } }` | runtime guard, UI (which buttons show), docs diagram, property tests |
+| Machine | Transition table with serializable Schema checks on a typed context | runtime guard, UI, docs diagram, property tests, future model generators |
 | Commands | `Rpc.make(name, { payload, success, error })` in one `RpcGroup` per domain, annotated with its machine transition | server functions (in-process client), handlers (`RpcGroup.toLayer`), grant completeness test, docs |
 | Grants | `(subject set, commands, scope)` rows | `authorize`, UI, the "who does what" tables, property tests |
 | Reactions | `event → effect` rows | outbox writers, docs |
@@ -189,10 +189,10 @@ sequenceDiagram
   B->>B: validate with Schema.toStandardSchemaV1(input schema)
   B->>F: POST (FormData or JSON)
   F->>F: decode with the same schema
-  F->>C: in-process client: Command(payload) + current actor
+  F->>C: in-process client: Command(payload) + current principal
   C->>P: BEGIN
-  C->>C: authorize(actor, command, record) from the grant table
-  C->>P: UPDATE … SET state = to WHERE id = $1 AND state = from
+  C->>C: authorize(principal, command, record) from the grant table
+  C->>P: Conditional update of the observed membership term
   C->>P: domain rows, audit row, outbox rows
   C->>P: COMMIT
   F-->>B: outcome; route data reloads

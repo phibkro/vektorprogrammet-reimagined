@@ -11,7 +11,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { anonymous } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
 import { MEMBER_POSITION } from "@vektorprogrammet/domain/testing";
-import { Array as Arr, DateTime, Effect, Option } from "effect";
+import { Array as Arr, DateTime, Effect, Option, Ref } from "effect";
 import { TestClock } from "effect/testing";
 
 import type { Outcome } from "../src/lib/outcome";
@@ -317,6 +317,33 @@ describe("spec 0006: the Team page", () => {
           ["extend", "change", "end"],
           ["cancel"],
         ]);
+      })
+  );
+
+  it.effect(
+    "a one-semester active membership offers no change or end form with an empty semester list",
+    () =>
+      Effect.gen(function* noEmptyChoices() {
+        const tables = yield* freshWorld;
+        yield* Ref.update(tables.teams.memberships, (rows) =>
+          Arr.map(rows, (row) =>
+            row.id === MEMBERSHIPS.lise ? { ...row, start: row.end } : row
+          )
+        );
+
+        const page = assertSuccess(yield* teamOf(tables, ADMIN));
+
+        const member = firstOf(
+          page.members,
+          "Lise Leder",
+          (row) => row.id === MEMBERSHIPS.lise
+        );
+
+        assert.deepStrictEqual(member.changeChoices, []);
+        assert.deepStrictEqual(member.endChoices, []);
+        assert.isFalse(member.canChange);
+        assert.isFalse(member.canEnd);
+        assert.isTrue(member.canExtend);
       })
   );
 });

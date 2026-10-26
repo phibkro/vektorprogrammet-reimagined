@@ -10,13 +10,20 @@ import {
 } from "@vektorprogrammet/db/testing";
 import { Console, Context, Effect, Layer, Redacted } from "effect";
 
-import { importerDirectory, runToEnd } from "./command.ts";
+import { databaseDirectory, importerDirectory, runToEnd } from "./command.ts";
 
 /** Runs the importer's `import:fixture` script into `url`: the fake legacy rows, through the real pipeline. */
 const importFixture = (url: Redacted.Redacted) =>
   runToEnd("bun", ["run", "import:fixture"], {
     cwd: importerDirectory,
     env: { IMPORT_TARGET_DATABASE_URL: Redacted.value(url) },
+  }).pipe(Effect.flatMap(Console.log));
+
+/** Add the people used as principals after the importer has finished. */
+const seedPeople = (url: Redacted.Redacted) =>
+  runToEnd("bun", ["run", "db:seed:local"], {
+    cwd: databaseDirectory,
+    env: { SEED_TARGET_DATABASE_URL: Redacted.value(url) },
   }).pipe(Effect.flatMap(Console.log));
 
 /**
@@ -27,6 +34,7 @@ export const disposableDatabase = Effect.gen(function* disposableDatabase() {
   const database = yield* Layer.build(migratedTestDatabase);
   const url = Context.get(database, TestDatabaseUrl);
   yield* importFixture(url);
+  yield* seedPeople(url);
 
   return url;
 });

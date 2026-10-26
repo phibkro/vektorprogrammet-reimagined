@@ -18,6 +18,8 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Person**: One human known to Vektorprogrammet: an applicant, an assistant, a team member, or a former one. One person has one record, even when they leave and come back. _Avoid_: user, member, account (an account is how a person logs in)
 
+**Principal**: A person, a system job, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
+
 **Engagement**: A period in which a person does work for Vektorprogrammet. An engagement is a placement or a membership. _Avoid_: involvement, participation
 
 **Assistant** (vektorassistent): A person with a placement in the current semester. _Avoid_: volunteer (too wide), helper
@@ -28,7 +30,7 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Team leader** (teamleder): A person whose membership is marked as leader of the team. _Avoid_: head, admin
 
-**Admin**: A person on the admin list. Admins can do every action. Each place on the list ends on a set date. _Avoid_: superuser, administrator role
+**Admin**: A person with an active place on the admin list. An admin can do every action available to a person, but not a system job. _Avoid_: superuser, administrator role
 
 **Alumnus** (tidligere medlem): A person with no current engagement who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
 
@@ -62,7 +64,7 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 ## Placement
 
-**School** (skole): A lower secondary school that receives assistants. _Avoid_: partner, client
+**School** (skole): A lower secondary school that receives assistants as a client of Vektorprogrammet. _Avoid_: product, partner
 
 **School capacity** (skolekapasitet): How many assistants a school can take on each weekday in one semester. _Avoid_: slots, quota
 

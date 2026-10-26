@@ -13,6 +13,8 @@ import { expect, test } from "@playwright/test";
 import { Array as Arr, Order } from "effect";
 
 import {
+  TEST_ADMIN,
+  TEST_LEADER,
   currentSemesterOnOverview,
   fillSheet,
   openPage,
@@ -44,7 +46,7 @@ test("step 1: an administrator sees the migrated departments, creates and edits 
   page,
   context,
 }) => {
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
   await openPage(page, "/kontrollpanel/avdelinger");
 
   await expect(page.getByRole("columnheader")).toHaveText([
@@ -136,7 +138,7 @@ test("step 2 (RULE-237, RULE-050, spec 0003): the semesters come newest first, t
   page,
   context,
 }) => {
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
 
   // The harness ran the cron once before the first request: the rows below were written by the job.
   const stored = await runDatabase(semesterCount);
@@ -182,7 +184,7 @@ test("step 3 (RULE-139): a team leader lists, creates and renames the fields of 
   page,
   context,
 }) => {
-  await signInAs(context, "teamLeader");
+  await signInAs(context, TEST_LEADER);
   await openPage(page, "/kontrollpanel/linjer");
 
   await expect(page.getByText("Avdeling Alfa").first()).toBeVisible();
@@ -213,7 +215,7 @@ test("step 4: the overview, the semester list and the events form name the same 
   page,
   context,
 }) => {
-  await signInAs(context, "admin");
+  await signInAs(context, TEST_ADMIN);
   await openPage(page, "/kontrollpanel");
 
   const current = await currentSemesterOnOverview(page);
@@ -236,7 +238,7 @@ test("falsifier 5 (RULE-139): a team leader from department A is refused (403) o
   page,
   context,
 }) => {
-  await signInAs(context, "teamLeader");
+  await signInAs(context, TEST_LEADER);
   await openPage(page, "/kontrollpanel/linjer");
 
   const departmentBFields = await runDatabase(fieldsOfStudyIn(2));
