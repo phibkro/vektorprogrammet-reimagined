@@ -10,13 +10,12 @@ The kernel uses the names and shapes of effx spec 0031 (`docs/specs/0031-domain-
 
 Grants (ADR 0001) stay the declaration of who may do what. Cedar policies, if wanted, are generated from the grants; they are never written by hand.
 
-- effx builds the declaration IR, the emitters and the checks in parallel (effx specs 0031, 0032). The runtime kernel (`authorize`, `Machine.can`, the guard revivers) stays here until the move, so there is one `authorize`. The kernel exports each domain as an effx `DomainDescription`, and its tests check `authorize` and `Machine.can` against the conformance vectors that effx generates.
-
 ## Consequences
 
 - Spec 0015 (simulation and model checking) generates the Alloy model from the kernel and replays its traces through `Commands.endpoint`, instead of driving random command sequences only.
 - A guard or invariant is a Schema check with a `representation` id. A comparison that Effect does not provide (one field against another, `not`, `or`) gets a project id and a reviver; the set of ids is closed.
 - Queries and commands declare which entities they read and write, so the client's `reactivityKeys` can be derived.
 - Until the move, no slice here depends on an unpublished effx package.
+- effx builds the declaration IR, the emitters and the checks in parallel (effx specs 0031, 0032). The runtime kernel (`authorize`, `Machine.can`, the guard revivers) stays here until the move, so there is one `authorize`. The kernel exports each domain as an effx `DomainDescription`, and its tests check `authorize` and `Machine.can` against the conformance vectors that effx generates.
 
 Source: operator decision, 2026-10-26.
