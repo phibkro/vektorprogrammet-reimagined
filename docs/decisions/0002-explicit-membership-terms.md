@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Memberships have an explicit end, and nothing rolls over

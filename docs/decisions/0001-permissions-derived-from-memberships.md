@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Permissions come from memberships, not from a role table

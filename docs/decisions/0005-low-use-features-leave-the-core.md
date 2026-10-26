@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Low-use features leave the core for Google Workspace

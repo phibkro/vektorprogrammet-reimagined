@@ -1,6 +1,6 @@
 # Architecture and technology
 
-> **Status: proposed** (see `README.md`). The technology that already runs is pinned in the root `package.json` `catalog`; this page names the parts and where each fact lives, and does not repeat version numbers except where a decision depends on them.
+> **Status: accepted** (2026-10-26; see `README.md`). The technology that already runs is pinned in the root `package.json` `catalog`; this page names the parts and where each fact lives, and does not repeat version numbers except where a decision depends on them.
 
 ## In plain words
 

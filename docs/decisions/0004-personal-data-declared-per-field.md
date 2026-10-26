@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Purpose, legal basis and retention are declared once per field

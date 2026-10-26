@@ -1,6 +1,6 @@
 # Vektorprogrammet's information system
 
-> **Status: proposed.** This design follows the `Proposed revision:` lines of 2026-10-26 in `../../../../analysis/vektorprogrammet/MODERNIZATION_BRIEF.md` §7. It becomes binding when the operator accepts them. The analysis behind it is `../../../../analysis/vektorprogrammet/INFORMATION_MODEL.md`.
+> **Status: accepted** (operator, 2026-10-26). This design is the accepted 2026-10-26 revisions in `../../../../analysis/vektorprogrammet/MODERNIZATION_BRIEF.md` §7. The analysis behind it is `../../../../analysis/vektorprogrammet/INFORMATION_MODEL.md`.
 
 ## What the system does
 

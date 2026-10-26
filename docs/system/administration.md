@@ -1,6 +1,6 @@
 # Administration: accounts, the admin list and personal data
 
-> **Status: proposed** (see `README.md`). Phase 2 and Phase 5 of the modernization brief.
+> **Status: accepted** (2026-10-26; see `README.md`). Phase 2 and Phase 5 of the modernization brief.
 
 ## What it is for
 

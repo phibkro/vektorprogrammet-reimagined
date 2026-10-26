@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Interview forms are built in the core, with an own Effect schema and TanStack Form

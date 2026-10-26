@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # State machines are plain transition tables, not XState

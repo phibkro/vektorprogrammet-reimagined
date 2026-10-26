@@ -1,6 +1,6 @@
 # Placement: schools, school capacity and placements
 
-> **Status: proposed** (see `README.md`). Phase 4 of the modernization brief.
+> **Status: accepted** (2026-10-26; see `README.md`). Phase 4 of the modernization brief.
 
 ## What it is for
 

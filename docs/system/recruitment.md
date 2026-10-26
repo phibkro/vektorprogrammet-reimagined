@@ -1,6 +1,6 @@
 # Recruitment: interview forms, interviews and outcomes
 
-> **Status: proposed** (see `README.md`). Phase 3 of the modernization brief.
+> **Status: accepted** (2026-10-26; see `README.md`). Phase 3 of the modernization brief.
 
 ## What it is for
 

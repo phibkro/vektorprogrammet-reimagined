@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Commands are declared with `effect/rpc`, behind TanStack Start server functions
