@@ -8,11 +8,17 @@ Volunteers do Vektorprogrammet's work in teams. A membership puts a person in a 
 
 ## Who does what
 
-| You are | You can |
-| --- | --- |
-| A team leader in the department, or a member of the board | Make and change teams. Add members. Extend, change and end memberships. |
-| A member | End your own membership early (resign). |
-| A board member or an admin | Do the same as a team leader, also when no team leader in the department has a current membership. |
+<!-- docgen:begin who -->
+
+| You are | You can | Scope |
+| --- | --- | --- |
+| A team leader in the department or A member of the board | Create a team in a department.<br>Change a team's name, function and default term.<br>Deactivate a team. A team is never deleted.<br>Register a person, with the field of study that gives them a department.<br>Add a person to a team for a term. The end defaults to the team's default term.<br>Extend a membership to a later end semester.<br>Change the position, team or leader flag from a semester: the old membership ends and a new one starts.<br>End a membership from a semester. A member can end their own.<br>Cancel a membership that has not started.<br>See the people of the department. | department |
+| The person the record belongs to | End a membership from a semester. A member can end their own. | own |
+| A member of a team in the department | See the teams of the department and their memberships. | department |
+| The endingSoon job | Four weeks before the semester ends, e-mail each team leader the memberships of the department that end. | all |
+| An admin | Create a team in a department.<br>Change a team's name, function and default term.<br>Deactivate a team. A team is never deleted.<br>Register a person, with the field of study that gives them a department.<br>Add a person to a team for a term. The end defaults to the team's default term.<br>Extend a membership to a later end semester.<br>Change the position, team or leader flag from a semester: the old membership ends and a new one starts.<br>End a membership from a semester. A member can end their own.<br>Cancel a membership that has not started.<br>Put a person on the admin list until a date.<br>Take a place off the admin list.<br>See the people of the department.<br>See the teams of the department and their memberships. | all |
+
+<!-- docgen:end who -->
 
 ## Teams and what they can do
 
@@ -29,7 +35,7 @@ Each team has a function. The function decides what its members can do in the sy
 
 ## A membership has a term
 
-- A membership starts in one semester and ends in a later one. The end is always set. The default is two semesters, and a team can set one semester instead.
+- A membership starts and ends in a semester. The end is always set. The default is two semesters, and a team can set one semester instead.
 - A membership is active from its start semester to its end semester. The system calculates this. Nobody switches it on or off.
 - Nothing continues by itself. Four weeks before the semester ends, each team leader gets a list of memberships that end. Each item has a link to extend it.
 
@@ -73,7 +79,7 @@ If the person says no to the first question, or does not answer, the system anon
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.2, §10.3 D, §11.5, §11.9, §11.11. Generated later. Do not add facts that are not in those sources.
+The generated blocks describe the declarations in `packages/domain`. The remaining tables describe the accepted design, including later slices.
 
 ### Entities
 
@@ -86,44 +92,65 @@ If the person says no to the first question, or does not answer, the system anon
 
 ### State machine: Membership
 
+<!-- docgen:begin membership -->
+
 ```mermaid
 stateDiagram-v2
   [*] --> Planned : addMember (later start)
   [*] --> Active : addMember (start this semester)
-  Planned --> Active : start semester reached
+  Active --> Active : extend (new end)
+  Active --> Ended : endEarly (semester)
+  Active --> Ended : change (the old membership)
+  [*] --> Planned : change (the new membership, starting later)
+  [*] --> Active : change (the new membership, starting now)
   Planned --> [*] : cancel
-  Active --> Active : extend(newEnd)
-  Active --> Ended : end semester passed
-  Active --> Ended : endEarly(semester)
-  Ended --> [*]
+  Planned --> Active : the start semester arrives
+  Active --> Ended : the end semester has passed
 ```
+
+<!-- docgen:end membership -->
 
 Active, Planned and Ended are calculated from the semester. They replace the legacy suspension flag and job (RULE-219 ✗, 263) and the separate "active" definitions (RULE-016, 023 ✗, 031, 048, 124 ✗).
 
 ### Commands and grants
 
-| Command | Granted to | Scope | Replaces |
-| --- | --- | --- | --- |
-| `createTeam`, `editTeam(function, defaultTerm, …)`, `deactivateTeam` | `Board ∪ Leader(d)` | department | 321, 329 |
-| `addMember(person, team, position, leader, start, end = default)` | `Leader(d) ∪ Board` | department | 206, 284 ✗ |
-| `extend(newEnd)` | same | department | 234, 251, 252 |
-| `change(position \| team \| leader, from)` | same; a move between departments also needs the grant in the receiving department, in one transaction | department | new |
-| `endEarly(semester)` | same, or `Self` | department / own | 298 ✗ |
-| `cancel` (Planned) | same | department | new |
-| `setAlumniConsent(keepDetails, news)` | `Self` | own | new |
+<!-- docgen:begin commands -->
+
+| Command or read | What it does | Granted to | Scope | Replaces |
+| --- | --- | --- | --- | --- |
+| `createTeam` | Create a team in a department. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
+| `editTeam` | Change a team's name, function and default term. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
+| `deactivateTeam` | Deactivate a team. A team is never deleted. | Leader(d) ∪ Board; Admin | department, all | RULE-233, RULE-329 |
+| `registerPerson` | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin | department, all | RULE-164 |
+| `addMember` | Add a person to a team for a term. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin | department, all | RULE-164, RULE-206, RULE-284 |
+| `extend` | Extend a membership to a later end semester. | Leader(d) ∪ Board; Admin | department, all | RULE-234, RULE-251, RULE-252 |
+| `change` | Change the position, team or leader flag from a semester: the old membership ends and a new one starts. A move to a team in another department also needs the grant in the receiving department, in the same transaction. | Leader(d) ∪ Board; Admin | department, all |  |
+| `endEarly` | End a membership from a semester. A member can end their own. | Leader(d) ∪ Board; Self; Admin | department, own, all | RULE-298 |
+| `cancel` | Cancel a membership that has not started. | Leader(d) ∪ Board; Admin | department, all |  |
+| `grantAdmin` | Put a person on the admin list until a date. Never for oneself. | Admin | all | RULE-113, RULE-308 |
+| `revokeAdmin` | Take a place off the admin list. Never one's own, and never the last place that ends after the current semester. | Admin | all | RULE-113, RULE-308 |
+| `sendEndingSoon` | Four weeks before the semester ends, e-mail each team leader the memberships of the department that end. | System(endingSoon) | all |  |
+| `viewPeople` | See the people of the department. | Leader(d) ∪ Board; Admin | department, all |  |
+| `viewTeams` | See the teams of the department and their memberships. | Member(d); Admin | department, all |  |
+
+<!-- docgen:end commands -->
 
 ### Subject sets (the permission algebra)
 
+<!-- docgen:begin subjects -->
+
 | Subject set | Definition |
 | --- | --- |
-| `Anyone` | Every caller, also without login |
-| `Self(r)` | The person that the resource `r` belongs to |
-| `Assistant(d)` | Has a Placement in department `d` this semester |
-| `Member(d)` | Has an active Membership in a team of `d` |
-| `Leader(d)` | Has an active Membership with `leader = true` in a team of `d` |
-| `Fn(f, d)` | Has an active Membership in a team of `d` with function `f` |
-| `Board` | `Fn(board, *)` |
-| `Admin` | On the admin list (`administration.md`) |
+| `Anyone` | Every caller, also without sign-in |
+| `Self` | The person that the resource `r` belongs to |
+| `Member(d)` | Has an active membership in a team of department `d` |
+| `Leader(d)` | Has an active membership with `leader = true` in a team of `d` |
+| `Fn(f, d)` | Has an active membership in a team of `d` whose function is `f` |
+| `Board` | `Fn(board, *)`: has an active membership in a board team |
+| `Admin` | Is on the admin list, and the place has not ended (`docs/system/administration.md`) |
+| `System(job)` | A scheduled job (`semesters`, `outboxSweep`, `endingSoon`), which runs as its own principal |
+
+<!-- docgen:end subjects -->
 
 A grant is `(subject set, commands, scope)` with scope `own`, `department` or `all`. Grants only add up. There are no deny grants. A command that no grant covers is refused. This model replaces the legacy role ladder, role recalculation and access-rule tables (RULE-029 ✗, 030, 161, 163, 192, 194, 211, 213 ✗, 214, 218 ✗, 275–279, 282, 300–305, 307 ✗).
 
@@ -133,7 +160,7 @@ A grant is `(subject set, commands, scope)` with scope `own`, `department` or `a
 | --- | --- | --- |
 | Membership becomes Active | Add to the team's Google group; create a company account on the first membership; welcome e-mail | 243–246, 248, 225 |
 | Membership becomes Ended | Remove from the Google group | 242 |
-| Four weeks before semester end | "Ending soon" list to each `Leader(d)`, and to `Admin` for admin grants that end | new |
+| Four weeks before semester end | "Ending soon" list to each `Leader(d)`. Admin-grant reminders are a later slice. | new |
 | A person's last engagement ends | Alumni consent e-mail | new |
 
 ### Personal data

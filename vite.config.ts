@@ -111,6 +111,18 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
+      files: ["tools/docgen/src/main.ts"],
+      platform: "node",
+      role: "composition-root",
+      strictness: "strict",
+    },
+    {
+      files: ["tools/docgen/src/render.ts"],
+      platform: "portable",
+      role: "application",
+      strictness: "strict",
+    },
+    {
       files: ["tools/db-path-spike/src/worker.ts"],
       platform: "portable",
       role: "composition-root",
@@ -165,6 +177,7 @@ const effectConfig: EffectConfigInput = {
       files: [
         "packages/cms-client/test/collections.test.ts",
         "apps/web/test/textSlots.test.ts",
+        "tools/docgen/test/render.test.ts",
       ],
       platform: "node",
       role: "composition-root",
@@ -340,6 +353,7 @@ export default defineConfig({
         files: [
           "packages/domain/src/shared/errors.ts",
           "tools/import/src/config.ts",
+          "tools/docgen/src/main.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
           "tools/import/src/target.ts",
@@ -525,6 +539,7 @@ export default defineConfig({
           "tools/db-path-spike/test/pure.test.ts",
           "apps/web/e2e/journey.spec.ts",
           "apps/web/e2e/shell.spec.ts",
+          "apps/web/e2e/teams.spec.ts",
           "apps/web/e2e/support/panel.ts",
           "apps/web/e2e/public.spec.ts",
           "apps/web/e2e/support/editor.ts",
