@@ -80,3 +80,12 @@ export const assertValidationFailure = (
 
   return outcome.error;
 };
+
+/** Whether the command refused the principal (403): what a hidden control must agree with. */
+export const isForbidden = (outcome: Outcome<unknown>): boolean =>
+  Predicate.isTagged(outcome, "Failure") &&
+  Predicate.isTagged(outcome.error, "Forbidden");
+
+/** Whether the command went through. */
+export const isSuccess = (outcome: Outcome<unknown>): boolean =>
+  Predicate.isTagged(outcome, "Success");

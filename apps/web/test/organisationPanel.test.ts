@@ -15,7 +15,6 @@ import {
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
-import { TEST_ACTORS } from "../src/server/actor";
 import {
   SAVED,
   departmentsView,
@@ -37,6 +36,7 @@ import {
   assertSuccess,
   assertValidationFailure,
 } from "./support/outcomes";
+import { ADMIN, leaderOf, memberOf } from "./support/principals";
 import { runAs, viewAs } from "./support/run";
 
 /** 2026-10-15 12:00 in Oslo: Høst 2026, and next year is 2027. */
@@ -73,7 +73,7 @@ describe("C1 departments through the panel", () => {
 
         const outcome = yield* runAs(
           tables,
-          TEST_ACTORS.admin,
+          ADMIN,
           saveDepartmentProgram(
             form(
               departmentFields({
@@ -91,7 +91,7 @@ describe("C1 departments through the panel", () => {
         assert.deepStrictEqual(auditActions(tables), ["department.created"]);
 
         const listed = assertSuccess(
-          yield* viewAs(tables, TEST_ACTORS.admin, departmentsView)
+          yield* viewAs(tables, ADMIN, departmentsView)
         );
 
         assert.deepStrictEqual(listed.departments, [
@@ -148,7 +148,7 @@ describe("C1 departments through the panel", () => {
       assertSuccess(
         yield* runAs(
           tables,
-          TEST_ACTORS.admin,
+          ADMIN,
           saveDepartmentProgram(form(departmentFields()))
         )
       );
@@ -156,7 +156,7 @@ describe("C1 departments through the panel", () => {
       const refused = assertRefused(
         yield* runAs(
           tables,
-          TEST_ACTORS.admin,
+          ADMIN,
           saveDepartmentProgram(
             form(departmentFields({ name: "En annen avdeling" }))
           )
@@ -188,7 +188,7 @@ describe("C1 departments through the panel", () => {
         assertSuccess(
           yield* runAs(
             tables,
-            TEST_ACTORS.admin,
+            ADMIN,
             saveDepartmentProgram(
               form(
                 departmentFields({
@@ -227,7 +227,7 @@ describe("C1 departments through the panel", () => {
           ],
         });
 
-        for (const actor of [TEST_ACTORS.teamLeader, anonymous]) {
+        for (const actor of [leaderOf(1), anonymous]) {
           assertRefused(
             yield* runAs(
               tables,
@@ -241,7 +241,7 @@ describe("C1 departments through the panel", () => {
         const otherDepartment = assertRefused(
           yield* runAs(
             tables,
-            TEST_ACTORS.teamLeader,
+            leaderOf(1),
             saveDepartmentProgram(
               form(departmentFields({ id: "2", name: "Kapret" }))
             )
@@ -256,7 +256,7 @@ describe("C1 departments through the panel", () => {
         assertSuccess(
           yield* runAs(
             tables,
-            TEST_ACTORS.teamLeader,
+            leaderOf(1),
             saveDepartmentProgram(
               form(
                 departmentFields({
@@ -281,7 +281,7 @@ describe("C1 departments through the panel", () => {
         const failure = assertValidationFailure(
           yield* runAs(
             tables,
-            TEST_ACTORS.admin,
+            ADMIN,
             saveDepartmentProgram(
               form(departmentFields({ email: "ikke-en-adresse" }))
             )
@@ -312,7 +312,7 @@ describe("C2 semesters through the panel (spec 0003)", () => {
         });
 
         const listed = assertSuccess(
-          yield* viewAs(tables, TEST_ACTORS.admin, semestersView)
+          yield* viewAs(tables, ADMIN, semestersView)
         );
 
         assert.deepStrictEqual(
@@ -340,7 +340,7 @@ describe("C2 semesters through the panel (spec 0003)", () => {
         const tables = makeTables();
 
         const listed = assertSuccess(
-          yield* viewAs(tables, TEST_ACTORS.admin, semestersView)
+          yield* viewAs(tables, ADMIN, semestersView)
         );
 
         assert.deepStrictEqual(listed.semesters, []);
@@ -380,7 +380,7 @@ describe("C1 fields of study through the panel", () => {
         assertSuccess(
           yield* runAs(
             tables,
-            TEST_ACTORS.teamLeader,
+            leaderOf(DEPARTMENT_A),
             saveFieldOfStudyProgram(
               form({
                 departmentId: String(DEPARTMENT_A),
@@ -393,7 +393,7 @@ describe("C1 fields of study through the panel", () => {
         assertSuccess(
           yield* runAs(
             tables,
-            TEST_ACTORS.teamLeader,
+            leaderOf(DEPARTMENT_A),
             saveFieldOfStudyProgram(
               form({ id: "10", name: "Informatikk og data", shortName: "ID" })
             )
@@ -401,7 +401,7 @@ describe("C1 fields of study through the panel", () => {
         );
 
         const view = assertSuccess(
-          yield* viewAs(tables, TEST_ACTORS.teamLeader, fieldsOfStudyView)
+          yield* viewAs(tables, leaderOf(DEPARTMENT_A), fieldsOfStudyView)
         );
 
         assert.deepStrictEqual(view.department, {
@@ -438,7 +438,7 @@ describe("C1 fields of study through the panel", () => {
         const rename = assertRefused(
           yield* runAs(
             tables,
-            TEST_ACTORS.teamLeader,
+            leaderOf(DEPARTMENT_A),
             saveFieldOfStudyProgram(
               form({ id: "20", name: "Kapret", shortName: "KA" })
             )
@@ -449,7 +449,7 @@ describe("C1 fields of study through the panel", () => {
         const create = assertRefused(
           yield* runAs(
             tables,
-            TEST_ACTORS.teamLeader,
+            leaderOf(DEPARTMENT_A),
             saveFieldOfStudyProgram(
               form({
                 departmentId: String(DEPARTMENT_B),
@@ -478,7 +478,7 @@ describe("C1 fields of study through the panel", () => {
         const tables = twoDepartments();
 
         const asLeader = assertSuccess(
-          yield* viewAs(tables, TEST_ACTORS.teamLeader, fieldsOfStudyView)
+          yield* viewAs(tables, leaderOf(DEPARTMENT_A), fieldsOfStudyView)
         );
 
         const asAnonymous = assertSuccess(
@@ -506,8 +506,14 @@ describe("C1 fields of study through the panel", () => {
         assertRefused(
           yield* runAs(
             tables,
-            { ...TEST_ACTORS.teamLeader, role: "teamMember" },
-            saveFieldOfStudyProgram(form({ name: "Kjemi", shortName: "KJ" }))
+            memberOf(DEPARTMENT_A),
+            saveFieldOfStudyProgram(
+              form({
+                departmentId: String(DEPARTMENT_A),
+                name: "Kjemi",
+                shortName: "KJ",
+              })
+            )
           ),
           "Forbidden"
         );

@@ -1,45 +1,34 @@
 /**
  * `/kontrollpanel` (C1, C2, C8): view programs over the domain's queries and services, the command programs a
- * server function runs, and form → command-input mapping. The domain decodes and validates every input; this
- * module only turns form text into the shapes the domain's input schemas expect (numbers, booleans, nulls, UTC
- * instants). Authorization happens inside each command (in its transaction); the route guard is UX only.
- * The public site's content (texts, news, sponsors, FAQ, teams) is edited in the CMS (spec 0005), not here.
+ * server function runs, and form → command-input mapping. The domain decodes and validates every input (through the
+ * command's own payload schema: `OrganisationEndpoints.…`); this module only turns form text into the shapes the
+ * domain's input schemas expect (numbers, booleans, nulls, UTC instants). Authorization happens inside each command
+ * (in its transaction); a page's controls ask the same grant table (`authorize`), so a control the principal may not
+ * use is not rendered. The public site's content (texts, news, sponsors, FAQ, teams) is edited in the CMS
+ * (spec 0005), not here.
  */
 import {
-  Capability,
-  CurrentActor,
-  DepartmentId,
+  ContentEndpoints,
+  CurrentPrincipal,
   DepartmentRepository,
   EVENT_BADGE_LABEL,
-  FieldOfStudyId,
+  Organisation,
+  OrganisationEndpoints,
   SemesterOrder,
   SocialEventRepository,
   authorize,
-  createDepartment,
-  createFieldOfStudy,
   currentSemester,
-  decodeInput,
   eventBadge,
   findCurrentSemester,
   listFieldsOfStudy,
   listSemestersNewestFirst,
   osloWallClock,
-  renameFieldOfStudy,
   semesterLabel,
-  updateDepartment,
 } from "@vektorprogrammet/domain";
-import type { Actor, Department, Semester } from "@vektorprogrammet/domain";
-import {
-  Array as Arr,
-  DateTime,
-  Effect,
-  Option,
-  Order,
-  Predicate,
-  Schema,
-} from "effect";
+import type { Department, Principal, Semester } from "@vektorprogrammet/domain";
+import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
 
-import { actorSummary } from "./shell";
+import { actorSummary, nameOfActor } from "./shell";
 
 // ---------------------------------------------------------------- form text
 
@@ -118,29 +107,16 @@ export const departmentInput = (form: FormData) => ({
   slackChannel: optionalText(form, "slackChannel"),
 });
 
-export const fieldOfStudyInput = (form: FormData) => {
-  const departmentId = optionalText(form, "departmentId");
-
-  const input = {
-    name: text(form, "name"),
-    shortName: text(form, "shortName"),
-  };
-
-  if (departmentId === null) {
-    return input;
-  }
-
-  return { ...input, departmentId: integer(departmentId) };
-};
+export const fieldOfStudyInput = (form: FormData) => ({
+  departmentId: integer(text(form, "departmentId")),
+  name: text(form, "name"),
+  shortName: text(form, "shortName"),
+});
 
 export const fieldOfStudyRename = (form: FormData) => ({
   name: text(form, "name"),
   shortName: text(form, "shortName"),
 });
-
-const decodeDepartmentId = decodeInput(DepartmentId);
-
-const decodeFieldOfStudyId = decodeInput(FieldOfStudyId);
 
 /**
  * C1: a blank `id` creates a department, an `id` updates it. The commands authorize inside their
@@ -153,27 +129,26 @@ export const saveDepartmentProgram = (form: FormData) => {
 
   return Effect.as(
     id === ""
-      ? createDepartment(input)
-      : Effect.flatMap(decodeDepartmentId(Number(id)), (departmentId) =>
-          updateDepartment(departmentId, input)
-        ),
+      ? OrganisationEndpoints.createDepartment(input)
+      : OrganisationEndpoints.updateDepartment({ id: integer(id), ...input }),
     SAVED
   );
 };
 
 /**
- * C1, RULE-139: a blank `id` creates a field of study (in the named department, by default the
- * actor's own), an `id` renames one. A team leader is refused outside their own department.
+ * C1, RULE-139: a blank `id` creates a field of study (in the named department), an `id` renames one. A team
+ * leader is refused outside their own department.
  */
 export const saveFieldOfStudyProgram = (form: FormData) => {
   const id = text(form, "id");
 
   return Effect.as(
     id === ""
-      ? createFieldOfStudy(fieldOfStudyInput(form))
-      : Effect.flatMap(decodeFieldOfStudyId(Number(id)), (fieldOfStudyId) =>
-          renameFieldOfStudy(fieldOfStudyId, fieldOfStudyRename(form))
-        ),
+      ? OrganisationEndpoints.createFieldOfStudy(fieldOfStudyInput(form))
+      : OrganisationEndpoints.renameFieldOfStudy({
+          id: integer(id),
+          ...fieldOfStudyRename(form),
+        }),
     SAVED
   );
 };
@@ -190,21 +165,20 @@ export interface DepartmentRow {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly logoKey: string | null;
-  /** Whether the actor holds `UpdateDepartment` for this department: the page offers the edit form only then. */
+  /** Whether the principal holds `updateDepartment` for this department: the page offers the edit form only then. */
   readonly canEdit: boolean;
 }
 
 /** Everything the edit form needs, so saving a department never blanks a field it did not show. */
 const departmentRow = (
-  actor: Actor,
+  principal: Principal,
   department: Department
 ): DepartmentRow => ({
   active: department.active,
   address: department.address,
-  canEdit: authorize(
-    actor,
-    Capability.UpdateDepartment({ departmentId: department.id })
-  ),
+  canEdit: authorize(principal, "updateDepartment", {
+    departmentId: department.id,
+  }),
   city: department.city,
   email: department.email,
   id: department.id,
@@ -235,24 +209,25 @@ const byDepartmentName = Order.mapInput(
 
 /** C2 the current semester (RULE-033, answered by the calendar, no row needed) and who is acting. */
 export const dashboardView = Effect.gen(function* dashboardView() {
-  const actor = yield* CurrentActor;
+  yield* Organisation.OrganisationDomain.requireGrant("openControlPanel", {});
+  const principal = yield* CurrentPrincipal;
 
   return {
-    actor: actorSummary(actor),
+    actor: actorSummary(principal, yield* nameOfActor),
     currentSemester: semesterLabel(yield* currentSemester),
   };
 });
 
-/** C1 departments (all, including inactive), by name; the create button and each edit form follow the actor's capabilities. */
+/** C1 departments (all, including inactive), by name; the create button and each edit form follow the grant table. */
 export const departmentsView = Effect.gen(function* departmentsView() {
-  const actor = yield* CurrentActor;
+  const principal = yield* CurrentPrincipal;
   const departments = yield* DepartmentRepository;
 
   return {
-    canCreate: authorize(actor, Capability.CreateDepartment()),
+    canCreate: authorize(principal, "createDepartment"),
     departments: Arr.sort(
       Arr.map(yield* departments.list, (department) =>
-        departmentRow(actor, department)
+        departmentRow(principal, department)
       ),
       byDepartmentName
     ),
@@ -265,6 +240,7 @@ export const departmentsView = Effect.gen(function* departmentsView() {
  * yet, `current.stored` is false and the page says so.
  */
 export const semestersView = Effect.gen(function* semestersView() {
+  yield* Organisation.OrganisationDomain.requireGrant("openControlPanel", {});
   const current = yield* currentSemester;
   const semesters = yield* listSemestersNewestFirst;
 
@@ -284,36 +260,42 @@ export const semestersView = Effect.gen(function* semestersView() {
   };
 });
 
+const byId = Order.mapInput(
+  Order.Number,
+  (row: { readonly id: number }) => row.id
+);
+
+/** The departments of the principal that may use `command`, by id: the ones its memberships are in, or every one for an admin. */
+const departmentsFor = Effect.fnUntraced(function* departmentsFor(
+  command: "createFieldOfStudy" | "createSocialEvent"
+) {
+  const principal = yield* CurrentPrincipal;
+  const departments = yield* DepartmentRepository;
+
+  return Arr.sort(
+    Arr.filter(yield* departments.list, (department) =>
+      authorize(principal, command, { departmentId: department.id })
+    ),
+    byId
+  );
+});
+
 /**
- * C1 fields of study of the actor's own department (RULE-139), with its name. An actor who may not manage
- * them (`ManageFieldsOfStudy`) gets no list: `canManage` is false and the page says so.
+ * C1 fields of study (RULE-139) of the first department the principal may manage them in, with its name. A
+ * principal who may manage none gets no list: `canManage` is false and the page says so.
  */
 export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
-  const actor = yield* CurrentActor;
+  const [department] = yield* departmentsFor("createFieldOfStudy");
 
-  if (
-    !Predicate.isTagged("Staff")(actor) ||
-    !authorize(
-      actor,
-      Capability.ManageFieldsOfStudy({ departmentId: actor.departmentId })
-    )
-  ) {
+  if (department === undefined) {
     return { canManage: false as const, department: null, fieldsOfStudy: [] };
   }
 
-  const departments = yield* DepartmentRepository;
-  const fields = yield* listFieldsOfStudy(actor.departmentId);
-
-  const department = yield* departments.findById(actor.departmentId).pipe(
-    Effect.map((found) => found.name),
-    Effect.catchTag("NotFound", () =>
-      Effect.succeed(`Avdeling ${actor.departmentId}`)
-    )
-  );
+  const fields = yield* listFieldsOfStudy(department.id);
 
   return {
     canManage: true as const,
-    department: { id: actor.departmentId, name: department },
+    department: { id: department.id, name: department.name },
     fieldsOfStudy: Arr.map(fields, (field) => ({
       id: field.id,
       name: field.name,
@@ -334,43 +316,37 @@ export const socialEventInput = (form: FormData) => ({
   title: text(form, "title"),
 });
 
+/** C8: one social event. */
+export const saveSocialEventProgram = (form: FormData) =>
+  Effect.as(ContentEndpoints.createSocialEvent(socialEventInput(form)), SAVED);
+
 /**
- * The actor's department's events this semester, with the RULE-085 badge. The events need the current
- * semester's row; until the scheduled job has written it (spec 0003) the page says so
- * (`currentSemesterId` is null) and lists none. A read: it never inserts.
- * The departments the form offers are the ones the actor may create events in (`ManageSocialEvents`);
- * `canCreate` is whether there is one.
+ * The events this semester of the first department the principal may create them in, with the RULE-085 badge.
+ * The events need the current semester's row; until the scheduled job has written it (spec 0003) the page says so
+ * (`currentSemesterId` is null) and lists none. A read: it never inserts. The departments the form offers are the
+ * ones the principal may create events in (`createSocialEvent`); `canCreate` is whether there is one.
  */
 export const socialEventsView = Effect.gen(function* socialEventsView() {
-  const actor = yield* CurrentActor;
-  const departments = yield* DepartmentRepository;
+  const creatable = yield* departmentsFor("createSocialEvent");
+  const [first] = creatable;
   const current = yield* findCurrentSemester;
   const currentRow = Option.getOrNull(current.stored);
   const now = yield* DateTime.now;
   const allSemesters = yield* listSemestersNewestFirst;
 
   const events =
-    Predicate.isTagged("Staff")(actor) && currentRow !== null
+    first !== undefined && currentRow !== null
       ? yield* (yield* SocialEventRepository).list({
-          departmentId: actor.departmentId,
+          departmentId: first.id,
           semesterId: currentRow.id,
         })
       : [];
-
-  const creatable = Arr.filter(yield* departments.list, (department) =>
-    authorize(
-      actor,
-      Capability.ManageSocialEvents({ departmentId: department.id })
-    )
-  );
 
   return {
     canCreate: creatable.length > 0,
     currentSemesterId: currentRow?.id ?? null,
     currentSemesterLabel: semesterLabel(current.semester),
-    departmentId: Predicate.isTagged("Staff")(actor)
-      ? actor.departmentId
-      : null,
+    departmentId: first?.id ?? null,
     departments: Arr.map(creatable, (department) => ({
       id: department.id,
       name: department.name,
