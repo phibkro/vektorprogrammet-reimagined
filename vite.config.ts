@@ -251,6 +251,8 @@ export default defineConfig({
       "apps/web/src/routeTree.gen.ts",
       "packages/cms-client/openapi/**",
       "packages/cms-client/src/generated.ts",
+      // Spike branch only: the throwaway relational-queries probes (docs/research/relational-queries-spike.md).
+      "packages/db/spike/**",
     ],
   },
   lint: {
@@ -260,6 +262,7 @@ export default defineConfig({
       ...(core.ignorePatterns ?? []),
       "apps/web/src/routeTree.gen.ts",
       "packages/cms-client/src/generated.ts",
+      "packages/db/spike/**",
       "tools/oxlint/anti-slop/**",
     ],
     jsPlugins: [
