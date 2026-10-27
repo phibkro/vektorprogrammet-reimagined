@@ -495,6 +495,7 @@
         "files": [
           "packages/db/**",
           "spikes/alchemy-domain/**",
+          "spikes/alchemy-workflows/src/**",
           "apps/web/src/server/**",
           "**/test/**",
           "tools/**",
@@ -512,7 +513,9 @@
       ],
       "verification": [
         "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bun run e2e",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test --config vite.runtime.config.ts"
       ],
       "owner": ".",
       "versions": {
@@ -543,6 +546,33 @@
       "retirementTrigger": "Delete with the spike, or when Effect marks RpcMiddleware stable."
     },
     {
+      "id": "EX-0041",
+      "name": "httpServer",
+      "scope": {
+        "files": ["spikes/alchemy-workflows/src/**"],
+        "modules": [
+          "effect/http/HttpServerRequest",
+          "effect/http/HttpServerResponse"
+        ]
+      },
+      "reason": "Spike: the Worker's HTTP routes read the request and build JSON responses with Effect's HTTP server modules (a Cloudflare.Worker's fetch handler is an Effect over HttpServerRequest returning an HttpServerResponse).",
+      "missingCapability": "The native modules are not marked stable in Effect 4.0.6.",
+      "nativeAlternativesExamined": [
+        "A hand-written fetch handler over Request/Response would bypass the Effect HTTP model that the Worker's fetch is typed over; no stable equivalent."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test --config vite.runtime.config.ts"
+      ],
+      "owner": "spikes/alchemy-workflows",
+      "versions": {
+        "effect": "4.0.6",
+        "@effect/tsgo": "0.53.1",
+        "alchemy": "2.0.0-beta.83"
+      },
+      "retirementTrigger": "Delete with the spike, or when Effect marks the HTTP server modules stable."
+    },
+    {
       "id": "EX-0010",
       "name": "mysql",
       "scope": {
@@ -556,7 +586,9 @@
       ],
       "verification": [
         "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bun run e2e",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test --config vite.runtime.config.ts"
       ],
       "owner": ".",
       "versions": {
@@ -576,7 +608,8 @@
           "apps/web/test/sandbox.test.ts",
           "tools/**",
           "apps/*/scripts/**",
-          "apps/*/e2e/**"
+          "apps/*/e2e/**",
+          "spikes/alchemy-workflows/test/**"
         ],
         "modules": [
           "effect/http/FetchHttpClient",
@@ -587,14 +620,16 @@
           "effect/http/HttpClientResponse"
         ]
       },
-      "reason": "Outbound HTTP for the CMS and Turnstile.",
+      "reason": "Outbound HTTP for the CMS and Turnstile; the Workflow spike's local test harness also drives its Worker through these Effect HTTP client modules.",
       "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
         "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bun run e2e",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test",
+        "devenv shell -- bunx vp -C spikes/alchemy-workflows test --config vite.runtime.config.ts"
       ],
       "owner": ".",
       "versions": {
@@ -612,7 +647,8 @@
           "packages/*/scripts/**",
           "apps/*/scripts/**",
           "apps/*/e2e/**",
-          "apps/cms/build/**"
+          "apps/cms/build/**",
+          "spikes/alchemy-workflows/test/**"
         ],
         "modules": ["effect/process", "effect/cli"]
       },

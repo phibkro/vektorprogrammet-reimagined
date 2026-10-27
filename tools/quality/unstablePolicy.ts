@@ -62,8 +62,61 @@ export const unstablePolicy = {
     ),
     override(["tools/*/test/**", "apps/*/e2e/**"], ...testingTools),
     override(["packages/db/src/**"], ...base, "sql"),
-    override(["spikes/alchemy-domain/src/**"], ...base, "sql", "rpcMiddleware"),
+    {
+      include: paths(
+        "spikes/alchemy-domain/src/**/*.ts",
+        "spikes/alchemy-domain/src/**/*.tsx"
+      ),
+      options: {
+        allowedDuplicatedPackages: ["alchemy"],
+        allowedUnstableApis: modules(...base, "sql", "rpcMiddleware"),
+      },
+    },
+    {
+      include: paths(
+        "packages/domain/src/organisation/semester.ts",
+        "packages/domain/src/shared/clock.ts",
+        "packages/domain/src/shared/ids.ts"
+      ),
+      options: {
+        allowedDuplicatedPackages: ["alchemy"],
+        allowedUnstableApis: modules(...base),
+      },
+    },
     override(["spikes/alchemy-domain/test/**"], ...testing, "rpcMiddleware"),
+    {
+      include: paths(
+        "spikes/alchemy-workflows/src/**/*.ts",
+        "spikes/alchemy-workflows/src/**/*.tsx"
+      ),
+      options: {
+        allowedDuplicatedPackages: ["alchemy"],
+        allowedUnstableApis: modules(...base, "sql", "httpServer"),
+      },
+    },
+    {
+      include: paths(
+        "spikes/alchemy-workflows/test/**/*.ts",
+        "spikes/alchemy-workflows/test/**/*.tsx"
+      ),
+      options: {
+        allowedDuplicatedPackages: ["alchemy"],
+        allowedUnstableApis: modules(...testingTools),
+      },
+    },
+    {
+      include: paths(
+        "spikes/alchemy-workflows/alchemy.run.ts",
+        "spikes/alchemy-workflows/vite.config.ts",
+        "spikes/alchemy-workflows/vite.runtime.config.ts",
+        "spikes/alchemy-workflows/alchemy.cloud.ts",
+        "spikes/alchemy-workflows/vite.cloud.config.ts"
+      ),
+      options: {
+        allowedDuplicatedPackages: ["alchemy"],
+        allowedUnstableApis: modules(...base),
+      },
+    },
     override(["apps/web/src/server/**"], ...base, "sql", "http"),
     override(["packages/cms-client/src/**"], ...base, "http"),
     override(["tools/import/src/**"], ...tools, "mysql"),

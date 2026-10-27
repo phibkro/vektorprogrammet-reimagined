@@ -282,8 +282,8 @@
           {
             "include": [
               "spikes/alchemy-domain/src/**/*.ts",
-              "spikes/alchemy-domain/src/**/*.tsx",
               "../../spikes/alchemy-domain/src/**/*.ts",
+              "spikes/alchemy-domain/src/**/*.tsx",
               "../../spikes/alchemy-domain/src/**/*.tsx"
             ],
             "options": {
@@ -300,7 +300,32 @@
                 "effect/sql",
                 "@effect/sql-pg",
                 "effect/rpc/RpcMiddleware"
-              ]
+              ],
+              "allowedDuplicatedPackages": ["alchemy"]
+            }
+          },
+          {
+            "include": [
+              "packages/domain/src/organisation/semester.ts",
+              "../../packages/domain/src/organisation/semester.ts",
+              "packages/domain/src/shared/clock.ts",
+              "../../packages/domain/src/shared/clock.ts",
+              "packages/domain/src/shared/ids.ts",
+              "../../packages/domain/src/shared/ids.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer"
+              ],
+              "allowedDuplicatedPackages": ["alchemy"]
             }
           },
           {
@@ -333,6 +358,100 @@
                 "@effect/sql-pg",
                 "effect/rpc/RpcMiddleware"
               ]
+            }
+          },
+          {
+            "include": [
+              "spikes/alchemy-workflows/src/**/*.ts",
+              "../../spikes/alchemy-workflows/src/**/*.ts",
+              "spikes/alchemy-workflows/src/**/*.tsx",
+              "../../spikes/alchemy-workflows/src/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/HttpServerRequest",
+                "effect/http/HttpServerResponse"
+              ],
+              "allowedDuplicatedPackages": ["alchemy"]
+            }
+          },
+          {
+            "include": [
+              "spikes/alchemy-workflows/test/**/*.ts",
+              "../../spikes/alchemy-workflows/test/**/*.ts",
+              "spikes/alchemy-workflows/test/**/*.tsx",
+              "../../spikes/alchemy-workflows/test/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli"
+              ],
+              "allowedDuplicatedPackages": ["alchemy"]
+            }
+          },
+          {
+            "include": [
+              "spikes/alchemy-workflows/alchemy.run.ts",
+              "../../spikes/alchemy-workflows/alchemy.run.ts",
+              "spikes/alchemy-workflows/vite.config.ts",
+              "../../spikes/alchemy-workflows/vite.config.ts",
+              "spikes/alchemy-workflows/vite.runtime.config.ts",
+              "../../spikes/alchemy-workflows/vite.runtime.config.ts",
+              "spikes/alchemy-workflows/alchemy.cloud.ts",
+              "../../spikes/alchemy-workflows/alchemy.cloud.ts",
+              "spikes/alchemy-workflows/vite.cloud.config.ts",
+              "../../spikes/alchemy-workflows/vite.cloud.config.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer"
+              ],
+              "allowedDuplicatedPackages": ["alchemy"]
             }
           },
           {

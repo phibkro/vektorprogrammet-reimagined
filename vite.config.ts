@@ -410,18 +410,22 @@ export default defineConfig({
           "apps/cms/scripts/checkBundle.ts",
           "packages/db/src/aggregate/defects.ts",
           "spikes/alchemy-domain/src/errors.ts",
+          "spikes/alchemy-workflows/src/errors.ts",
+          "spikes/alchemy-workflows/test/support/errors.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",
         },
       },
       {
-        // max-classes-per-file conflicts with a closed typed-error set: the domain's errors, and the lock construct's four defects.
+        // max-classes-per-file conflicts with closed typed-error sets: the domain's errors, aggregate lock defects and spike error vocabularies.
         files: [
           "packages/domain/src/shared/errors.ts",
           "packages/db/src/aggregate/defects.ts",
           "spikes/alchemy-domain/src/model/**",
           "spikes/alchemy-domain/test/support/counter.ts",
+          "spikes/alchemy-workflows/src/errors.ts",
+          "spikes/alchemy-workflows/test/support/errors.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
