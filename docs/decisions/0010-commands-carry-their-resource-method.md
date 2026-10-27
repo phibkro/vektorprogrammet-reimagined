@@ -14,9 +14,9 @@ ADR 0006 stays: each command and query is declared once with `effect/rpc`, and i
 | `delete` | the command removes a resource | `DELETE /admin-grants/{grant}` |
 | custom | anything else, in particular every other state transition | `POST /memberships/{membership}:extend`, `POST /accounts/{account}:deactivate` |
 
-A standard method is the default. A custom method is the fallback for an intent that a standard method would blur: `extend`, `change` and `endEarly` all change a membership's end, but they have different grants and different audit meaning, so each is a custom method and none of them is an `update`. Names follow the method: `createTeam`, `updatePerson`, `deleteAdminGrant`, `extendMembership`.
+A standard method is the default. A custom method is the fallback for an intent that a standard method would blur: `extend`, `change` and `endEarly` all change a membership's end, but they differ in audit meaning and in transition. `extend` and `change` share `grant([leader, board], [...], "department")`; `endEarly` additionally has `grant([self], ["endEarly"], "own")`. So each is a custom method and none of them is an `update`. Names follow the method: `createTeam`, `updatePerson`, `deleteAdminGrant`, `extendMembership`.
 
-Conditional requests are the HTTP form of a conditional update (ADR 0007): a stale `If-Match` answers `412`, a transition from the wrong state answers `409` (`Conflict`).
+A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's conditional transition, which conditions on state. A stale `If-Match` answers `412`, but that needs a row version, which this decision adds for `update` methods: a version column that the `update` checks in its conditional write. It does not exist today.
 
 ## Considered options
 
