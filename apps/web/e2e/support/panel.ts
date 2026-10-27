@@ -53,6 +53,20 @@ export const openPage = async (page: Page, path: string) => {
   await page.waitForFunction(INTERACTIVE_CONTENT_IS_HYDRATED);
 };
 
+/** Signs in with Better Auth's form, as a person does, and waits for the page that the sign-in leads to. */
+export const signIn = async (
+  page: Page,
+  origin: string,
+  email: string,
+  password: string
+) => {
+  await openPage(page, `${origin}/logg-inn`);
+  await page.getByLabel("E-post", { exact: true }).fill(email);
+  await page.getByLabel("Passord", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Logg inn" }).click();
+  await page.waitForURL(/\/(?:kontrollpanel|min-side)(?:\/|$)/u);
+};
+
 /** The Sheet that is open (a form, a record's details, or the phone's sidebar). */
 export const sheetOf = (page: Page) => page.getByRole("dialog");
 
@@ -102,7 +116,10 @@ const isServerFunctionPost = (response: Response): boolean =>
  * Clicks `button` and returns the HTTP status of the server function that click called: the refusals in the
  * specs are asserted on the status the server sent, not only on the message the page shows.
  */
-const statusOfClick = async (page: Page, button: Locator): Promise<number> => {
+export const statusOfClick = async (
+  page: Page,
+  button: Locator
+): Promise<number> => {
   const [response] = await Promise.all([
     page.waitForResponse(isServerFunctionPost),
     button.click(),
@@ -120,6 +137,19 @@ export const submitSheet = async (
     page,
     sheetOf(page).getByRole("button", { name: buttonName })
   );
+
+/** Registers a person in the first imported department, as the control panel's own form does. */
+export const registerPerson = async (
+  page: Page,
+  name: string,
+  email: string
+) => {
+  await page.getByRole("button", { name: "Registrer person" }).click();
+  await fillSheet(page, { "E-post": email, Navn: name });
+  await sheetOf(page).getByLabel("Linje").selectOption("1");
+  expect(await submitSheet(page, "Registrer")).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
+};
 
 /**
  * Marks the document so a later check can tell a full page reload from a client-side update: a reload builds

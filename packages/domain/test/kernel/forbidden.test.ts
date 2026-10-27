@@ -11,7 +11,12 @@ import { assert, describe, it } from "@effect/vitest";
 import { expectTypeOf } from "vite-plus/test";
 
 import { Forbidden, Teams } from "../../src/index.ts";
-import type { CodePurpose, Accounts, codePolicy } from "../../src/index.ts";
+import type {
+  CodePurpose,
+  Accounts,
+  codePolicy,
+  PersonalDataRpcs,
+} from "../../src/index.ts";
 import { Sample } from "./sample.ts";
 
 type TeamsNames = Parameters<typeof Teams.TeamsDomain.forbidden>[0];
@@ -19,6 +24,10 @@ type TeamsNames = Parameters<typeof Teams.TeamsDomain.forbidden>[0];
 type AccountNames = Parameters<typeof Accounts.AccountDomain.forbidden>[0];
 
 type SampleNames = Parameters<typeof Sample.forbidden>[0];
+
+type PersonalDataNames = Parameters<
+  typeof PersonalDataRpcs.PersonalDataDomain.forbidden
+>[0];
 
 describe("spec 0007c R2: a refusal names a command of its domain", () => {
   it("the refusal of a domain takes the commands and reads of that domain, and no other string", () => {
@@ -39,10 +48,19 @@ describe("spec 0007c R2: a refusal names a command of its domain", () => {
     expectTypeOf<string>().not.toExtend<TeamsNames>();
   });
 
-  it("the code endpoints refuse with the command of the code's purpose, and that is a command of the account domain", () => {
+  it("the code endpoints refuse with the command of the code's purpose, and that is a command of the domain that runs it", () => {
+    expectTypeOf<
+      (typeof codePolicy)["activation" | "resetPassword"]["command"]
+    >().toExtend<AccountNames>();
+
+    expectTypeOf<
+      (typeof codePolicy)["alumniConsent"]["command"]
+    >().toExtend<PersonalDataNames>();
+
+    // The refusal of the account domain cannot name the alumni command, so the alumni endpoint must say its own domain.
     expectTypeOf<
       (typeof codePolicy)[CodePurpose]["command"]
-    >().toExtend<AccountNames>();
+    >().not.toExtend<AccountNames>();
 
     expectTypeOf<"activate">().not.toExtend<AccountNames>();
   });

@@ -91,5 +91,14 @@ export const CONTACT_RATE_LIMIT = {
   period: 60,
 } as const;
 
-/** The one cron: the outbox sweep (architecture §4: every 5–15 min) and the semester job (spec 0003). */
+/**
+ * The tick (every 10 minutes): the outbox sweep (architecture §4: every 5–15 min), the semester job (spec 0003), the
+ * "ending soon" digest (spec 0006) and the alumni consent job (spec 0007b).
+ */
 export const OUTBOX_SWEEP_CRON = "*/10 * * * *";
+
+/**
+ * The nightly cron: the retention run (spec 0007b), as `System("retention")`. 02:17 UTC is 03:17 or 04:17 in Oslo: a
+ * quiet hour, and not a minute that the tick also runs at. `scheduled` tells the two apart by `controller.cron`.
+ */
+export const RETENTION_CRON = "17 2 * * *";

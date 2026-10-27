@@ -7,7 +7,12 @@ import { assert, describe, it } from "@effect/vitest";
 import { isNotFound } from "@tanstack/react-router";
 import { CmsClient, PortableText } from "@vektorprogrammet/cms-client";
 import type { NewsData } from "@vektorprogrammet/cms-client";
-import { DepartmentId } from "@vektorprogrammet/domain";
+import {
+  Catalog,
+  ContactForm,
+  DepartmentId,
+  privacyNotice,
+} from "@vektorprogrammet/domain";
 import type { AdmissionPeriod } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -532,6 +537,24 @@ describe("the contact page (/kontakt)", () => {
           "Kontaktforespørsel sendt til bergen@example.org, takk for henvendelsen!"
         );
         assert.strictEqual(idle.notice, null);
+      })
+  );
+
+  it.effect(
+    "spec 0007b falsifier 1: the page carries a notice that lists the form's personal fields, and only those",
+    () =>
+      Effect.gen(function* notice() {
+        const { privacy } = yield* contact(null, false);
+
+        // `departmentId` is the organisation's, not the visitor's: the notice leaves it out.
+        assert.deepStrictEqual(
+          Arr.map(privacy.entries, (entry) => entry.field),
+          ["email", "message", "name", "subject"]
+        );
+        assert.strictEqual(privacy.form, "contact");
+        // The page carries the domain's notice as it is, whatever it awaits: its note is derived from `open`.
+        assert.deepStrictEqual(privacy, privacyNotice(ContactForm, Catalog));
+        assert.match(privacy.controller.no, /Vektorprogrammet/u);
       })
   );
 

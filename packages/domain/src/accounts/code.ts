@@ -1,28 +1,52 @@
-/** Single-use credentials. Only the hash is persisted; plaintext exists in the delivered e-mail. */
+/** Credentials sent by e-mail. Only the hash is persisted; plaintext exists in the delivered e-mail. */
 import { Crypto, Effect, Schema } from "effect";
 import { encode as encodeBase64Url } from "effect/encoding/Base64Url";
 import { encode as encodeHex } from "effect/encoding/Hex";
 
 import { PersonId } from "../shared/ids.ts";
 
-export const CodePurpose = Schema.Literals(["activation", "resetPassword"]);
+export const CodePurpose = Schema.Literals([
+  "activation",
+  "alumniConsent",
+  "resetPassword",
+]);
 
 export type CodePurpose = typeof CodePurpose.Type;
 
 /**
- * The command and lifetime associated with each purpose are domain data. `Domain.problems` checks that each command
- * is the command whose `Info.credential` is the purpose (`credentialGrants`), because this module sits below the
- * declarations and cannot name their tags.
+ * What each purpose is, as data: the command it opens, how long it lives, whether one use ends it, and the state that
+ * the person's Account must be in (`null`: it needs no account, an alumnus may have none). A purpose is declared here
+ * once; the code principal and the code mail read these facts and keep no `if` of their own (spec 0007b R1 item 3).
+ * `Domain.problems` checks that each command is the command whose `Info.credential` is the purpose
+ * (`credentialGrants`), because this module sits below the declarations and cannot name their tags.
  */
 export const codePolicy = {
   activation: {
+    account: "Invited",
     command: "activateAccount",
     lifetimeSeconds: 14 * 24 * 60 * 60,
+    singleUse: true,
   },
-  resetPassword: { command: "resetPassword", lifetimeSeconds: 24 * 60 * 60 },
+  alumniConsent: {
+    account: null,
+    command: "answerAlumniConsent",
+    lifetimeSeconds: 60 * 24 * 60 * 60,
+    singleUse: false,
+  },
+  resetPassword: {
+    account: "Active",
+    command: "resetPassword",
+    lifetimeSeconds: 24 * 60 * 60,
+    singleUse: true,
+  },
 } as const satisfies Record<
   CodePurpose,
-  { readonly command: string; readonly lifetimeSeconds: number }
+  {
+    readonly account: "Active" | "Invited" | null;
+    readonly command: string;
+    readonly lifetimeSeconds: number;
+    readonly singleUse: boolean;
+  }
 >;
 
 /** A SHA-256 digest, encoded as lowercase hexadecimal. */

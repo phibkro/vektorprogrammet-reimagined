@@ -16,7 +16,7 @@
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
-import { DatabaseLive } from "@vektorprogrammet/db";
+import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
 import type {
   CapturedMailStore,
   OutboxDelivery,
@@ -26,7 +26,9 @@ import {
   CurrentPrincipal,
   Outbox,
   SiteOrigin,
+  alumniConsentJob,
   endingSoonJob,
+  retentionJob,
   semesterJob,
   semesterLabel,
   systemPrincipal,
@@ -36,26 +38,31 @@ import type {
   AdminGrantRepository,
   AggregateLocks,
   AdmissionPeriodRepository,
+  AlumniRequests,
   AuditLog,
   CodeRepository,
+  ConsentRepository,
   DepartmentRepository,
   DigestLedger,
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  LegalHolds,
   MembershipRepository,
   OutboxMessageId,
   PasswordHasher,
   PersonId,
   PersonRepository,
+  PersonalDataStore,
   PositionRepository,
   PrincipalDirectory,
   PublicFileRepository,
   SemesterRepository,
   SocialEventRepository,
   TeamRepository,
+  RetentionRun,
 } from "@vektorprogrammet/domain";
-import { Cause, Effect, Layer, Predicate, Redacted, Ref } from "effect";
+import { Cause, Effect, Layer, Match, Predicate, Redacted, Ref } from "effect";
 import type { Crypto } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
@@ -76,6 +83,7 @@ import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
 import { contactRateLimiterLayer } from "./rateLimit";
 import type { ContactRateLimiter } from "./rateLimit";
+import { retentionModeFor } from "./retentionMode";
 import { messageSenderLayer, senderConfigFromEnv } from "./senders";
 import type { MessageSender } from "./senders";
 import { Transactor, transactorLayer } from "./transactor";
@@ -113,6 +121,11 @@ export type DatabaseServices =
   | MembershipRepository
   | AdminGrantRepository
   | DigestLedger
+  | ConsentRepository
+  | AlumniRequests
+  | LegalHolds
+  | PersonalDataStore
+  | RetentionRun
   | PrincipalDirectory
   | Outbox
   | AuditLog
@@ -384,6 +397,38 @@ const jobLayer = (
   );
 
 /**
+ * What the retention job reads of the Worker's bindings: the deployment, the site's origin and the database's connection
+ * string. A test runs the job without a Cloudflare binding.
+ */
+export type RetentionEnv = Pick<WorkerEnv, "DEPLOYMENT" | "SITE_URL"> & {
+  readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
+};
+
+/**
+ * The Layer of the nightly retention job: the job runtime over `JobDatabaseLive`, the only database layer that carries
+ * the retention run, in the mode that `retentionModeFor` decides from the deployment and the approval of the periods.
+ */
+const retentionJobLayer = (
+  env: RetentionEnv
+): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
+  Layer.unwrap(
+    Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
+      Layer.mergeAll(
+        transactorLayer,
+        Layer.succeed(SiteOrigin)(env.SITE_URL)
+      ).pipe(
+        Layer.provideMerge(
+          JobDatabaseLive({
+            maxConnections: MAX_CONNECTIONS_PER_REQUEST,
+            retention: retentionModeFor(deployment),
+            url: Redacted.make(env.HYPERDRIVE.connectionString),
+          }).pipe(Layer.orDie)
+        )
+      )
+    )
+  );
+
+/**
  * The semester job (spec 0003, RULE-237): the current and the next semester exist as rows. Runs from the
  * cron `scheduled` handler, and nowhere else, as `System("semesters")` through `authorize` (spec 0006, R1); no read
  * path writes a semester.
@@ -416,6 +461,48 @@ export const runEndingSoon = (env: WorkerEnv): Promise<void> =>
       Effect.tap(({ sent }) =>
         Effect.logInfo("ending-soon digest finished").pipe(
           Effect.annotateLogs({ sent })
+        )
+      )
+    )
+  );
+
+/**
+ * The alumni consent job (spec 0007b, falsifier 5): from the cron tick, as `System("alumniConsent")`, in one
+ * transaction. It finds the people who have left, writes one request each and enqueues one `IssueCode` message each;
+ * the sweep that follows mints the code and sends the mail.
+ */
+export const runAlumniConsent = (env: WorkerEnv): Promise<void> =>
+  runScheduled(
+    jobLayer(env),
+    Transactor.use((transactor) => transactor.run(alumniConsentJob)).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("alumniConsent")),
+      Effect.tap(({ sent }) =>
+        Effect.logInfo("alumni consent job finished").pipe(
+          Effect.annotateLogs({ sent })
+        )
+      )
+    )
+  );
+
+/**
+ * The nightly retention run (spec 0007b, falsifier 2): from the cron tick of `RETENTION_CRON`, as
+ * `System("retention")`, in one transaction. The deployment and the approval of the periods decide what the run does
+ * (`retentionModeFor`): in production, while a period is a proposal, it only counts and audits what it would change.
+ * It logs the counts that its audit row holds, and never a value.
+ */
+export const runRetention = (env: RetentionEnv): Promise<void> =>
+  runScheduled(
+    retentionJobLayer(env),
+    Transactor.use((transactor) => transactor.run(retentionJob)).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("retention")),
+      Effect.tap(({ counts, mode }) =>
+        Match.value(mode).pipe(
+          Match.when("Apply", () => Effect.logInfo("retention run finished")),
+          Match.when("ReportOnly", () =>
+            Effect.logInfo("retention report finished: nothing was changed")
+          ),
+          Match.exhaustive,
+          Effect.annotateLogs(counts)
         )
       )
     )

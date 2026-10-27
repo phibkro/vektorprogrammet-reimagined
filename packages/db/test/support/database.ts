@@ -12,12 +12,18 @@
 import { PgClient } from "@effect/sql-pg";
 import { PgliteClient } from "@effect/sql-pglite";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
+import type { RetentionMode } from "@vektorprogrammet/domain";
 import * as PgliteDrizzle from "drizzle-orm/effect-pglite";
 import { migrate as migratePglite } from "drizzle-orm/effect-pglite/migrator";
 import { Effect, Layer } from "effect";
+import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { DatabaseLive, RepositoriesLayer } from "../../src/databaseLive.ts";
+import {
+  DatabaseLive,
+  JobDatabaseLive,
+  RepositoriesLayer,
+} from "../../src/databaseLive.ts";
 import { Drizzle } from "../../src/internal/drizzle.ts";
 import { TestDatabaseUrl, migratedTestDatabase } from "./disposableDatabase.ts";
 
@@ -46,6 +52,23 @@ export const pgliteDatabase = Layer.mergeAll(
   Layer.provide(PgliteClient.layer({ extensions: { btree_gist } }))
 );
 
+/** `database` on a migrated disposable database, plus `TestDatabaseUrl` and a separate `Drizzle` handle (its own small pool). */
+const onDisposableDatabase = <ROut, E, RIn>(
+  database: (url: Redacted.Redacted) => Layer.Layer<ROut, E, RIn>
+) =>
+  Layer.unwrap(
+    Effect.map(Effect.service(TestDatabaseUrl), (url) =>
+      Layer.merge(
+        database(url),
+        Drizzle.layerPg.pipe(
+          Layer.provide(
+            PgClient.layer({ maxConnections: 2, prepare: false, url })
+          )
+        )
+      )
+    )
+  ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+
 /**
  * `DatabaseLive` on a migrated disposable database, plus `TestDatabaseUrl` and
  * a separate `Drizzle` handle (its own small pool) for assertions after commit.
@@ -58,15 +81,22 @@ export const pgliteDatabase = Layer.mergeAll(
 export const postgresDatabase = (options?: {
   readonly maxConnections?: number;
 }) =>
-  Layer.unwrap(
-    Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-      Layer.merge(
-        DatabaseLive({ maxConnections: options?.maxConnections ?? 25, url }),
-        Drizzle.layerPg.pipe(
-          Layer.provide(
-            PgClient.layer({ maxConnections: 2, prepare: false, url })
-          )
-        )
-      )
-    )
-  ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+  onDisposableDatabase((url) =>
+    DatabaseLive({ maxConnections: options?.maxConnections ?? 25, url })
+  );
+
+/**
+ * The same, built as a cron job builds it (`JobDatabaseLive`): it also provides `RetentionRun`, with the nightly retention
+ * in `retention` (spec 0007b R4).
+ */
+export const postgresJobDatabase = (
+  retention: RetentionMode,
+  options?: { readonly maxConnections?: number }
+) =>
+  onDisposableDatabase((url) =>
+    JobDatabaseLive({
+      maxConnections: options?.maxConnections ?? 25,
+      retention,
+      url,
+    })
+  );

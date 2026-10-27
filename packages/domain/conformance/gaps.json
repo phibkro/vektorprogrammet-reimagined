@@ -92,5 +92,13 @@
     "_tag": "NoDescription",
     "domain": "contact",
     "reason": "no command or read of the domain can be stated to effx"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "answerAlumniConsent"
+    ],
+    "domain": "personalData",
+    "subject": "Holder(alumniConsent)"
   }
 ]

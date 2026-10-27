@@ -4,7 +4,7 @@
  */
 import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
-import { Cause, Effect, Exit, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
@@ -12,7 +12,11 @@ import {
   migratedTestDatabase,
   TestDatabaseUrl,
 } from "./support/disposableDatabase.ts";
-import { ReadOnlyDatabaseUrl, readOnlyRole } from "./support/readOnlyRole.ts";
+import {
+  ReadOnlyDatabaseUrl,
+  assertPermissionDenied,
+  readOnlyRole,
+} from "./support/readOnlyRole.ts";
 
 const clientOf = (url: Redacted.Redacted) =>
   PgClient.layer({ maxConnections: 1, prepare: false, url });
@@ -57,13 +61,8 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
     it.effect(`refuses a write: ${kind}`, () =>
       Effect.gen(function* refusesEffect() {
         const sql = yield* SqlClient.SqlClient;
-        const exit = yield* Effect.exit(sql.unsafe(statement));
 
-        assert.isTrue(Exit.isFailure(exit));
-
-        if (Exit.isFailure(exit)) {
-          assert.include(Cause.pretty(exit.cause), "permission denied");
-        }
+        assertPermissionDenied(yield* Effect.exit(sql.unsafe(statement)));
       }).pipe(Effect.provide(readerClient))
     );
   }

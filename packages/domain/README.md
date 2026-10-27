@@ -39,6 +39,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |
 | `audit` | C12 | `AuditEntry` (it records the principal: a person id or a job name), `AuditLog`, `recordAudit`, the `listAuditEntries` query |
 | `outbox` | C12 | the `sweepOutbox` job command; its handler is in `apps/web` |
+| `personalData` | spec 0007b | The declarations (`declaration.ts`: columns, retention, expiry, person relations, merge rules), `catalog.ts` (every domain's `personalData.ts` gathered), `periods.ts` and `texts.ts` (the periods and the privacy and consent texts, each with an `approval`, and `basesApproval`, the one approval of the legal bases), `duration.ts` (the words of a period: every text that states one builds it there), the readings (`derive.ts`: retention rules and whether a retention rests on a proposal, the checks of the catalog; `notice.ts`: the privacy notice of a form, which carries the decisions that are open and `draftNote`, the one sentence that names them, and the record of processing, whose rows carry the approval of the period and of the basis), the consent records, the alumni rules, and the `PersonalDataRpc` commands with the retention and alumni jobs. [Reference](../../docs/system/administration.md). |
 
 ## Services
 
@@ -59,6 +60,8 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `PrincipalDirectory` | loads a person's facts in one read (`apps/web` uses it to build the principal) |
 | `SocialEventRepository` | `list({ departmentId, semesterId })`, `create` |
 | `PublicFileRepository` | `findByKey`, `findByLegacyPath`, idempotent `register` |
+| `ConsentRepository`, `AlumniRequests`, `LegalHolds`, `PersonalDataStore` | A person's consent records (read for display, written through their `Locked` token); the people to ask and the one request for each end of an engagement; the legal holds on a person (no source yet); and the operations that the catalog compiles in `packages/db`: the export, the early expiry of an erasure, the photo (spec 0007b) |
+| `RetentionRun` | the nightly retention run (spec 0007b R4): `run(now)` gives the counts and the mode, `Apply` (rows changed) or `ReportOnly` (rows that would be, and nothing changed). The layer fixes the mode, so no program chooses it: `DatabaseLive` provides the report, and only `packages/db`'s `JobDatabaseLive` can provide the run that changes rows |
 | `FileStore` | R2 `put` and `get` by content-addressed key |
 | `Outbox` | Enqueues e-mail, Slack and account-delivery intents in the current transaction. |
 | `AuditLog` | `record` one `AuditEntry` per write in the current transaction, `latest` |
@@ -72,7 +75,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 
 A closed set: `NotFound`, `Forbidden`, `AlreadyExists`, `Conflict`, `ValidationFailed` (`DomainError`). A `Conflict` is a transition that could not be applied: the resource is not in a state that the command starts from, or it changed between the read and the conditional update. Infrastructure failures are defects.
 
-`Forbidden.command` is a string, as it is on the wire: the error sits below the declarations that give the names. A command that refuses on its own, for a rule that no grant row can state (never for oneself), builds the refusal with its domain's `forbidden` (`TeamsDomain.forbidden("createAdminGrant")`), whose parameter is the names of that domain's group and reads, so a renamed or misspelled command does not compile (spec 0007c R2). The code endpoints refuse with the command of the code's purpose, `codePolicy[purpose].command`, which the same parameter checks against the account domain.
+`Forbidden.command` is a string, as it is on the wire: the error sits below the declarations that give the names. A command that refuses on its own, for a rule that no grant row can state (never for oneself), builds the refusal with its domain's `forbidden` (`TeamsDomain.forbidden("createAdminGrant")`), whose parameter is the names of that domain's group and reads, so a renamed or misspelled command does not compile (spec 0007c R2). The code endpoints refuse with the command of the code's purpose, `codePolicy[purpose].command`: `runWithCode` takes the domain that runs the endpoint (`AccountDomain` or `PersonalDataDomain`), so the same parameter checks the command against that domain. `setAlumniConsent` and `exportMyData` are granted to `Self`, but the kernel's `Admin` row would admit an administrator for any person, so their handlers refuse every principal that is not the person with the same `forbidden` (spec 0007b R3 item 27).
 
 ## Transaction convention
 

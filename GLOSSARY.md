@@ -114,7 +114,27 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Retention period** (lagringstid): How long the system keeps one kind of personal data before it deletes or anonymises it. _Avoid_: TTL, expiry
 
-**Consent** (samtykke): A recorded yes from a person to one purpose, for example admission alerts. A person can withdraw each consent separately. _Avoid_: opt-in, permission
+**Retention report** (lagringsrapport): The nightly retention run in its counting mode. It finds what has reached the end of its period, counts it and audits the counts (`retention.reported`), and changes nothing. Production runs it until every period that the run applies is approved; local and preview deployments, which hold fake data, run the retention for real. _Avoid_: dry run, simulation
+
+**Consent** (samtykke): A recorded answer from a person to one question, for example "keep my details for 5 years" or "send me alumni news". The record names the version of the text that the person saw, when they said yes and when they withdrew. A "no" is a record too. A person can withdraw each consent separately. _Avoid_: opt-in, permission
+
+**Declaration** (deklarasjon): What the code says, once, about each stored column: what it holds about a person and why (purpose, legal basis, retention, and what happens at the end), or why it holds nothing about a person. The retention job, the export, the erasure, the merge, the privacy notice and the record of processing are all read from it. _Avoid_: annotation, policy
+
+**Privacy notice** (personvernerklæring): The text on a form that says what it collects, why, who gets it and how long it is kept. The system generates it from the declarations. _Avoid_: privacy policy, terms
+
+**Record of processing** (behandlingsprotokoll): The list of every kind of personal data the organisation keeps, with its purpose, legal basis and retention (GDPR Art. 30). The system generates it from the declarations. _Avoid_: data register, inventory
+
+**Anonymisation** (anonymisering): Replacing a person's name, addresses and other core fields with placeholders, so that the row names nobody. The row stays, and so does the history that refers to it. _Avoid_: masking, pseudonymisation
+
+**Erasure** (sletting): Anonymising a person's core fields and deleting their account, sessions, consents and subscriptions, on request. History rows, such as memberships, stay and name nobody. _Avoid_: delete account, deactivation (a deactivated account keeps all data)
+
+**Merge** (sammenslåing): Joining two records of one person. Every row of the second record moves to the first. _Avoid_: dedupe, link
+
+**Tombstone** (tom post): The record that a merge leaves behind. It has no name or address and says which record remains. _Avoid_: deleted person, duplicate
+
+**Legal hold** (oppbevaringsplikt): A reason in law that data must stay, for example an expense claim under accounting retention. Erasure reports it with its end date, or stops while it is open. _Avoid_: freeze, lock
+
+**Alumni request** (alumniforespørsel): The one e-mail that asks a person who has left two questions about their data: may the organisation keep their details longer, and may it send alumni news. There is one for each person and each end of an engagement. _Avoid_: survey, newsletter signup
 
 ## Elections and voting
 

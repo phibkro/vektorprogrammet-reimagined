@@ -1,12 +1,18 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
+  Catalog,
   Commands,
   Contact,
   Declarations,
   Domain,
+  Forms,
   GrantTable,
   Teams,
+  approvalWords,
+  codePolicy,
+  personalColumns,
+  recordOfProcessing,
 } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -14,16 +20,21 @@ import {
   FileSystem,
   Option,
   Predicate,
+  Record as Rec,
   Result,
 } from "effect";
 
 import {
+  approvalCell,
   checkAccountsDocument,
+  checkAdministrationDocument,
   checkCommandsDocument,
   checkDocument,
+  renderAdministrationDocument,
   renderCommandsDocument,
   renderDocument,
 } from "../src/render.ts";
+import type { PersonalDataSources } from "../src/render.ts";
 
 const source = Effect.gen(function* source() {
   const fs = yield* FileSystem.FileSystem;
@@ -305,5 +316,270 @@ describe("spec 0007c falsifier 5: every command by resource", () => {
           )
         );
       })
+  );
+});
+
+const administrationSource = Effect.gen(function* administrationSource() {
+  const fs = yield* FileSystem.FileSystem;
+
+  return yield* fs.readFileString("../../docs/system/administration.md");
+}).pipe(Effect.provide(NodeServices.layer));
+
+const SOURCES: PersonalDataSources = { catalog: Catalog, forms: Forms };
+
+/** The two answers of a decision, for a test over every combination of the period's and the basis's. */
+const APPROVALS = ["decided", "proposed"] as const;
+
+/** The text between a block's markers. */
+const blockOf = (document: string, id: string): string => {
+  const begin = `<!-- docgen:begin ${id} -->`;
+  const first = document.indexOf(begin) + begin.length;
+
+  return document.slice(first, document.indexOf(`<!-- docgen:end ${id} -->`));
+};
+
+describe("spec 0007b falsifier 1: generated personal data documentation", () => {
+  it.effect(
+    "the committed administration document matches the catalog, the forms and the declarations",
+    () =>
+      Effect.gen(function* matches() {
+        const document = yield* administrationSource;
+
+        assert.isTrue(
+          Result.isSuccess(
+            checkAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              SOURCES
+            )
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "negative controls: one changed character, a table left out of the catalog, a form left out, or a grant removed fails the check",
+    () =>
+      Effect.gen(function* drift() {
+        const document = yield* administrationSource;
+
+        const fails = (
+          changed: string,
+          sources = SOURCES,
+          grants = GrantTable
+        ) =>
+          Result.isFailure(
+            checkAdministrationDocument(changed, Declarations, grants, sources)
+          );
+
+        const changed = document.replace("| Data |", "| Dats |");
+        assert.notStrictEqual(changed, document);
+        assert.isTrue(fails(changed));
+
+        // A table that the catalog no longer holds is still in the committed record.
+        assert.isTrue(
+          fails(document, {
+            ...SOURCES,
+            catalog: Rec.remove(Catalog, "outbox"),
+          })
+        );
+
+        // A form that is no longer declared is still in the committed notices.
+        assert.isTrue(fails(document, { ...SOURCES, forms: [] }));
+
+        const reduced = Arr.filter(
+          GrantTable,
+          (row) => !Arr.contains(row.commands, "erasePerson")
+        );
+
+        assert.isBelow(reduced.length, GrantTable.length);
+        assert.isTrue(fails(document, SOURCES, reduced));
+      })
+  );
+
+  it.effect(
+    "a proposal is marked in the schedule: as many marks as proposed rows, and none for a decided one",
+    () =>
+      Effect.gen(function* marks() {
+        const document = yield* administrationSource;
+        const rows = recordOfProcessing(Catalog);
+
+        const proposed = Arr.filter(
+          rows,
+          (row) => row.periodApproval === "proposed"
+        );
+
+        const lines = blockOf(document, "retention").split("\n");
+        const marked = Arr.filter(lines, (line) => line.includes(" \\* |"));
+
+        assert.isAbove(proposed.length, 0);
+        assert.isBelow(proposed.length, rows.length);
+        assert.strictEqual(marked.length, proposed.length);
+      })
+  );
+
+  it("the record's approval cell names the open decisions: the period, the legal basis, both, and nothing once both are made", () => {
+    const sample = Option.getOrThrow(Arr.head(recordOfProcessing(Catalog)));
+
+    const words = Option.getOrThrow(
+      Option.fromNullishOr(approvalWords.proposed)
+    ).en;
+
+    for (const period of APPROVALS) {
+      for (const basis of APPROVALS) {
+        const cell = approvalCell({
+          ...sample,
+          basisApproval: basis,
+          periodApproval: period,
+        });
+
+        const said = `${period} period, ${basis} basis: "${cell}"`;
+
+        assert.strictEqual(
+          cell.includes("period"),
+          period === "proposed",
+          said
+        );
+        assert.strictEqual(
+          cell.includes("legal basis"),
+          basis === "proposed",
+          said
+        );
+        assert.strictEqual(
+          cell.includes(words),
+          period === "proposed" || basis === "proposed",
+          said
+        );
+        assert.strictEqual(
+          cell === "decided",
+          period === "decided" && basis === "decided",
+          said
+        );
+      }
+    }
+  });
+
+  it.effect(
+    "the committed record says, row by row, which decisions the declarations leave open: every row has one of the four cells, in the numbers that the declarations give",
+    () =>
+      Effect.gen(function* rowsSay() {
+        const document = yield* administrationSource;
+        const lines = blockOf(document, "record").split("\n");
+        const rows = recordOfProcessing(Catalog);
+        const sample = Option.getOrThrow(Arr.head(rows));
+        let found = 0;
+
+        for (const period of APPROVALS) {
+          for (const basis of APPROVALS) {
+            const cell = approvalCell({
+              ...sample,
+              basisApproval: basis,
+              periodApproval: period,
+            });
+
+            const expected = Arr.filter(
+              rows,
+              (row) =>
+                row.periodApproval === period && row.basisApproval === basis
+            ).length;
+
+            const listed = Arr.filter(lines, (line) =>
+              line.endsWith(`| ${cell} |`)
+            ).length;
+
+            assert.strictEqual(listed, expected, cell);
+            found += listed;
+          }
+        }
+
+        assert.isAbove(rows.length, 0);
+        assert.strictEqual(found, rows.length);
+      })
+  );
+
+  it.effect("the record lists every personal column of the catalog", () =>
+    Effect.gen(function* complete() {
+      const document = yield* administrationSource;
+      const record = blockOf(document, "record");
+
+      for (const [table, declaration] of Rec.toEntries(Catalog)) {
+        for (const [column] of personalColumns(declaration)) {
+          // `table`: a, b, c: the column is one item of its table's list.
+          const listed = new RegExp(
+            `\`${table}\`: (?:[a-z_0-9]+, )*${column}(?:,|<br>| \\|)`,
+            "u"
+          );
+
+          assert.isTrue(listed.test(record), `${table}.${column}`);
+        }
+      }
+    })
+  );
+
+  it.effect("a document without the personal data declaration is refused", () =>
+    Effect.gen(function* refused() {
+      const document = yield* administrationSource;
+
+      const withoutPersonalData = Arr.filter(
+        Declarations,
+        (domain) => domain.name !== "personalData"
+      );
+
+      assert.isBelow(withoutPersonalData.length, Declarations.length);
+
+      assert.isTrue(
+        Result.isFailure(
+          renderAdministrationDocument(
+            document,
+            withoutPersonalData,
+            GrantTable,
+            SOURCES
+          )
+        )
+      );
+
+      assert.isTrue(
+        Result.isFailure(
+          renderAdministrationDocument(
+            document.replace("<!-- docgen:end record -->", ""),
+            Declarations,
+            GrantTable,
+            SOURCES
+          )
+        )
+      );
+    })
+  );
+
+  it.effect(
+    "the code policy table says which purpose is reusable, and the account that a purpose needs",
+    () =>
+      Effect.gen(function* policy() {
+        const fs = yield* FileSystem.FileSystem;
+
+        const document = yield* fs.readFileString(
+          "../../docs/system/accounts.md"
+        );
+
+        const block = blockOf(document, "code-policy");
+
+        for (const [purpose, value] of Rec.toEntries(codePolicy)) {
+          const line = Arr.findFirst(block.split("\n"), (row) =>
+            row.startsWith(`| ${purpose} `)
+          );
+
+          assert.isTrue(Option.isSome(line), purpose);
+
+          assert.isTrue(
+            Option.exists(line, (row) =>
+              row.includes(`| ${value.singleUse ? "yes" : "no"} `)
+            ),
+            purpose
+          );
+        }
+
+        assert.include(block, "| alumniConsent");
+      }).pipe(Effect.provide(NodeServices.layer))
   );
 });

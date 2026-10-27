@@ -90,6 +90,8 @@ export const EntityName = Schema.Literals([
   "Membership",
   "AdminGrant",
   "AdminList",
+  "Consent",
+  "Retention",
 ]);
 
 export type EntityName = typeof EntityName.Type;

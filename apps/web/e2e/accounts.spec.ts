@@ -1,12 +1,17 @@
 /** Spec 0007 falsifier 7, local half: the real Worker, mailbox, PostgreSQL and browser. */
 // oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
 import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/db";
 import { Array as Arr, Clock, Effect } from "effect";
 
 import { CONTACT_RATE_LIMIT } from "../worker.config.ts";
-import { openPage, sheetOf, sidebarOf, submitSheet } from "./support/panel.ts";
+import {
+  openPage,
+  sheetOf,
+  sidebarOf,
+  signIn,
+  submitSheet,
+} from "./support/panel.ts";
 import {
   accountStateOf,
   capturedMailTo,
@@ -23,19 +28,6 @@ const INVITEE_EMAIL = "mats.medlem@example.org";
 const PASSWORD = "et-nytt-testpassord";
 const CHANGED_PASSWORD = "et-endret-testpassord";
 const RESET_PASSWORD = "et-tilbakestilt-testpassord";
-
-const signIn = async (
-  page: Page,
-  origin: string,
-  email: string,
-  password: string
-) => {
-  await openPage(page, `${origin}/logg-inn`);
-  await page.getByLabel("E-post", { exact: true }).fill(email);
-  await page.getByLabel("Passord", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Logg inn" }).click();
-  await page.waitForURL(/\/(?:kontrollpanel|min-side)(?:\/|$)/u);
-};
 
 const inviteeState = async () => {
   const [state] = await runDatabase(accountStateOf(INVITEE_EMAIL));

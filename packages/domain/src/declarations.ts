@@ -16,6 +16,7 @@ import * as Grant from "./kernel/grant.ts";
 import * as Subject from "./kernel/subject.ts";
 import { OrganisationDomain } from "./organisation/declaration.ts";
 import { OutboxDomain } from "./outbox/declaration.ts";
+import { PersonalDataDomain } from "./personalData/rpc.ts";
 import { TeamsDomain } from "./teams/declaration.ts";
 
 /** The domains, in the order the docs list them. */
@@ -28,6 +29,7 @@ export const Declarations = [
   ContactDomain,
   AuditDomain,
   OutboxDomain,
+  PersonalDataDomain,
 ] as const;
 
 /** Every command and read that any domain declares. */

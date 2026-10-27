@@ -6,12 +6,11 @@
  * administrator, which spans every administrator, so they lock the admin list before the person; `deactivateAccount`
  * decides through its token whether the person is the last Active administrator.
  */
-import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
+import { DateTime, Effect, Option, Predicate } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import * as Commands from "../kernel/commands.ts";
 import * as Machine from "../kernel/machine.ts";
-import { CurrentPrincipal } from "../kernel/principal.ts";
 import type { Principal } from "../kernel/principal.ts";
 import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import type { Locked } from "../shared/aggregate.ts";
@@ -19,12 +18,9 @@ import { Conflict } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
 import { Outbox, OutboxMessage } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
-import {
-  MembershipRepository,
-  PersonRepository,
-  TeamRepository,
-} from "../teams/services.ts";
-import { codePolicy, hashCode } from "./code.ts";
+import { personResource } from "../teams/personResource.ts";
+import { PersonRepository } from "../teams/services.ts";
+import { hashCode } from "./code.ts";
 import type { CodePurpose, CodeToken } from "./code.ts";
 import { CodeRepository } from "./codeRepository.ts";
 import {
@@ -41,7 +37,7 @@ import {
 } from "./declaration.ts";
 import type { Account } from "./entities.ts";
 import { PasswordHasher } from "./passwordHasher.ts";
-import { codePrincipal } from "./principal.ts";
+import { codeResource, personOf, runWithCode } from "./principal.ts";
 import { AccountRepository } from "./services.ts";
 
 const conflict = (personId: number) =>
@@ -50,57 +46,6 @@ const conflict = (personId: number) =>
     key: String(personId),
     message: "Kontoen eller koden kan ikke brukes. Prøv igjen.",
   });
-
-/** A person belongs to the field-of-study department and the departments of their memberships. */
-const personResource = Effect.fn("Account.personResource")(
-  function* personResource(
-    personId: PersonId,
-    command: "createAccount" | "updatePerson"
-  ) {
-    const people = yield* PersonRepository;
-    const memberships = yield* MembershipRepository;
-    const teams = yield* TeamRepository;
-    const principal = yield* CurrentPrincipal;
-    // Authorization depends on the person's department and memberships: take the person's lock, then read them.
-    const locked = yield* (yield* AggregateLocks).lock("Person", personId);
-    const person = yield* people.findLocked(locked);
-    const membershipsOfPerson = yield* memberships.listLocked(locked);
-
-    const departments = yield* Effect.forEach(
-      membershipsOfPerson,
-      (membership) =>
-        Effect.map(
-          teams.findById(membership.teamId),
-          (team) => team.departmentId
-        )
-    );
-
-    const resources = Arr.map(
-      [person.departmentId, ...departments],
-      (departmentId) => ({
-        departmentId,
-        personId,
-      })
-    );
-
-    return Option.getOrElse(
-      Arr.findFirst(resources, (resource) =>
-        AccountDomain.authorize(principal, command, resource)
-      ),
-      () => ({ departmentId: person.departmentId, personId })
-    );
-  }
-);
-
-/** A code principal was resolved from a usable code before the command is run. */
-const codeResource = Effect.map(CurrentPrincipal, (principal) =>
-  Predicate.isTagged(principal, "Person")
-    ? { personId: principal.personId }
-    : {}
-);
-
-const personOf = (principal: Principal): PersonId | null =>
-  Predicate.isTagged(principal, "Person") ? principal.personId : null;
 
 /** The person's lock, and the account read through it; a person without an account cannot be acted on. */
 const lockAccount = Effect.fn("Account.lock")(function* lockAccount(
@@ -218,7 +163,8 @@ export const AccountHandlers = AccountRpc.toLayer({
       }),
   }),
   createAccount: AccountDomain.handle(createAccount, {
-    resource: ({ personId }) => personResource(personId, "createAccount"),
+    resource: ({ personId }) =>
+      personResource(AccountDomain.authorize, "createAccount", personId),
     run: ({ personId }, principal) =>
       Effect.gen(function* invitation() {
         yield* InTransaction;
@@ -368,7 +314,8 @@ export const AccountHandlers = AccountRpc.toLayer({
       }),
   }),
   updatePerson: AccountDomain.handle(updatePerson, {
-    resource: ({ personId }) => personResource(personId, "updatePerson"),
+    resource: ({ personId }) =>
+      personResource(AccountDomain.authorize, "updatePerson", personId),
     run: ({ personId, ...profile }, principal) =>
       Effect.gen(function* updatePersonProfile() {
         yield* InTransaction;
@@ -394,32 +341,10 @@ export const AccountHandlers = AccountRpc.toLayer({
 
 export const withAccounts = Commands.inProcess(AccountRpc, AccountHandlers);
 
-/**
- * A code opens one command: the command of its purpose (`codePolicy`). When the code opens nothing, that command is the
- * one refused. It is derived from the purpose, so a call site cannot name another, and `forbidden` takes only names
- * of the account domain, so a policy that names a command the domain does not have does not compile.
- */
-const runWithCode = Effect.fnUntraced(function* runWithCode<A, E, R>(
-  purpose: CodePurpose,
-  token: CodeToken,
-  program: Effect.Effect<A, E, R | CurrentPrincipal>
-) {
-  const principal = yield* codePrincipal(token, purpose);
-
-  if (Option.isNone(principal)) {
-    return yield* AccountDomain.forbidden(codePolicy[purpose].command);
-  }
-
-  return yield* Effect.provideService(
-    program,
-    CurrentPrincipal,
-    principal.value
-  );
-});
-
 export const AccountEndpoints = {
   activateAccount: Commands.endpoint(activateAccount, (payload) =>
     runWithCode(
+      AccountDomain,
       "activation",
       payload.code,
       withAccounts((client) => client.activateAccount(payload))
@@ -439,6 +364,7 @@ export const AccountEndpoints = {
   ),
   resetPassword: Commands.endpoint(resetPassword, (payload) =>
     runWithCode(
+      AccountDomain,
       "resetPassword",
       payload.code,
       withAccounts((client) => client.resetPassword(payload))

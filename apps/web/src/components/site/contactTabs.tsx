@@ -14,6 +14,7 @@ import { Array as Arr } from "effect";
 import { Mail, MapPin } from "lucide-react";
 
 import { Field, FieldErrorsProvider } from "@/components/forms";
+import { ContactPrivacy } from "@/components/site/contactPrivacy";
 import { PortableTextView } from "@/components/site/portableTextView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,6 +174,7 @@ export const ContactTabs = ({
                   )}
                 </Field>
               </FieldErrorsProvider>
+              <ContactPrivacy notice={view.privacy} />
               <Button className="w-fit" size="lg" type="submit">
                 Send melding
               </Button>

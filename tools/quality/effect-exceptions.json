@@ -57,7 +57,8 @@
         "files": [
           "apps/web/e2e/teams.spec.ts",
           "apps/web/e2e/accounts.spec.ts",
-          "apps/web/e2e/admins.spec.ts"
+          "apps/web/e2e/admins.spec.ts",
+          "apps/web/e2e/personalData.spec.ts"
         ],
         "symbols": [
           "register",
@@ -232,6 +233,35 @@
         "typescript": "7.0.2"
       },
       "retirementTrigger": "Remove this exception when the rule accepts Schema.TaggedError declarations (EX-0003's trigger), then run the tool's tests."
+    },
+    {
+      "id": "EX-0027",
+      "rules": ["anti-slop/no-module-mocking"],
+      "scope": {
+        "files": [
+          "packages/domain/test/personalData/periodsInText.test.ts",
+          "packages/domain/test/personalData/basesApproval.test.ts"
+        ],
+        "directives": ["oxlint-disable"]
+      },
+      "reason": "Spec 0007b R3 items 28 and 32: a text that states a retention period must be built from its declaration, and a test can show that only by evaluating the whole declaration graph again with the periods (or the approvals) replaced and seeing which strings did not move. The domain declares its rules as data that is built once, when its module loads, so the periods and the approvals reach every text through the modules periods.ts, texts.ts and accounts/code.ts, and through nothing that a test can pass in.",
+      "missingCapability": "The declarations are values, not functions of their periods, so no interface lets a test supply other periods. Separately, the rule is Ultracite's copy (the root configuration enables only the five local additions) and it recognises a `vi` imported from vitest only, while the repository's autofix rewrites that import to vite-plus/test: today it reports none of these calls. The directives record the deviation, so that the day the rule sees them the justification is already here.",
+      "nativeAlternativesExamined": [
+        "Dependency injection: making each declaration a function of its periods would let a test pass other ones, but it would test only the texts that someone turned into functions, and a new text with a number written in it would pass. Catching that new text is the purpose of the guard.",
+        "A scan of the source for period phrases finds a typed number, but cannot tell a retention period from another quantity (the four weeks of sendEndingSoon is a job's window) and does not see a phrase built from a constant that is not a period.",
+        "A test project with module aliases needs one project for each variant (periods moved, bases decided, bases proposed), and the two graphs would live in two processes, with no way to compare their strings."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C packages/domain test test/personalData/periodsInText.test.ts test/personalData/basesApproval.test.ts",
+        "Put a period back into a reason as a number: periodsInText.test.ts fails and names the text (spec 0007b R3 item 28)."
+      ],
+      "owner": "packages/domain",
+      "versions": {
+        "effect": "4.0.6",
+        "typescript": "7.0.2",
+        "vite-plus": "1.2.0"
+      },
+      "retirementTrigger": "Retire when the declarations take their periods, code lifetimes and approvals as parameters, so that a test passes other values, or when a second evaluation of a module graph is possible without module mocking."
     }
   ],
   "typeBridges": [

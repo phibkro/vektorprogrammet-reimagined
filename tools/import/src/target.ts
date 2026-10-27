@@ -8,7 +8,8 @@
  * identity sequences past the kept legacy ids, and read the row counts back.
  * A failure anywhere, including a count that differs from the plan, rolls the
  * target back to its previous state. There is no `CASCADE`: an unlisted reference makes the truncate fail.
- * Account-bearing targets are refused before replacement: this importer does not import credentials (spec 0013).
+ * A target that holds accounts, credentials or consents is refused before replacement: this importer does not import
+ * credentials (spec 0013), and cannot restore a consent (spec 0007b).
  */
 import { PgClient } from "@effect/sql-pg";
 import { schema } from "@vektorprogrammet/db";
@@ -61,8 +62,9 @@ const TABLES = {
 } as const;
 
 /**
- * The later-phase tables that reference imported rows. Account tables must be named for PostgreSQL even on an empty
- * target, but a non-empty account target is refused under an exclusive lock: this import cannot restore credentials.
+ * The later-phase tables that reference imported rows. Account and consent tables must be named for PostgreSQL even on
+ * an empty target, but a target that holds an account, a credential or a consent is refused under an exclusive lock:
+ * this import cannot restore credentials, and a consent is the record of what a person agreed to.
  */
 const BUILT_ON_TABLES = [
   schema.authSession,
@@ -70,6 +72,8 @@ const BUILT_ON_TABLES = [
   schema.authUser,
   schema.code,
   schema.account,
+  schema.consent,
+  schema.alumniRequest,
   schema.endingSoonDigest,
   schema.adminGrant,
   schema.membership,
@@ -144,16 +148,16 @@ export class ImportTarget extends Context.Service<
             )
             .pipe(step("lock target"));
 
-          const accountRows = yield* Effect.forEach(
-            [schema.account, schema.code, schema.authUser],
-            (table) => db.$count(table).pipe(step("check accounts"))
+          const protectedRows = yield* Effect.forEach(
+            [schema.account, schema.code, schema.authUser, schema.consent],
+            (table) => db.$count(table).pipe(step("check records"))
           );
 
-          if (Arr.some(accountRows, (count) => count > 0)) {
+          if (Arr.some(protectedRows, (count) => count > 0)) {
             return yield* new TargetWriteError({
               cause:
-                "target contains accounts or credentials; replacing them is outside this importer",
-              step: "protect accounts",
+                "target contains accounts, credentials or consents; replacing them is outside this importer",
+              step: "protect records",
             });
           }
 

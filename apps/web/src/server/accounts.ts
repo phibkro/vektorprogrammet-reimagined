@@ -1,10 +1,12 @@
 /** Read models for Min side and the post-sign-in destination. */
 import { SessionDirectory } from "@vektorprogrammet/db";
 import {
+  ConsentRepository,
   CurrentPrincipal,
   DepartmentRepository,
   FieldOfStudyRepository,
   PersonRepository,
+  consentSummary,
 } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Predicate } from "effect";
 
@@ -34,6 +36,10 @@ export const myPage = Effect.gen(function* myPage() {
     yield* DateTime.now
   );
 
+  const consents = consentSummary(
+    yield* (yield* ConsentRepository).of(principal.personId)
+  );
+
   const departments = yield* (yield* DepartmentRepository).list;
   const fields = yield* FieldOfStudyRepository;
 
@@ -48,6 +54,7 @@ export const myPage = Effect.gen(function* myPage() {
 
   return {
     _tag: "Person" as const,
+    consents,
     currentSessionId: principal.sessionId ?? null,
     fieldsOfStudy: Arr.flatten(options),
     person,
