@@ -22,8 +22,9 @@
 (*   insertRow         INSERT INTO membership                              *)
 (*   updateEnd         UPDATE membership SET end ... WHERE <setEndWhere>   *)
 (*   deleteRow         DELETE FROM membership WHERE <removeWhere>          *)
-(* A write also has `person_id = :token` in its WHERE (aggregates.ts); the *)
-(* rows of the model are the locked person's, so that always holds.        *)
+(* A write also has `person_id IN (the tokens' ids)` in its WHERE          *)
+(* (aggregates.ts, `ofHeld`); a command holds one token, and the rows of   *)
+(* the model are that person's, so that always holds.                      *)
 (***************************************************************************)
 EXTENDS Sequences
 
@@ -31,8 +32,8 @@ CurrentCode == [
     \* The calls that each command makes, in order (each handler runs in one
     \* transaction, packages/db/src/transactional.ts:41-58). `createAdminGrant` and
     \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
-    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:251-252,
-    \* 277-278, through lockAccount at 106-121) take the same two locks.
+    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:197-198,
+    \* 223-224, through lockAccount at 51-66) take the same two locks.
     compose |-> [
         createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:269, 305
         deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:416, 418
@@ -48,18 +49,18 @@ CurrentCode == [
         \* of that person, the read through its token, on which the machine
         \* decides (teams/commands.ts:115-145).
         beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 123, 124, 125, 126-142
-        find     |-> <<"find">>,                       \* teams.ts:381-391
-        read     |-> <<"read">>,                       \* teams.ts:393-401
+        find     |-> <<"find">>,                       \* teams.ts:388-398
+        read     |-> <<"read">>,                       \* teams.ts:400-408
         \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
-        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-111, 136-142). A row
+        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-117, 142-148). A row
         \* that the transaction holds sends no statement (87-90).
         lock     |-> <<"lockPerson">>,
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
         \* (domain/shared/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
-        insert   |-> <<"insertRow">>,                  \* teams.ts:474-493, Aggregates.insert (aggregates.ts:252-291)
-        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:495-530, Aggregates.update (aggregates.ts:329-350)
-        remove   |-> <<"deleteRow">>                   \* teams.ts:532-565, Aggregates.remove (aggregates.ts:292-305)
+        insert   |-> <<"insertRow">>,                  \* teams.ts:481-500, Aggregates.insert (aggregates.ts:304-343)
+        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:502-537, Aggregates.update (aggregates.ts:370-390, onHeld :144-162)
+        remove   |-> <<"deleteRow">>                   \* teams.ts:539-572, Aggregates.remove (aggregates.ts:360-364, onHeld :144-162)
     ],
     \* A lock that would come before one that the transaction holds is a defect
     \* before any statement is sent (db/aggregate/locks.ts:92-103,
@@ -67,14 +68,14 @@ CurrentCode == [
     \* (domain/shared/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:329-334, 525-529, 560-562).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:514-519
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:548-556
+    \* row is `lostRace`, the typed Conflict (teams.ts:336-341, 532-536, 567-569).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:521-526
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:555-563
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
     \* What the caller is told for each SQLSTATE that a write can meet.
-    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:95-120, 126-145
+    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:95-120, 135-154
     on40P01 |-> "defect"                            \* classifySqlFailure.ts: no case; test classifySqlFailure.test.ts:51
 ]
 
@@ -83,7 +84,7 @@ CurrentCode == [
 (***************************************************************************)
 
 \* The lock without the row lock: the SELECT of AggregateLocks.lock loses its
-\* FOR NO KEY UPDATE (locks.ts:110), so every lock, of a person and of the
+\* FOR NO KEY UPDATE (locks.ts:116), so every lock, of a person and of the
 \* admin list, is a plain read. The state before spec 0006 R6 and mutation M1
 \* of spec 0006b R3: two writes of one person overlap, and one of them dies as
 \* the victim of a deadlock.
@@ -163,7 +164,7 @@ ReplaceThroughConstruct == [CurrentCode EXCEPT !.compose =
 (***************************************************************************)
 
 \* lockAll("Person", [a, b]) is one statement, SELECT ... WHERE id IN (a, b)
-\* ORDER BY id FOR NO KEY UPDATE (locks.ts:105-111). PostgreSQL takes the rows
+\* ORDER BY id FOR NO KEY UPDATE (locks.ts:105-117). PostgreSQL takes the rows
 \* one at a time in ORDER BY order, and a row that another transaction holds
 \* makes the statement wait while the rows before it stay locked: two
 \* acquisitions, the lower id first, whatever the order of the arguments
