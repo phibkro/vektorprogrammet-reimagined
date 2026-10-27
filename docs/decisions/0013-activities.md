@@ -80,9 +80,9 @@ An Activity is a machine with a transition table (ADR 0007). Whether it has happ
 | --- | --- | --- | --- |
 | `[*]` | `createActivity` | Planned | The creator is the first organiser. Not visible to the audience. |
 | Planned | `announceActivity` | Announced | Writes one notice per person in the audience to the outbox (see Messages). |
-| Planned, Announced | `cancelActivity` | Cancelled | Notifies those who answered `yes` or `maybe`. A cancelled Activity never reopens. Not available for an Election Activity after announcement (see below). |
+| Planned, Announced | `cancelActivity` | Cancelled | Notifies those who answered `yes` or `maybe`. A cancelled Activity never reopens. Never available for an Election Activity (see below). |
 
-**Elections.** ADR 0012's election machine owns the Election Activity. `createElection` creates the Activity in Planned; `announceElection` runs `announceActivity` and moves it to Announced. After announcement, `updateActivity` and `cancelActivity` are not available for it: `voidElection` (before voting) is the only cancellation path, and ADR 0012's states (Nominations, Voting, Counting, Certified, Seated, Void) decide. A **motion vote** in a General meeting is not an election (ADR 0012): there the Activity machine stays in charge, and a cancelled meeting cancels its open motion votes.
+**Elections.** ADR 0012's election machine owns the Election Activity. `createElection` creates the Activity in Planned; `announceElection` runs `announceActivity` and moves it to Announced. `cancelActivity` is refused for an Election Activity in every state, and `updateActivity` after announcement: `voidElection` (before voting) is the only cancellation path, and it also moves the Activity to Cancelled. ADR 0012's states (Nominations, Voting, Counting, Certified, Seated, Void) decide. A **motion vote** in a General meeting is not an election (ADR 0012): there the Activity machine stays in charge, and a cancelled meeting cancels its open motion votes.
 
 | Command | Resource and method (ADR 0010) | Granted to |
 | --- | --- | --- |
@@ -235,7 +235,7 @@ The system cannot do these steps. A human does them.
   - _Capacity._ The `yes` answers never exceed the capacity. A person is `waitlisted` only while the Activity is full, and a change that frees a place (`yes` to `no` or `maybe`, or a larger capacity) moves the oldest `waitlisted` person to `yes`.
   - _Window._ A check-in exists only inside the window, and only for a person in the audience when it was made. An election's own check-in (ADR 0012) uses the frozen `Elector(e)` instead, and is outside this check.
   - _Audience._ Nobody outside the audience answers or checks in, except an elector at an election's own check-in. An external contact is never in an audience.
-  - _Lifecycle._ No transition leaves Cancelled. An Election Activity is never updated or cancelled through the Activity commands after announcement.
+  - _Lifecycle._ No transition leaves Cancelled. An Election Activity is cancelled only by `voidElection`, and never updated through the Activity commands after announcement.
   - _Slack._ No command runs for a Slack identity without a link. No command runs without the same grant check as the web. No outbound message, outbox row or captured Slack message holds ballot content (a scan, like the plaintext scan of spec 0007). Inbound `SlackDM` interaction payloads carry the choice as processor data; the scan does not cover them.
   - _Order._ A stored answer never has an older action time than an answer it replaced.
   - _Once._ Each reminder kind is sent at most once to each person for each Activity.
