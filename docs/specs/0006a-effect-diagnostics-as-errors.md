@@ -41,3 +41,11 @@ The gate enforces only the `effecttsgo` rules in the `strict` and `effectNative`
 ## Out of scope
 
 Moving any unstable use behind an adapter (that happens when a retirement trigger fires). effx gets the same policy in its own change.
+
+## Revisions
+
+- R1 (2026-10-27): Allow `effect/http-api/OpenApi` only in `packages/cms-client/scripts/**` for CMS client generation from EmDash’s OpenAPI document (spec 0005), with a separate exception and the same retirement trigger. Define the shared tools-only scope as `tools/**`, `packages/*/scripts/**`, `apps/*/scripts/**`, `apps/*/e2e/**`, and `apps/cms/build/**`; package source files remain outside it. The global RPC allowance lists the non-test RPC modules used today explicitly instead of `effect/rpc`, whose subtree would also allow `RpcTest`; `RpcTest` stays test-only. Apply the same narrowing to any global module entry that contains a test-only descendant. Include an `RpcTest`-outside-tests negative control.
+- R2 (2026-10-27): Editor parity targets the TypeScript 7 native language server patched by `effect-tsgo`, which reads the tsconfig plugin entry. The legacy JavaScript language-service package is not that editor path.
+- R3 (2026-10-27): Preserve `Commands.inProcess` in `packages/domain/src/kernel/commands.ts`, replacing its production use of `RpcTest.makeClient` with equivalent `RpcServer.makeNoSerialization` and `RpcClient.makeNoSerialization` wiring. Allow those RPC modules explicitly; `RpcTest` remains test-only. The existing command, teams, and browser tests demonstrate unchanged behaviour.
+- R4 (2026-10-27): Run `effect-tsgo diagnostics --project <absolute-package-tsconfig> --format text` without `--lspconfig`. Each package inherits the enabled root plugin config. Prove the command reports an unallowlisted unstable API as an error, then reports no diagnostics after removing the probe. The 772-warning baseline used `--lspconfig` and therefore had no allowlist applied.
+- R5 (2026-10-27): Enable at error every rule whose installed default is not `off`, plus rules already enabled by the strict and Effect-native presets. Other default-off rules stay off. Derive both editor and Oxlint sets from the installed defaults and presets. Falsifier 4 checks every default-on rule and checks that an unselected default-off rule stays off.
