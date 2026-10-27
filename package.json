@@ -25,7 +25,6 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
-    "@effect/language-service": "catalog:",
     "@effect/tsgo": "0.53.1",
     "@phibkro/oxlint-effect-plugin": "0.2.0",
     "@shadcn/lint": "0.2.1",
@@ -62,7 +61,6 @@
     "@effect/sql-mysql2": "4.0.5",
     "@effect/platform-node": "4.0.5",
     "@effect/vitest": "4.0.5",
-    "@effect/language-service": "0.87.4",
     "@electric-sql/pglite": "0.5.10",
     "drizzle-orm": "1.0.0-rc.5-5935859",
     "drizzle-kit": "1.0.0-rc.5-5935859",

@@ -65,7 +65,7 @@ devenv shell -- bun run --cwd packages/cms-client generate --spec /tmp/emdash-op
 devenv shell -- bunx vp test run
 ```
 
-`bun run generate` without `--spec` regenerates from the committed subset. The result is byte-identical, which shows that `src/generated.ts` is a function of `openapi/emdash.json`.
+`bun run generate` without `--spec` regenerates from the committed subset. The result is byte-identical, which shows that `src/generated.ts` is a function of `openapi/emdash.json`. The generator converts numeric schema references to `Schema.Finite`, because JSON numbers are finite. It leaves descriptions and other source text unchanged.
 
 EmDash does not declare every status it answers with (for example `409 SLUG_CONFLICT` on create). The generated client reports an undeclared status as an `HttpClientError`, and `client.ts` reads the CMS's `{ error: { code, message } }` envelope out of it in one place (`failureOf`).
 

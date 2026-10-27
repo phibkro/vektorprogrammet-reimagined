@@ -23,6 +23,7 @@ import {
 import { Command, Flag } from "effect/cli";
 import type { OpenAPISpec } from "effect/http-api/OpenApi";
 
+import { finiteNumbers } from "./finiteNumbers.ts";
 import { OpenApiDocument, subsetOfOpenApi } from "./subset.ts";
 
 /** The operations `apps/web` (read) and `tools/import` (write) call. */
@@ -112,7 +113,7 @@ const command = Command.make(
 
     yield* fs.writeFileString(
       path.join(packageRoot, "src/generated.ts"),
-      source
+      finiteNumbers(source)
     );
 
     return yield* Console.log(
