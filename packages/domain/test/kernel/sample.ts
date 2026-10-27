@@ -1,6 +1,7 @@
 /**
  * A small domain declared with the kernel's own constructs, so the kernel's laws are tested without a real domain
- * in the way: three commands (one a job's), one read, one machine, and a grant row of every kind.
+ * in the way: three commands (one a job's), one read, one machine, and a grant row of every kind. Its resource is
+ * `Article`: a note is an article that has not been published.
  */
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
@@ -16,13 +17,21 @@ import {
   Subject,
 } from "../../src/index.ts";
 
-export const create = Rpc.make("create", {
+export const createArticle = Rpc.make("createArticle", {
   error: DomainErrorSchema,
   payload: { departmentId: DepartmentId },
   success: Schema.Void,
-}).annotate(Commands.Info, Commands.info({ summary: "Create a note." }));
+}).annotate(
+  Commands.Info,
+  Commands.info({
+    machine: "Note",
+    method: "create",
+    resource: "Article",
+    summary: "Create a note.",
+  })
+);
 
-export const publish = Rpc.make("publish", {
+export const publishArticle = Rpc.make("publishArticle", {
   error: DomainErrorSchema,
   payload: { departmentId: DepartmentId, personId: PersonId },
   success: Schema.String,
@@ -30,20 +39,27 @@ export const publish = Rpc.make("publish", {
   Commands.Info,
   Commands.info({
     machine: "Note",
+    method: ":publish",
     replaces: ["RULE-001"],
+    resource: "Article",
     summary: "Publish a note.",
   })
 );
 
-export const sweep = Rpc.make("sweep", {
+export const sweepArticle = Rpc.make("sweepArticle", {
   error: DomainErrorSchema,
   success: Schema.Finite,
 }).annotate(
   Commands.Info,
-  Commands.info({ job: "semesters", summary: "Archive old notes." })
+  Commands.info({
+    job: "semesters",
+    method: ":sweep",
+    resource: "Article",
+    summary: "Archive old notes.",
+  })
 );
 
-export const Notes = RpcGroup.make(create, publish, sweep);
+export const Notes = RpcGroup.make(createArticle, publishArticle, sweepArticle);
 
 export const NoteStates = Schema.TaggedUnion({ Draft: {}, Published: {} });
 
@@ -56,9 +72,9 @@ export const NoteMachine = Machine.make({
   name: "Note",
   states: NoteStates,
   transitions: [
-    { command: "create", from: [Machine.Boundary], to: "Draft" },
+    { command: "createArticle", from: [Machine.Boundary], to: "Draft" },
     {
-      command: "publish",
+      command: "publishArticle",
       from: ["Draft"],
       guard: Schema.makeFilter(
         ({ words }: typeof NoteContext.Type) => words > 0,
@@ -73,11 +89,15 @@ export const NoteMachine = Machine.make({
 export const Sample = Domain.make({
   commands: Notes,
   grants: [
-    Grant.make([Subject.leader, Subject.board], ["create"], "department"),
-    Grant.make([Subject.self], ["publish"], "own"),
-    Grant.make([Subject.leader], ["publish"], "department"),
+    Grant.make(
+      [Subject.leader, Subject.board],
+      ["createArticle"],
+      "department"
+    ),
+    Grant.make([Subject.self], ["publishArticle"], "own"),
+    Grant.make([Subject.leader], ["publishArticle"], "department"),
     Grant.make([Subject.member], ["viewNotes"], "department"),
-    Grant.make([Subject.system("semesters")], ["sweep"], "all"),
+    Grant.make([Subject.system("semesters")], ["sweepArticle"], "all"),
   ],
   machines: [NoteMachine],
   name: "notes",

@@ -148,7 +148,11 @@ export const teamsView = Effect.gen(function* teamsView() {
   };
 });
 
-type MembershipCommand = "cancel" | "change" | "endEarly" | "extend";
+type MembershipCommand =
+  | "changeMembership"
+  | "deleteMembership"
+  | "endEarlyMembership"
+  | "extendMembership";
 
 /** One membership row of a team page: the term, the calculated state, and the controls it offers. */
 export interface MemberRow {
@@ -195,13 +199,13 @@ const memberRow = (
   );
 
   return {
-    canCancel: may("cancel"),
-    canChange: may("change") && Arr.isReadonlyArrayNonEmpty(endings),
-    canEnd: may("endEarly") && Arr.isReadonlyArrayNonEmpty(endings),
-    canExtend: may("extend"),
+    canCancel: may("deleteMembership"),
+    canChange: may("changeMembership") && Arr.isReadonlyArrayNonEmpty(endings),
+    canEnd: may("endEarlyMembership") && Arr.isReadonlyArrayNonEmpty(endings),
+    canExtend: may("extendMembership"),
     canInvite:
       !Arr.some(accounts, (account) => account.personId === member.personId) &&
-      authorize(principal, "invite", {
+      authorize(principal, "createAccount", {
         departmentId: team.departmentId,
         personId: member.personId,
       }),
@@ -238,7 +242,7 @@ export const teamView = Effect.fnUntraced(function* teamView(id: number) {
 
   const members = yield* (yield* MembershipRepository).listByTeam(team.id);
   const accounts = yield* (yield* AccountRepository).list;
-  const canAdd = authorize(principal, "addMember", { departmentId });
+  const canAdd = authorize(principal, "createMembership", { departmentId });
   const positions = yield* (yield* PositionRepository).list;
 
   const people = canAdd
@@ -248,7 +252,7 @@ export const teamView = Effect.fnUntraced(function* teamView(id: number) {
   return {
     canAdd,
     canDeactivate: authorize(principal, "deactivateTeam", { departmentId }),
-    canEdit: authorize(principal, "editTeam", { departmentId }),
+    canEdit: authorize(principal, "updateTeam", { departmentId }),
     current: semesterLabel(current),
     members: Arr.map(members, (member) =>
       memberRow(principal, team, current, accounts, member)
@@ -301,7 +305,7 @@ export const peopleView = Effect.gen(function* peopleView() {
     : null;
 
   const registrable = Arr.filter(departments, (department) =>
-    authorize(principal, "registerPerson", { departmentId: department.id })
+    authorize(principal, "createPerson", { departmentId: department.id })
   );
 
   const fields = yield* Effect.forEach(registrable, (department) =>
@@ -330,7 +334,9 @@ export const peopleView = Effect.gen(function* peopleView() {
 
         const state = Option.map(account, (entry) => entry.state._tag);
 
-        const mayChange = (command: "deactivate" | "reactivate") =>
+        const mayChange = (
+          command: "deactivateAccount" | "reactivateAccount"
+        ) =>
           Option.exists(
             state,
             (currentState) =>
@@ -345,18 +351,18 @@ export const peopleView = Effect.gen(function* peopleView() {
 
         return {
           accountState: Option.getOrNull(state),
-          canDeactivate: mayChange("deactivate"),
-          canEditProfile: authorize(principal, "updateProfile", {
+          canDeactivate: mayChange("deactivateAccount"),
+          canEditProfile: authorize(principal, "updatePerson", {
             departmentId: person.departmentId,
             personId: person.id,
           }),
           canInvite:
             Option.isNone(account) &&
-            authorize(principal, "invite", {
+            authorize(principal, "createAccount", {
               departmentId: person.departmentId,
               personId: person.id,
             }),
-          canReactivate: mayChange("reactivate"),
+          canReactivate: mayChange("reactivateAccount"),
           companyEmail: person.companyEmail ?? null,
           departmentId: person.departmentId,
           departmentName: nameOfDepartment(departments, person.departmentId),
@@ -419,7 +425,7 @@ export const saveTeamProgram = (form: FormData) => {
           ...details,
           departmentId: integer(text(form, "departmentId")),
         })
-      : TeamsEndpoints.editTeam({ ...details, id: integer(id) })
+      : TeamsEndpoints.updateTeam({ ...details, id: integer(id) })
   );
 };
 
@@ -428,7 +434,7 @@ export const deactivateTeamProgram = (form: FormData) =>
 
 export const registerPersonProgram = (form: FormData) =>
   answered(
-    TeamsEndpoints.registerPerson({
+    TeamsEndpoints.createPerson({
       companyEmail: optionalText(form, "companyEmail"),
       email: text(form, "email"),
       fieldOfStudyId: integer(text(form, "fieldOfStudyId")),
@@ -449,7 +455,7 @@ export const addMemberProgram = (form: FormData) => {
   };
 
   return answered(
-    TeamsEndpoints.addMember(
+    TeamsEndpoints.createMembership(
       end === null ? input : { ...input, end: semesterOfChoice(end) }
     )
   );
@@ -457,7 +463,7 @@ export const addMemberProgram = (form: FormData) => {
 
 export const extendProgram = (form: FormData) =>
   answered(
-    TeamsEndpoints.extend({
+    TeamsEndpoints.extendMembership({
       end: semesterOfChoice(text(form, "end")),
       id: integer(text(form, "id")),
     })
@@ -465,7 +471,7 @@ export const extendProgram = (form: FormData) =>
 
 export const changeProgram = (form: FormData) =>
   answered(
-    TeamsEndpoints.change({
+    TeamsEndpoints.changeMembership({
       from: semesterOfChoice(text(form, "from")),
       id: integer(text(form, "id")),
       leader: checkbox(form, "leader"),
@@ -475,22 +481,22 @@ export const changeProgram = (form: FormData) =>
 
 export const endProgram = (form: FormData) =>
   answered(
-    TeamsEndpoints.endEarly({
+    TeamsEndpoints.endEarlyMembership({
       id: integer(text(form, "id")),
       semester: semesterOfChoice(text(form, "semester")),
     })
   );
 
 export const cancelProgram = (form: FormData) =>
-  answered(TeamsEndpoints.cancel({ id: integer(text(form, "id")) }));
+  answered(TeamsEndpoints.deleteMembership({ id: integer(text(form, "id")) }));
 
 export const grantAdminProgram = (form: FormData) =>
   answered(
-    TeamsEndpoints.grantAdmin({
+    TeamsEndpoints.createAdminGrant({
       personId: integer(text(form, "personId")),
       until: osloLocalToIso(text(form, "until")),
     })
   );
 
 export const revokeAdminProgram = (form: FormData) =>
-  answered(TeamsEndpoints.revokeAdmin({ id: integer(text(form, "id")) }));
+  answered(TeamsEndpoints.deleteAdminGrant({ id: integer(text(form, "id")) }));

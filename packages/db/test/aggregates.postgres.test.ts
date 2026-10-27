@@ -195,7 +195,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             Arr.head(
               Machine.available(
                 Accounts.AccountMachine,
-                "deactivate",
+                "deactivateAccount",
                 "Active",
                 moment
               )

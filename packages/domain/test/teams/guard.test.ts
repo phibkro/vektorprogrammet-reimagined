@@ -102,14 +102,14 @@ describe("spec 0006 R4: native checks are declaration data", () => {
     assert.isFalse(restored({ ...moment, requested: moment.term.start }));
   });
 
-  it("negative control: replacing extend's after check with same makes the term assertion fail", () => {
+  it("negative control: replacing extendMembership's after check with same makes the term assertion fail", () => {
     const mutant = Machine.make({
       commands: Teams.TeamsRpc,
       context: ContextSchema,
       name: "Membership",
       states: MembershipState,
       transitions: Arr.map(MembershipMachine.transitions, (transition) =>
-        transition.command === "extend"
+        transition.command === "extendMembership"
           ? {
               ...transition,
               guard: comparisons.same(["requested"], ["term", "end"]),
@@ -119,14 +119,14 @@ describe("spec 0006 R4: native checks are declaration data", () => {
     });
 
     const extendsToLater = (machine: typeof MembershipMachine) => {
-      assert.isTrue(Machine.can(machine, "extend", "Active", moment));
+      assert.isTrue(Machine.can(machine, "extendMembership", "Active", moment));
     };
 
     extendsToLater(MembershipMachine);
     assert.throws(() => {
       extendsToLater(mutant);
     });
-    assert.isFalse(Machine.can(mutant, "extend", "Active", moment));
+    assert.isFalse(Machine.can(mutant, "extendMembership", "Active", moment));
   });
 
   it("semester operand paths name existing semester fields of this context", () => {

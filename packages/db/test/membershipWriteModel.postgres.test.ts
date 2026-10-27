@@ -691,7 +691,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
           yield* waitsForThePersonsLock(
             "addMember",
             who,
-            TeamsEndpoints.addMember({
+            TeamsEndpoints.createMembership({
               leader: false,
               personId: who.personId,
               positionId: who.positionId,
@@ -711,7 +711,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
           yield* waitsForThePersonsLock(
             "extend",
             who,
-            TeamsEndpoints.extend({
+            TeamsEndpoints.extendMembership({
               end: advanceSemester(VAR_2027, 1),
               id: base.id,
             })
@@ -728,7 +728,10 @@ layer(teamsDatabase, { excludeTestServices: true })(
           yield* waitsForThePersonsLock(
             "endEarly",
             who,
-            TeamsEndpoints.endEarly({ id: base.id, semester: VAR_2027 })
+            TeamsEndpoints.endEarlyMembership({
+              id: base.id,
+              semester: VAR_2027,
+            })
           );
         })
       );
@@ -742,7 +745,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
           yield* waitsForThePersonsLock(
             "change",
             who,
-            TeamsEndpoints.change({ from: VAR_2027, id: base.id })
+            TeamsEndpoints.changeMembership({ from: VAR_2027, id: base.id })
           );
         })
       );
@@ -760,7 +763,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
           yield* waitsForThePersonsLock(
             "cancel",
             who,
-            TeamsEndpoints.cancel({ id: planned.id })
+            TeamsEndpoints.deleteMembership({ id: planned.id })
           );
         })
       );

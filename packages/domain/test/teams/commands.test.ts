@@ -4,13 +4,14 @@
  * (`test/teams.postgres.test.ts`); here the repositories keep the same contracts as fakes.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, DateTime, Effect, Predicate } from "effect";
+import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
 import { TestClock } from "effect/testing";
 
 import {
   AdminGrantRepository,
   AggregateLocks,
   AuditPrincipal,
+  Commands,
   FieldOfStudyId,
   MembershipRepository,
   PersonId,
@@ -118,7 +119,7 @@ const newTeam = (
 
 const newPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
   asPrincipal(admin)(
-    TeamsEndpoints.registerPerson({
+    TeamsEndpoints.createPerson({
       email: `${name.toLowerCase()}@example.org`,
       fieldOfStudyId,
       name,
@@ -154,7 +155,7 @@ const addAs = (
   options: JoinOptions = {}
 ) =>
   asPrincipal(principal)(
-    TeamsEndpoints.addMember(joinWith(teamId, personId, start, options))
+    TeamsEndpoints.createMembership(joinWith(teamId, personId, start, options))
   );
 
 const createTeamAs = (
@@ -176,7 +177,7 @@ const createTeamAs = (
 const editTeamAs = (principal: Principal, id: TeamId) =>
   Effect.exit(
     asPrincipal(principal)(
-      TeamsEndpoints.editTeam({
+      TeamsEndpoints.updateTeam({
         defaultTerm: 1,
         function: "economy",
         id,
@@ -191,11 +192,11 @@ const grantAs = (
   until: string = ADMIN_UNTIL
 ) =>
   Effect.exit(
-    asPrincipal(principal)(TeamsEndpoints.grantAdmin({ personId, until }))
+    asPrincipal(principal)(TeamsEndpoints.createAdminGrant({ personId, until }))
   );
 
 const revokeAs = (principal: Principal, id: number) =>
-  Effect.exit(asPrincipal(principal)(TeamsEndpoints.revokeAdmin({ id })));
+  Effect.exit(asPrincipal(principal)(TeamsEndpoints.deleteAdminGrant({ id })));
 
 /** Two departments with a field of study each, a team in Trondheim, and a person in each department. */
 const world = Effect.gen(function* world() {
@@ -263,10 +264,14 @@ const memberOf = (id: MembershipId) =>
   MembershipRepository.use((memberships) => memberships.findById(id));
 
 const endAsAdmin = (id: MembershipId, semester: Semester) =>
-  Effect.exit(asPrincipal(admin)(TeamsEndpoints.endEarly({ id, semester })));
+  Effect.exit(
+    asPrincipal(admin)(TeamsEndpoints.endEarlyMembership({ id, semester }))
+  );
 
 const cancelAsLeader = (id: MembershipId) =>
-  Effect.exit(asPrincipal(teamLeaderTrondheim)(TeamsEndpoints.cancel({ id })));
+  Effect.exit(
+    asPrincipal(teamLeaderTrondheim)(TeamsEndpoints.deleteMembership({ id }))
+  );
 
 describe("teams: who creates and edits a team (RULE-157, RULE-321, RULE-233)", () => {
   it.effect(
@@ -332,9 +337,13 @@ describe("teams: who creates and edits a team (RULE-157, RULE-321, RULE-233)", (
         assert.isFalse(deactivated.active);
         assert.deepStrictEqual(issuePaths(refused), ["teamId"]);
         assert.isFalse(
-          Arr.some([...Teams.TeamsRpc.requests.keys()], (tag) =>
-            tag.toLowerCase().includes("delete")
-          )
+          Arr.some(Teams.TeamsDomain.commands, (rpc) =>
+            Option.exists(
+              Commands.infoOf(rpc),
+              (info) => info.resource === "Team" && info.method === "delete"
+            )
+          ),
+          "no command deletes a team"
         );
         assert.deepStrictEqual(yield* auditActions, [
           "person.registered",
@@ -476,7 +485,7 @@ describe("teams: adding members (RULE-164, RULE-206, RULE-284, ADR 0002)", () =>
 
         const extended = yield* Effect.flip(
           asPrincipal(teamLeaderTrondheim)(
-            TeamsEndpoints.extend({ end: host(2027), id: first.id })
+            TeamsEndpoints.extendMembership({ end: host(2027), id: first.id })
           )
         );
 
@@ -489,7 +498,7 @@ describe("teams: adding members (RULE-164, RULE-206, RULE-284, ADR 0002)", () =>
 
 describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251, RULE-252, RULE-298)", () => {
   it.effect(
-    "RULE-234, RULE-251, RULE-252: extend moves the end of an Active membership to a later semester and nothing else; an ended membership is never revived",
+    "RULE-234, RULE-251, RULE-252: extendMembership moves the end of an Active membership to a later semester and nothing else; an ended membership is never revived",
     () =>
       Effect.gen(function* effectProgram() {
         const { membership } = yield* withMembership();
@@ -497,7 +506,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
         const extend = (end: Semester) =>
           Effect.exit(
             asPrincipal(teamLeaderTrondheim)(
-              TeamsEndpoints.extend({ end, id: membership.id })
+              TeamsEndpoints.extendMembership({ end, id: membership.id })
             )
           );
 
@@ -522,7 +531,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 
   it.effect(
-    "RULE-298: endEarly by a leader, a board member, an admin or the member themself ends the membership before the semester; another member cannot",
+    "RULE-298: endEarlyMembership by a leader, a board member, an admin or the member themself ends the membership before the semester; another member cannot",
     () =>
       Effect.gen(function* effectProgram() {
         const { membership, ola } = yield* withMembership({ end: host(2027) });
@@ -535,7 +544,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
         const end = (principal: Principal) =>
           Effect.exit(
             asPrincipal(principal)(
-              TeamsEndpoints.endEarly({
+              TeamsEndpoints.endEarlyMembership({
                 id: membership.id,
                 semester: host(2027),
               })
@@ -555,7 +564,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 
   it.effect(
-    "endEarly is refused for a membership that has not started, from the past, and from a semester after the term",
+    "endEarlyMembership is refused for a membership that has not started, from the past, and from a semester after the term",
     () =>
       Effect.gen(function* effectProgram() {
         const { membership, planned } = yield* withPlannedMembership;
@@ -572,13 +581,13 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 
   it.effect(
-    "change: from a semester the old membership ends before it and a new one starts, so history shows both",
+    "changeMembership: from a semester the old membership ends before it and a new one starts, so history shows both",
     () =>
       Effect.gen(function* effectProgram() {
         const { membership, ola } = yield* withMembership({ end: host(2027) });
 
         const changed = yield* asPrincipal(teamLeaderTrondheim)(
-          TeamsEndpoints.change({
+          TeamsEndpoints.changeMembership({
             from: vaar(2027),
             id: membership.id,
             leader: true,
@@ -609,7 +618,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 
   it.effect(
-    "change: a move to a team in another department needs the grant there too; an admin has it",
+    "changeMembership: a move to a team in another department needs the grant there too; an admin has it",
     () =>
       Effect.gen(function* effectProgram() {
         const { membership } = yield* withMembership({ end: host(2027) });
@@ -618,7 +627,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
         const move = (principal: Principal) =>
           Effect.exit(
             asPrincipal(principal)(
-              TeamsEndpoints.change({
+              TeamsEndpoints.changeMembership({
                 from: vaar(2027),
                 id: membership.id,
                 teamId: bergen.id,
@@ -635,7 +644,7 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 
   it.effect(
-    "cancel removes a membership that has not started, and refuses one that has",
+    "deleteMembership removes a membership that has not started, and refuses one that has",
     () =>
       Effect.gen(function* effectProgram() {
         const { membership, planned } = yield* withPlannedMembership;
@@ -680,7 +689,7 @@ const admins = Effect.gen(function* admins() {
   yield* withActiveAccount(ola.id);
 
   const second = yield* asPrincipal(adminOf(ada.id))(
-    TeamsEndpoints.grantAdmin({ personId: ola.id, until: ADMIN_UNTIL })
+    TeamsEndpoints.createAdminGrant({ personId: ola.id, until: ADMIN_UNTIL })
   );
 
   return { ada, first, kari, ola, second };
@@ -751,7 +760,7 @@ describe("falsifier 6: the admin list (RULE-113, RULE-308)", () => {
         const { ada, second } = yield* admins;
 
         yield* asPrincipal(adminOf(ada.id))(
-          TeamsEndpoints.revokeAdmin({ id: second.id })
+          TeamsEndpoints.deleteAdminGrant({ id: second.id })
         );
 
         const entries = Arr.filter(yield* table((db) => db.audit), (entry) =>
@@ -781,7 +790,7 @@ describe("falsifier 6: the admin list (RULE-113, RULE-308)", () => {
         const { ada, ola, second } = yield* admins;
 
         yield* asPrincipal(adminOf(ada.id))(
-          TeamsEndpoints.revokeAdmin({ id: second.id })
+          TeamsEndpoints.deleteAdminGrant({ id: second.id })
         );
 
         assert.deepStrictEqual(yield* teamRows((tables) => tables.locks), [

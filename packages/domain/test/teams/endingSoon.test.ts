@@ -75,7 +75,7 @@ describe("falsifier 7: the digest runs in the last four weeks of the semester", 
 
 const registerPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
   asPrincipal(admin)(
-    TeamsEndpoints.registerPerson({
+    TeamsEndpoints.createPerson({
       email: `${name.toLowerCase()}@example.org`,
       fieldOfStudyId,
       name,
@@ -99,7 +99,7 @@ const joinTeam = (
   leader: boolean
 ) =>
   asPrincipal(admin)(
-    TeamsEndpoints.addMember({
+    TeamsEndpoints.createMembership({
       end,
       leader,
       personId,

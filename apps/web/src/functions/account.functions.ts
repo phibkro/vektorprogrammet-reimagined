@@ -29,7 +29,9 @@ export const inviteAccount = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.invite({ personId: integer(text(data, "personId")) }),
+        AccountEndpoints.createAccount({
+          personId: integer(text(data, "personId")),
+        }),
         "Invitasjonen er lagt til for sending."
       )
     )
@@ -41,7 +43,7 @@ export const deactivateAccount = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.deactivate({
+        AccountEndpoints.deactivateAccount({
           personId: integer(text(data, "personId")),
         }),
         SAVED
@@ -55,7 +57,7 @@ export const reactivateAccount = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.reactivate({
+        AccountEndpoints.reactivateAccount({
           personId: integer(text(data, "personId")),
         }),
         SAVED
@@ -69,7 +71,7 @@ export const updateProfile = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.updateProfile({
+        AccountEndpoints.updatePerson({
           companyEmail: optionalText(data, "companyEmail"),
           email: text(data, "email"),
           fieldOfStudyId: integer(text(data, "fieldOfStudyId")),

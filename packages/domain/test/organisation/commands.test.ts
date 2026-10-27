@@ -266,7 +266,7 @@ describe("C1 fields of study", () => {
 
         const rename = yield* Effect.exit(
           asLeader(
-            OrganisationEndpoints.renameFieldOfStudy({
+            OrganisationEndpoints.updateFieldOfStudy({
               id: bergenField.id,
               name: "Endret",
               shortName: "X",
@@ -308,7 +308,7 @@ describe("C1 fields of study", () => {
         });
 
         const renamed = yield* asPrincipal(teamLeaderTrondheim)(
-          OrganisationEndpoints.renameFieldOfStudy({
+          OrganisationEndpoints.updateFieldOfStudy({
             id: FieldOfStudyId.make(7),
             name: " Ny linje ",
             shortName: "NL",

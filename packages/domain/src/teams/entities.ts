@@ -51,7 +51,7 @@ export const PersonDraft = Schema.Struct({
 
 export type PersonDraft = typeof PersonDraft.Type;
 
-/** The payload of `registerPerson`. */
+/** The payload of `createPerson`, and the profile that `updatePerson` takes beside a person's id. */
 export const PersonInput = Schema.Struct({
   companyEmail: Schema.optionalKey(Schema.NullOr(PersonEmailInput)),
   email: PersonEmailInput,

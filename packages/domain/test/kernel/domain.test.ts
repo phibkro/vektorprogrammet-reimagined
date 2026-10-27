@@ -29,9 +29,9 @@ import {
   NoteMachine,
   Notes,
   Sample,
-  create,
-  publish,
-  sweep,
+  createArticle,
+  publishArticle,
+  sweepArticle,
 } from "./sample.ts";
 
 const ONE = DepartmentId.make(1);
@@ -62,10 +62,10 @@ describe("falsifier 2: a declaration is complete", () => {
   it("a command without a grant is reported", () => {
     const stripped: Declaration = {
       ...Sample,
-      table: withoutRowsNaming("create"),
+      table: withoutRowsNaming("createArticle"),
     };
 
-    assert.include(Domain.problems(stripped), "create has no grant");
+    assert.include(Domain.problems(stripped), "createArticle has no grant");
   });
 
   it("a grant that names an unknown command is reported", () => {
@@ -109,7 +109,9 @@ describe("falsifier 2: a declaration is complete", () => {
       machines: [
         {
           ...NoteMachine,
-          transitions: [{ command: "publish", from: ["Draft"], to: "Printed" }],
+          transitions: [
+            { command: "publishArticle", from: ["Draft"], to: "Printed" },
+          ],
         },
       ],
     };
@@ -128,39 +130,42 @@ describe("falsifier 2: a declaration is complete", () => {
 
     assert.include(
       Domain.problems(orphaned),
-      "publish applies Note, which has no transition for it"
+      "publishArticle applies Note, which has no transition for it"
     );
   });
 
   it("R1: a job's command that an admin holds, or that another job holds, is reported; so is a job without its grant", () => {
     const heldByAdmin: Declaration = {
       ...Sample,
-      table: [...Sample.table, Grant.make([Subject.admin], ["sweep"], "all")],
+      table: [
+        ...Sample.table,
+        Grant.make([Subject.admin], ["sweepArticle"], "all"),
+      ],
     };
 
     const heldByAnotherJob: Declaration = {
       ...Sample,
       table: [
-        ...withoutRowsNaming("sweep"),
-        Grant.make([Subject.system("endingSoon")], ["sweep"], "all"),
+        ...withoutRowsNaming("sweepArticle"),
+        Grant.make([Subject.system("endingSoon")], ["sweepArticle"], "all"),
       ],
     };
 
     assert.include(
       Domain.problems(heldByAdmin),
-      "sweep is the semesters job's command, but Admin is granted it"
+      "sweepArticle is the semesters job's command, but Admin is granted it"
     );
     assert.include(
-      Domain.problems({ ...Sample, table: withoutRowsNaming("sweep") }),
-      "sweep has no grant"
-    );
-    assert.include(
-      Domain.problems(heldByAnotherJob),
-      "sweep is the semesters job's command, but System(endingSoon) is granted it"
+      Domain.problems({ ...Sample, table: withoutRowsNaming("sweepArticle") }),
+      "sweepArticle has no grant"
     );
     assert.include(
       Domain.problems(heldByAnotherJob),
-      "sweep is the semesters job's command, and System(semesters) holds no grant for it"
+      "sweepArticle is the semesters job's command, but System(endingSoon) is granted it"
+    );
+    assert.include(
+      Domain.problems(heldByAnotherJob),
+      "sweepArticle is the semesters job's command, and System(semesters) holds no grant for it"
     );
   });
 
@@ -169,13 +174,13 @@ describe("falsifier 2: a declaration is complete", () => {
       ...Sample,
       table: [
         ...Sample.table,
-        Grant.make([Subject.system("semesters")], ["create"], "all"),
+        Grant.make([Subject.system("semesters")], ["createArticle"], "all"),
       ],
     };
 
     assert.include(
       Domain.problems(wrong),
-      "create is not a job's command, but System(semesters) is granted it"
+      "createArticle is not a job's command, but System(semesters) is granted it"
     );
   });
 
@@ -184,7 +189,7 @@ describe("falsifier 2: a declaration is complete", () => {
 
     assert.include(
       Domain.problems(noAdminRow),
-      "an admin does not hold create"
+      "an admin does not hold createArticle"
     );
   });
 
@@ -198,7 +203,7 @@ describe("falsifier 2: a declaration is complete", () => {
 
     assert.include(
       Domain.problems(unannotated),
-      "bare carries no Info annotation"
+      "bare carries no Info annotation, so it has no summary, no resource and no method"
     );
   });
 });
@@ -206,7 +211,7 @@ describe("falsifier 2: a declaration is complete", () => {
 describe("ADR 0006: a handler asks the grant table before it runs", () => {
   const ran = Ref.makeUnsafe(0);
 
-  const createHandler = Sample.handle(create, {
+  const createHandler = Sample.handle(createArticle, {
     resource: ({ departmentId }) => Effect.succeed({ departmentId }),
     run: () => Ref.update(ran, (count) => count + 1),
   });
@@ -248,7 +253,7 @@ describe("ADR 0006: a handler asks the grant table before it runs", () => {
     "a command about two resources needs the grant for both: a move between departments",
     () =>
       Effect.gen(function* both() {
-        const move = Sample.handle(create, {
+        const move = Sample.handle(createArticle, {
           resource: () =>
             Effect.succeed([
               { departmentId: ONE },
@@ -282,13 +287,13 @@ describe("ADR 0006: a handler asks the grant table before it runs", () => {
     () =>
       Effect.gen(function* inProcess() {
         const handlers = Notes.toLayer({
-          create: createHandler,
-          publish: Sample.handle(publish, {
+          createArticle: createHandler,
+          publishArticle: Sample.handle(publishArticle, {
             resource: ({ departmentId, personId }) =>
               Effect.succeed({ departmentId, personId }),
             run: ({ personId }) => Effect.succeed(`published for ${personId}`),
           }),
-          sweep: Sample.handle(sweep, {
+          sweepArticle: Sample.handle(sweepArticle, {
             resource: () => Effect.succeed({}),
             run: () => Effect.succeed(1),
           }),
@@ -297,13 +302,13 @@ describe("ADR 0006: a handler asks the grant table before it runs", () => {
         const client = Commands.inProcess(Notes, handlers);
 
         const published = yield* client((c) =>
-          c.publish({ departmentId: ONE, personId: PersonId.make(3) })
+          c.publishArticle({ departmentId: ONE, personId: PersonId.make(3) })
         ).pipe(asPrincipal(personOf([])));
 
         assert.strictEqual(published, "published for 3");
 
         const error = yield* Effect.flip(
-          client((c) => c.create({ departmentId: ONE })).pipe(
+          client((c) => c.createArticle({ departmentId: ONE })).pipe(
             asPrincipal(anonymous)
           )
         );
@@ -317,7 +322,7 @@ describe("ADR 0006: a handler asks the grant table before it runs", () => {
     () =>
       Effect.gen(function* decoding() {
         const error = yield* Effect.flip(
-          Commands.decodePayload(create)({ departmentId: "x" })
+          Commands.decodePayload(createArticle)({ departmentId: "x" })
         );
 
         assert.strictEqual(error._tag, "ValidationFailed");
@@ -333,20 +338,28 @@ describe("ADR 0007: transition tables", () => {
   const words = { words: 4 };
 
   it("can: a command starts from the states its transitions name, and only when its guard holds", () => {
-    assert.isTrue(Machine.can(NoteMachine, "create", Machine.Boundary, words));
-    assert.isTrue(Machine.can(NoteMachine, "publish", "Draft", words));
-    assert.isFalse(Machine.can(NoteMachine, "publish", "Published", words));
-    assert.isFalse(Machine.can(NoteMachine, "publish", "Draft", { words: 0 }));
-    assert.isFalse(Machine.can(NoteMachine, "create", "Draft", words));
+    assert.isTrue(
+      Machine.can(NoteMachine, "createArticle", Machine.Boundary, words)
+    );
+    assert.isTrue(Machine.can(NoteMachine, "publishArticle", "Draft", words));
+    assert.isFalse(
+      Machine.can(NoteMachine, "publishArticle", "Published", words)
+    );
+    assert.isFalse(
+      Machine.can(NoteMachine, "publishArticle", "Draft", { words: 0 })
+    );
+    assert.isFalse(Machine.can(NoteMachine, "createArticle", "Draft", words));
   });
 
   it("next: the state a command leaves the resource in", () => {
     assert.deepStrictEqual(
-      Machine.next(NoteMachine, "publish", "Draft", words),
+      Machine.next(NoteMachine, "publishArticle", "Draft", words),
       Option.some("Published")
     );
     assert.isTrue(
-      Option.isNone(Machine.next(NoteMachine, "publish", "Published", words))
+      Option.isNone(
+        Machine.next(NoteMachine, "publishArticle", "Published", words)
+      )
     );
   });
 
@@ -356,12 +369,17 @@ describe("ADR 0007: transition tables", () => {
 
   it("a transition's command is a tag of the group and its states are the union's: anything else does not type-check", () => {
     type Input = Parameters<
-      typeof Machine.make<typeof create | typeof publish, typeof NoteStates>
+      typeof Machine.make<
+        typeof createArticle | typeof publishArticle,
+        typeof NoteStates
+      >
     >[0];
 
     type Transition = Input["transitions"][number];
 
-    expectTypeOf<Transition["command"]>().toEqualTypeOf<"create" | "publish">();
+    expectTypeOf<Transition["command"]>().toEqualTypeOf<
+      "createArticle" | "publishArticle"
+    >();
     expectTypeOf<Transition["to"]>().toEqualTypeOf<
       "Draft" | "Published" | "[*]"
     >();

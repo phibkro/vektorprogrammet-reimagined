@@ -26,18 +26,18 @@ import {
   MembershipMachine,
   TeamsDomain,
   TeamsRpc,
-  addMember,
-  cancel,
-  change,
+  changeMembership,
+  createAdminGrant,
+  createMembership,
+  createPerson,
   createTeam,
   deactivateTeam,
-  editTeam,
-  endEarly,
-  extend,
-  grantAdmin,
-  registerPerson,
-  revokeAdmin,
+  deleteAdminGrant,
+  deleteMembership,
+  endEarlyMembership,
+  extendMembership,
   sendEndingSoon,
+  updateTeam,
 } from "./declaration.ts";
 import { runEndingSoon } from "./endingSoon.ts";
 import {
@@ -72,13 +72,13 @@ const UNTIL_PAST = "Administratorplassen må vare lenger enn nå.";
 
 /** Why the Membership machine refused a command, as the user reads it. */
 const REFUSED = {
-  cancel:
-    "Bare et medlemskap som ikke har startet kan kanselleres. Last siden på nytt.",
-  change:
+  changeMembership:
     "Medlemskapet kan bare endres mens det er aktivt, og fra et semester innenfor perioden. Last siden på nytt.",
-  endEarly:
+  deleteMembership:
+    "Bare et medlemskap som ikke har startet kan kanselleres. Last siden på nytt.",
+  endEarlyMembership:
     "Medlemskapet kan bare avsluttes mens det er aktivt, og fra et semester innenfor perioden. Last siden på nytt.",
-  extend:
+  extendMembership:
     "Medlemskapet kan bare forlenges mens det er aktivt, og til et senere semester enn dagens slutt. Last siden på nytt.",
 } as const;
 
@@ -150,86 +150,8 @@ const belongsToDepartment = (
 ): boolean => person.departmentId === team.departmentId;
 
 export const TeamsHandlers = TeamsRpc.toLayer({
-  /** RULE-206, 284, 164: a leader, a board member or an admin adds a member of the team's department. */
-  addMember: TeamsDomain.handle(addMember, {
-    resource: ({ teamId }) =>
-      Effect.map(teamOf(teamId), ({ departmentId }) => ({ departmentId })),
-    run: (input, principal) =>
-      Effect.gen(function* run() {
-        yield* InTransaction;
-        const locks = yield* AggregateLocks;
-        const memberships = yield* MembershipRepository;
-        const persons = yield* PersonRepository;
-        const positions = yield* PositionRepository;
-        const current = yield* currentSemester;
-        const team = yield* teamOf(input.teamId);
-        const locked = yield* locks.lock("Person", input.personId);
-        const person = yield* persons.findLocked(locked);
-        yield* positions.findById(input.positionId);
-
-        if (!team.active) {
-          return yield* validationFailed(["teamId"], TEAM_INACTIVE);
-        }
-
-        if (!belongsToDepartment(person, team)) {
-          return yield* validationFailed(["personId"], OTHER_DEPARTMENT);
-        }
-
-        const term = {
-          end: input.end ?? defaultEnd(input.start, team.defaultTerm),
-          start: input.start,
-        };
-
-        if (isBeforeSemester(term.end, term.start)) {
-          return yield* validationFailed(["end"], END_BEFORE_START);
-        }
-
-        if (
-          !Machine.can(MembershipMachine, "addMember", Machine.Boundary, {
-            current,
-            requested: term.start,
-            term,
-          })
-        ) {
-          return yield* validationFailed(["start"], START_IN_THE_PAST);
-        }
-
-        const created = yield* memberships.insert(locked, {
-          ...term,
-          leader: input.leader,
-          positionId: input.positionId,
-          teamId: input.teamId,
-        });
-
-        yield* recordAudit(
-          principal,
-          "membership.added",
-          "Membership",
-          created.id
-        );
-
-        return created;
-      }),
-  }),
-  /** RULE-298: a member is not enough to end someone else's membership; the person themself or a leader does it. */
-  cancel: TeamsDomain.handle(cancel, {
-    resource: ({ id }) => aboutMembership(id),
-    run: ({ id }, principal) =>
-      Effect.gen(function* run() {
-        const { current, locked, membership, memberships } =
-          yield* beginTransition(id, "cancel", null);
-
-        yield* memberships.remove(locked, {
-          current,
-          id,
-          observed: { end: membership.end, start: membership.start },
-        });
-
-        yield* recordAudit(principal, "membership.cancelled", "Membership", id);
-      }),
-  }),
   /** The old membership ends before `from`, and a new one starts at `from` with the remaining term. */
-  change: TeamsDomain.handle(change, {
+  changeMembership: TeamsDomain.handle(changeMembership, {
     resource: ({ id, teamId }) =>
       Effect.gen(function* resource() {
         const { membership, team } = yield* loadMembership(id);
@@ -255,7 +177,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
         const positions = yield* PositionRepository;
 
         const { current, locked, membership, memberships } =
-          yield* beginTransition(input.id, "change", input.from);
+          yield* beginTransition(input.id, "changeMembership", input.from);
 
         const target = yield* teamOf(input.teamId ?? membership.teamId);
         const positionId = input.positionId ?? membership.positionId;
@@ -290,91 +212,8 @@ export const TeamsHandlers = TeamsRpc.toLayer({
         return { ended, started };
       }),
   }),
-  createTeam: TeamsDomain.handle(createTeam, {
-    resource: departmentResource,
-    run: (draft, principal) =>
-      Effect.gen(function* run() {
-        yield* InTransaction;
-        const teams = yield* TeamRepository;
-        const created = yield* teams.create(draft);
-        yield* recordAudit(principal, "team.created", "Team", created.id);
-
-        return created;
-      }),
-  }),
-  deactivateTeam: TeamsDomain.handle(deactivateTeam, {
-    resource: ({ id }) =>
-      Effect.map(teamOf(id), ({ departmentId }) => ({ departmentId })),
-    run: ({ id }, principal) =>
-      Effect.gen(function* run() {
-        yield* InTransaction;
-        const teams = yield* TeamRepository;
-        const deactivated = yield* teams.deactivate(id);
-        yield* recordAudit(principal, "team.deactivated", "Team", id);
-
-        return deactivated;
-      }),
-  }),
-  editTeam: TeamsDomain.handle(editTeam, {
-    resource: ({ id }) =>
-      Effect.map(teamOf(id), ({ departmentId }) => ({ departmentId })),
-    run: ({ id, ...details }, principal) =>
-      Effect.gen(function* run() {
-        yield* InTransaction;
-        const teams = yield* TeamRepository;
-        const updated = yield* teams.update(id, details);
-        yield* recordAudit(principal, "team.updated", "Team", id);
-
-        return updated;
-      }),
-  }),
-  /** RULE-298: the person themself or a leader of the department ends it, from `semester`. */
-  endEarly: TeamsDomain.handle(endEarly, {
-    resource: ({ id }) => aboutMembership(id),
-    run: ({ id, semester }, principal) =>
-      Effect.gen(function* run() {
-        const { current, locked, membership, memberships } =
-          yield* beginTransition(id, "endEarly", semester);
-
-        const ended = yield* memberships.setEnd(locked, {
-          activeIn: current,
-          id,
-          newEnd: previousSemester(semester),
-          observedEnd: membership.end,
-        });
-
-        yield* recordAudit(
-          principal,
-          "membership.endedEarly",
-          "Membership",
-          id
-        );
-
-        return ended;
-      }),
-  }),
-  /** RULE-234, 251, 252: `extend` is the only way to stay, and it never reactivates an ended membership. */
-  extend: TeamsDomain.handle(extend, {
-    resource: ({ id }) => aboutMembership(id),
-    run: ({ end, id }, principal) =>
-      Effect.gen(function* run() {
-        const { current, locked, membership, memberships } =
-          yield* beginTransition(id, "extend", end);
-
-        const extended = yield* memberships.setEnd(locked, {
-          activeIn: current,
-          id,
-          newEnd: end,
-          observedEnd: membership.end,
-        });
-
-        yield* recordAudit(principal, "membership.extended", "Membership", id);
-
-        return extended;
-      }),
-  }),
   /** RULE-113, 308: admin only, never for oneself. */
-  grantAdmin: TeamsDomain.handle(grantAdmin, {
+  createAdminGrant: TeamsDomain.handle(createAdminGrant, {
     resource: () => Effect.succeed({}),
     run: ({ personId, until }, principal) =>
       Effect.gen(function* run() {
@@ -388,7 +227,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           : null;
 
         if (granter === personId) {
-          return yield* new Forbidden({ command: "grantAdmin" });
+          return yield* new Forbidden({ command: "createAdminGrant" });
         }
 
         if (!DateTime.isGreaterThan(until, now)) {
@@ -414,7 +253,73 @@ export const TeamsHandlers = TeamsRpc.toLayer({
         return created;
       }),
   }),
-  registerPerson: TeamsDomain.handle(registerPerson, {
+  /** RULE-206, 284, 164: a leader, a board member or an admin adds a member of the team's department. */
+  createMembership: TeamsDomain.handle(createMembership, {
+    resource: ({ teamId }) =>
+      Effect.map(teamOf(teamId), ({ departmentId }) => ({ departmentId })),
+    run: (input, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const locks = yield* AggregateLocks;
+        const memberships = yield* MembershipRepository;
+        const persons = yield* PersonRepository;
+        const positions = yield* PositionRepository;
+        const current = yield* currentSemester;
+        const team = yield* teamOf(input.teamId);
+        const locked = yield* locks.lock("Person", input.personId);
+        const person = yield* persons.findLocked(locked);
+        yield* positions.findById(input.positionId);
+
+        if (!team.active) {
+          return yield* validationFailed(["teamId"], TEAM_INACTIVE);
+        }
+
+        if (!belongsToDepartment(person, team)) {
+          return yield* validationFailed(["personId"], OTHER_DEPARTMENT);
+        }
+
+        const term = {
+          end: input.end ?? defaultEnd(input.start, team.defaultTerm),
+          start: input.start,
+        };
+
+        if (isBeforeSemester(term.end, term.start)) {
+          return yield* validationFailed(["end"], END_BEFORE_START);
+        }
+
+        if (
+          !Machine.can(
+            MembershipMachine,
+            "createMembership",
+            Machine.Boundary,
+            {
+              current,
+              requested: term.start,
+              term,
+            }
+          )
+        ) {
+          return yield* validationFailed(["start"], START_IN_THE_PAST);
+        }
+
+        const created = yield* memberships.insert(locked, {
+          ...term,
+          leader: input.leader,
+          positionId: input.positionId,
+          teamId: input.teamId,
+        });
+
+        yield* recordAudit(
+          principal,
+          "membership.added",
+          "Membership",
+          created.id
+        );
+
+        return created;
+      }),
+  }),
+  createPerson: TeamsDomain.handle(createPerson, {
     resource: ({ fieldOfStudyId }) =>
       Effect.gen(function* resource() {
         const fieldsOfStudy = yield* FieldOfStudyRepository;
@@ -437,8 +342,33 @@ export const TeamsHandlers = TeamsRpc.toLayer({
         return created;
       }),
   }),
+  createTeam: TeamsDomain.handle(createTeam, {
+    resource: departmentResource,
+    run: (draft, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const teams = yield* TeamRepository;
+        const created = yield* teams.create(draft);
+        yield* recordAudit(principal, "team.created", "Team", created.id);
+
+        return created;
+      }),
+  }),
+  deactivateTeam: TeamsDomain.handle(deactivateTeam, {
+    resource: ({ id }) =>
+      Effect.map(teamOf(id), ({ departmentId }) => ({ departmentId })),
+    run: ({ id }, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const teams = yield* TeamRepository;
+        const deactivated = yield* teams.deactivate(id);
+        yield* recordAudit(principal, "team.deactivated", "Team", id);
+
+        return deactivated;
+      }),
+  }),
   /** RULE-113, 308: admin only, never one's own place, never the last place that ends after this semester. */
-  revokeAdmin: TeamsDomain.handle(revokeAdmin, {
+  deleteAdminGrant: TeamsDomain.handle(deleteAdminGrant, {
     resource: () => Effect.succeed({}),
     run: ({ id }, principal) =>
       Effect.gen(function* run() {
@@ -455,7 +385,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           Predicate.isTagged(principal, "Person") &&
           grant.personId === principal.personId
         ) {
-          return yield* new Forbidden({ command: "revokeAdmin" });
+          return yield* new Forbidden({ command: "deleteAdminGrant" });
         }
 
         const holder = yield* locks.lock("Person", grant.personId);
@@ -477,9 +407,84 @@ export const TeamsHandlers = TeamsRpc.toLayer({
         return yield* Effect.void;
       }),
   }),
+  /** RULE-298: a member is not enough to end someone else's membership; the person themself or a leader does it. */
+  deleteMembership: TeamsDomain.handle(deleteMembership, {
+    resource: ({ id }) => aboutMembership(id),
+    run: ({ id }, principal) =>
+      Effect.gen(function* run() {
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(id, "deleteMembership", null);
+
+        yield* memberships.remove(locked, {
+          current,
+          id,
+          observed: { end: membership.end, start: membership.start },
+        });
+
+        yield* recordAudit(principal, "membership.cancelled", "Membership", id);
+      }),
+  }),
+  /** RULE-298: the person themself or a leader of the department ends it, from `semester`. */
+  endEarlyMembership: TeamsDomain.handle(endEarlyMembership, {
+    resource: ({ id }) => aboutMembership(id),
+    run: ({ id, semester }, principal) =>
+      Effect.gen(function* run() {
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(id, "endEarlyMembership", semester);
+
+        const ended = yield* memberships.setEnd(locked, {
+          activeIn: current,
+          id,
+          newEnd: previousSemester(semester),
+          observedEnd: membership.end,
+        });
+
+        yield* recordAudit(
+          principal,
+          "membership.endedEarly",
+          "Membership",
+          id
+        );
+
+        return ended;
+      }),
+  }),
+  /** RULE-234, 251, 252: `extendMembership` is the only way to stay, and it never reactivates an ended membership. */
+  extendMembership: TeamsDomain.handle(extendMembership, {
+    resource: ({ id }) => aboutMembership(id),
+    run: ({ end, id }, principal) =>
+      Effect.gen(function* run() {
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(id, "extendMembership", end);
+
+        const extended = yield* memberships.setEnd(locked, {
+          activeIn: current,
+          id,
+          newEnd: end,
+          observedEnd: membership.end,
+        });
+
+        yield* recordAudit(principal, "membership.extended", "Membership", id);
+
+        return extended;
+      }),
+  }),
   sendEndingSoon: TeamsDomain.handle(sendEndingSoon, {
     resource: () => Effect.succeed({}),
     run: (_, principal) => runEndingSoon(principal),
+  }),
+  updateTeam: TeamsDomain.handle(updateTeam, {
+    resource: ({ id }) =>
+      Effect.map(teamOf(id), ({ departmentId }) => ({ departmentId })),
+    run: ({ id, ...details }, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const teams = yield* TeamRepository;
+        const updated = yield* teams.update(id, details);
+        yield* recordAudit(principal, "team.updated", "Team", id);
+
+        return updated;
+      }),
   }),
 });
 
@@ -488,14 +493,17 @@ export const withTeams = Commands.inProcess(TeamsRpc, TeamsHandlers);
 
 /** The server functions' entries: untrusted input in, the command's own result out (`Commands.endpoint`). */
 export const TeamsEndpoints = {
-  addMember: Commands.endpoint(addMember, (payload) =>
-    withTeams((client) => client.addMember(payload))
+  changeMembership: Commands.endpoint(changeMembership, (payload) =>
+    withTeams((client) => client.changeMembership(payload))
   ),
-  cancel: Commands.endpoint(cancel, (payload) =>
-    withTeams((client) => client.cancel(payload))
+  createAdminGrant: Commands.endpoint(createAdminGrant, (payload) =>
+    withTeams((client) => client.createAdminGrant(payload))
   ),
-  change: Commands.endpoint(change, (payload) =>
-    withTeams((client) => client.change(payload))
+  createMembership: Commands.endpoint(createMembership, (payload) =>
+    withTeams((client) => client.createMembership(payload))
+  ),
+  createPerson: Commands.endpoint(createPerson, (payload) =>
+    withTeams((client) => client.createPerson(payload))
   ),
   createTeam: Commands.endpoint(createTeam, (payload) =>
     withTeams((client) => client.createTeam(payload))
@@ -503,23 +511,20 @@ export const TeamsEndpoints = {
   deactivateTeam: Commands.endpoint(deactivateTeam, (payload) =>
     withTeams((client) => client.deactivateTeam(payload))
   ),
-  editTeam: Commands.endpoint(editTeam, (payload) =>
-    withTeams((client) => client.editTeam(payload))
+  deleteAdminGrant: Commands.endpoint(deleteAdminGrant, (payload) =>
+    withTeams((client) => client.deleteAdminGrant(payload))
   ),
-  endEarly: Commands.endpoint(endEarly, (payload) =>
-    withTeams((client) => client.endEarly(payload))
+  deleteMembership: Commands.endpoint(deleteMembership, (payload) =>
+    withTeams((client) => client.deleteMembership(payload))
   ),
-  extend: Commands.endpoint(extend, (payload) =>
-    withTeams((client) => client.extend(payload))
+  endEarlyMembership: Commands.endpoint(endEarlyMembership, (payload) =>
+    withTeams((client) => client.endEarlyMembership(payload))
   ),
-  grantAdmin: Commands.endpoint(grantAdmin, (payload) =>
-    withTeams((client) => client.grantAdmin(payload))
+  extendMembership: Commands.endpoint(extendMembership, (payload) =>
+    withTeams((client) => client.extendMembership(payload))
   ),
-  registerPerson: Commands.endpoint(registerPerson, (payload) =>
-    withTeams((client) => client.registerPerson(payload))
-  ),
-  revokeAdmin: Commands.endpoint(revokeAdmin, (payload) =>
-    withTeams((client) => client.revokeAdmin(payload))
+  updateTeam: Commands.endpoint(updateTeam, (payload) =>
+    withTeams((client) => client.updateTeam(payload))
   ),
 };
 

@@ -39,13 +39,27 @@ export const createDepartment = Rpc.make("createDepartment", {
   error: DomainErrorSchema,
   payload: DepartmentInput,
   success: Department,
-}).annotate(Info, info({ summary: "Create a department." }));
+}).annotate(
+  Info,
+  info({
+    method: "create",
+    resource: "Department",
+    summary: "Create a department.",
+  })
+);
 
 export const updateDepartment = Rpc.make("updateDepartment", {
   error: DomainErrorSchema,
   payload: UpdateDepartmentInput,
   success: Department,
-}).annotate(Info, info({ summary: "Change a department's details." }));
+}).annotate(
+  Info,
+  info({
+    method: "update",
+    resource: "Department",
+    summary: "Change a department's details.",
+  })
+);
 
 export const createFieldOfStudy = Rpc.make("createFieldOfStudy", {
   error: DomainErrorSchema,
@@ -54,19 +68,23 @@ export const createFieldOfStudy = Rpc.make("createFieldOfStudy", {
 }).annotate(
   Info,
   info({
+    method: "create",
     replaces: ["RULE-139"],
+    resource: "FieldOfStudy",
     summary: "Add a field of study to a department.",
   })
 );
 
-export const renameFieldOfStudy = Rpc.make("renameFieldOfStudy", {
+export const updateFieldOfStudy = Rpc.make("updateFieldOfStudy", {
   error: DomainErrorSchema,
   payload: RenameFieldOfStudyInput,
   success: FieldOfStudy,
 }).annotate(
   Info,
   info({
+    method: "update",
     replaces: ["RULE-139"],
+    resource: "FieldOfStudy",
     summary: "Rename a field of study.",
   })
 );
@@ -78,7 +96,9 @@ export const ensureSemesters = Rpc.make("ensureSemesters", {
   Info,
   info({
     job: "semesters",
+    method: ":ensure",
     replaces: ["RULE-237"],
+    resource: "Semester",
     summary: "Keep the current and the next semester present.",
   })
 );
@@ -87,7 +107,7 @@ export const OrganisationRpc = RpcGroup.make(
   createDepartment,
   updateDepartment,
   createFieldOfStudy,
-  renameFieldOfStudy,
+  updateFieldOfStudy,
   ensureSemesters
 );
 
@@ -96,7 +116,7 @@ export const OrganisationDomain = declareDomain({
   grants: [
     grant(
       [leader],
-      ["updateDepartment", "createFieldOfStudy", "renameFieldOfStudy"],
+      ["updateDepartment", "createFieldOfStudy", "updateFieldOfStudy"],
       "department"
     ),
     grant([member], ["openControlPanel"], "all"),

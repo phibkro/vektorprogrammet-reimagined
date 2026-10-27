@@ -11,9 +11,9 @@
  *
  * The admin list is the other root, and it owns no table: it is the one row (`ADMIN_LIST_ID`) that the commands queue
  * on when the fact they decide on spans every administrator, as the rule that there is always an Active administrator
- * with a valid place does. No person's lock can stand for that fact, so `deactivate`, `reactivate`, `grantAdmin` and
- * `revokeAdmin` lock the list first, and the two decision reads of the rule (`AccountRepository.isLastActiveAdmin` and
- * `AdminGrantRepository.revoke`) take its token (spec 0006b R2).
+ * with a valid place does. No person's lock can stand for that fact, so `deactivateAccount`, `reactivateAccount`,
+ * `createAdminGrant` and `deleteAdminGrant` lock the list first, and the two decision reads of the rule
+ * (`AccountRepository.isLastActiveAdmin` and `AdminGrantRepository.revoke`) take its token (spec 0006b R2).
  *
  * `packages/db` declares which tables each root owns, implements `AggregateLocks` with `SELECT … FOR NO KEY UPDATE`,
  * and is the only place that makes a token. This module declares only what the domain needs: the roots in their
@@ -84,8 +84,8 @@ export class AggregateLocks extends Context.Service<
 
 /**
  * The lock of the admin list: the first lock of every command that can change who counts as an Active administrator
- * (`deactivate`, `reactivate`, `grantAdmin`, `revokeAdmin`). It comes before the lock of any person. The row is part of
- * the schema (a migration inserts it), so a missing row is a defect and not a `NotFound`.
+ * (`deactivateAccount`, `reactivateAccount`, `createAdminGrant`, `deleteAdminGrant`). It comes before the lock of any
+ * person. The row is part of the schema (a migration inserts it), so a missing row is a defect and not a `NotFound`.
  */
 export const lockAdminList = AggregateLocks.use((locks) =>
   locks.lock("AdminList", ADMIN_LIST_ID)

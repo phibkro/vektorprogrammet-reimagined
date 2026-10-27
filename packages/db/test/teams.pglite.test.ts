@@ -437,7 +437,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const theirs = yield* activeAdmin(other.id, LATER);
 
         yield* asPerson(other.id, (locked) =>
-          moveAccount(locked, "deactivate", "Active")
+          moveAccount(locked, "deactivateAccount", "Active")
         );
 
         const refused = yield* revokePlace(person.id, mine.id, cutoff);

@@ -1,4 +1,4 @@
-/** Pure renderers for the declaration-derived teams and accounts references. */
+/** Pure renderers for the declaration-derived teams, accounts and commands-by-resource references. */
 import {
   Commands,
   Domain,
@@ -6,13 +6,16 @@ import {
   codePolicy,
 } from "@vektorprogrammet/domain";
 import type { Grant, Machine } from "@vektorprogrammet/domain";
-import { Array as Arr, Option, Record as Rec, Result } from "effect";
+import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
 
 interface Entry {
   readonly name: string;
   readonly summary: string;
   readonly replaces: readonly string[];
   readonly note: string | null;
+  /** What a command acts on, and how (ADR 0010); a read has neither. */
+  readonly resource: string;
+  readonly method: string;
 }
 
 type Declaration = Domain.Declaration;
@@ -69,24 +72,31 @@ const alignedTable = (
   );
 };
 
+/** A method as the page shows it: a standard one as written, a custom one with its colon (`:extend`). */
+const methodLabel = (method: Commands.Method): string => `\`${method}\``;
+
 const entriesOf = (domain: Declaration): readonly Entry[] => [
   ...Arr.flatMap(domain.commands, (rpc) =>
     Option.match(Commands.infoOf(rpc), {
       onNone: () => [],
       onSome: (info) => [
         {
+          method: methodLabel(info.method),
           name: rpc._tag,
           note: info.note,
           replaces: info.replaces,
+          resource: info.resource,
           summary: info.summary,
         },
       ],
     })
   ),
   ...Arr.map(Rec.toEntries(domain.reads), ([name, read]) => ({
+    method: "—",
     name,
     note: null,
     replaces: read.replaces,
+    resource: "—",
     summary: read.summary,
   })),
 ];
@@ -157,13 +167,23 @@ const commands = (
   grants: readonly GrantRow[]
 ): string =>
   table(
-    ["Command or read", "What it does", "Granted to", "Scope", "Replaces"],
+    [
+      "Command or read",
+      "Resource",
+      "Method",
+      "What it does",
+      "Granted to",
+      "Scope",
+      "Replaces",
+    ],
     Arr.map(entries, (entry) => {
       const rows = Arr.filter(grants, (row) => includes(row, entry));
       const note = entry.note === null ? "" : ` ${entry.note}`;
 
       return [
         `\`${entry.name}\``,
+        entry.resource,
+        entry.method,
         `${entry.summary}${note}`,
         Arr.join(Arr.map(rows, subjectNames), "; "),
         Arr.join(Arr.dedupe(Arr.map(rows, (row) => row.scope)), ", "),
@@ -212,33 +232,125 @@ const replaceBlock = (
   );
 };
 
+/** The declarations, or the reason that a generator must not render them: every domain complete, and no name shared. */
+const completeDomains = (
+  domains: readonly Declaration[]
+): Result.Result<readonly Declaration[], string> => {
+  const problems = Domain.allProblems(domains);
+
+  return problems.length > 0
+    ? Result.fail(`Incomplete declarations: ${Arr.join(problems, "; ")}`)
+    : Result.succeed(domains);
+};
+
 /** Validate the declarations and select the one machine a reference describes. */
 const declaredMachine = (
   domains: readonly Declaration[],
   name: string,
   machineName: string
-) => {
-  const problems = Arr.flatMap(domains, Domain.problems);
+) =>
+  Result.flatMap(completeDomains(domains), () => {
+    const domain = Option.getOrUndefined(
+      Arr.findFirst(domains, (entry) => entry.name === name)
+    );
 
-  if (problems.length > 0) {
-    return Result.fail(`Incomplete declarations: ${Arr.join(problems, "; ")}`);
-  }
+    if (domain === undefined) {
+      return Result.fail(`The ${name} declaration is missing`);
+    }
 
-  const domain = Option.getOrUndefined(
-    Arr.findFirst(domains, (entry) => entry.name === name)
+    const diagram = Option.getOrUndefined(
+      Arr.findFirst(domain.machines, (entry) => entry.name === machineName)
+    );
+
+    return diagram === undefined
+      ? Result.fail(`The ${machineName} machine is missing`)
+      : Result.succeed({ diagram, domain });
+  });
+
+/** One command of one domain, with the pair that ADR 0010 gives it. */
+interface DeclaredCommand {
+  readonly domain: string;
+  readonly name: string;
+  readonly info: Commands.CommandInfo;
+}
+
+/** Where a method sorts within its resource: the standard methods in their own order, then the custom ones as declared. */
+const methodRank = (method: Commands.Method): number =>
+  Option.getOrElse(
+    Arr.findFirstIndex(
+      Commands.StandardMethods,
+      (standard) => standard === method
+    ),
+    () => Commands.StandardMethods.length
   );
 
-  if (domain === undefined) {
-    return Result.fail(`The ${name} declaration is missing`);
-  }
+const resourceSection = (
+  resource: Commands.Resource,
+  found: readonly DeclaredCommand[],
+  grants: readonly GrantRow[]
+): string =>
+  Arr.join(
+    [
+      `### ${resource}`,
+      table(
+        ["Command", "Method", "Domain", "What it does", "Granted to"],
+        Arr.map(found, ({ domain, info, name }) => {
+          const rows = Arr.filter(grants, (row) =>
+            Arr.contains(row.commands, name)
+          );
 
-  const diagram = Option.getOrUndefined(
-    Arr.findFirst(domain.machines, (entry) => entry.name === machineName)
+          const note = info.note === null ? "" : ` ${info.note}`;
+
+          return [
+            `\`${name}\``,
+            methodLabel(info.method),
+            domain,
+            `${info.summary}${note}`,
+            Arr.join(Arr.map(rows, subjectNames), "; "),
+          ];
+        })
+      ),
+    ],
+    "\n\n"
   );
 
-  return diagram === undefined
-    ? Result.fail(`The ${machineName} machine is missing`)
-    : Result.succeed({ diagram, domain });
+/**
+ * Every command of every domain, under the resource that it acts on, in the order of the closed set of resources; a
+ * resource that no command acts on has no section. This is the page that answers "what can be done to a membership?".
+ */
+const byResource = (
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[]
+): string => {
+  const declared: readonly DeclaredCommand[] = Arr.flatMap(domains, (domain) =>
+    Arr.flatMap(domain.commands, (rpc) =>
+      Option.match(Commands.infoOf(rpc), {
+        onNone: () => [],
+        onSome: (info) => [{ domain: domain.name, info, name: rpc._tag }],
+      })
+    )
+  );
+
+  const byMethod = Order.mapInput(Order.Number, (command: DeclaredCommand) =>
+    methodRank(command.info.method)
+  );
+
+  return Arr.join(
+    Arr.flatMap(Commands.Resources, (resource) => {
+      const found = Arr.sort(
+        Arr.filter(
+          declared,
+          (command: DeclaredCommand) => command.info.resource === resource
+        ),
+        byMethod
+      );
+
+      return Arr.isReadonlyArrayNonEmpty(found)
+        ? [resourceSection(resource, found, grants)]
+        : [];
+    }),
+    "\n\n"
+  );
 };
 
 /** Preserve text outside the named blocks. */
@@ -334,3 +446,20 @@ export const checkAccountsDocument = (
   grants: readonly GrantRow[]
 ): Result.Result<void, string> =>
   checkRendered(document, renderAccountsDocument(document, domains, grants));
+
+/** Every command by resource, from all the declarations (ADR 0010): one block of the page that `commands.md` holds. */
+export const renderCommandsDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[]
+): Result.Result<string, string> =>
+  Result.flatMap(completeDomains(domains), (complete) =>
+    replaceBlocks(document, [["resources", byResource(complete, grants)]])
+  );
+
+export const checkCommandsDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[]
+): Result.Result<void, string> =>
+  checkRendered(document, renderCommandsDocument(document, domains, grants));

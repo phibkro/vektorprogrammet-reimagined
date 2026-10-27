@@ -57,7 +57,7 @@ describe("the form outcome mapping (issue 26)", () => {
   });
 
   it("shows every other failure, and nothing for a success or no result", () => {
-    const forbidden = failureOf(new Forbidden({ command: "revokeAdmin" }));
+    const forbidden = failureOf(new Forbidden({ command: "deleteAdminGrant" }));
 
     assert.strictEqual(
       formLevelMessage(forbidden, new Set(["id"])),

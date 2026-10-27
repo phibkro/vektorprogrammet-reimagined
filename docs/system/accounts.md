@@ -27,10 +27,10 @@ A reset request gives the same answer for every address. Only an active account'
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Invited : invite
-  Invited --> Active : activate
-  Active --> Deactivated : deactivate (an account other than the actor's and not the last active admin)
-  Deactivated --> Active : reactivate (an account other than the actor's)
+  [*] --> Invited : createAccount
+  Invited --> Active : activateAccount
+  Active --> Deactivated : deactivateAccount (an account other than the actor's and not the last active admin)
+  Deactivated --> Active : reactivateAccount (an account other than the actor's)
 ```
 
 <!-- docgen:end account -->
@@ -39,15 +39,15 @@ stateDiagram-v2
 
 <!-- docgen:begin commands -->
 
-| Command or read | What it does | Granted to | Scope | Replaces |
-| --- | --- | --- | --- | --- |
-| `invite` | Invite a person to activate an account. | Leader(d); Admin | department, all | RULE-207, RULE-323 |
-| `activate` | Activate an invited account with its single-use code. | Holder(activation) | own | RULE-131, RULE-201 |
-| `requestPasswordReset` | Request a password reset without revealing whether an account exists. | Anyone; Admin | all | RULE-112 |
-| `resetPassword` | Reset an active account's password with its single-use code. | Holder(resetPassword) | own | RULE-126, RULE-166 |
-| `deactivate` | Deactivate an account without changing the person. Never one's own account and never the last active admin. | Admin | all | RULE-202, RULE-299 |
-| `reactivate` | Reactivate a deactivated account. Never one's own account. | Admin | all | RULE-202, RULE-299 |
-| `updateProfile` | Update a person's profile. | Leader(d); Self; Admin | department, own, all | RULE-143 |
+| Command or read | Resource | Method | What it does | Granted to | Scope | Replaces |
+| --- | --- | --- | --- | --- | --- | --- |
+| `createAccount` | Account | `create` | Invite a person to activate an account. | Leader(d); Admin | department, all | RULE-207, RULE-323 |
+| `activateAccount` | Account | `:activate` | Activate an invited account with its single-use code. | Holder(activation) | own | RULE-131, RULE-201 |
+| `requestPasswordReset` | Account | `:requestPasswordReset` | Request a password reset without revealing whether an account exists. | Anyone; Admin | all | RULE-112 |
+| `resetPassword` | Account | `:resetPassword` | Reset an active account's password with its single-use code. | Holder(resetPassword) | own | RULE-126, RULE-166 |
+| `deactivateAccount` | Account | `:deactivate` | Deactivate an account without changing the person. Never one's own account and never the last active admin. | Admin | all | RULE-202, RULE-299 |
+| `reactivateAccount` | Account | `:reactivate` | Reactivate a deactivated account. Never one's own account. | Admin | all | RULE-202, RULE-299 |
+| `updatePerson` | Person | `update` | Update a person's profile. | Leader(d); Self; Admin | department, own, all | RULE-143 |
 
 <!-- docgen:end commands -->
 
@@ -55,10 +55,10 @@ stateDiagram-v2
 
 <!-- docgen:begin code-policy -->
 
-| Purpose       | Command       | Lifetime (hours) |
-| ------------- | ------------- | ---------------- |
-| activation    | activate      | 336              |
-| resetPassword | resetPassword | 24               |
+| Purpose       | Command         | Lifetime (hours) |
+| ------------- | --------------- | ---------------- |
+| activation    | activateAccount | 336              |
+| resetPassword | resetPassword   | 24               |
 
 <!-- docgen:end code-policy -->
 

@@ -1,6 +1,6 @@
 /**
  * The teams domain on real PostgreSQL (spec 0006), each suite on its own disposable database:
- * - falsifier 3: twenty concurrent `extend` and `endEarly` calls on one membership leave a consistent row, and every
+ * - falsifier 3: twenty concurrent `extendMembership` and `endEarlyMembership` calls on one membership leave a consistent row, and every
  *   loser gets the typed conflict. The row is consistent when the successes, in the order they committed, replay
  *   as a legal sequence of transitions that ends where the row ends. Since spec 0006b the person's lock keeps that
  *   replay legal on its own, so an unconditional update no longer breaks it: a test asserts that it stays legal.
@@ -103,8 +103,11 @@ const callFor = (membershipId: MembershipId, index: number) => {
   const target = extendTarget(index);
 
   const command = Option.isSome(target)
-    ? TeamsEndpoints.extend({ end: target.value, id: membershipId })
-    : TeamsEndpoints.endEarly({ id: membershipId, semester: VAR_2027 });
+    ? TeamsEndpoints.extendMembership({ end: target.value, id: membershipId })
+    : TeamsEndpoints.endEarlyMembership({
+        id: membershipId,
+        semester: VAR_2027,
+      });
 
   return transactional(
     Effect.provideService(command, CurrentPrincipal, callerOf(index))
@@ -171,7 +174,7 @@ const replay = (callers: readonly number[]) =>
             ? state.violations
             : [
                 ...state.violations,
-                `caller ${index}: endEarly from Vår 2027 after the end was ${state.end.term} ${state.end.year}`,
+                `caller ${index}: endEarlyMembership from Vår 2027 after the end was ${state.end.term} ${state.end.year}`,
               ],
       };
     }
@@ -371,11 +374,11 @@ const revokeRound = Effect.fnUntraced(function* revokeRound(
 });
 
 layer(teamsDatabase, { excludeTestServices: true })(
-  "falsifier 3: concurrent extend and endEarly on PostgreSQL",
+  "falsifier 3: concurrent extendMembership and endEarlyMembership on PostgreSQL",
   (outerTest) => {
     outerTest.layer(TestClock.layer())((it) => {
       it.effect(
-        "falsifier 3: twenty concurrent extend and endEarly calls on one membership leave a consistent row, and every loser gets the typed conflict",
+        "falsifier 3: twenty concurrent extendMembership and endEarlyMembership calls on one membership leave a consistent row, and every loser gets the typed conflict",
         () =>
           Effect.gen(function* effectProgram() {
             yield* TestClock.setTime(DateTime.toEpochMillis(NOW));

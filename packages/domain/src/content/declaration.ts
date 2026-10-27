@@ -22,7 +22,9 @@ export const createSocialEvent = Rpc.make("createSocialEvent", {
 }).annotate(
   Info,
   info({
+    method: "create",
     replaces: ["RULE-188"],
+    resource: "SocialEvent",
     summary: "Add a social event for a department and a semester.",
   })
 );

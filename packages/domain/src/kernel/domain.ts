@@ -262,8 +262,133 @@ const unknown = (declaration: Declaration) =>
 const unannotated = (declaration: Declaration) =>
   Arr.flatMap(declaration.commands, (rpc) =>
     Option.isNone(Commands.infoOf(rpc))
-      ? [`${rpc._tag} carries no Info annotation`]
+      ? [
+          `${rpc._tag} carries no Info annotation, so it has no summary, no resource and no method`,
+        ]
       : []
+  );
+
+// ---------------------------------------------------------------- resource and method (ADR 0010)
+
+/** The commands that carry an `Info` annotation, with it. The others are reported by `unannotated`. */
+const annotated = (declaration: Declaration) =>
+  Arr.flatMap(declaration.commands, (rpc) =>
+    Option.match(Commands.infoOf(rpc), {
+      onNone: () => [],
+      onSome: (info) => [{ info, tag: rpc._tag }],
+    })
+  );
+
+/** The transitions that apply `tag`, in every machine of the declaration. */
+const transitionsOf = (declaration: Declaration, tag: string) =>
+  Arr.flatMap(declaration.machines, (machine) =>
+    Arr.filter(machine.transitions, (transition) => transition.command === tag)
+  );
+
+/** A custom verb is lowerCamelCase: it is written after the colon in a URL (`:extend`) and starts a name. */
+const CUSTOM_VERB = /^[a-z][A-Za-z0-9]*$/u;
+
+const malformedMethods = (declaration: Declaration) =>
+  Arr.flatMap(annotated(declaration), ({ info, tag }) =>
+    Commands.isStandard(info.method) ||
+    CUSTOM_VERB.test(Commands.verbOf(info.method))
+      ? []
+      : [
+          `${tag} has the method ${info.method}, which is neither a standard method nor a colon and a lowerCamelCase verb`,
+        ]
+  );
+
+/**
+ * Names follow the method (ADR 0010). `create`, `update`, `delete` and `get` give the name its verb and its resource
+ * (`updateTeam`). `list` and a custom method give it their verb (`listAuditEntries`, `extendMembership`): a
+ * collection's noun is plural, and a custom verb may carry its own object (`requestPasswordReset`).
+ */
+const misnamed = (declaration: Declaration) =>
+  Arr.flatMap(annotated(declaration), ({ info, tag }) => {
+    const verb = Commands.verbOf(info.method);
+
+    const exact =
+      Commands.isStandard(info.method) && info.method !== "list"
+        ? `${verb}${info.resource}`
+        : null;
+
+    const declared = `${tag} is declared ${info.method} on ${info.resource}`;
+
+    if (exact !== null) {
+      return tag === exact ? [] : [`${declared}, so its name must be ${exact}`];
+    }
+
+    return tag.startsWith(verb)
+      ? []
+      : [`${declared}, so its name must start with ${verb}`];
+  });
+
+/** A query changes nothing: no machine's transition, no job and no credential belongs to a `get` or a `list`. */
+const queriesThatChange = (declaration: Declaration) =>
+  Arr.flatMap(annotated(declaration), ({ info, tag }) => {
+    if (Commands.kindOf(info.method) !== "query") {
+      return [];
+    }
+
+    const changes = [
+      ...(info.machine === null &&
+      Arr.isReadonlyArrayEmpty(transitionsOf(declaration, tag))
+        ? []
+        : ["applies a machine's transition"]),
+      ...(info.job === null ? [] : [`is the ${info.job} job's command`]),
+      ...(info.credential === null
+        ? []
+        : [`is the command of the ${info.credential} credential`]),
+    ];
+
+    return Arr.map(
+      changes,
+      (change) =>
+        `${tag} is declared ${info.method}, a query, but it ${change}, and a query changes nothing`
+    );
+  });
+
+type Transition = Description["transitions"][number];
+
+/** What ADR 0010 says that each transition of a `create`, a `delete` and an `update` does. */
+const TRANSITION_RULES = {
+  create: {
+    holds: (transition: Transition) =>
+      Arr.every(transition.from, (state) => state === Boundary),
+    says: "a create starts from [*]",
+  },
+  delete: {
+    holds: (transition: Transition) => transition.to === Boundary,
+    says: "a delete ends in [*]",
+  },
+  update: {
+    holds: (transition: Transition) =>
+      transition.to !== Boundary &&
+      Arr.every(transition.from, (state) => state === transition.to),
+    says: "an update changes no state",
+  },
+} as const;
+
+/** The rule of a method on its transitions, when it has one: `get`, `list` and a custom method have none. */
+const transitionRuleOf = (method: Commands.Method) =>
+  method === "create" || method === "delete" || method === "update"
+    ? Option.some(TRANSITION_RULES[method])
+    : Option.none();
+
+/** A `create` is a transition from `[*]`, a `delete` a transition to `[*]`, and an `update` changes no state. */
+const contradictedByTransitions = (declaration: Declaration) =>
+  Arr.flatMap(annotated(declaration), ({ info, tag }) =>
+    Option.match(transitionRuleOf(info.method), {
+      onNone: () => [],
+      onSome: (rule) =>
+        Arr.flatMap(transitionsOf(declaration, tag), (transition) =>
+          rule.holds(transition)
+            ? []
+            : [
+                `${tag} is declared ${info.method}, but its transition from ${Arr.join(transition.from, " or ")} to ${transition.to} breaks the rule that ${rule.says}`,
+              ]
+        ),
+    })
   );
 
 const misfitScopes = (declaration: Declaration) =>
@@ -398,21 +523,80 @@ const machineProblems = (declaration: Declaration) =>
     return [...transitions, ...orphans];
   });
 
+/** The groups of two or more items that `key` puts together. */
+const repeated = <A>(items: readonly A[], key: (item: A) => string) =>
+  Arr.filter(Rec.values(Arr.groupBy(items, key)), (group) => group.length > 1);
+
+/**
+ * What only a list of domains can show. A tag is the key of the grant table, so two domains that declare one tag would
+ * merge their grants; and the HTTP shape that ADR 0010 derives would be one route twice for a resource and a method
+ * that two commands share.
+ */
+const sharedNames = (domains: readonly Declaration[]) => {
+  const commands = Arr.flatMap(domains, (domain) =>
+    Arr.map(domain.commands, (rpc) => ({
+      domain: domain.name,
+      info: Commands.infoOf(rpc),
+      tag: rpc._tag,
+    }))
+  );
+
+  const pairs = Arr.flatMap(commands, ({ info, tag }) =>
+    Option.match(info, {
+      onNone: () => [],
+      onSome: ({ method, resource }) => [{ method, resource, tag }],
+    })
+  );
+
+  return [
+    ...Arr.map(
+      repeated(commands, ({ tag }) => tag),
+      (group) =>
+        `${group[0].tag} is declared by ${Arr.join(
+          Arr.map(group, ({ domain }) => domain),
+          " and "
+        )}`
+    ),
+    ...Arr.map(
+      repeated(pairs, ({ method, resource }) => `${method} on ${resource}`),
+      (group) =>
+        `${Arr.join(
+          Arr.map(group, ({ tag }) => tag),
+          " and "
+        )} are all declared ${group[0].method} on ${group[0].resource}`
+    ),
+  ];
+};
+
 /**
  * Everything that makes a declaration incomplete: a command or read without a grant, a grant that names something
- * unknown, a command without its annotation, a subject set paired with a scope it cannot use, a job's command
- * that a person (an admin included) holds, a job that holds no grant, an admin without a person's command, and a
- * machine and its commands that disagree. Empty means complete. The tests assert it for every domain, and the doc
- * generator refuses to render otherwise.
+ * unknown, a command without its annotation (so without its resource and method), a method that is not a standard
+ * method or a colon and a lowerCamelCase verb, a name that its resource and method do not give it, a query that
+ * changes something, a `create`, `delete` or `update` that its transitions contradict (ADR 0010), a subject set paired
+ * with a scope it cannot use, a job's command that a person (an admin included) holds, a job that holds no grant, an
+ * admin without a person's command, and a machine and its commands that disagree. Empty means complete. The tests
+ * assert it for every domain, and the doc generator refuses to render otherwise.
  */
 export const problems = (declaration: Declaration): readonly string[] => [
   ...ungranted(declaration),
   ...unknown(declaration),
   ...unannotated(declaration),
+  ...malformedMethods(declaration),
+  ...misnamed(declaration),
+  ...queriesThatChange(declaration),
+  ...contradictedByTransitions(declaration),
   ...misfitScopes(declaration),
   ...jobGrants(declaration),
   ...credentialGrants(declaration),
   ...jobsWithoutGrant(declaration),
   ...adminGaps(declaration),
   ...machineProblems(declaration),
+];
+
+/** The problems of every domain, and those that only the whole list shows: a tag, or a resource and a method, twice. */
+export const allProblems = (
+  domains: readonly Declaration[]
+): readonly string[] => [
+  ...Arr.flatMap(domains, problems),
+  ...sharedNames(domains),
 ];

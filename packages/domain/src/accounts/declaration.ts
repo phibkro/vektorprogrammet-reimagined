@@ -19,7 +19,7 @@ import { Person, PersonEmailInput, PersonInput } from "../teams/entities.ts";
 import { CodeToken } from "./code.ts";
 import { Account, AccountState, Password } from "./entities.ts";
 
-export const invite = Rpc.make("invite", {
+export const createAccount = Rpc.make("createAccount", {
   error: DomainErrorSchema,
   payload: { personId: PersonId },
   success: Account,
@@ -27,12 +27,14 @@ export const invite = Rpc.make("invite", {
   Info,
   info({
     machine: "Account",
+    method: "create",
     replaces: ["RULE-207", "RULE-323"],
+    resource: "Account",
     summary: "Invite a person to activate an account.",
   })
 );
 
-export const activate = Rpc.make("activate", {
+export const activateAccount = Rpc.make("activateAccount", {
   error: DomainErrorSchema,
   payload: { code: CodeToken, password: Password },
   success: Account,
@@ -41,7 +43,9 @@ export const activate = Rpc.make("activate", {
   info({
     credential: "activation",
     machine: "Account",
+    method: ":activate",
     replaces: ["RULE-131", "RULE-201"],
+    resource: "Account",
     summary: "Activate an invited account with its single-use code.",
   })
 );
@@ -53,7 +57,9 @@ export const requestPasswordReset = Rpc.make("requestPasswordReset", {
 }).annotate(
   Info,
   info({
+    method: ":requestPasswordReset",
     replaces: ["RULE-112"],
+    resource: "Account",
     summary:
       "Request a password reset without revealing whether an account exists.",
   })
@@ -67,12 +73,14 @@ export const resetPassword = Rpc.make("resetPassword", {
   Info,
   info({
     credential: "resetPassword",
+    method: ":resetPassword",
     replaces: ["RULE-126", "RULE-166"],
+    resource: "Account",
     summary: "Reset an active account's password with its single-use code.",
   })
 );
 
-export const deactivate = Rpc.make("deactivate", {
+export const deactivateAccount = Rpc.make("deactivateAccount", {
   error: DomainErrorSchema,
   payload: { personId: PersonId },
   success: Account,
@@ -80,13 +88,15 @@ export const deactivate = Rpc.make("deactivate", {
   Info,
   info({
     machine: "Account",
+    method: ":deactivate",
     note: "Never one's own account and never the last active admin.",
     replaces: ["RULE-202", "RULE-299"],
+    resource: "Account",
     summary: "Deactivate an account without changing the person.",
   })
 );
 
-export const reactivate = Rpc.make("reactivate", {
+export const reactivateAccount = Rpc.make("reactivateAccount", {
   error: DomainErrorSchema,
   payload: { personId: PersonId },
   success: Account,
@@ -94,32 +104,36 @@ export const reactivate = Rpc.make("reactivate", {
   Info,
   info({
     machine: "Account",
+    method: ":reactivate",
     note: "Never one's own account.",
     replaces: ["RULE-202", "RULE-299"],
+    resource: "Account",
     summary: "Reactivate a deactivated account.",
   })
 );
 
-export const updateProfile = Rpc.make("updateProfile", {
+export const updatePerson = Rpc.make("updatePerson", {
   error: DomainErrorSchema,
   payload: { personId: PersonId, ...PersonInput.fields },
   success: Person,
 }).annotate(
   Info,
   info({
+    method: "update",
     replaces: ["RULE-143"],
+    resource: "Person",
     summary: "Update a person's profile.",
   })
 );
 
 export const AccountRpc = RpcGroup.make(
-  invite,
-  activate,
+  createAccount,
+  activateAccount,
   requestPasswordReset,
   resetPassword,
-  deactivate,
-  reactivate,
-  updateProfile
+  deactivateAccount,
+  reactivateAccount,
+  updatePerson
 );
 
 /** Facts checked before a state change; the command reads them through the locks of the people involved. */
@@ -183,16 +197,16 @@ export const AccountMachine = Machine.make({
   name: "Account",
   states: AccountState,
   transitions: [
-    { command: "invite", from: [Machine.Boundary], to: "Invited" },
-    { command: "activate", from: ["Invited"], to: "Active" },
+    { command: "createAccount", from: [Machine.Boundary], to: "Invited" },
+    { command: "activateAccount", from: ["Invited"], to: "Active" },
     {
-      command: "deactivate",
+      command: "deactivateAccount",
       from: ["Active"],
       guard: Schema.makeFilterGroup([differentPerson, notLastAdmin]),
       to: "Deactivated",
     },
     {
-      command: "reactivate",
+      command: "reactivateAccount",
       from: ["Deactivated"],
       guard: differentPerson,
       to: "Active",
@@ -207,9 +221,9 @@ export type AccountMachineTransition =
 export const AccountDomain = declareDomain({
   commands: AccountRpc,
   grants: [
-    grant([leader], ["invite", "updateProfile"], "department"),
-    grant([self], ["updateProfile"], "own"),
-    grant([holder("activation")], ["activate"], "own"),
+    grant([leader], ["createAccount", "updatePerson"], "department"),
+    grant([self], ["updatePerson"], "own"),
+    grant([holder("activation")], ["activateAccount"], "own"),
     grant([holder("resetPassword")], ["resetPassword"], "own"),
     grant([anyone], ["requestPasswordReset"], "all"),
   ],

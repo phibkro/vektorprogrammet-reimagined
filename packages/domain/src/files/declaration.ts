@@ -28,23 +28,25 @@ export const StoredUpload = Schema.Struct({
 
 export type StoredUpload = typeof StoredUpload.Type;
 
-export const registerPublicFile = Rpc.make("registerPublicFile", {
+export const createPublicFile = Rpc.make("createPublicFile", {
   error: DomainErrorSchema,
   payload: StoredUpload,
   success: PublicFile,
 }).annotate(
   Info,
   info({
+    method: "create",
     replaces: ["RULE-290"],
+    resource: "PublicFile",
     summary: "Register an uploaded file so that it can be served.",
   })
 );
 
-export const FilesRpc = RpcGroup.make(registerPublicFile);
+export const FilesRpc = RpcGroup.make(createPublicFile);
 
 export const FilesDomain = declareDomain({
   commands: FilesRpc,
-  grants: [grant([member], ["registerPublicFile"], "all")],
+  grants: [grant([member], ["createPublicFile"], "all")],
   name: "files",
   reads: {},
   title: "Files",

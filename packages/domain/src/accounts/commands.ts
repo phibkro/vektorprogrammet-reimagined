@@ -2,9 +2,9 @@
  * Account commands run inside the caller's transaction; auth writes are outbox deliveries after commit.
  *
  * A command about one person takes that person's lock first (`AggregateLocks`, spec 0006b), reads what it decides on
- * through the token and writes through it. `deactivate` and `reactivate` can change who is an Active administrator,
- * which spans every administrator, so they lock the admin list before the person; `deactivate` decides through its
- * token whether the person is the last Active administrator.
+ * through the token and writes through it. `deactivateAccount` and `reactivateAccount` can change who is an Active
+ * administrator, which spans every administrator, so they lock the admin list before the person; `deactivateAccount`
+ * decides through its token whether the person is the last Active administrator.
  */
 import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
 
@@ -31,13 +31,13 @@ import {
   AccountDomain,
   AccountMachine,
   AccountRpc,
-  activate,
-  deactivate,
-  invite,
-  reactivate,
+  activateAccount,
+  createAccount,
+  deactivateAccount,
+  reactivateAccount,
   requestPasswordReset,
   resetPassword,
-  updateProfile,
+  updatePerson,
 } from "./declaration.ts";
 import type { Account } from "./entities.ts";
 import { PasswordHasher } from "./passwordHasher.ts";
@@ -55,7 +55,7 @@ const conflict = (personId: number) =>
 const personResource = Effect.fn("Account.personResource")(
   function* personResource(
     personId: PersonId,
-    command: "invite" | "updateProfile"
+    command: "createAccount" | "updatePerson"
   ) {
     const people = yield* PersonRepository;
     const memberships = yield* MembershipRepository;
@@ -146,7 +146,7 @@ const changeState = Effect.fn("Account.changeState")(function* changeState(
   locked: Locked<"Person">,
   account: Account,
   principal: Principal,
-  command: "activate" | "deactivate" | "reactivate",
+  command: "activateAccount" | "deactivateAccount" | "reactivateAccount",
   lastActiveAdmin: boolean
 ) {
   const [transition] = Machine.available(
@@ -187,10 +187,10 @@ const queueCredential = Effect.fn("Account.queueCredential")(
 );
 
 export const AccountHandlers = AccountRpc.toLayer({
-  activate: AccountDomain.handle(activate, {
+  activateAccount: AccountDomain.handle(activateAccount, {
     resource: () => codeResource,
     run: ({ code, password }, principal) =>
-      Effect.gen(function* activateAccount() {
+      Effect.gen(function* activate() {
         yield* InTransaction;
         const personId = personOf(principal);
 
@@ -205,7 +205,7 @@ export const AccountHandlers = AccountRpc.toLayer({
           locked,
           account,
           principal,
-          "activate",
+          "activateAccount",
           false
         );
 
@@ -217,41 +217,10 @@ export const AccountHandlers = AccountRpc.toLayer({
         return activated;
       }),
   }),
-  deactivate: AccountDomain.handle(deactivate, {
-    resource: ({ personId }) => Effect.succeed({ personId }),
+  createAccount: AccountDomain.handle(createAccount, {
+    resource: ({ personId }) => personResource(personId, "createAccount"),
     run: ({ personId }, principal) =>
-      Effect.gen(function* deactivateAccount() {
-        yield* InTransaction;
-        const accounts = yield* AccountRepository;
-        const now = yield* DateTime.now;
-
-        // Whether an Active administrator is left spans every administrator, so the list is locked first, and the
-        // decision reads through its token.
-        const adminList = yield* lockAdminList;
-        const { account, locked } = yield* lockAccount(personId);
-
-        const updated = yield* changeState(
-          locked,
-          account,
-          principal,
-          "deactivate",
-          yield* accounts.isLastActiveAdmin(adminList, personId, now)
-        );
-
-        yield* recordAudit(
-          principal,
-          "account.deactivated",
-          "Account",
-          personId
-        );
-
-        return updated;
-      }),
-  }),
-  invite: AccountDomain.handle(invite, {
-    resource: ({ personId }) => personResource(personId, "invite"),
-    run: ({ personId }, principal) =>
-      Effect.gen(function* inviteAccount() {
+      Effect.gen(function* invite() {
         yield* InTransaction;
         const accounts = yield* AccountRepository;
         const outbox = yield* Outbox;
@@ -269,10 +238,41 @@ export const AccountHandlers = AccountRpc.toLayer({
         return account;
       }),
   }),
-  reactivate: AccountDomain.handle(reactivate, {
+  deactivateAccount: AccountDomain.handle(deactivateAccount, {
     resource: ({ personId }) => Effect.succeed({ personId }),
     run: ({ personId }, principal) =>
-      Effect.gen(function* reactivateAccount() {
+      Effect.gen(function* deactivate() {
+        yield* InTransaction;
+        const accounts = yield* AccountRepository;
+        const now = yield* DateTime.now;
+
+        // Whether an Active administrator is left spans every administrator, so the list is locked first, and the
+        // decision reads through its token.
+        const adminList = yield* lockAdminList;
+        const { account, locked } = yield* lockAccount(personId);
+
+        const updated = yield* changeState(
+          locked,
+          account,
+          principal,
+          "deactivateAccount",
+          yield* accounts.isLastActiveAdmin(adminList, personId, now)
+        );
+
+        yield* recordAudit(
+          principal,
+          "account.deactivated",
+          "Account",
+          personId
+        );
+
+        return updated;
+      }),
+  }),
+  reactivateAccount: AccountDomain.handle(reactivateAccount, {
+    resource: ({ personId }) => Effect.succeed({ personId }),
+    run: ({ personId }, principal) =>
+      Effect.gen(function* reactivate() {
         yield* InTransaction;
         yield* lockAdminList;
         const { account, locked } = yield* lockAccount(personId);
@@ -281,7 +281,7 @@ export const AccountHandlers = AccountRpc.toLayer({
           locked,
           account,
           principal,
-          "reactivate",
+          "reactivateAccount",
           false
         );
 
@@ -367,8 +367,8 @@ export const AccountHandlers = AccountRpc.toLayer({
         return yield* Effect.void;
       }),
   }),
-  updateProfile: AccountDomain.handle(updateProfile, {
-    resource: ({ personId }) => personResource(personId, "updateProfile"),
+  updatePerson: AccountDomain.handle(updatePerson, {
+    resource: ({ personId }) => personResource(personId, "updatePerson"),
     run: ({ personId, ...profile }, principal) =>
       Effect.gen(function* updatePersonProfile() {
         yield* InTransaction;
@@ -414,22 +414,22 @@ const runWithCode = Effect.fnUntraced(function* runWithCode<A, E, R>(
 });
 
 export const AccountEndpoints = {
-  activate: Commands.endpoint(activate, (payload) =>
+  activateAccount: Commands.endpoint(activateAccount, (payload) =>
     runWithCode(
       "activation",
       payload.code,
-      "activate",
-      withAccounts((client) => client.activate(payload))
+      "activateAccount",
+      withAccounts((client) => client.activateAccount(payload))
     )
   ),
-  deactivate: Commands.endpoint(deactivate, (payload) =>
-    withAccounts((client) => client.deactivate(payload))
+  createAccount: Commands.endpoint(createAccount, (payload) =>
+    withAccounts((client) => client.createAccount(payload))
   ),
-  invite: Commands.endpoint(invite, (payload) =>
-    withAccounts((client) => client.invite(payload))
+  deactivateAccount: Commands.endpoint(deactivateAccount, (payload) =>
+    withAccounts((client) => client.deactivateAccount(payload))
   ),
-  reactivate: Commands.endpoint(reactivate, (payload) =>
-    withAccounts((client) => client.reactivate(payload))
+  reactivateAccount: Commands.endpoint(reactivateAccount, (payload) =>
+    withAccounts((client) => client.reactivateAccount(payload))
   ),
   requestPasswordReset: Commands.endpoint(requestPasswordReset, (payload) =>
     withAccounts((client) => client.requestPasswordReset(payload))
@@ -442,7 +442,7 @@ export const AccountEndpoints = {
       withAccounts((client) => client.resetPassword(payload))
     )
   ),
-  updateProfile: Commands.endpoint(updateProfile, (payload) =>
-    withAccounts((client) => client.updateProfile(payload))
+  updatePerson: Commands.endpoint(updatePerson, (payload) =>
+    withAccounts((client) => client.updatePerson(payload))
   ),
 };

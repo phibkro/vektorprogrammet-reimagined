@@ -22,11 +22,11 @@ import type { SectionKey } from "../lib/panelSections";
 export const SECTION_COMMANDS: Readonly<
   Record<SectionKey, NonEmptyReadonlyArray<Command>>
 > = {
-  admins: ["grantAdmin", "revokeAdmin"],
+  admins: ["createAdminGrant", "deleteAdminGrant"],
   departments: ["createDepartment", "updateDepartment"],
-  fieldsOfStudy: ["createFieldOfStudy", "renameFieldOfStudy"],
+  fieldsOfStudy: ["createFieldOfStudy", "updateFieldOfStudy"],
   overview: ["openControlPanel"],
-  people: ["viewPeople", "registerPerson"],
+  people: ["viewPeople", "createPerson"],
   semesters: ["openControlPanel"],
   socialEvents: ["createSocialEvent"],
   teams: ["viewTeams", "createTeam"],

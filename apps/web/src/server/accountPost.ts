@@ -63,7 +63,7 @@ const codeCommand = (
 
   return purpose === "activation"
     ? Effect.map(
-        AccountEndpoints.activate(input),
+        AccountEndpoints.activateAccount(input),
         (account): CodeUseResult => ({ personId: account.personId })
       )
     : Effect.as(AccountEndpoints.resetPassword(input), noPerson);

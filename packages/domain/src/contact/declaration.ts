@@ -27,7 +27,9 @@ export const submitContact = Rpc.make("submitContact", {
 }).annotate(
   Info,
   info({
+    method: ":submit",
     replaces: ["RULE-156", "RULE-249"],
+    resource: "SupportTicket",
     summary: "Send a message to a department's contact address.",
   })
 );

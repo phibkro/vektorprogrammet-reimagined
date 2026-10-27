@@ -137,7 +137,7 @@ export const placeMembership = (...args: Parameters<typeof insertMembership>) =>
 
 /**
  * A place on the admin list for the person, in a transaction of its own: the list's lock first, then the person's, as
- * `grantAdmin` takes them.
+ * `createAdminGrant` takes them.
  */
 export const grantPlace = (
   personId: PersonId,
@@ -155,7 +155,7 @@ export const grantPlace = (
   );
 
 /**
- * `AdminGrantRepository.revoke` as `revokeAdmin` calls it, in a transaction of its own: the list's lock first, then
+ * `AdminGrantRepository.revoke` as `deleteAdminGrant` calls it, in a transaction of its own: the list's lock first, then
  * the holder's.
  */
 export const revokePlace = (
