@@ -5,7 +5,7 @@
   "workspaces": {
     "tools/quality": {
       "entry": ["checkEffectExceptions.ts", "syncEffectPolicy.ts"],
-      "project": ["*.ts"]
+      "project": ["*.ts", "test/**/*.ts"]
     },
     "apps/web": {
       "entry": [

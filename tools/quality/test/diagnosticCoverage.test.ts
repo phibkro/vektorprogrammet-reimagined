@@ -1,6 +1,7 @@
 import { effectNative, strict } from "@effect/tsgo/oxlint-presets";
+import { describe, it } from "@effect/vitest";
 import { Array as Arr, Option, Record as Rec } from "effect";
-import { describe, expect, it } from "vite-plus/test";
+import { expect } from "vite-plus/test";
 
 import oxlintSchema from "../../../node_modules/@effect/tsgo/oxlint-schema.json" with { type: "json" };
 import schema from "../../../node_modules/@effect/tsgo/schema.json" with { type: "json" };
