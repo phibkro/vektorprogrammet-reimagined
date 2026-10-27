@@ -7,13 +7,33 @@ import core from "ultracite/oxlint/core";
 import shadcn from "ultracite/oxlint/shadcn";
 import { defineConfig } from "vite-plus";
 
-const tsgoPresets = [strict, effectNative];
+import tsgoSchema from "./node_modules/@effect/tsgo/schema.json" with { type: "json" };
 
 const tsgoRules: Record<string, "error"> = {};
 
-for (const preset of tsgoPresets) {
+for (const preset of [strict, effectNative]) {
   for (const rule of Object.getOwnPropertyNames(preset.rules ?? {})) {
     tsgoRules[rule] = "error";
+  }
+}
+
+const hasKey = <T extends object>(
+  object: T,
+  key: PropertyKey
+): key is keyof T => key in object;
+
+const severities =
+  tsgoSchema.definitions.effectLanguageServicePluginDiagnosticSeverityDefinition
+    .properties;
+
+for (const name of Object.getOwnPropertyNames(severities)) {
+  if (hasKey(severities, name) && severities[name].default !== "off") {
+    const kebab = name.replaceAll(
+      /[A-Z]/gu,
+      (letter) => `-${letter.toLowerCase()}`
+    );
+
+    tsgoRules[`effecttsgo/${kebab}`] = "error";
   }
 }
 
