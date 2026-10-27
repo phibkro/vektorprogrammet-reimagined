@@ -19,7 +19,7 @@ import { semesterWindow } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
 import { FieldOfStudyRepository } from "../organisation/services.ts";
 import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
-import { Conflict, Forbidden, validationFailed } from "../shared/errors.ts";
+import { Conflict, validationFailed } from "../shared/errors.ts";
 import type { MembershipId, TeamId } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import {
@@ -227,7 +227,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           : null;
 
         if (granter === personId) {
-          return yield* new Forbidden({ command: "createAdminGrant" });
+          return yield* TeamsDomain.forbidden("createAdminGrant");
         }
 
         if (!DateTime.isGreaterThan(until, now)) {
@@ -385,7 +385,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           Predicate.isTagged(principal, "Person") &&
           grant.personId === principal.personId
         ) {
-          return yield* new Forbidden({ command: "deleteAdminGrant" });
+          return yield* TeamsDomain.forbidden("deleteAdminGrant");
         }
 
         const holder = yield* locks.lock("Person", grant.personId);

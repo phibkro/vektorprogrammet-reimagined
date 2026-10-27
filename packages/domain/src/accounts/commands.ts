@@ -15,7 +15,7 @@ import { CurrentPrincipal } from "../kernel/principal.ts";
 import type { Principal } from "../kernel/principal.ts";
 import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import type { Locked } from "../shared/aggregate.ts";
-import { Conflict, Forbidden } from "../shared/errors.ts";
+import { Conflict } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
 import { Outbox, OutboxMessage } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
@@ -24,7 +24,7 @@ import {
   PersonRepository,
   TeamRepository,
 } from "../teams/services.ts";
-import { hashCode } from "./code.ts";
+import { codePolicy, hashCode } from "./code.ts";
 import type { CodePurpose, CodeToken } from "./code.ts";
 import { CodeRepository } from "./codeRepository.ts";
 import {
@@ -394,16 +394,20 @@ export const AccountHandlers = AccountRpc.toLayer({
 
 export const withAccounts = Commands.inProcess(AccountRpc, AccountHandlers);
 
+/**
+ * A code opens one command: the command of its purpose (`codePolicy`). When the code opens nothing, that command is the
+ * one refused. It is derived from the purpose, so a call site cannot name another, and `forbidden` takes only names
+ * of the account domain, so a policy that names a command the domain does not have does not compile.
+ */
 const runWithCode = Effect.fnUntraced(function* runWithCode<A, E, R>(
   purpose: CodePurpose,
   token: CodeToken,
-  command: string,
   program: Effect.Effect<A, E, R | CurrentPrincipal>
 ) {
   const principal = yield* codePrincipal(token, purpose);
 
   if (Option.isNone(principal)) {
-    return yield* new Forbidden({ command });
+    return yield* AccountDomain.forbidden(codePolicy[purpose].command);
   }
 
   return yield* Effect.provideService(
@@ -418,7 +422,6 @@ export const AccountEndpoints = {
     runWithCode(
       "activation",
       payload.code,
-      "activateAccount",
       withAccounts((client) => client.activateAccount(payload))
     )
   ),
@@ -438,7 +441,6 @@ export const AccountEndpoints = {
     runWithCode(
       "resetPassword",
       payload.code,
-      "resetPassword",
       withAccounts((client) => client.resetPassword(payload))
     )
   ),

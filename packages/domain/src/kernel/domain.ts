@@ -20,7 +20,7 @@ import type { Rpc, RpcGroup } from "effect/rpc";
 
 import { codePolicy } from "../accounts/code.ts";
 import type { CodePurpose } from "../accounts/code.ts";
-import type { Forbidden } from "../shared/errors.ts";
+import { Forbidden } from "../shared/errors.ts";
 import { PersonId } from "../shared/ids.ts";
 import type { DepartmentId } from "../shared/ids.ts";
 import {
@@ -117,6 +117,13 @@ export interface Domain<
   readonly canAnywhere: CanAnywhere<CommandOf<Rpcs, Reads>>;
   readonly requireGrant: RequireGrant<CommandOf<Rpcs, Reads>>;
   /**
+   * The refusal of one of this domain's own names, for a rule that no grant row can state (a command that is never
+   * allowed on oneself). The name is a command or a read of this domain: a renamed or misspelled one does not compile.
+   * `Forbidden.command` stays a string, as it is on the wire, because the error sits below the declarations that give
+   * the names (and the kernel's own tests declare domains with names of their own).
+   */
+  readonly forbidden: (command: CommandOf<Rpcs, Reads>) => Forbidden;
+  /**
    * A handler for `rpc`: it finds what the command is about (`resource`), asks the grant table about every one of
    * those resources, and only then runs the command. Handlers are built only here, so the authorization step is not
    * the handler author's to forget.
@@ -203,6 +210,7 @@ export const make = <
     canAnywhere: canAnywhereWith(table),
     commands: rpcs,
     declared: declaration.grants,
+    forbidden: (command) => new Forbidden({ command }),
     group: declaration.commands,
     handle,
     machines: declaration.machines ?? [],

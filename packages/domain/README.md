@@ -69,6 +69,8 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 
 A closed set: `NotFound`, `Forbidden`, `AlreadyExists`, `Conflict`, `ValidationFailed` (`DomainError`). A `Conflict` is a transition that could not be applied: the resource is not in a state that the command starts from, or it changed between the read and the conditional update. Infrastructure failures are defects.
 
+`Forbidden.command` is a string, as it is on the wire: the error sits below the declarations that give the names. A command that refuses on its own, for a rule that no grant row can state (never for oneself), builds the refusal with its domain's `forbidden` (`TeamsDomain.forbidden("createAdminGrant")`), whose parameter is the names of that domain's group and reads, so a renamed or misspelled command does not compile (spec 0007c R2). The code endpoints refuse with the command of the code's purpose, `codePolicy[purpose].command`, which the same parameter checks against the account domain.
+
 ## Transaction convention
 
 Commands do not open transactions; atomic commands **require `InTransaction`**, and `packages/db` provides it by wrapping the program in `SqlClient.withTransaction`. `storeUpload` and all queries run outside a transaction. A command that writes a person's own rows takes the person's lock first (`AggregateLocks`, spec 0006b). Details and the full command table: [`src/README.md`](src/README.md).
