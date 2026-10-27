@@ -104,8 +104,8 @@ stateDiagram-v2
   [*] --> Planned : changeMembership (the new membership, starting later)
   [*] --> Active : changeMembership (the new membership, starting now)
   Planned --> [*] : deleteMembership
-  Planned --> Active : the start semester arrives
-  Active --> Ended : the end semester has passed
+  Planned --> Active : not (term.start after current)
+  Active --> Ended : current after term.end
 ```
 
 <!-- docgen:end membership -->

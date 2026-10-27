@@ -52,18 +52,17 @@ export interface Transition<
 /**
  * A change of state that no command makes: time passes (a membership's start semester arrives, its end has passed). It
  * happens in the first semester whose clock satisfies `guard`, a check over the machine's context like a transition's.
- * The condition is required and typed: the formal model (effx spec 0032 R1) can only treat a sentence as a change that
- * may happen at any tick, so `when` is the label of the change in the diagram and nothing more.
+ * The condition is the guard and nothing else. The formal model (effx spec 0032 R1) can only treat a sentence as a
+ * change that may happen at any tick, and a label written beside the guard could say something other than it, so the
+ * label in the diagram is the guard in words (`Guard.describe`) and there is no way to declare another.
  */
 export interface Calculated<State extends string, Context> {
   readonly from: State | Boundary;
   readonly to: State | Boundary;
-  /** Shown on the diagram beside the change; the description of the guard when left out. */
-  readonly when?: string;
   readonly guard: SchemaAST.Check<Context>;
 }
 
-/** A calculated change as the table keeps it: its guard compiled once, as a transition's is. */
+/** A calculated change as the table keeps it: its guard compiled once, as a transition's is, and its label. */
 export interface Calculation<State extends string, Context> extends Calculated<
   State,
   Context
@@ -71,6 +70,7 @@ export interface Calculation<State extends string, Context> extends Calculated<
   /** Whether the change happens, for the context as the clock stands in the semester that is asked about. */
   readonly accepts: (context: Context) => boolean;
   readonly guardRepresentation: Schema.Json;
+  /** The guard in words, as the diagram shows the change. */
   readonly when: string;
 }
 
@@ -186,7 +186,7 @@ export const make = <
   calculated: Arr.map(definition.calculated ?? [], (change) => ({
     ...change,
     ...compiled(definition.context, change.guard),
-    when: change.when ?? Guard.describe(change.guard),
+    when: Guard.describe(change.guard),
   })),
   fields: definition.fields ?? [],
   name: definition.name,

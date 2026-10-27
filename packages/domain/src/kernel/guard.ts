@@ -140,16 +140,95 @@ export const semesters = <Context>(context: Schema.Schema<Context>) => ({
   ): SchemaAST.Filter<Context> => comparison(SAME, { left, right }),
 });
 
-/** A diagram label for a check without a separately declared label. */
-export const describe = (check: SchemaAST.Check<never>): string => {
-  if (check.annotations?.expected !== undefined) {
-    return check.annotations.expected;
+/**
+ * A check as a sentence, and how it joins others: `not (…)` and a single comparison stand alone, `and` and `or` do
+ * not, so a longer sentence wraps them where they would read both ways.
+ */
+interface Sentence {
+  readonly joint: "all" | "any" | "single";
+  readonly text: string;
+}
+
+/** A sentence inside a longer one that joins in the other way, wrapped. */
+const within = (sentence: Sentence, other: Sentence["joint"]): string =>
+  sentence.joint === other ? `(${sentence.text})` : sentence.text;
+
+/** Sentences that all hold: one is itself, several are joined by `and`. */
+const allOf = (sentences: readonly Sentence[]): Sentence => {
+  const [only, ...others] = sentences;
+
+  if (only === undefined) {
+    return { joint: "single", text: "condition" };
   }
 
-  return Predicate.isTagged(check, "FilterGroup")
-    ? Arr.join(Arr.map(check.checks, describe), " and ")
-    : "condition";
+  return Arr.isReadonlyArrayEmpty(others)
+    ? only
+    : {
+        joint: "all",
+        text: Arr.join(
+          Arr.map(sentences, (sentence) => within(sentence, "any")),
+          " and "
+        ),
+      };
 };
+
+/** Sentences of which one holds: one is itself, several are joined by `or`. */
+const anyOf = (sentences: readonly Sentence[]): Sentence => {
+  const [only, ...others] = sentences;
+
+  if (only === undefined) {
+    return { joint: "single", text: "condition" };
+  }
+
+  return Arr.isReadonlyArrayEmpty(others)
+    ? only
+    : {
+        joint: "any",
+        text: Arr.join(
+          Arr.map(sentences, (sentence) => within(sentence, "all")),
+          " or "
+        ),
+      };
+};
+
+const sentenceOf = (check: SchemaAST.Check<never>): Sentence => {
+  const expected = check.annotations?.expected;
+
+  if (Predicate.isTagged(check, "FilterGroup")) {
+    return expected === undefined
+      ? allOf(Arr.map(check.checks, sentenceOf))
+      : { joint: "single", text: expected };
+  }
+
+  const representation = check.annotations?.representation;
+
+  // the checks of an operand hold together, as the checks of a schema do
+  const operands = Arr.map(representation?.schemas ?? [], (ast) =>
+    allOf(Arr.map(ast.checks ?? [], sentenceOf))
+  );
+
+  const [only, ...others] = operands;
+
+  if (
+    representation?.id === NOT &&
+    only !== undefined &&
+    Arr.isReadonlyArrayEmpty(others)
+  ) {
+    return { joint: "single", text: `not (${only.text})` };
+  }
+
+  return representation?.id === OR && only !== undefined
+    ? anyOf(operands)
+    : { joint: "single", text: expected ?? "condition" };
+};
+
+/**
+ * A diagram label for a check without a separately declared label. It is the check, said in words, down to its
+ * operands: `not (term.start after current)`, `a or b`, `(a and b) or c`. The label of a change that time makes is
+ * always this, so that it cannot say something other than its guard.
+ */
+export const describe = (check: SchemaAST.Check<never>): string =>
+  sentenceOf(check).text;
 
 /** Revivers of the closed check vocabulary, including Effect's checks on semester years. */
 export const revivers = [
