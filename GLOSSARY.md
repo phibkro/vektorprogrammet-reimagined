@@ -114,7 +114,7 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Motion vote** (avstemning): A democratic decision on a proposal, using yes/no/abstain ballots and a declared threshold.
 
-**Certification** (godkjenning): The decision by the authorised chair or election committee that confirms an election result and grants its elected roles.
+**Certification** (godkjenning): The passed decision that confirms an election result and is the recorded origin of elected role assignments. The election type declares the certifier subject set; `System(elections)` creates the role assignments at term start. When all certifiers are candidates, authority falls to the parent unit's committee and then Admin at the root.
 
 **Ballot type** (stemmeseddeltype): The form of one ballot: yes/no/abstain, single choice, approval, ranked, or score/grade.
 
@@ -122,7 +122,7 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Win condition** (vinnerregel): The condition that makes a candidate or motion win, applied to an aggregation result.
 
-**Tie-break chain** (rekkefølge for omvalg): An ordered set of rules applied until one decides a tie, such as runoff, committee, then lot.
+**Tie-break chain** (avgjørelseskjede): Zero or more non-deciding rules followed by one terminal rule that always decides. The election default is runoff, committee, then lot; aggregation-specific tie rules run first.
 
 **Denominator** (nevner): The declared basis for a threshold: valid ballots, all ballots cast, checked-in attendees, or the whole electorate.
 
