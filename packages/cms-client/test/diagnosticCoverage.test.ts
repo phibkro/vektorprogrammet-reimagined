@@ -1,14 +1,15 @@
 import { effectNative, strict } from "@effect/tsgo/oxlint-presets";
+import { Array as Arr, Option, Record as Rec } from "effect";
 import { describe, expect, it } from "vite-plus/test";
 
+import oxlintSchema from "../../../node_modules/@effect/tsgo/oxlint-schema.json" with { type: "json" };
 import schema from "../../../node_modules/@effect/tsgo/schema.json" with { type: "json" };
 import config from "../../../tsconfig.json" with { type: "json" };
 import { tsgoRules } from "../../../vite.config.ts";
 
-const hasKey = <T extends object>(
-  object: T,
-  key: PropertyKey
-): key is keyof T => key in object;
+const available = Object.getOwnPropertyNames(
+  oxlintSchema.definitions.DummyRuleMap.properties
+);
 
 const defaults =
   schema.definitions.effectLanguageServicePluginDiagnosticSeverityDefinition
@@ -16,26 +17,27 @@ const defaults =
 
 const editor = config.compilerOptions.plugins.at(0)?.diagnosticSeverity ?? {};
 
-const checkRule = (name: string) => {
-  if (!hasKey(defaults, name)) {
-    return;
-  }
+const checkRule = (name: string, severity: string) => {
+  const match = Arr.findFirst(
+    available,
+    (key) =>
+      key.startsWith("effecttsgo/") &&
+      key.slice(11).replaceAll("-", "") === name.toLowerCase()
+  );
 
-  const kebab = name
-    .replaceAll(/(?<left>[A-Z]+)(?<right>[A-Z][a-z])/gu, "$<left>-$<right>")
-    .replaceAll(/(?<left>[a-z0-9])(?<right>[A-Z])/gu, "$<left>-$<right>")
-    .toLowerCase();
-
-  const rule = `effecttsgo/${kebab}`;
+  const rule = Option.getOrThrow(match);
 
   const selected =
-    defaults[name].default !== "off" ||
+    severity !== "off" ||
     rule in (strict.rules ?? {}) ||
     rule in (effectNative.rules ?? {});
 
   const expected = selected ? "error" : undefined;
 
-  const editorSeverity = hasKey(editor, name) ? editor[name] : undefined;
+  const editorSeverity: unknown = Object.getOwnPropertyDescriptor(
+    editor,
+    name
+  )?.value;
 
   expect(tsgoRules[rule], rule).toBe(expected);
   expect(editorSeverity, name).toBe(expected);
@@ -43,8 +45,8 @@ const checkRule = (name: string) => {
 
 describe("Effect diagnostic coverage", () => {
   it("sets every default-on rule and selected preset rule to error", () => {
-    for (const name of Object.getOwnPropertyNames(defaults)) {
-      checkRule(name);
+    for (const [name, definition] of Rec.toEntries(defaults)) {
+      checkRule(name, definition.default);
     }
   });
 });
