@@ -8,22 +8,6 @@
     ]
   },
   {
-    "_tag": "ProseGuard",
-    "domain": "teams",
-    "from": "Planned",
-    "machine": "Membership",
-    "to": "Active",
-    "when": "the start semester arrives"
-  },
-  {
-    "_tag": "ProseGuard",
-    "domain": "teams",
-    "from": "Active",
-    "machine": "Membership",
-    "to": "Ended",
-    "when": "the end semester has passed"
-  },
-  {
     "_tag": "UndeclaredWrites",
     "commands": [
       "createMembership",
@@ -65,24 +49,24 @@
   },
   {
     "_tag": "UnexpressibleGuard",
-    "command": "deactivateAccount",
     "domain": "accounts",
     "id": "vektorprogrammet/account/different-person",
-    "machine": "Account"
+    "machine": "Account",
+    "transition": "deactivateAccount"
   },
   {
     "_tag": "UnexpressibleGuard",
-    "command": "deactivateAccount",
     "domain": "accounts",
     "id": "vektorprogrammet/account/not-last-active-admin",
-    "machine": "Account"
+    "machine": "Account",
+    "transition": "deactivateAccount"
   },
   {
     "_tag": "UnexpressibleGuard",
-    "command": "reactivateAccount",
     "domain": "accounts",
     "id": "vektorprogrammet/account/different-person",
-    "machine": "Account"
+    "machine": "Account",
+    "transition": "reactivateAccount"
   },
   {
     "_tag": "MachineDropped",

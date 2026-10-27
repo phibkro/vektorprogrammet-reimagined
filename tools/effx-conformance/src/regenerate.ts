@@ -22,9 +22,12 @@ import {
   Pin,
   Provenance,
   descriptionFile,
+  differences,
   directory,
   gapsFile,
+  generator,
   gzip,
+  inCheckout,
   pinFile,
   provenanceFile,
   readJson,
@@ -32,6 +35,7 @@ import {
   utf8,
   vectorsFile,
 } from "./artefacts.ts";
+import type { PinFile } from "./artefacts.ts";
 import { derive } from "./generate.ts";
 import { Vectors, countRows } from "./vectors.ts";
 
@@ -107,23 +111,8 @@ const assertionsOf = (domain: string, output: string) =>
     ];
   });
 
-const config = `import { defineConfig } from "@effx/cli/config";
-import { domainModel } from "@effx/domain-model";
-import description from "./description.json" with { type: "json" };
-
-export default defineConfig({
-  models: { alloy: true },
-  extensions: [domainModel(description as never)],
-});
-`;
-
-export const regenerate = Effect.fn("regenerate")(function* regenerate() {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const pin = yield* readJson(Pin, pinFile);
-  const effx = yield* Config.String("EFFX_DIR");
-
-  // The checkout is the pinned commit, with no change to a tracked file.
+/** The commit of a checkout of effx. A change to a tracked file would make vectors that no commit makes, so it fails. */
+const cleanHead = Effect.fn("cleanHead")(function* cleanHead(effx: string) {
   const head = (yield* run(
     "git",
     ["-C", effx, "rev-parse", "HEAD"],
@@ -136,11 +125,22 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
     "."
   )).trim();
 
-  if (head !== pin.commit || changed !== "") {
+  if (changed !== "") {
     return yield* new ArtefactFailed({
-      message: `EFFX_DIR must be a clean checkout of ${pin.repository} at ${pin.commit} (HEAD ${head}${changed === "" ? "" : ", with local changes"})`,
+      message: `EFFX_DIR (${head}) has local changes: it must be a clean checkout`,
     });
   }
+
+  return head;
+});
+
+/**
+ * What effx makes from the kernel's descriptions, on the pinned Alloy: its vectors and assertion results for each
+ * domain, in the way that `generator` says. `effx` is a clean, installed checkout, at any commit. Nothing is written.
+ */
+const make = Effect.fn("make")(function* make(effx: string, pin: PinFile) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
 
   const nix = (...args: readonly string[]) => [
     "shell",
@@ -183,36 +183,36 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
         const project = path.join(root, domain);
         yield* fs.makeDirectory(project, { recursive: true });
         yield* fs.writeFileString(path.join(project, "description.json"), text);
-        yield* fs.writeFileString(
-          path.join(project, "entry.ts"),
-          "export const fixture = true;\n"
+
+        yield* Effect.forEach(
+          Rec.toEntries(generator.project),
+          ([name, content]) =>
+            fs.writeFileString(
+              path.join(project, name),
+              inCheckout(content, effx)
+            ),
+          { discard: true }
         );
-        yield* fs.writeFileString(
-          path.join(project, "tsconfig.json"),
-          `{ "extends": "${path.join(effx, "tsconfig.json")}", "include": ["entry.ts"], "exclude": [] }\n`
-        );
-        yield* fs.writeFileString(path.join(project, "effx.config.ts"), config);
-        yield* fs.writeFileString(
-          path.join(project, "package.json"),
-          '{ "type": "module" }\n'
-        );
+
         // effx analyses the project and resolves `effect` from it: the checkout's own dependencies are the project's.
-        yield* fs.symlink(
-          path.join(effx, "node_modules"),
-          path.join(project, "node_modules")
+        yield* Effect.forEach(
+          Rec.toEntries(generator.links),
+          ([name, target]) =>
+            fs.symlink(inCheckout(target, effx), path.join(project, name)),
+          { discard: true }
         );
 
-        const cli = (...args: readonly string[]) =>
-          run(
-            "nix",
-            nix("bun", path.join(effx, "scripts", "effx.ts"), ...args),
-            project
-          );
+        const outputs = yield* Effect.forEach(generator.commands, (argv) =>
+          Effect.gen(function* command() {
+            yield* Console.log(`${domain}: ${Arr.join(argv, " ")}`);
 
-        yield* Console.log(`${domain}: effx build`);
-        yield* cli("build");
-        yield* Console.log(`${domain}: effx models check`);
-        const output = yield* cli("models", "check");
+            const [program = "", ...args] = Arr.map(argv, (part) =>
+              inCheckout(part, effx)
+            );
+
+            return yield* run(program, args, project);
+          })
+        );
 
         const bytes = yield* fs.readFile(
           path.join(
@@ -228,7 +228,7 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
           Schema.fromJsonString(Vectors)
         )(new TextDecoder().decode(bytes));
 
-        const assertions = assertionsOf(domain, output);
+        const assertions = assertionsOf(domain, Arr.join(outputs, "\n"));
 
         if (Arr.isReadonlyArrayEmpty(assertions)) {
           return yield* new ArtefactFailed({
@@ -249,7 +249,11 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
               vectors,
               Arr.map(
                 description.machines,
-                ({ name, states, transitions }) => ({
+                ({ calculated, name, states, transitions }) => ({
+                  calculated: calculated.length,
+                  commands: Arr.dedupe(
+                    Arr.map(transitions, ({ command }) => command)
+                  ).length,
                   name,
                   states: states.length,
                   transitions: transitions.length,
@@ -266,14 +270,38 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
       })
   );
 
+  return {
+    alloy: { executable, version: alloyVersion },
+    derived,
+    made,
+    nixpkgs,
+  };
+});
+
+export const regenerate = Effect.fn("regenerate")(function* regenerate() {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const pin = yield* readJson(Pin, pinFile);
+  const effx = yield* Config.String("EFFX_DIR");
+  const head = yield* cleanHead(effx);
+
+  if (head !== pin.commit) {
+    return yield* new ArtefactFailed({
+      message: `EFFX_DIR must be a checkout of ${pin.repository} at ${pin.commit} (HEAD ${head})`,
+    });
+  }
+
+  const { alloy, derived, made, nixpkgs } = yield* make(effx, pin);
+
   const provenance = yield* Schema.encodeEffect(
     Schema.fromJsonString(Provenance, { space: 2 })
   )({
-    alloy: { executable, version: alloyVersion },
+    alloy,
     domains: Rec.fromEntries(
       Arr.map(made, ({ domain, provenance: found }) => [domain, found])
     ),
     effx: { commit: pin.commit, nixpkgs, repository: pin.repository },
+    generator,
   });
 
   // Everything is made; now the committed files change, together.
@@ -315,4 +343,44 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
       ", "
     )} with effx ${pin.commit}`
   );
+}, Effect.scoped);
+
+/**
+ * Spec 0007d, gate G2: does effx, at the commit that `EFFX_DIR` holds (CI gives it effx's `main`), still make the
+ * vectors that are committed? Nothing is written. It fails, naming the first line that differs in each domain, when the
+ * vectors, the assertion results or any other fact of the provenance differ; the remedy is the pin and a regeneration.
+ */
+export const drift = Effect.fn("drift")(function* drift() {
+  const pin = yield* readJson(Pin, pinFile);
+  const committed = yield* readJson(Provenance, provenanceFile);
+  const effx = yield* Config.String("EFFX_DIR");
+  const head = yield* cleanHead(effx);
+  const { made } = yield* make(effx, pin);
+
+  const found = yield* differences(
+    committed.domains,
+    Rec.fromEntries(
+      Arr.map(made, ({ domain, provenance }) => [domain, provenance])
+    )
+  );
+
+  const where =
+    head === pin.commit
+      ? `effx at the pin ${pin.commit}`
+      : `effx ${head}, which is past the pin ${pin.commit},`;
+
+  if (Arr.isReadonlyArrayEmpty(found)) {
+    return yield* Console.log(
+      `${where} makes the committed vectors of ${Arr.join(Rec.keys(committed.domains), ", ")}`
+    );
+  }
+
+  yield* Console.error(Arr.join(found, "\n"));
+
+  return yield* new ArtefactFailed({
+    message:
+      head === pin.commit
+        ? `${where} no longer makes the committed vectors (above): run description:regenerate and read the diff`
+        : `${where} makes other vectors than the committed ones (above): to follow effx, set the commit of effx.pin.json to ${head}, run description:regenerate with EFFX_DIR at it, and commit the files`,
+  });
 }, Effect.scoped);

@@ -170,6 +170,45 @@ const can = (
   requested: Semester
 ) => Machine.can(MembershipMachine, command, state, momentOf(state, requested));
 
+/**
+ * The terms and semesters of a window at which the calculated changes do not lead from the state that `term.ts`
+ * calculates to the state that it calculates one semester later. The clock one tick on is what a calculated guard is
+ * asked about (effx spec 0032 R1); `requested` is read by none of them.
+ */
+const timeAgainstTerm = (calculated: typeof MembershipMachine.calculated) => {
+  const window: readonly Semester[] = Arr.take(SEMESTERS, 12);
+
+  const pairs = Arr.flatMap(window, (start: Semester) =>
+    Arr.flatMap(
+      Arr.filter(window, (end: Semester) => !isBeforeSemester(end, start)),
+      (end: Semester) =>
+        Arr.map(window, (current: Semester) => ({ current, end, start }))
+    )
+  );
+
+  const wrong = Arr.flatMap(pairs, ({ current, end, start }) => {
+    const term = { end, start };
+    const next = advanceSemester(current, 1);
+    const before = membershipState(term, current);
+    const moment = { current: next, requested: next, term };
+
+    const changes = Arr.filter(
+      calculated,
+      (change) => change.from === before && change.accepts(moment)
+    );
+
+    const reached = changes[0]?.to ?? before;
+
+    return changes.length <= 1 && reached === membershipState(term, next)
+      ? []
+      : [
+          `${before} at ${semesterOrdinal(current)}, term ${semesterOrdinal(start)} to ${semesterOrdinal(end)}`,
+        ];
+  });
+
+  return { compared: pairs.length, wrong };
+};
+
 describe("the Membership machine (ADR 0007)", () => {
   it("states are Planned, Active and Ended; the changes that time makes are declared", () => {
     assert.deepStrictEqual(Arr.sort(MembershipMachine.states, Order.String), [
@@ -181,6 +220,32 @@ describe("the Membership machine (ADR 0007)", () => {
       Arr.map(MembershipMachine.calculated, ({ from, to }) => `${from}→${to}`),
       ["Planned→Active", "Active→Ended"]
     );
+  });
+
+  it("the changes that time makes are exactly how the state of term.ts moves in one semester, for every term and semester of a window", () => {
+    const found = timeAgainstTerm(MembershipMachine.calculated);
+
+    assert.deepStrictEqual(found.wrong, []);
+    // every pair of a start and an end that is not before it (78 of 12 semesters), against each of the 12 currents
+    assert.strictEqual(found.compared, 78 * 12);
+  });
+
+  it("negative control: an end that never arrives, or a start that always has, is not how term.ts moves", () => {
+    const [start, end] = MembershipMachine.calculated;
+
+    assert.isDefined(start);
+    assert.isDefined(end);
+
+    const neverEnds = Arr.map(MembershipMachine.calculated, (change) =>
+      change === end ? { ...change, accepts: () => false } : change
+    );
+
+    const alwaysStarted = Arr.map(MembershipMachine.calculated, (change) =>
+      change === start ? { ...change, accepts: () => true } : change
+    );
+
+    assert.isAbove(timeAgainstTerm(neverEnds).wrong.length, 0);
+    assert.isAbove(timeAgainstTerm(alwaysStarted).wrong.length, 0);
   });
 
   it("extendMembership: only an Active membership, and only to a later end", () => {

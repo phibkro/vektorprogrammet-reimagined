@@ -9,6 +9,8 @@ import {
   Crypto,
   Effect,
   FileSystem,
+  Option,
+  Record as Rec,
   Schema,
   Stream,
 } from "effect";
@@ -36,6 +38,66 @@ export const Pin = Schema.Struct({
 
 export type PinFile = typeof Pin.Type;
 
+/**
+ * How effx is asked for the vectors of one domain, as data: the files of the scratch project that effx analyses
+ * (`description.json`, the domain's committed description, is one more), what is linked into it, and the commands that
+ * run in it. `<effx>` is the checkout of effx at the pinned commit. `regenerate` builds the project from this and the
+ * provenance records it, so how the vectors were made can be read and replayed from the committed files, and changing it
+ * fails a test until the vectors are made again.
+ */
+const Generator = Schema.Struct({
+  commands: Schema.Array(Schema.Array(Schema.String)),
+  links: Schema.Record(Schema.String, Schema.String),
+  project: Schema.Record(Schema.String, Schema.String),
+});
+
+type GeneratorFile = typeof Generator.Type;
+
+/** The one way that the vectors are made. The assertion results are read from what its commands print. */
+export const generator: GeneratorFile = {
+  commands: [
+    [
+      "nix",
+      "shell",
+      "<effx>#alloy6",
+      "-c",
+      "bun",
+      "<effx>/scripts/effx.ts",
+      "build",
+    ],
+    [
+      "nix",
+      "shell",
+      "<effx>#alloy6",
+      "-c",
+      "bun",
+      "<effx>/scripts/effx.ts",
+      "models",
+      "check",
+    ],
+  ],
+  links: { node_modules: "<effx>/node_modules" },
+  project: {
+    "effx.config.ts": `import { defineConfig } from "@effx/cli/config";
+import { domainModel } from "@effx/domain-model";
+import description from "./description.json" with { type: "json" };
+
+export default defineConfig({
+  models: { alloy: true },
+  extensions: [domainModel(description as never)],
+});
+`,
+    "entry.ts": "export const fixture = true;\n",
+    "package.json": '{ "type": "module" }\n',
+    "tsconfig.json":
+      '{ "extends": "<effx>/tsconfig.json", "include": ["entry.ts"], "exclude": [] }\n',
+  },
+};
+
+/** A recorded path or argument, with the checkout of effx put where `<effx>` stands. */
+export const inCheckout = (text: string, effx: string): string =>
+  text.replaceAll("<effx>", effx);
+
 const Assertion = Schema.Struct({
   name: Schema.String,
   result: Schema.Literals(["PASS", "NOT APPLICABLE"]),
@@ -49,6 +111,7 @@ const DomainProvenance = Schema.Struct({
   orderedAtoms: Schema.Int,
   rows: Schema.Struct({
     authorization: Schema.Int,
+    commands: Schema.Int,
     transitions: Schema.Int,
   }),
   scope: Schema.Int,
@@ -66,9 +129,13 @@ export const Provenance = Schema.Struct({
     nixpkgs: Schema.String,
     repository: Schema.String,
   }),
+  generator: Generator,
 });
 
 export type ProvenanceFile = typeof Provenance.Type;
+
+/** The provenance of one domain: what `regenerate` records and `drift` compares. */
+export type DomainProvenanceFile = typeof DomainProvenance.Type;
 
 // oxlint-disable unicorn/throw-new-error -- EX-0030: this is a Schema.TaggedError declaration, not a throw.
 export class ArtefactFailed extends Schema.TaggedError<
@@ -122,4 +189,70 @@ export const readJson = Effect.fn("readJson")(function* readJson<
   const text = yield* fs.readFileString(file);
 
   return yield* Schema.decodeEffect(Schema.fromJsonString(schema))(text);
+});
+
+/** The first line at which two texts differ, and what each text has there (`undefined` past its end). */
+export const firstDifference = (
+  have: string,
+  want: string
+): Option.Option<{
+  readonly have: string | undefined;
+  readonly line: number;
+  readonly want: string | undefined;
+}> => {
+  const had = have.split("\n");
+  const wanted = want.split("\n");
+
+  return Option.map(
+    Arr.findFirst(
+      Arr.range(0, Math.max(had.length, wanted.length) - 1),
+      (index) => had[index] !== wanted[index]
+    ),
+    (index) => ({ have: had[index], line: index + 1, want: wanted[index] })
+  );
+};
+
+/**
+ * What differs between the provenance of vectors that were made now and the committed one, a line for each domain that
+ * is missing, is new, or differs: the first line at which its entry, as it is committed, differs. Empty when effx made
+ * what is committed.
+ */
+export const differences = Effect.fn("differences")(function* differences(
+  committed: Readonly<Record<string, DomainProvenanceFile>>,
+  made: Readonly<Record<string, DomainProvenanceFile>>
+) {
+  const encode = Schema.encodeEffect(
+    Schema.fromJsonString(DomainProvenance, { space: 2 })
+  );
+
+  const found = yield* Effect.forEach(
+    Arr.dedupe([...Rec.keys(committed), ...Rec.keys(made)]),
+    (domain) =>
+      Effect.gen(function* one() {
+        const had = committed[domain];
+        const got = made[domain];
+
+        if (had === undefined) {
+          return [
+            `${domain}: effx made vectors for a domain with none committed`,
+          ];
+        }
+
+        if (got === undefined) {
+          return [`${domain}: effx made no vectors for a committed domain`];
+        }
+
+        return Option.match(
+          firstDifference(yield* encode(had), yield* encode(got)),
+          {
+            onNone: () => [],
+            onSome: (line) => [
+              `${domain}: line ${line.line} of its committed provenance is ${JSON.stringify(line.have)}, effx made ${JSON.stringify(line.want)}`,
+            ],
+          }
+        );
+      })
+  );
+
+  return Arr.flatten(found);
 });

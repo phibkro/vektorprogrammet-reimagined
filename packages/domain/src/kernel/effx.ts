@@ -57,6 +57,12 @@ export interface GrantRow {
   readonly subject: string;
 }
 
+/** A guard as effx reads it: the check, and the machine context that it is a check over. */
+export interface EffxGuard {
+  readonly context: string;
+  readonly representation: Json;
+}
+
 /**
  * The optional members of the description are `undefined` when they are absent, and a literal that names them keeps the
  * alphabetical order of its keys: `JSON.stringify` leaves out what is `undefined`, so the committed text is the same
@@ -65,9 +71,7 @@ export interface GrantRow {
 export interface EffxTransition {
   readonly command: string;
   readonly from: readonly string[];
-  readonly guard?:
-    | { readonly context: string; readonly representation: Json }
-    | undefined;
+  readonly guard?: EffxGuard | undefined;
   readonly to: string;
 }
 
@@ -75,6 +79,7 @@ export interface EffxMachine {
   readonly calculated: readonly {
     readonly from: string;
     readonly to: string;
+    readonly when: EffxGuard;
   }[];
   readonly context: {
     readonly clockPath?: readonly string[] | undefined;
@@ -152,26 +157,18 @@ export const Gap = Schema.TaggedUnion({
   NoDescription: { domain: Schema.String, reason: Schema.String },
   /** A kernel declaration that the description has no field for. */
   NoField: { field: Schema.String, values: Names },
-  /** A calculated transition whose condition is a sentence: effx models it as nondeterministic. */
-  ProseGuard: {
-    domain: Schema.String,
-    from: Schema.String,
-    machine: Schema.String,
-    to: Schema.String,
-    when: Schema.String,
-  },
   /** Commands that change stored fields of a machine, with no declaration of which: effx keeps the fields fixed. */
   UndeclaredWrites: {
     commands: Names,
     domain: Schema.String,
     machine: Schema.String,
   },
-  /** A guard check outside the closed vocabulary that effx knows. */
+  /** A guard check outside the closed vocabulary that effx knows. `transition` is a command, or `from → to` of a change that time makes. */
   UnexpressibleGuard: {
-    command: Schema.String,
     domain: Schema.String,
     id: Schema.String,
     machine: Schema.String,
+    transition: Schema.String,
   },
   /** A subject set that effx has no expression for, and the commands and reads whose rows it is in (they leave). */
   UnexpressibleSubject: {
@@ -182,6 +179,117 @@ export const Gap = Schema.TaggedUnion({
 });
 
 export type Gap = typeof Gap.Type;
+
+/** Who can remove a kind of gap, or a part of one, and what they change. */
+export interface Closure {
+  /** The kernel's own declarations, or effx: an issue on `phibkro/effx` or a spec of its own. */
+  readonly by: "effx" | "kernel";
+  readonly change: string;
+}
+
+interface DropReason {
+  readonly closure: Closure;
+  /** The words that `MachineDropped` says it in; a reason that names the commands that left takes them, joined. */
+  readonly say: string | ((commands: string) => string);
+}
+
+/**
+ * The ways in which a machine cannot be given to effx whole, each with the words that `MachineDropped` says it in and
+ * the party that removes it. `MachineDropped` has no closure of its own: it is closed by whoever closes each of its
+ * reasons, and they are not all effx's (the kernel closes a semester that its guards read and `fields` does not
+ * declare). The words and the party are one record, so a reason without a party does not compile.
+ */
+const dropReasons = {
+  lostCommand: {
+    closure: {
+      by: "effx",
+      change:
+        "an `Anonymous` subject and a credential subject, for a command that left with its subject (effx issue 9)",
+    },
+    say: (commands: string) =>
+      `a transition applies ${commands}, which effx cannot be given`,
+  },
+  undeclaredSemester: {
+    closure: {
+      by: "kernel",
+      change:
+        "the machine declares each semester that its guards read, in `fields`",
+    },
+    say: "a guard reads a semester that the machine does not declare",
+  },
+  unknownCheck: {
+    closure: {
+      by: "effx",
+      change:
+        "guard operands that are ids and flags, with comparisons over them (effx issue 9)",
+    },
+    say: "a guard uses a check that effx does not know",
+  },
+} satisfies Readonly<Record<string, DropReason>>;
+
+/**
+ * What closes each kind of gap, as the steps of whoever closes it (a kind that two parties close has a step for each).
+ * The type is a record over the kinds, so a kind that nobody has said how to close does not compile. This repository
+ * never edits effx: a closure by effx is an issue there, and spec 0007d says where each stands.
+ */
+export const closures: Readonly<Record<Gap["_tag"], readonly Closure[]>> = {
+  AdminExpiry: [
+    {
+      by: "effx",
+      change:
+        "state that a place ends when a stored field of the place, of an order of its own, is reached by the clock (effx issue 10)",
+    },
+  ],
+  AdminListUnclear: [
+    {
+      by: "kernel",
+      change:
+        "the domain declares one command that grants a place and one that revokes it, or neither",
+    },
+  ],
+  MachineDropped: Arr.map(Rec.values(dropReasons), ({ closure }) => closure),
+  MissingDeclaration: [
+    {
+      by: "kernel",
+      change:
+        "the machine declares each semester that its guards read, in `fields`",
+    },
+  ],
+  NoDescription: [
+    {
+      by: "effx",
+      change:
+        "close the gaps that left nothing to say: for `contact`, the `Anyone` subject (effx issue 9)",
+    },
+  ],
+  NoField: [
+    {
+      by: "effx",
+      change:
+        "a field of the description for the aggregate roots, with entities and relationships (the entity slice of effx spec 0031)",
+    },
+  ],
+  UndeclaredWrites: [
+    {
+      by: "kernel",
+      change:
+        "each command declares the stored fields that it writes (`writes`, effx spec 0032 §2); effx lets its model choose any value of a written field until its slice of detailed command effects",
+    },
+  ],
+  UnexpressibleGuard: [
+    {
+      by: "effx",
+      change:
+        "guard operands that are ids and flags, with comparisons over them (effx issue 9)",
+    },
+  ],
+  UnexpressibleSubject: [
+    {
+      by: "effx",
+      change: "an `Anonymous` subject and a credential subject (effx issue 9)",
+    },
+  ],
+};
 
 /** What the kernel declares once for every domain and the description has no field for. */
 export const kernelGaps: readonly Gap[] = [
@@ -469,24 +577,22 @@ const translate = (check: KernelCheck): Translated => {
     : unknownCheck(id);
 };
 
-/** A transition's guard, translated. A guard that cannot be read is a guard that cannot be translated. */
+/** A guard's representation in effx's words. One that cannot be read is a guard that cannot be translated. */
+const translateRepresentation = (representation: Json): Translated =>
+  Option.match(Schema.decodeUnknownOption(KernelGuard)(representation), {
+    onNone: () => unknownCheck("an unreadable guard"),
+    onSome: ({ representation: context }) =>
+      together(Arr.map(context.checks, translate)),
+  });
+
+/** A transition's guard, translated: none when the transition has none. */
 const translateGuard = (
   transition: MachineDescription["transitions"][number]
 ): Option.Option<Translated> =>
-  transition.guardRepresentation === undefined
-    ? Option.none()
-    : Option.some(
-        Option.match(
-          Schema.decodeUnknownOption(KernelGuard)(
-            transition.guardRepresentation
-          ),
-          {
-            onNone: () => unknownCheck("an unreadable guard"),
-            onSome: ({ representation }) =>
-              together(Arr.map(representation.checks, translate)),
-          }
-        )
-      );
+  Option.map(
+    Option.fromNullishOr(transition.guardRepresentation),
+    translateRepresentation
+  );
 
 // ---------------------------------------------------------------- machines
 
@@ -503,9 +609,10 @@ const appliedBy = (declaration: Declaration, machine: string) =>
       : []
   );
 
+/** A transition that is to be given to effx, by its command or, when time makes it, by `Planned → Active`. */
 interface TranslatedTransition {
-  readonly command: string;
   readonly guard: Option.Option<Translated>;
+  readonly transition: string;
 }
 
 /** Why a machine cannot be given whole, in the order that a reader would fix it, with the gaps that say so. */
@@ -518,7 +625,7 @@ const blockers = (
   const domain = declaration.name;
   const guards = Arr.flatMap(translated, ({ guard }) => Option.toArray(guard));
 
-  const unknown = Arr.flatMap(translated, ({ command, guard }) =>
+  const unknown = Arr.flatMap(translated, ({ guard, transition }) =>
     Arr.map(
       Option.match(guard, {
         onNone: () => [],
@@ -526,10 +633,10 @@ const blockers = (
       }),
       (id) =>
         Gap.cases.UnexpressibleGuard.make({
-          command,
           domain,
           id,
           machine: machine.name,
+          transition,
         })
     )
   );
@@ -556,15 +663,13 @@ const blockers = (
   const reasons = [
     ...(Arr.isReadonlyArrayEmpty(unknown)
       ? []
-      : ["a guard uses a check that effx does not know"]),
+      : [dropReasons.unknownCheck.say]),
     ...(Arr.isReadonlyArrayEmpty(undeclared)
       ? []
-      : ["a guard reads a semester that the machine does not declare"]),
+      : [dropReasons.undeclaredSemester.say]),
     ...(Arr.isReadonlyArrayEmpty(lostCommands)
       ? []
-      : [
-          `a transition applies ${Arr.join(lostCommands, ", ")}, which effx cannot be given`,
-        ]),
+      : [dropReasons.lostCommand.say(Arr.join(lostCommands, ", "))]),
   ];
 
   const gaps = [
@@ -586,6 +691,11 @@ const blockers = (
   return { gaps, reasons };
 };
 
+const exportGuard = (guard: Translated, context: string): EffxGuard => ({
+  context,
+  representation: guard.json,
+});
+
 /** A transition in effx's words: the guard is there when the kernel's has been translated. */
 const exportTransition = (
   transition: MachineDescription["transitions"][number],
@@ -595,10 +705,7 @@ const exportTransition = (
   command: transition.command,
   from: transition.from,
   guard: Option.getOrUndefined(
-    Option.map(guard, ({ json }) => ({
-      context: contextName,
-      representation: json,
-    }))
+    Option.map(guard, (found) => exportGuard(found, contextName))
   ),
   to: transition.to,
 });
@@ -617,11 +724,23 @@ const exportMachine = (
   const contextName = `${machine.name}Context`;
 
   const translated = Arr.map(machine.transitions, (transition) => ({
-    command: transition.command,
     guard: translateGuard(transition),
+    transition: transition.command,
   }));
 
-  const { gaps, reasons } = blockers(declaration, machine, kept, translated);
+  const changes = Arr.map(machine.calculated, (change) => ({
+    from: change.from,
+    guard: translateRepresentation(change.guardRepresentation),
+    to: change.to,
+  }));
+
+  const { gaps, reasons } = blockers(declaration, machine, kept, [
+    ...translated,
+    ...Arr.map(changes, ({ from, guard, to }) => ({
+      guard: Option.some(guard),
+      transition: `${from} → ${to}`,
+    })),
+  ]);
 
   if (!Arr.isReadonlyArrayEmpty(reasons)) {
     return { gaps, machine: Option.none() };
@@ -634,7 +753,11 @@ const exportMachine = (
   );
 
   const exported: EffxMachine = {
-    calculated: Arr.map(machine.calculated, ({ from, to }) => ({ from, to })),
+    calculated: Arr.map(changes, ({ from, guard, to }) => ({
+      from,
+      to,
+      when: exportGuard(guard, contextName),
+    })),
     context: {
       clockPath: Option.getOrUndefined(Option.map(clock, ({ path }) => path)),
       fields: Arr.map(machine.fields, ({ kind, path }) => ({
@@ -659,17 +782,8 @@ const exportMachine = (
   const stored = Arr.some(machine.fields, ({ kind }) => kind === "stored");
 
   return {
-    gaps: [
-      ...Arr.map(machine.calculated, ({ from, to, when }) =>
-        Gap.cases.ProseGuard.make({
-          domain,
-          from,
-          machine: machine.name,
-          to,
-          when,
-        })
-      ),
-      ...(stored && !Arr.isReadonlyArrayEmpty(writes)
+    gaps:
+      stored && !Arr.isReadonlyArrayEmpty(writes)
         ? [
             Gap.cases.UndeclaredWrites.make({
               commands: writes,
@@ -677,8 +791,7 @@ const exportMachine = (
               machine: machine.name,
             }),
           ]
-        : []),
-    ],
+        : [],
     machine: Option.some(exported),
   };
 };

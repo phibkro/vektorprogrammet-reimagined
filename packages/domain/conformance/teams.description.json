@@ -122,11 +122,44 @@
       "calculated": [
         {
           "from": "Planned",
-          "to": "Active"
+          "to": "Active",
+          "when": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/guard/not",
+              "payload": {
+                "id": "effx/order/after",
+                "payload": {
+                  "left": [
+                    "term",
+                    "start"
+                  ],
+                  "right": [
+                    "current"
+                  ]
+                }
+              }
+            }
+          }
         },
         {
           "from": "Active",
-          "to": "Ended"
+          "to": "Ended",
+          "when": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/order/after",
+              "payload": {
+                "left": [
+                  "current"
+                ],
+                "right": [
+                  "term",
+                  "end"
+                ]
+              }
+            }
+          }
         }
       ],
       "context": {

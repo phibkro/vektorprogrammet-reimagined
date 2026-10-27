@@ -108,33 +108,22 @@ export const Vectors = Schema.Struct({
 
 export type VectorsFile = typeof Vectors.Type;
 
-/** How many states and transitions a machine of a description has. */
+/** How many states, transitions, calculated transitions and distinct commands a machine of a description has. */
 export interface MachineCounts {
+  readonly calculated: number;
+  readonly commands: number;
   readonly name: string;
   readonly states: number;
   readonly transitions: number;
 }
 
-/**
- * The rows that a vectors file asks the kernel about, counted from its structure alone: every principal, permission
- * and target of an instance, and every context, state, transition and available phase of each machine. The
- * conformance run counts what it compares and the two must be the same number, so a truncated file, or a run that
- * skips a loop, cannot pass.
- */
-export const countRows = (
+/** The rows of one kind: for each context of each machine and each available phase, every state against `perState`. */
+const rowsOf = (
   vectors: VectorsFile,
-  machines: readonly MachineCounts[]
-) => ({
-  authorization: Arr.reduce(
-    vectors.instances,
-    0,
-    (sum, instance) =>
-      sum +
-      instance.principals.length *
-        vectors.permissions.length *
-        instance.targets.length
-  ),
-  transitions: Arr.reduce(vectors.instances, 0, (sum, instance) => {
+  machines: readonly MachineCounts[],
+  perState: (machine: MachineCounts) => number
+) =>
+  Arr.reduce(vectors.instances, 0, (sum, instance) => {
     const phases =
       instance.clock === null || instance.clock.afterTick === null ? 1 : 2;
 
@@ -151,8 +140,35 @@ export const countRows = (
           ).length *
             phases *
             (machine.states + 1) *
-            machine.transitions
+            perState(machine)
       )
     );
-  }),
+  });
+
+/**
+ * The rows that a vectors file asks the kernel about, counted from its structure alone: every principal, permission
+ * and target of an instance (`authorization`), and for every context, state (and the boundary) and available phase of
+ * each machine, every transition, those of commands and the changes of time alike (`transitions`), and every command
+ * (`commands`, the `Machine.can` rows). The conformance run counts what it compares and the two must be the same
+ * number, so a truncated file, or a run that skips a loop, cannot pass.
+ */
+export const countRows = (
+  vectors: VectorsFile,
+  machines: readonly MachineCounts[]
+) => ({
+  authorization: Arr.reduce(
+    vectors.instances,
+    0,
+    (sum, instance) =>
+      sum +
+      instance.principals.length *
+        vectors.permissions.length *
+        instance.targets.length
+  ),
+  commands: rowsOf(vectors, machines, ({ commands }) => commands),
+  transitions: rowsOf(
+    vectors,
+    machines,
+    ({ calculated, transitions }) => transitions + calculated
+  ),
 });

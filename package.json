@@ -15,6 +15,7 @@
     "check:docs": "bun run --cwd tools/docgen generate --check",
     "description": "bun run --cwd tools/effx-conformance generate",
     "description:regenerate": "bun run --cwd tools/effx-conformance regenerate",
+    "description:drift": "bun run --cwd tools/effx-conformance drift",
     "check:cms": "bun run --cwd apps/cms check:bundle",
     "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
     "sync:effect-policy": "bun tools/quality/syncEffectPolicy.ts",

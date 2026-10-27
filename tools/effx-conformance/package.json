@@ -7,7 +7,8 @@
     "test": "devenv shell -- bunx vp test",
     "check": "vp check",
     "generate": "bun src/main.ts generate",
-    "regenerate": "bun src/main.ts regenerate"
+    "regenerate": "bun src/main.ts regenerate",
+    "drift": "bun src/main.ts drift"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",

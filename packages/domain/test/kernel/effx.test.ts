@@ -4,7 +4,14 @@
  * each field's source, each gap, and a negative control that changes one declaration and shows what moves.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Option, Predicate, Schema } from "effect";
+import {
+  Array as Arr,
+  Option,
+  Order,
+  Predicate,
+  Record as Rec,
+  Schema,
+} from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
 import {
@@ -26,6 +33,10 @@ import { Sample } from "./sample.ts";
 
 const Group = Schema.TaggedStruct("FilterGroup", {
   checks: Schema.Array(Schema.Json),
+});
+
+const Filter = Schema.TaggedStruct("Filter", {
+  representation: Schema.Struct({ id: Schema.String, payload: Schema.Json }),
 });
 
 const after = (left: readonly string[], right: readonly string[]) => ({
@@ -246,7 +257,7 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
     assert.deepStrictEqual(
       Arr.map(
         gapsOf(Accounts.AccountDomain, Effx.Gap.guards.UnexpressibleGuard),
-        (gap) => [gap.command, gap.id]
+        (gap) => [gap.transition, gap.id]
       ),
       [
         ["deactivateAccount", "vektorprogrammet/account/different-person"],
@@ -281,18 +292,7 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
     assert.lengthOf(gapsOf(Sample, Effx.Gap.guards.MachineDropped), 1);
   });
 
-  it("the calculated transitions of the Membership machine are prose guards, and its writes are undeclared", () => {
-    assert.deepStrictEqual(
-      Arr.map(gapsOf(Teams.TeamsDomain, Effx.Gap.guards.ProseGuard), (gap) => [
-        gap.from,
-        gap.to,
-        gap.when,
-      ]),
-      [
-        ["Planned", "Active", "the start semester arrives"],
-        ["Active", "Ended", "the end semester has passed"],
-      ]
-    );
+  it("the writes of the Membership machine are undeclared, and the admin list's expiry is a gap", () => {
     assert.deepStrictEqual(
       Arr.map(
         gapsOf(Teams.TeamsDomain, Effx.Gap.guards.UndeclaredWrites),
@@ -309,6 +309,112 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
       ]
     );
     assert.lengthOf(gapsOf(Teams.TeamsDomain, Effx.Gap.guards.AdminExpiry), 1);
+  });
+
+  it("only a subject that effx cannot state takes a command out of its description: the commands that the other gaps name stay", () => {
+    const teams = Arr.map(
+      exported(Teams.TeamsDomain).commands,
+      ({ name }) => name
+    );
+
+    const accounts = Arr.map(
+      exported(Accounts.AccountDomain).commands,
+      ({ name }) => name
+    );
+
+    assert.includeMembers(teams, [
+      "createMembership",
+      "extendMembership",
+      "changeMembership",
+      "endEarlyMembership",
+      "deleteMembership",
+    ]);
+    assert.includeMembers(accounts, ["deactivateAccount", "reactivateAccount"]);
+
+    for (const gap of gapsOf(
+      Accounts.AccountDomain,
+      Effx.Gap.guards.UnexpressibleSubject
+    )) {
+      for (const command of gap.commands) {
+        assert.notInclude(accounts, command);
+      }
+    }
+  });
+
+  it("the changes that time makes are exported with their guards: a start that has arrived, an end that has passed", () => {
+    const [membership] = exported(Teams.TeamsDomain).machines;
+
+    assert.deepStrictEqual(membership?.context.clockPath, ["current"]);
+    assert.deepStrictEqual(
+      Arr.map(membership?.calculated ?? [], ({ from, to, when }) => [
+        from,
+        to,
+        when,
+      ]),
+      [
+        [
+          "Planned",
+          "Active",
+          {
+            context: "MembershipContext",
+            representation: {
+              id: "effx/guard/not",
+              payload: after(["term", "start"], ["current"]),
+            },
+          },
+        ],
+        [
+          "Active",
+          "Ended",
+          {
+            context: "MembershipContext",
+            representation: after(["current"], ["term", "end"]),
+          },
+        ],
+      ]
+    );
+  });
+
+  it("negative control: a change of time whose guard is outside the vocabulary drops the machine and names the change", () => {
+    const unreadable: Declaration = {
+      ...Teams.TeamsDomain,
+      machines: [
+        {
+          ...Teams.MembershipMachine,
+          calculated: Arr.map(
+            Teams.MembershipMachine.calculated,
+            (change, index) =>
+              index === 0
+                ? {
+                    ...change,
+                    guardRepresentation: {
+                      representation: {
+                        checks: [
+                          Filter.make({
+                            representation: {
+                              id: "test/note/hasWords",
+                              payload: null,
+                            },
+                          }),
+                        ],
+                      },
+                    },
+                  }
+                : change
+          ),
+        },
+      ],
+    };
+
+    assert.deepStrictEqual(
+      Arr.map(
+        gapsOf(unreadable, Effx.Gap.guards.UnexpressibleGuard),
+        ({ id, transition }) => [transition, id]
+      ),
+      [["Planned → Active", "test/note/hasWords"]]
+    );
+    assert.deepStrictEqual(exported(unreadable).machines, []);
+    assert.lengthOf(gapsOf(unreadable, Effx.Gap.guards.MachineDropped), 1);
   });
 
   it("negative control: a guard that reads a semester the machine does not declare is a MissingDeclaration, and the machine is dropped", () => {
@@ -347,6 +453,57 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
         Predicate.isTagged(gap, "NoField") ? [gap.values] : []
       ),
       [["AdminList", "Person"]]
+    );
+  });
+
+  it("every kind of gap says what closes it, and a closure by effx names the issue or the spec that tracks it", () => {
+    assert.deepStrictEqual(
+      Arr.sort(Rec.keys(Effx.closures), Order.String),
+      Arr.sort(Rec.keys(Effx.Gap.cases), Order.String)
+    );
+
+    for (const [kind, steps] of Rec.toEntries(Effx.closures)) {
+      assert.isAbove(steps.length, 0, kind);
+
+      for (const step of steps) {
+        assert.isAbove(step.change.length, 0, kind);
+
+        if (step.by === "effx") {
+          assert.match(step.change, /effx (?:issue|spec) \d+/u, kind);
+        }
+      }
+    }
+  });
+
+  it("a dropped machine is closed by whoever closes each of its reasons, and the kernel closes one of the three", () => {
+    const withoutFields: Declaration = {
+      ...Teams.TeamsDomain,
+      machines: [{ ...Teams.MembershipMachine, fields: [] }],
+    };
+
+    // the three ways that the real declarations and the controls drop a machine
+    const reasons = Arr.dedupe(
+      Arr.map(
+        Arr.flatMap(
+          [Accounts.AccountDomain, Sample, withoutFields],
+          (declaration) => gapsOf(declaration, Effx.Gap.guards.MachineDropped)
+        ),
+        ({ reason }) => reason
+      )
+    );
+
+    assert.deepStrictEqual(Arr.sort(reasons, Order.String), [
+      "a guard reads a semester that the machine does not declare",
+      "a guard uses a check that effx does not know",
+      "a transition applies activateAccount, which effx cannot be given",
+    ]);
+
+    assert.deepStrictEqual(
+      Arr.sort(
+        Arr.map(Effx.closures.MachineDropped, ({ by }) => by),
+        Order.String
+      ),
+      ["effx", "effx", "kernel"]
     );
   });
 });

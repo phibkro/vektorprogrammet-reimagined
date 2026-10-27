@@ -276,9 +276,19 @@ const endsBefore = Schema.makeFilterGroup([
 ]);
 
 export const MembershipMachine = Machine.make({
+  // The two changes that time makes. `term.test.ts` ties them to `membershipState`, and the diagram's labels are
+  // generated from the guards, so there is no second statement of either condition.
   calculated: [
-    { from: "Planned", to: "Active", when: "the start semester arrives" },
-    { from: "Active", to: "Ended", when: "the end semester has passed" },
+    {
+      from: "Planned",
+      guard: guard.not(guard.after(["term", "start"], ["current"])),
+      to: "Active",
+    },
+    {
+      from: "Active",
+      guard: guard.after(["current"], ["term", "end"]),
+      to: "Ended",
+    },
   ],
   commands: TeamsRpc,
   context: MembershipMoment,

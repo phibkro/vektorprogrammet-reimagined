@@ -1,0 +1,53 @@
+name: effx drift
+
+# Spec 0007d, gate G2. The conformance vectors in packages/domain/conformance are made by effx's own tooling at the
+# commit pinned in effx.pin.json. effx moves on its own, and nothing else here would notice. Each week this job makes the
+# vectors again with the main branch of phibkro/effx (a public repository: no secret) and fails when they are not the
+# committed ones: the first line that differs, per domain, is in the log. When main is still at the pin it checks that the
+# pin makes the committed files. Remedy for a failure: set the commit of effx.pin.json to effx's main, run
+# `bun run description:regenerate` with EFFX_DIR at it, and commit the files (tools/effx-conformance/README.md).
+#
+# The schedule is the operator's to approve (G2): delete the `schedule` lines to keep the check, run by hand from the
+# Actions tab (`workflow_dispatch`). GitHub runs a schedule only from the default branch, and stops it after 60 days
+# without activity in the repository.
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vectors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          repository: phibkro/effx
+          ref: main
+          path: effx-main
+      - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - uses: cachix/cachix-action@97e5ff84d02b3b4f9936339f767e17f03c9252ed # v16
+        with:
+          name: devenv
+      - name: Install pinned devenv CLI
+        shell: bash
+        run: nix profile add github:cachix/devenv/b904dcb51fe48c30db250038241507f60752f222
+      - name: effx's main against the pin
+        shell: bash
+        run: |
+          echo "pin:  $(jq -r .commit packages/domain/conformance/effx.pin.json)"
+          echo "main: $(git -C effx-main rev-parse HEAD)"
+      - name: Install this repository's dependencies
+        shell: bash
+        run: devenv shell -- bun install --frozen-lockfile
+      - name: Install effx's dependencies
+        shell: bash
+        run: devenv shell -- bash -c 'cd effx-main && bun install --frozen-lockfile --ignore-scripts'
+      - name: Make the vectors with effx's main and compare them with the committed ones
+        shell: bash
+        run: devenv shell -- env EFFX_DIR="$GITHUB_WORKSPACE/effx-main" bun run description:drift

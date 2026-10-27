@@ -32,8 +32,11 @@ import {
   Pin,
   Provenance,
   descriptionFile,
+  differences,
   directory,
+  firstDifference,
   gapsFile,
+  generator,
   gunzip,
   pinFile,
   provenanceFile,
@@ -162,7 +165,15 @@ const isLeader = Predicate.isTagged("Leader");
 
 const isMember = Predicate.isTagged("Member");
 
-const lines = (text: string | undefined) => (text ?? "").split("\n");
+const must = <A>(value: A | undefined, what: string): A =>
+  value ?? assert.fail(`${what} is missing`);
+
+/** How many disagreements of each kind a report has. */
+const kinds = (report: Report): Readonly<Record<string, number>> =>
+  Rec.map(
+    Arr.groupBy(report.disagreements, ({ kind }): string => kind),
+    (rows) => rows.length
+  );
 
 /**
  * What differs between the committed descriptions and the export: a line for each domain whose text differs, naming
@@ -172,23 +183,34 @@ const drift = (
   committed: Readonly<Record<string, string>>,
   exported: readonly { readonly domain: string; readonly text: string }[]
 ): readonly string[] =>
-  Arr.flatMap(exported, ({ domain, text }) => {
-    const have = lines(committed[domain]);
-    const want = lines(text);
+  Arr.flatMap(exported, ({ domain, text }) =>
+    Option.match(firstDifference(committed[domain] ?? "", text), {
+      onNone: () => [],
+      onSome: ({ have, line, want }) => [
+        `${domain}: line ${line} of the committed description is ${JSON.stringify(have)}, the export says ${JSON.stringify(want)}`,
+      ],
+    })
+  );
 
-    return Option.match(
-      Arr.findFirst(
-        Arr.range(0, Math.max(have.length, want.length) - 1),
-        (line) => have[line] !== want[line]
-      ),
-      {
-        onNone: () => [],
-        onSome: (line) => [
-          `${domain}: line ${line + 1} of the committed description is ${JSON.stringify(have[line])}, the export says ${JSON.stringify(want[line])}`,
-        ],
-      }
-    );
-  });
+/**
+ * What differs between the generator that a provenance records and the one that the tool makes the vectors with: the
+ * first line at which the two part, empty when they are the same. The check and its negative controls both ask this.
+ */
+const generatorDrift = (
+  recorded: ProvenanceFile["generator"]
+): readonly string[] =>
+  Option.match(
+    firstDifference(
+      JSON.stringify(recorded, null, 2),
+      JSON.stringify(generator, null, 2)
+    ),
+    {
+      onNone: () => [],
+      onSome: ({ have, line, want }) => [
+        `line ${line} of the recorded generator is ${JSON.stringify(have)}, the tool's is ${JSON.stringify(want)}`,
+      ],
+    }
+  );
 
 const isViewTeams = (row: Domain.Declaration["table"][number]) =>
   Arr.contains(row.commands, "viewTeams") && Arr.some(row.subjects, isMember);
@@ -433,6 +455,112 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
   );
 
   it.effect(
+    "falsifier 9: the provenance records the way that this tool makes the vectors",
+    () =>
+      Effect.gen(function* recorded() {
+        const committed = yield* Committed;
+
+        assert.deepStrictEqual(
+          generatorDrift(committed.provenance.generator),
+          [],
+          "the provenance records another way of making the vectors than this tool's: make them again"
+        );
+      })
+  );
+
+  it.effect(
+    "falsifier 9, negative control: a provenance that records another config, command, link or file set fails the same comparison",
+    () =>
+      Effect.gen(function* control() {
+        const { generator: recorded } = (yield* Committed).provenance;
+
+        const config = must(
+          recorded.project["effx.config.ts"],
+          "the config of the recorded generator"
+        );
+
+        // the comparison is silent for the recorded generator, so what it says below is its own
+        assert.deepStrictEqual(generatorDrift(recorded), []);
+
+        const other = {
+          "another command": {
+            ...recorded,
+            commands: Arr.map(recorded.commands, (argv) =>
+              Arr.filter(argv, (part) => part !== "check")
+            ),
+          },
+          "another config": {
+            ...recorded,
+            project: {
+              ...recorded.project,
+              "effx.config.ts": config.replace("alloy: true", "alloy: false"),
+            },
+          },
+          "another link": {
+            ...recorded,
+            links: { node_modules: "<effx>/lib" },
+          },
+          "one file less": {
+            ...recorded,
+            project: Rec.remove(recorded.project, "entry.ts"),
+          },
+        };
+
+        for (const [change, generated] of Rec.toEntries(other)) {
+          assert.lengthOf(generatorDrift(generated), 1, change);
+        }
+      })
+  );
+
+  it.effect(
+    "gate G2: the drift check is silent for what is committed, and names the domain and the line of what effx made differently",
+    () =>
+      Effect.gen(function* check() {
+        const { domains } = (yield* Committed).provenance;
+        const teams = must(domains.teams, "the teams provenance");
+
+        assert.deepStrictEqual(yield* differences(domains, domains), []);
+
+        const other = yield* differences(domains, {
+          ...domains,
+          teams: { ...teams, vectorsSha256: "0".repeat(64) },
+        });
+
+        assert.lengthOf(other, 1);
+        assert.match(
+          other[0] ?? "",
+          /^teams: line \d+ of its committed provenance is ".*vectorsSha256.*", effx made ".*vectorsSha256/u
+        );
+
+        const failing = yield* differences(domains, {
+          ...domains,
+          teams: {
+            ...teams,
+            assertions: Arr.map(teams.assertions, (assertion) => ({
+              ...assertion,
+              result:
+                assertion.result === "PASS"
+                  ? ("NOT APPLICABLE" as const)
+                  : ("PASS" as const),
+            })),
+          },
+        });
+
+        assert.lengthOf(failing, 1);
+
+        assert.deepStrictEqual(
+          yield* differences(domains, Rec.remove(domains, "teams")),
+          ["teams: effx made no vectors for a committed domain"]
+        );
+
+        assert.deepStrictEqual(
+          yield* differences(Rec.remove(domains, "teams"), domains),
+          ["teams: effx made vectors for a domain with none committed"]
+        );
+      })
+  );
+
+  it.effect(
     "falsifier 3: the kernel answers every row of every vectors file as effx's vectors say",
     () =>
       Effect.gen(function* conformance() {
@@ -458,6 +586,11 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
             entry.rows.transitions,
             `${domain}: transition rows compared`
           );
+          assert.strictEqual(
+            report.commands,
+            entry.rows.commands,
+            `${domain}: command rows compared`
+          );
           assert.isAbove(report.authorization, 0);
         }
       }),
@@ -482,7 +615,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
   );
 
   it.effect(
-    "falsifier 3, negative controls: a grant row, a scope and a guard of the kernel's changed each fail on exactly the rows they change",
+    "falsifier 3, negative controls: a grant row, a scope, a guard and a change of time of the kernel's changed each fail on exactly the rows they change",
     () =>
       Effect.gen(function* controls() {
         const leaderRow = Arr.findFirst(
@@ -517,6 +650,9 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           )
         );
 
+        // the `viewTeams` rows that only the removed row granted
+        assert.deepStrictEqual(kinds(withoutMember), { authorize: 1344 });
+
         // the leaders' scope widened from their department to all
         const widened = yield* conform("teams", {
           table: Arr.map(GrantTable, (row) =>
@@ -538,6 +674,9 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
               )
           )
         );
+
+        // the rows of the leaders' commands that the wider scope grants and the vectors do not
+        assert.deepStrictEqual(kinds(widened), { authorize: 9648 });
 
         // the guard of extendMembership removed
         const unguarded = yield* conform("teams", {
@@ -572,6 +711,70 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
               (row.transition === "extendMembership" ||
                 row.transition === "Transition0_2")
           )
+        );
+
+        // each row of state Active where the guard was false is both a transition row and a `Machine.can` row
+        assert.deepStrictEqual(kinds(unguarded), {
+          command: 19_584,
+          transition: 19_584,
+        });
+
+        // the end that has passed no longer has to have passed: the guard of the change to Ended removed
+        const alwaysEnds = yield* conform("teams", {
+          machines: [
+            machineUnderTest({
+              context: Teams.MembershipMoment,
+              table: {
+                ...Teams.MembershipMachine,
+                calculated: Arr.map(
+                  Teams.MembershipMachine.calculated,
+                  (change) =>
+                    change.to === "Ended"
+                      ? { ...change, accepts: () => true }
+                      : change
+                ),
+              },
+            }),
+          ],
+        });
+
+        assert.isTrue(
+          onlyThese(
+            alwaysEnds,
+            (row) =>
+              row.kind === "transition" &&
+              row.kernel &&
+              !row.effx &&
+              row.state === "Active" &&
+              row.transition === "Transition0_9"
+          )
+        );
+
+        // each row of state Active where the end has not passed
+        assert.deepStrictEqual(kinds(alwaysEnds), { transition: 17_408 });
+
+        // a table without its changes of time disagrees with nothing and compares fewer rows than the file asks for
+        const committed = yield* Committed;
+
+        const ignoring = yield* conform("teams", {
+          machines: [
+            machineUnderTest({
+              context: Teams.MembershipMoment,
+              table: { ...Teams.MembershipMachine, calculated: [] },
+            }),
+          ],
+        });
+
+        assert.deepStrictEqual(ignoring.disagreements, []);
+
+        // each of the machine's transitions is asked the same number of rows, so the two that time makes are missing
+        const perTransition =
+          ignoring.transitions / Teams.MembershipMachine.transitions.length;
+
+        assert.strictEqual(
+          committed.provenance.domains.teams?.rows.transitions,
+          ignoring.transitions +
+            Teams.MembershipMachine.calculated.length * perTransition
         );
       }),
     { timeout: 900_000 }

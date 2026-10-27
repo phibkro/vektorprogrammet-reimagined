@@ -43,6 +43,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 6540,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -89,22 +90,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "ca368dbd3a051516f6877e5bc2c6c1ad7dea23747ff9392430ae97328c2193ef",
+      "descriptionSha256": "b0d19edfaa03f2427e3e912b584347fe1bdcfcf6a63f2c36c7d949a951976003",
       "instances": 26742,
       "nondeterministic": [
-        "admin expiry cannot be determined from stored fields and clock",
-        "machine Membership calculated transition 0 cannot be determined from stored fields and clock",
-        "machine Membership calculated transition 1 cannot be determined from stored fields and clock"
+        "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
         "authorization": 877800,
-        "transitions": 835584
+        "commands": 522240,
+        "transitions": 1044480
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "cdb82cad9250f4e767a7b7a8cc32cb3de2307164db28e3341738d619b7d22c4b"
+      "vectorsSha256": "2172146483782cb0b495c91148e40c6aea62f9123ea6330752b491baf812f773"
     },
     "accounts": {
       "assertions": [
@@ -145,6 +145,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 4360,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -191,6 +192,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -237,6 +239,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -283,6 +286,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -327,6 +331,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -339,5 +344,37 @@
     "commit": "ce9c164d07909cfd99fbbb439f0f3ac26054e5c7",
     "nixpkgs": "1f607aa79b6356ed45d3cd3c8079c196e79efa2c",
     "repository": "https://github.com/phibkro/effx"
+  },
+  "generator": {
+    "commands": [
+      [
+        "nix",
+        "shell",
+        "<effx>#alloy6",
+        "-c",
+        "bun",
+        "<effx>/scripts/effx.ts",
+        "build"
+      ],
+      [
+        "nix",
+        "shell",
+        "<effx>#alloy6",
+        "-c",
+        "bun",
+        "<effx>/scripts/effx.ts",
+        "models",
+        "check"
+      ]
+    ],
+    "links": {
+      "node_modules": "<effx>/node_modules"
+    },
+    "project": {
+      "effx.config.ts": "import { defineConfig } from \"@effx/cli/config\";\nimport { domainModel } from \"@effx/domain-model\";\nimport description from \"./description.json\" with { type: \"json\" };\n\nexport default defineConfig({\n  models: { alloy: true },\n  extensions: [domainModel(description as never)],\n});\n",
+      "entry.ts": "export const fixture = true;\n",
+      "package.json": "{ \"type\": \"module\" }\n",
+      "tsconfig.json": "{ \"extends\": \"<effx>/tsconfig.json\", \"include\": [\"entry.ts\"], \"exclude\": [] }\n"
+    }
   }
 }

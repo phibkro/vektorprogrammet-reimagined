@@ -1,7 +1,9 @@
 /**
  * Spec 0007d. `generate` writes the descriptions and the register of gaps that the kernel's declarations give, and
  * nothing that effx makes. `regenerate` also hands every description to effx at the pinned commit and keeps its
- * vectors (`EFFX_DIR` names a clean, installed checkout of that commit; it needs Nix for Alloy).
+ * vectors (`EFFX_DIR` names a clean, installed checkout of that commit; it needs Nix for Alloy). `drift` makes the
+ * vectors with the checkout of effx that `EFFX_DIR` names, at any commit, and writes nothing: it fails when they are
+ * not the committed ones (gate G2, the weekly check of `.github/workflows/effx-drift.yml`).
  */
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Array as Arr, Console, Effect, FileSystem, Path } from "effect";
@@ -9,7 +11,7 @@ import { Command } from "effect/cli";
 
 import { descriptionFile, directory, gapsFile } from "./artefacts.ts";
 import { derive } from "./generate.ts";
-import { regenerate } from "./regenerate.ts";
+import { drift, regenerate } from "./regenerate.ts";
 
 const generate = Command.make(
   "generate",
@@ -58,9 +60,15 @@ const regeneration = Command.make("regenerate", {}, regenerate).pipe(
   )
 );
 
+const drifting = Command.make("drift", {}, drift).pipe(
+  Command.withDescription(
+    "Make the vectors with the checkout of effx that EFFX_DIR names, at any commit, and fail when they are not the committed ones (writes nothing)"
+  )
+);
+
 NodeRuntime.runMain(
   Command.make("vektorprogrammet-effx-conformance").pipe(
-    Command.withSubcommands([generate, regeneration]),
+    Command.withSubcommands([generate, regeneration, drifting]),
     Command.run({ version: "0.0.0" }),
     Effect.provide(NodeServices.layer)
   )
