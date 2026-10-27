@@ -576,7 +576,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
     assert.deepStrictEqual(sites, RUN_QUERY_CALL_SITES);
   });
 
-  it("falsifier 4: no semester create command or server function exists, and the Worker's job is the only caller of the semester job", () => {
+  it("falsifier 4: no semester create command or server function exists, and the registry's runner is the only caller of the semester job", () => {
     const files = Arr.map(
       Rec.toEntries(SOURCES),
       ([file, text]) => [file.replace("../src/", ""), text] as const
@@ -594,8 +594,9 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
       ),
       []
     );
-    assert.deepStrictEqual(naming(/semesterJob/u), ["server/runtime.ts"]);
-    assert.deepStrictEqual(Arr.sort(naming(/runSemesterJob/u), Order.String), [
+    // The Worker's `scheduled` handler runs the registry (`runTick`); only the runner table names the semester job.
+    assert.deepStrictEqual(naming(/semesterJob/u), ["server/jobRunners.ts"]);
+    assert.deepStrictEqual(Arr.sort(naming(/runTick/u), Order.String), [
       "server.ts",
       "server/runtime.ts",
     ]);

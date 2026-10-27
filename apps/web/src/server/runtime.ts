@@ -18,17 +18,15 @@ import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive } from "@vektorprogrammet/db";
 import type {
-  CapturedMailStore,
+  CapturedMessageStore,
   OutboxDelivery,
   SessionDirectory,
 } from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
+  JobRegistry,
   Outbox,
   SiteOrigin,
-  endingSoonJob,
-  semesterJob,
-  semesterLabel,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {
@@ -43,6 +41,7 @@ import type {
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  JobRun,
   MembershipRepository,
   OutboxMessageId,
   PasswordHasher,
@@ -54,8 +53,20 @@ import type {
   SemesterRepository,
   SocialEventRepository,
   TeamRepository,
+  SystemJob,
+  WorkspaceFacts,
+  WorkspaceReports,
+  WorkspaceWriter,
 } from "@vektorprogrammet/domain";
-import { Cause, Effect, Layer, Predicate, Redacted, Ref } from "effect";
+import {
+  Cause,
+  DateTime,
+  Effect,
+  Layer,
+  Predicate,
+  Redacted,
+  Ref,
+} from "effect";
 import type { Crypto } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
@@ -70,7 +81,9 @@ import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
 import type { RequestError } from "./errors";
 import { r2FileStoreLayer } from "./fileStore";
-import { SWEEP_LIMIT } from "./outboxDelivery";
+import { runners } from "./jobRunners";
+import type { TickServices } from "./jobRunners";
+import { dispatchTick } from "./jobs";
 import { withOutbox } from "./outboxSweep";
 import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
@@ -82,6 +95,12 @@ import { Transactor, transactorLayer } from "./transactor";
 import { turnstileLiveLayer } from "./turnstile";
 import type { TurnstileVerifier } from "./turnstile";
 import { webCryptoLayer } from "./webCrypto";
+import {
+  workspaceConfigFromEnv,
+  workspaceDirectoryLayer,
+  workspaceModeLayer,
+  workspaceWriterLayer,
+} from "./workspace";
 
 /** Hyperdrive pools connections itself; one request needs very few. */
 const MAX_CONNECTIONS_PER_REQUEST = 2;
@@ -116,7 +135,10 @@ export type DatabaseServices =
   | PrincipalDirectory
   | Outbox
   | AuditLog
-  | CapturedMailStore
+  | CapturedMessageStore
+  | JobRun.JobRuns
+  | WorkspaceFacts
+  | WorkspaceReports
   | OutboxDelivery
   | SessionDirectory
   | SqlClient.SqlClient;
@@ -279,6 +301,7 @@ const deliveryLayer = (
 ): Layer.Layer<
   | AccountDelivery
   | MessageSender
+  | WorkspaceWriter
   | DatabaseServices
   | Auth
   | Crypto.Crypto
@@ -294,6 +317,7 @@ const deliveryLayer = (
               Layer.orDie,
               Layer.provideMerge(databaseLayer(env))
             ),
+            workspaceWriterLayer(workspaceConfigFromEnv(deployment, env)),
             authLayer(env).pipe(Layer.orDie),
             webCryptoLayer,
             Layer.succeed(SiteOrigin)(env.SITE_URL)
@@ -330,7 +354,9 @@ export const runDelivery = (
   runScheduled(
     deliveryLayer(env),
     withOutbox((client) =>
-      client.sweepOutbox(options ?? { limit: SWEEP_LIMIT })
+      client.sweepOutbox(
+        options ?? { limit: JobRegistry.outboxSweep.chunkSize }
+      )
     ).pipe(
       Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
       Effect.tap((results) =>
@@ -375,50 +401,40 @@ export const runSignInPerson = (
     { signal }
   );
 
-/** The Layer of the jobs that write: the database, the transaction runner and the site's origin. */
-const jobLayer = (
-  env: WorkerEnv
-): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
-  Layer.mergeAll(transactorLayer, Layer.succeed(SiteOrigin)(env.SITE_URL)).pipe(
-    Layer.provideMerge(databaseLayer(env))
+/**
+ * The Layer of one scheduled tick (spec 0008): the delivery services, which hold the database, the senders and the
+ * Workspace writer, the transaction runner, and the Workspace directory and mode by deployment.
+ */
+const tickLayer = (env: WorkerEnv): Layer.Layer<TickServices | Transactor> =>
+  Layer.unwrap(
+    Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) => {
+      const workspace = workspaceConfigFromEnv(deployment, env);
+
+      return Layer.mergeAll(
+        workspaceDirectoryLayer(workspace),
+        workspaceModeLayer(workspace),
+        transactorLayer.pipe(Layer.provideMerge(deliveryLayer(env)))
+      );
+    })
   );
 
 /**
- * The semester job (spec 0003, RULE-237): the current and the next semester exist as rows. Runs from the
- * cron `scheduled` handler, and nowhere else, as `System("semesters")` through `authorize` (spec 0006, R1); no read
- * path writes a semester.
+ * One cron tick: every registered job that is due runs (spec 0008), each as its own `System` principal, in
+ * declaration order, and one that fails never stops the next. Never rejects, so `waitUntil` is safe; a run that
+ * failed or died is recorded in `job_run` and left for a later tick.
  */
-export const runSemesterJob = (env: WorkerEnv): Promise<void> =>
+export const runTick = (
+  env: WorkerEnv,
+  controller: { readonly scheduledTime: number; readonly cron: string },
+  only?: readonly SystemJob[]
+): Promise<void> =>
   runScheduled(
-    jobLayer(env),
-    Transactor.use((transactor) => transactor.run(semesterJob)).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("semesters")),
-      Effect.tap(({ current, next }) =>
-        Effect.logInfo("semester job finished").pipe(
-          Effect.annotateLogs({
-            current: semesterLabel(current),
-            next: semesterLabel(next),
-          })
-        )
-      )
-    )
-  );
-
-/**
- * The "ending soon" digest (spec 0006, falsifier 7): from the cron tick, as `System("endingSoon")`, in one
- * transaction with its ledger rows and outbox rows. Outside the last four weeks of the semester it does nothing.
- */
-export const runEndingSoon = (env: WorkerEnv): Promise<void> =>
-  runScheduled(
-    jobLayer(env),
-    Transactor.use((transactor) => transactor.run(endingSoonJob)).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("endingSoon")),
-      Effect.tap(({ sent }) =>
-        Effect.logInfo("ending-soon digest finished").pipe(
-          Effect.annotateLogs({ sent })
-        )
-      )
-    )
+    tickLayer(env),
+    dispatchTick(JobRegistry.Jobs, runners, {
+      at: DateTime.makeUnsafe(controller.scheduledTime),
+      cron: controller.cron,
+      only,
+    })
   );
 
 /**

@@ -9,7 +9,7 @@ import {
   COMPATIBILITY_DATE,
   COMPATIBILITY_FLAGS,
   CONTACT_RATE_LIMIT,
-  OUTBOX_SWEEP_CRON,
+  CRON_TRIGGERS,
   publicFilesBucket,
   WORKER_MAIN,
 } from "./worker.config";
@@ -105,7 +105,7 @@ const standaloneWorker = (devServer: boolean) => {
           },
         },
       ],
-      triggers: { crons: [OUTBOX_SWEEP_CRON] },
+      triggers: { crons: [...CRON_TRIGGERS] },
       vars: {
         // Fake local-only signing key; no secret is baked into a standalone build.
         BETTER_AUTH_SECRET: devServer

@@ -31,7 +31,7 @@ import {
   COMPATIBILITY_DATE,
   COMPATIBILITY_FLAGS,
   CONTACT_RATE_LIMIT,
-  OUTBOX_SWEEP_CRON,
+  CRON_TRIGGERS,
   TURNSTILE_TEST_KEYS,
   WORKER_MAIN,
   cmsMediaBucket,
@@ -197,6 +197,7 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
         ? yield* Config.NonEmptyString("MAIL_FROM")
         : null;
 
+    // The operator's switch for Google Workspace writes (spec 0008): `dry-run` unless production says `write`.
     const env =
       mailFrom === null
         ? common
@@ -207,6 +208,9 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
               allowedSenderAddresses: [mailFrom],
             }),
             SLACK_WEBHOOK_URL: Config.Redacted("SLACK_WEBHOOK_URL"),
+            WORKSPACE_MODE: yield* Config.NonEmptyString("WORKSPACE_MODE").pipe(
+              Config.withDefault("dry-run")
+            ),
           };
 
     const github = yield* GitHub.GitHubEnv;
@@ -216,7 +220,7 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
       env,
       main: WORKER_MAIN,
       observability: OBSERVABILITY,
-      ...(yield* placementOf("Web", stage, [OUTBOX_SWEEP_CRON])),
+      ...(yield* placementOf("Web", stage, [...CRON_TRIGGERS])),
     });
 
     // One comment per pull request, updated in place on every push (stable logical id).

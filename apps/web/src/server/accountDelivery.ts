@@ -114,8 +114,9 @@ export const accountDeliveryLayer = Layer.effect(
               to: recipient.email,
             });
 
-            // Provider errors may contain request data: never persist or log them with a code.
-            yield* sender.send(email).pipe(
+            // Provider errors may contain request data: never persist or log them with a code. Each attempt mints a
+            // new code, so its mail is its own message: the key is the row and the attempt, not the row alone.
+            yield* sender.send(email, `${row.id}.${row.attempts}`).pipe(
               Effect.mapError(
                 () =>
                   new DeliveryFailed({

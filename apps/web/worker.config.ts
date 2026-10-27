@@ -1,3 +1,4 @@
+import { Job, JobRegistry } from "@vektorprogrammet/domain";
 import { Config, Effect } from "effect";
 
 /**
@@ -91,5 +92,12 @@ export const CONTACT_RATE_LIMIT = {
   period: 60,
 } as const;
 
-/** The one cron: the outbox sweep (architecture §4: every 5–15 min) and the semester job (spec 0003). */
-export const OUTBOX_SWEEP_CRON = "*/10 * * * *";
+/**
+ * The Worker's cron triggers (spec 0008): the distinct crons of the job registry, in declaration order, generated and
+ * never listed by hand. Each job declares its own cron, so a job that needs another cadence adds its trigger by
+ * declaring it. Today they are the one ten-minute tick (architecture §4: every 5–15 min) that every job is due-checked
+ * at.
+ */
+export const CRON_TRIGGERS: readonly string[] = Job.cronTriggers(
+  JobRegistry.Jobs
+);

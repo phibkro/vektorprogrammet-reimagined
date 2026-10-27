@@ -38,6 +38,7 @@ import { deliverOutbox } from "../src/server/outboxDelivery";
 import { passwordHasherLayer } from "../src/server/password";
 import { captureSenderLayer } from "../src/server/senders";
 import { webCryptoLayer } from "../src/server/webCrypto";
+import { workspaceWriterLayer } from "../src/server/workspace";
 
 const origin = "https://mail.example";
 
@@ -52,6 +53,7 @@ const live = Layer.unwrap(
       }),
       passwordHasherLayer,
       webCryptoLayer,
+      workspaceWriterLayer({ deployment: "local", mode: "dry-run" }),
       Layer.succeed(SiteOrigin)(origin)
     );
 

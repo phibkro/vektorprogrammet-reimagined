@@ -43,6 +43,8 @@ export interface WorkerEnv {
   readonly MAIL_FROM?: string;
   /** Production only: Slack incoming webhook (Worker secret). */
   readonly SLACK_WEBHOOK_URL?: string;
+  /** `dry-run` (the default when absent) or `write`: the operator's switch for Google Workspace writes (spec 0008). */
+  readonly WORKSPACE_MODE?: string;
 }
 
 /** What `src/server.ts` passes into every TanStack Start request. */

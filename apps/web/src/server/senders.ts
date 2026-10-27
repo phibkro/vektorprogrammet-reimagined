@@ -2,22 +2,22 @@
  * Outbox message transports. Only a `production` deployment can construct the
  * real e-mail (Cloudflare Email Service `send_email` binding) and Slack
  * (incoming webhook) senders; `local` and `preview` get a capture sink that
- * records each message and logs its kind (architecture §4, critic M5). A
+ * keeps each message (a fake mailbox and a fake Slack workspace, readable by
+ * the browser tests) and logs its kind (architecture §4, critic M5). A
  * preview therefore cannot mail a real department by construction.
+ *
+ * Every send carries the outbox row's id as its delivery key, the same on every attempt at that row. A delivery
+ * that crashed after the provider answered and before the acknowledgement is claimed again and sends again with the
+ * same key (spec 0008, falsifier 3): the capture sink keeps such a message once, as a provider with an idempotency
+ * key would. The real transports do not send the key on: neither Cloudflare Email Service nor a Slack incoming
+ * webhook has a documented idempotency key, so a duplicate after that one crash window is possible and accepted, and
+ * the day a provider offers one the transport below passes the key to it.
  */
 import type { SendEmail } from "@cloudflare/workers-types";
-import { CapturedMailStore } from "@vektorprogrammet/db";
+import { CapturedMessageStore } from "@vektorprogrammet/db";
+import { slackChannelOf } from "@vektorprogrammet/domain";
 import type { TransportMessage } from "@vektorprogrammet/domain";
-import {
-  Context,
-  Effect,
-  Layer,
-  Match,
-  Predicate,
-  Redacted,
-  Ref,
-  Schema,
-} from "effect";
+import { Context, Effect, Layer, Match, Redacted, Schema } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
 
 import type { Deployment } from "./deployment";
@@ -34,8 +34,10 @@ export class DeliveryFailed extends Schema.TaggedError<
 export class MessageSender extends Context.Service<
   MessageSender,
   {
+    /** `key` is the outbox row's id: stable across every attempt at the same message. */
     readonly send: (
-      message: TransportMessage
+      message: TransportMessage,
+      key: string
     ) => Effect.Effect<void, DeliveryFailed>;
   }
 >()("@vektorprogrammet/web/server/MessageSender") {}
@@ -46,44 +48,29 @@ export class SenderConfigRejected extends Schema.TaggedError<
   { readonly brand: unique symbol }
 >()("SenderConfigRejected", { reason: Schema.String }) {}
 
-/** What the capture sink recorded, in send order. */
-export class CapturedMessages extends Context.Service<
-  CapturedMessages,
-  Ref.Ref<readonly TransportMessage[]>
->()("@vektorprogrammet/web/server/CapturedMessages") {}
-
-/** Records every message instead of sending it; logs only its kind (bodies hold personal data). */
+/** Keeps every message instead of sending it; logs only its kind (bodies hold personal data). */
 export const captureSenderLayer: Layer.Layer<
-  MessageSender | CapturedMessages,
+  MessageSender,
   never,
-  CapturedMailStore
+  CapturedMessageStore
 > = Layer.effect(
   MessageSender,
   Effect.gen(function* captureSenderLayer() {
-    const captured = yield* CapturedMessages;
-    const mailbox = yield* CapturedMailStore;
+    const store = yield* CapturedMessageStore;
 
     return MessageSender.of({
-      send: (message) =>
-        (Predicate.isTagged(message, "Email")
-          ? mailbox.record(message)
-          : Effect.void
-        ).pipe(
-          Effect.andThen(
-            Ref.update(captured, (messages) => [...messages, message])
+      send: (message, key) =>
+        store
+          .record(message, key)
+          .pipe(
+            Effect.andThen(
+              Effect.logInfo(
+                "outbox message captured (non-production deployment)"
+              ).pipe(Effect.annotateLogs({ kind: message._tag }))
+            )
           ),
-          Effect.andThen(
-            Effect.logInfo(
-              "outbox message captured (non-production deployment)"
-            ).pipe(Effect.annotateLogs({ kind: message._tag }))
-          )
-        ),
     });
   })
-).pipe(
-  Layer.provideMerge(
-    Layer.effect(CapturedMessages, Ref.make<readonly TransportMessage[]>([]))
-  )
 );
 
 /** The inputs the production senders need. */
@@ -106,16 +93,6 @@ export const senderConfigFromEnv = (
       ? undefined
       : Redacted.make(env.SLACK_WEBHOOK_URL),
 });
-
-const slackChannelOf = (
-  message: Extract<TransportMessage, { _tag: "SlackPost" }>
-): string =>
-  Match.value(message.target).pipe(
-    Match.tagsExhaustive({
-      DepartmentChannel: (target) => target.channel,
-      Notifications: () => "#notifications",
-    })
-  );
 
 /**
  * The real transports. Fails to build unless `deployment` is `production` and
@@ -177,7 +154,7 @@ export const productionSenderLayer = (
             SlackPost: (slack) =>
               HttpClientRequest.post(Redacted.value(slackWebhookUrl)).pipe(
                 HttpClientRequest.bodyJsonUnsafe({
-                  channel: slackChannelOf(slack),
+                  channel: slackChannelOf(slack.target),
                   text: slack.text,
                 }),
                 http.execute,
@@ -203,7 +180,7 @@ export const messageSenderLayer = (
 ): Layer.Layer<
   MessageSender,
   SenderConfigRejected,
-  HttpClient.HttpClient | CapturedMailStore
+  HttpClient.HttpClient | CapturedMessageStore
 > =>
   config.deployment === "production"
     ? productionSenderLayer(config)

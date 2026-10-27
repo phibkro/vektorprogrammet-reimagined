@@ -1,8 +1,8 @@
 /**
  * The Worker entry (Cloudflare's documented custom-entry pattern for TanStack
  * Start): `fetch` answers legacy redirects, then delegates to TanStack's
- * server entry with `{ env, ctx }` as the request context; `scheduled` runs the
- * outbox sweep, the semester job (spec 0003) and the "ending soon" digest (spec 0006), one cron every 10 minutes (see `alchemy.run.ts`).
+ * server entry with `{ env, ctx }` as the request context; `scheduled` runs the registered jobs that are due
+ * (`@vektorprogrammet/domain` `JobRegistry`, spec 0008), on the cron triggers that the registry generates (`worker.config.ts`).
  */
 import type {
   ExecutionContext,
@@ -20,13 +20,7 @@ import {
   legacyFileLocation,
   permanentRedirect,
 } from "./server/redirects";
-import {
-  runAuthRequest,
-  runDelivery,
-  runEndingSoon,
-  runQuery,
-  runSemesterJob,
-} from "./server/runtime";
+import { runAuthRequest, runQuery, runTick } from "./server/runtime";
 
 validateAuthStartup(workerBindings.BETTER_AUTH_SECRET);
 
@@ -96,13 +90,12 @@ const fetch = (
 export default {
   fetch,
   scheduled(
-    _controller: ScheduledController,
+    controller: ScheduledController,
     env: WorkerEnv,
     ctx: ExecutionContext
   ): void {
-    // Independent jobs on one cron: no promise rejects, so one failing never cancels the other. The digest's
-    // outbox rows are delivered by the sweep that follows it, and the sweep also takes everything else that is due.
-    ctx.waitUntil(runSemesterJob(env));
-    ctx.waitUntil(runEndingSoon(env).then(() => runDelivery(env)));
+    // Each due job runs as its own System principal in declaration order, and a failing job never cancels the next:
+    // no promise rejects. The outbox sweep is declared last, so it delivers what the jobs before it queued.
+    ctx.waitUntil(runTick(env, controller));
   },
 };
