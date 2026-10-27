@@ -45,15 +45,15 @@ export type PinFile = typeof Pin.Type;
  * provenance records it, so how the vectors were made can be read and replayed from the committed files, and changing it
  * fails a test until the vectors are made again.
  */
-export const Generator = Schema.Struct({
+const Generator = Schema.Struct({
   commands: Schema.Array(Schema.Array(Schema.String)),
   links: Schema.Record(Schema.String, Schema.String),
   project: Schema.Record(Schema.String, Schema.String),
 });
 
-export type GeneratorFile = typeof Generator.Type;
+type GeneratorFile = typeof Generator.Type;
 
-/** The one way that the vectors are made. The assertion results are printed by the last command (`models check`). */
+/** The one way that the vectors are made. The assertion results are read from what its commands print. */
 export const generator: GeneratorFile = {
   commands: [
     [
