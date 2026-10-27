@@ -84,6 +84,14 @@ const insertTerm = (who: Who, start: number, end: number): Statement =>
       returning id`;
   });
 
+/** The namespace's unique claim: a competing insert waits for an unfinished owner. */
+const claimAddress = (personId: PersonId, address: string): Statement =>
+  Effect.gen(function* claimStatement() {
+    const sql = yield* SqlClient;
+
+    return yield* sql`insert into company_address (address, person_id) values (${address}, ${personId}) on conflict do nothing returning address`;
+  });
+
 /** The UPDATE of `MembershipRepository.setEnd`: the end moves only if it is still the one that the caller read. */
 const moveEnd = (
   id: MembershipId,
@@ -280,6 +288,29 @@ layer(postgresDatabase(), { excludeTestServices: true })(
     for (const ending of ["commit", "rollback"] as const) {
       const refusedAfterCommit = ending === "commit" ? "23P01" : "ok";
       const acceptedAfterCommit = ending === "commit" ? "ok" : "23P01";
+
+      it.effect(
+        `a unique address claim waits for an unfinished claim; after its ${ending} the loser returns ${ending === "commit" ? "no row" : "one row"}`,
+        () =>
+          Effect.gen(function* addressClaimWait() {
+            const first = yield* fresh(`address-a-${ending}`);
+            const second = yield* fresh(`address-b-${ending}`);
+            const address = `probe-${ending}@vektorprogrammet.no`;
+
+            const result = yield* waitsForTheFirst(
+              claimAddress(first.personId, address),
+              claimAddress(second.personId, address),
+              ending
+            );
+
+            assert.isTrue(result.waited);
+            assert.strictEqual(sqlstateOf(result.exit), "ok");
+            assert.strictEqual(
+              rowCountOf(result.exit),
+              ending === "commit" ? 0 : 1
+            );
+          })
+      );
 
       it.effect(
         `INSERT overlapping an unfinished INSERT waits for it; after its ${ending} it ends as ${refusedAfterCommit}`,

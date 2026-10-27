@@ -36,9 +36,11 @@ const seedPerson = (
   Effect.gen(function* personRows() {
     const sql = yield* SqlClient;
 
+    const companyEmail =
+      member === 1 ? `leder${team.index}@vektorprogrammet.no` : null;
+
     const [person] = yield* sql<Id>`insert into person ${sql.insert({
-      company_email:
-        member === 1 ? `leder${team.index}@vektorprogrammet.no` : null,
+      company_email: companyEmail,
       email: `p${team.index}x${member}@example.org`,
       email_verified: true,
       field_of_study_id: field.id,
@@ -46,6 +48,10 @@ const seedPerson = (
     })} returning id`;
 
     const id = person?.id ?? 0;
+
+    if (companyEmail !== null) {
+      yield* sql`insert into company_address (address, person_id) values (${companyEmail}, ${id})`;
+    }
 
     // Høst 2026, the semester that a tick on 2026-10-27 is in; position 2 is `Medlem`, 1 is `Leder`.
     yield* sql`insert into account ${sql.insert({ person_id: id, state: "Active" })}`;
@@ -70,6 +76,10 @@ export const seedWorld = (size: WorldSize) =>
 
       const [team] =
         yield* sql<Id>`insert into team (department_id, name, function, default_term, group_email) values (${department?.id ?? 0}, ${`Team ${index}`}, 'other', 1, ${groupAddress}) returning id`;
+
+      if (groupAddress !== null) {
+        yield* sql`insert into company_address (address, team_id) values (${groupAddress}, ${team?.id ?? 0})`;
+      }
 
       yield* Effect.forEach(Arr.range(1, size.members), (member) =>
         seedPerson(field ?? { id: 0 }, { id: team?.id ?? 0, index }, member)

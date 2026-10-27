@@ -59,10 +59,10 @@ The system calculates this status from the person's engagements. It does not sto
 
 | Event | What the team leader does | What happens |
 | --- | --- | --- |
-| Joins a team | Add the member | A membership with the default term. The person gets a welcome e-mail and Google group access. |
+| Joins a team | Add the member | A membership with the default term. The first membership queues welcome and setup messages; the Workspace report shows desired group access. Real Google writes remain operator-gated (spec 0008). |
 | Stays another term | Extend | The same membership gets a later end. Its history stays. |
 | Promotion, demotion, change of position or team | Change | The old membership ends, and a new one starts in the chosen semester. History shows both. |
-| Leaves on time | Nothing | The term ends. The person loses access and Google group membership. |
+| Leaves on time | Nothing | The term ends and local access is recalculated. The Workspace report shows the desired group removal; real Google writes remain operator-gated. |
 | Leaves early | End early | The same, from the chosen semester. |
 | Comes back | Add again | A new membership for the same person. |
 
@@ -159,8 +159,8 @@ A grant is `(subject set, commands, scope)` with scope `own`, `department` or `a
 
 | Event | Effect | Replaces |
 | --- | --- | --- |
-| Membership becomes Active | Add to the team's Google group; create a company account on the first membership; welcome e-mail | 243–246, 248, 225 |
-| Membership becomes Ended | Remove from the Google group | 242 |
+| Membership becomes Active | Queue first-membership welcome; project the desired company account and team group membership (Google writes are operator-gated) | 243–246, 248, 225 |
+| Membership becomes Ended | Project removal from the Google group (Google writes are operator-gated) | 242 |
 | Four weeks before semester end | "Ending soon" list to each `Leader(d)`. Admin-grant reminders are a later slice. | new |
 | A person's last engagement ends | Alumni consent e-mail | new |
 

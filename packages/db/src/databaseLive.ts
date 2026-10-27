@@ -45,6 +45,7 @@ import {
   WelcomeLedgerLive,
 } from "./repositories/teams.ts";
 import {
+  WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
   WorkspaceReportsLive,
 } from "./repositories/workspace.ts";
@@ -86,6 +87,7 @@ export const RepositoriesLayer = Layer.mergeAll(
   OutboxDeliveryLive,
   AuditLogLive,
   JobRunsLive,
+  WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
   WorkspaceReportsLive
 ).pipe(Layer.provideMerge(AggregatesLayer));

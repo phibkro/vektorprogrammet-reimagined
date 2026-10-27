@@ -119,7 +119,7 @@ Every job is declared once, in `packages/domain/src/jobs/registry.ts` (spec 0008
 
 <!-- docgen:end jobs -->
 
-\* Proposed, not yet decided by the operator. A proposed cadence runs like an approved one; approving it is one word in the job's declaration.
+\* Proposed, not yet decided by the operator. A proposed cadence does not run or install a cron trigger; explicit requests still run on the existing approved tick. Approving it is one word in the job's declaration.
 
 The retention job and the alumni consent mail (spec 0007b) and the admission alerts (spec 0009) join this table when their specs register them. Until then, retention is as described above and nothing runs it.
 

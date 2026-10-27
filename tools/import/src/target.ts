@@ -76,6 +76,7 @@ const BUILT_ON_TABLES = [
   schema.endingSoonDigest,
   schema.adminGrant,
   schema.membership,
+  schema.companyAddress,
   schema.team,
   schema.person,
 ] as const;

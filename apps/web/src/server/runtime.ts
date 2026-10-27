@@ -55,6 +55,7 @@ import type {
   TeamRepository,
   SystemJob,
   WelcomeLedger,
+  WorkspaceAssignments,
   WorkspaceFacts,
   WorkspaceReports,
   WorkspaceWriter,
@@ -139,6 +140,7 @@ export type DatabaseServices =
   | AuditLog
   | CapturedMessageStore
   | JobRun.JobRuns
+  | WorkspaceAssignments
   | WorkspaceFacts
   | WorkspaceReports
   | OutboxDelivery

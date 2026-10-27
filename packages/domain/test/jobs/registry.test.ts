@@ -171,29 +171,24 @@ describe("spec 0008 falsifier 9, pure half: when a job is due", () => {
 
     assert.deepStrictEqual(Job.cronTriggers([semesters, nightly, semesters]), [
       "*/10 * * * *",
-      "0 1 * * *",
     ]);
   });
 
-  it("approving a proposed schedule changes its status and nothing that runs", () => {
-    const approved = Job.make({
+  it("a proposed cron is not installed until the operator approves it", () => {
+    const proposed = Job.make({
       ...workspaceSync,
       name: "workspaceSync",
-      schedule: { ...workspaceSync.schedule, status: "approved" },
+      schedule: { cron: "0 1 * * *", status: "proposed" },
     });
 
-    const tick = at("2026-11-03T03:00:00");
+    const approved = Job.make({
+      ...proposed,
+      name: "workspaceSync",
+      schedule: { ...proposed.schedule, status: "approved" },
+    });
 
-    assert.strictEqual(workspaceSync.schedule.status, "proposed");
-    assert.strictEqual(approved.schedule.status, "approved");
-    assert.deepStrictEqual(
-      Job.duePeriods(approved.dueWhen, tick),
-      Job.duePeriods(workspaceSync.dueWhen, tick)
-    );
-    assert.deepStrictEqual(
-      Job.cronTriggers([approved]),
-      Job.cronTriggers([workspaceSync])
-    );
+    assert.deepStrictEqual(Job.cronTriggers([proposed]), []);
+    assert.deepStrictEqual(Job.cronTriggers([approved]), ["0 1 * * *"]);
   });
 
   it("a declaration that cannot run is refused when it loads", () => {

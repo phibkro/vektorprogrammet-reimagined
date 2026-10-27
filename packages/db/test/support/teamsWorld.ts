@@ -55,19 +55,23 @@ export const world = Effect.fnUntraced(function* world(tag: string) {
     shortName: tag.slice(0, 3).toUpperCase(),
   });
 
-  const person = yield* (yield* PersonRepository).create({
-    email: EmailAddress.make(`ola.${tag}@example.org`),
-    fieldOfStudyId: fieldOfStudy.id,
-    name: `Ola ${tag}`,
-  });
+  const person = yield* transactional(
+    (yield* PersonRepository).create({
+      email: EmailAddress.make(`ola.${tag}@example.org`),
+      fieldOfStudyId: fieldOfStudy.id,
+      name: `Ola ${tag}`,
+    })
+  );
 
-  const team = yield* (yield* TeamRepository).create({
-    defaultTerm: 2,
-    departmentId: department.id,
-    function: "recruitment",
-    groupEmail: null,
-    name: `Team ${tag}`,
-  });
+  const team = yield* transactional(
+    (yield* TeamRepository).create({
+      defaultTerm: 2,
+      departmentId: department.id,
+      function: "recruitment",
+      groupEmail: null,
+      name: `Team ${tag}`,
+    })
+  );
 
   return {
     department,
@@ -86,17 +90,21 @@ export const twoPeople = Effect.fnUntraced(function* twoPeople(
 ) {
   const people = yield* PersonRepository;
 
-  const first = yield* people.create({
-    email: EmailAddress.make(`${tag}.a@example.org`),
-    fieldOfStudyId,
-    name: `A ${tag}`,
-  });
+  const first = yield* transactional(
+    people.create({
+      email: EmailAddress.make(`${tag}.a@example.org`),
+      fieldOfStudyId,
+      name: `A ${tag}`,
+    })
+  );
 
-  const second = yield* people.create({
-    email: EmailAddress.make(`${tag}.b@example.org`),
-    fieldOfStudyId,
-    name: `B ${tag}`,
-  });
+  const second = yield* transactional(
+    people.create({
+      email: EmailAddress.make(`${tag}.b@example.org`),
+      fieldOfStudyId,
+      name: `B ${tag}`,
+    })
+  );
 
   return [first, second] as const;
 });

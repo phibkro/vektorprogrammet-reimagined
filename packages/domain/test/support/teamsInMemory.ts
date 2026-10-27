@@ -224,6 +224,24 @@ const personRepository = Layer.effect(
             });
           }
 
+          const teams = yield* Ref.get(tables.teams);
+
+          if (
+            draft.companyEmail !== undefined &&
+            draft.companyEmail !== null &&
+            (Arr.some(
+              people,
+              (person) => person.companyEmail === draft.companyEmail
+            ) ||
+              Arr.some(teams, (team) => team.groupEmail === draft.companyEmail))
+          ) {
+            return yield* new Conflict({
+              entity: "Person",
+              key: draft.name,
+              message: "Vektor-adressen er allerede i bruk.",
+            });
+          }
+
           const field = yield* Effect.orDie(
             fields.findById(draft.fieldOfStudyId)
           );
@@ -284,22 +302,31 @@ const teamRepository = Layer.effect(
       );
 
     const groupTaken = (team: Team) =>
-      Effect.flatMap(Ref.get(tables.teams), (teams) =>
-        team.groupEmail !== null &&
-        Arr.some(
-          teams,
-          (other) =>
-            other.id !== team.id && other.groupEmail === team.groupEmail
-        )
-          ? Effect.fail(
-              new AlreadyExists({
-                entity: "Team",
-                key: team.groupEmail,
-                message: "Gruppeadressen er allerede brukt av et annet team.",
-              })
-            )
-          : Effect.void
-      );
+      Effect.gen(function* checkGroup() {
+        const teams = yield* Ref.get(tables.teams);
+        const people = yield* Ref.get(tables.people);
+
+        if (
+          team.groupEmail !== null &&
+          (Arr.some(
+            teams,
+            (other) =>
+              other.id !== team.id && other.groupEmail === team.groupEmail
+          ) ||
+            Arr.some(
+              people,
+              (person) => person.companyEmail === team.groupEmail
+            ))
+        ) {
+          return yield* new Conflict({
+            entity: "Team",
+            key: String(team.id),
+            message: "Vektor-adressen er allerede i bruk.",
+          });
+        }
+
+        return yield* Effect.void;
+      });
 
     const replace = (team: Team) =>
       Ref.update(tables.teams, (rows) =>

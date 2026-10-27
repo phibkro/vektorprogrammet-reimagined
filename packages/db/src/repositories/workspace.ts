@@ -1,18 +1,19 @@
 /**
- * The Workspace projection's two repositories (spec 0008).
+ * The Workspace projection's repositories (spec 0008).
  *
- * `WorkspaceFacts` reads the projection's inputs the way a display reads: no lock and no write (spec 0006b: the
- * projection decides no write on a table that the Person root owns), and it is registered with the SELECT-only role
- * test. `WorkspaceReports` writes the report in the chunk's transaction. Only the job's run writes a given period's
- * report, one chunk at a time under the period's lease, so a read-modify-write of its sections races with nothing.
+ * `WorkspaceFacts` reads the projection inputs without a lock or a write and is registered with the SELECT-only
+ * role test. `WorkspaceAssignments` assigns generated Person addresses through their locks when a write report
+ * completes. `WorkspaceReports` writes one report chunk at a time under the period's lease.
  * Stored sections are decoded on read: a row that violates the domain schema is a defect, not an empty report.
  */
 import {
   CompanyEmail,
+  Conflict,
   DepartmentId,
   InTransaction,
   PersonId,
   TeamId,
+  WorkspaceAssignments,
   WorkspaceFacts,
   WorkspacePlan,
   WorkspaceReport,
@@ -20,6 +21,7 @@ import {
   semesterOrdinal,
 } from "@vektorprogrammet/domain";
 import type {
+  Locked,
   ReportPart,
   Semester,
   Job,
@@ -39,6 +41,9 @@ import {
 } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 
+import { Aggregates } from "../aggregate/aggregates.ts";
+import { roots } from "../aggregate/declaration.ts";
+import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
 import {
   account,
@@ -48,6 +53,7 @@ import {
   team,
   workspaceReport,
 } from "../schema.ts";
+import { claimPersonAddress } from "./companyAddresses.ts";
 
 const PersonRow = Schema.Struct({
   companyAddress: Schema.NullOr(Schema.String),
@@ -273,6 +279,57 @@ const toRecord = (row: typeof workspaceReport.$inferSelect) => ({
   status: row.status,
   unmanaged: row.unmanaged,
 });
+
+/** Assign a planned address under the Person lock, so a later projection keeps the same account. */
+export const WorkspaceAssignmentsLive = Layer.effect(
+  WorkspaceAssignments,
+  Effect.gen(function* WorkspaceAssignmentsLive() {
+    const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
+    const decodeEmail = decodeWith(Schema.NullOr(Schema.String));
+
+    const assign = Effect.fn("WorkspaceAssignments.assign")(function* assign(
+      locked: Locked<"Person">,
+      address: CompanyEmail
+    ) {
+      yield* InTransaction;
+      yield* aggregates.assertHeld(roots.Person, locked);
+
+      const [row] = yield* db
+        .select({ email: person.companyEmail })
+        .from(person)
+        .where(eq(person.id, locked.id))
+        .pipe(Effect.orDie);
+
+      if (row === undefined) {
+        return yield* Effect.die("the locked person is missing");
+      }
+
+      const existing = yield* decodeEmail(row.email);
+
+      if (existing === address) {
+        return yield* Effect.void;
+      }
+
+      if (existing !== null) {
+        return yield* new Conflict({
+          entity: "Person",
+          key: String(locked.id),
+          message: "Personens Vektor-epost ble endret under synkroniseringen.",
+        });
+      }
+
+      yield* claimPersonAddress(aggregates, locked, address);
+      yield* aggregates
+        .updateRoot(locked, roots.Person, { companyEmail: address })
+        .pipe(Effect.catch((error) => classifySqlFailure(error, address)));
+
+      return yield* Effect.void;
+    });
+
+    return WorkspaceAssignments.of({ assign });
+  })
+);
 
 export const WorkspaceReportsLive = Layer.effect(
   WorkspaceReports,

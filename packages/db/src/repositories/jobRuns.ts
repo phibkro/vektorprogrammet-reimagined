@@ -12,7 +12,7 @@
  * - Every timestamp comes from Effect's `Clock`.
  */
 import { InTransaction, Job, JobRun } from "@vektorprogrammet/domain";
-import { and, asc, eq, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, like, lte, or, sql } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
@@ -117,7 +117,8 @@ export const JobRunsLive = Layer.effect(
     });
 
     const resumable = Effect.fn("JobRuns.resumable")(function* resumable(
-      name: JobRun.Held["job"]
+      name: JobRun.Held["job"],
+      scope: JobRun.ResumeScope
     ) {
       const nowDate = DateTime.toDateUtc(yield* DateTime.now);
 
@@ -127,6 +128,9 @@ export const JobRunsLive = Layer.effect(
         .where(
           and(
             eq(jobRun.job, name),
+            scope === "requests"
+              ? like(jobRun.period, `${Job.REQUEST_PREFIX}%`)
+              : undefined,
             or(
               eq(jobRun.outcome, "partial"),
               and(

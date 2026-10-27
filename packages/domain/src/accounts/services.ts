@@ -11,6 +11,7 @@ import type { DateTime, Effect, Option } from "effect";
 import type { Locked } from "../shared/aggregate.ts";
 import type { AlreadyExists, Conflict } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
+import type { InTransaction } from "../shared/transaction.ts";
 import type { EmailAddress } from "../shared/validation.ts";
 import type { Person, PersonDraft } from "../teams/entities.ts";
 import type { AccountMachineTransition } from "./declaration.ts";
@@ -60,6 +61,6 @@ export class AccountRepository extends Context.Service<
     readonly updateProfile: (
       locked: Locked<"Person">,
       profile: PersonDraft
-    ) => Effect.Effect<Person, AlreadyExists>;
+    ) => Effect.Effect<Person, AlreadyExists | Conflict, InTransaction>;
   }
 >()("@vektorprogrammet/domain/accounts/AccountRepository") {}

@@ -7,6 +7,7 @@ import {
   AccountRepository,
   AccountState,
   AlreadyExists,
+  InTransaction,
   Person,
   PersonId,
 } from "@vektorprogrammet/domain";
@@ -26,6 +27,10 @@ import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
 import { account, fieldOfStudy, person } from "../schema.ts";
 import { activeAdminPlaces } from "./adminPlaces.ts";
+import {
+  claimPersonAddress,
+  releasePersonAddress,
+} from "./companyAddresses.ts";
 
 const StoredAccount = Schema.Struct({
   personId: PersonId,
@@ -190,17 +195,34 @@ export const AccountRepositoryLive = Layer.effect(
 
     const updateProfile = Effect.fn("AccountRepository.updateProfile")(
       function* updateProfile(locked: Locked<"Person">, profile: PersonDraft) {
+        yield* InTransaction;
         yield* aggregates.assertHeld(aggregateRoots.Person, locked);
 
         const [current] = yield* db
-          .select({ email: person.email })
+          .select({ companyEmail: person.companyEmail, email: person.email })
           .from(person)
           .where(eq(person.id, locked.id))
           .pipe(Effect.orDie);
 
+        if (current === undefined) {
+          return yield* Effect.die("the locked person is missing");
+        }
+
+        const nextCompanyEmail =
+          profile.companyEmail === undefined
+            ? current.companyEmail
+            : profile.companyEmail;
+
+        if (
+          nextCompanyEmail !== current.companyEmail &&
+          nextCompanyEmail !== null
+        ) {
+          yield* claimPersonAddress(aggregates, locked, nextCompanyEmail);
+        }
+
         // A changed address is not verified until the person verifies it again.
         const set =
-          current?.email === profile.email
+          current.email === profile.email
             ? profile
             : { ...profile, emailVerified: false };
 
@@ -209,6 +231,13 @@ export const AccountRepositoryLive = Layer.effect(
           .pipe(
             Effect.catch((error) => classifySqlFailure(error, profile.email))
           );
+
+        if (
+          nextCompanyEmail !== current.companyEmail &&
+          current.companyEmail !== null
+        ) {
+          yield* releasePersonAddress(aggregates, locked, current.companyEmail);
+        }
 
         const rows = yield* db
           .select({

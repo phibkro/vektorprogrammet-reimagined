@@ -15,6 +15,7 @@ import {
   Effect,
   Match,
   Option,
+  Order,
   Predicate,
   Schema,
 } from "effect";
@@ -26,6 +27,7 @@ import { JobRuns } from "../jobs/runs.ts";
 import * as Commands from "../kernel/commands.ts";
 import { semesterForDate } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
+import { AggregateLocks } from "../shared/aggregate.ts";
 import { Outbox, OutboxMessage } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import {
@@ -50,6 +52,7 @@ import type { ActualGroup, TeamFact } from "./plan.ts";
 import { summarise } from "./report.ts";
 import type { WorkspaceReport } from "./report.ts";
 import {
+  WorkspaceAssignments,
   WorkspaceDirectory,
   WorkspaceFacts,
   WorkspaceModeSetting,
@@ -218,10 +221,50 @@ const requireReport = Effect.fnUntraced(function* requireReport(
   });
 });
 
-/**
- * The last chunk's work: the cap, and in write mode the changes. A run over the cap changes nothing and says so; a
- * run in write mode queues one outbox message per change, in this transaction, so they commit with the report.
- */
+/** Assign generated addresses and queue their provider intents in the same transaction. */
+const assignGenerated = Effect.fnUntraced(function* assignGenerated(
+  report: WorkspaceReport
+) {
+  const generated = Arr.filter(report.accounts, (account) => account.generated);
+
+  if (generated.length === 0) {
+    return yield* Effect.void;
+  }
+
+  // All writers claim namespace keys in address order, after the Person locks in id order.
+
+  const locked = yield* (yield* AggregateLocks).lockAll(
+    "Person",
+    Arr.map(generated, (account) => account.personId)
+  );
+
+  const assignments = yield* WorkspaceAssignments;
+
+  const tokens = new Map(
+    Arr.map(locked, (token) => [token.id, token] as const)
+  );
+
+  const byAddress = Order.mapInput(
+    Order.String,
+    (account: WorkspaceReport["accounts"][number]) => account.address
+  );
+
+  for (const account of Arr.sort(generated, byAddress)) {
+    const person = tokens.get(account.personId);
+
+    if (person === undefined) {
+      return yield* Effect.die(
+        "the planned Workspace address has no locked person"
+      );
+    }
+
+    yield* assignments.assign(person, account.address);
+  }
+
+  return yield* Effect.void;
+});
+
+/** The last chunk enforces the cap and queues permitted changes with the report. */
 const complete = Effect.fnUntraced(function* complete(period: JobPeriod) {
   const reports = yield* WorkspaceReports;
   const report = yield* requireReport(period);
@@ -263,6 +306,7 @@ const complete = Effect.fnUntraced(function* complete(period: JobPeriod) {
       : [];
 
   if (Arr.isReadonlyArrayNonEmpty(changes)) {
+    yield* assignGenerated(report);
     yield* (yield* Outbox).enqueue(
       Arr.map(changes, (change) =>
         OutboxMessage.cases.WorkspaceChange.make({ change })

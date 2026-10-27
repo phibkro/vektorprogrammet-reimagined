@@ -319,7 +319,7 @@ describe("teams: who creates and edits a team (RULE-157, RULE-321, RULE-233)", (
           )
         );
 
-        assert.strictEqual(duplicate._tag, "AlreadyExists");
+        assert.strictEqual(duplicate._tag, "Conflict");
 
         const invalid = yield* Effect.flip(
           asPrincipal(admin)(

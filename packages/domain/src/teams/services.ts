@@ -72,7 +72,7 @@ export class PersonRepository extends Context.Service<
     /** Fails with `AlreadyExists` on the unique e-mail address. */
     readonly create: (
       draft: PersonDraft
-    ) => Effect.Effect<Person, AlreadyExists>;
+    ) => Effect.Effect<Person, AlreadyExists | Conflict, InTransaction>;
   }
 >()("@vektorprogrammet/domain/teams/PersonRepository") {}
 
@@ -85,11 +85,17 @@ export class TeamRepository extends Context.Service<
       departmentId: DepartmentId | null
     ) => Effect.Effect<readonly Team[]>;
     /** Fails with `AlreadyExists` on the unique name within the department (RULE-157). */
-    readonly create: (draft: TeamDraft) => Effect.Effect<Team, AlreadyExists>;
+    readonly create: (
+      draft: TeamDraft
+    ) => Effect.Effect<Team, AlreadyExists | Conflict, InTransaction>;
     readonly update: (
       id: TeamId,
       details: TeamDetails
-    ) => Effect.Effect<Team, NotFound | AlreadyExists>;
+    ) => Effect.Effect<
+      Team,
+      NotFound | AlreadyExists | Conflict,
+      InTransaction
+    >;
     /** A team is deactivated and never deleted (RULE-233). */
     readonly deactivate: (id: TeamId) => Effect.Effect<Team, NotFound>;
   }

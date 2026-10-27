@@ -302,13 +302,17 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               (yield* runs.claim("workspaceSync", value, LEASE))._tag,
               "Taken"
             );
-            assert.deepStrictEqual(yield* runs.resumable("workspaceSync"), []);
+            assert.deepStrictEqual(
+              yield* runs.resumable("workspaceSync", "all"),
+              []
+            );
 
             yield* TestClock.adjust(`${LEASE + 1} seconds`);
 
-            assert.deepStrictEqual(yield* runs.resumable("workspaceSync"), [
-              value,
-            ]);
+            assert.deepStrictEqual(
+              yield* runs.resumable("workspaceSync", "all"),
+              [value]
+            );
 
             const second = yield* claimHeld(value);
 

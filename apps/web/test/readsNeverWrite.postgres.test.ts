@@ -362,24 +362,29 @@ const seedTeams = Effect.gen(function* seedTeams() {
 
   const people = yield* PersonRepository;
   const memberships = yield* MembershipRepository;
+  const transactor = yield* Transactor;
 
   const person = (name: string, email: string) =>
-    people.create({
-      email: EmailAddress.make(email),
-      fieldOfStudyId: field.id,
-      name,
-    });
+    transactor.run(
+      people.create({
+        email: EmailAddress.make(email),
+        fieldOfStudyId: field.id,
+        name,
+      })
+    );
 
   const lise = yield* person(LOCAL_PERSON, "lise@alfa.example");
   const mats = yield* person("Mats Medlem", "mats@alfa.example");
 
-  const team = yield* (yield* TeamRepository).create({
-    defaultTerm: 2,
-    departmentId: field.departmentId,
-    function: "recruitment",
-    groupEmail: null,
-    name: "Rekruttering",
-  });
+  const team = yield* transactor.run(
+    (yield* TeamRepository).create({
+      defaultTerm: 2,
+      departmentId: field.departmentId,
+      function: "recruitment",
+      groupEmail: null,
+      name: "Rekruttering",
+    })
+  );
 
   assert.strictEqual(team.id, TEAM_ID, "the registered read paths ask for it");
 
@@ -388,33 +393,31 @@ const seedTeams = Effect.gen(function* seedTeams() {
     start: { term: "VAR", year: 2020 },
   } as const;
 
-  yield* Transactor.use((transactor) =>
-    transactor.run(
-      Effect.gen(function* writeTeams() {
-        const adminList = yield* lockAdminList;
-        const locks = yield* AggregateLocks;
-        const liseLock = yield* locks.lock("Person", lise.id);
-        const matsLock = yield* locks.lock("Person", mats.id);
+  yield* transactor.run(
+    Effect.gen(function* writeTeams() {
+      const adminList = yield* lockAdminList;
+      const locks = yield* AggregateLocks;
+      const liseLock = yield* locks.lock("Person", lise.id);
+      const matsLock = yield* locks.lock("Person", mats.id);
 
-        yield* memberships.insert(liseLock, {
-          ...term,
-          leader: true,
-          positionId: PositionId.make(1),
-          teamId: team.id,
-        });
-        yield* memberships.insert(matsLock, {
-          ...term,
-          leader: false,
-          positionId: PositionId.make(2),
-          teamId: team.id,
-        });
+      yield* memberships.insert(liseLock, {
+        ...term,
+        leader: true,
+        positionId: PositionId.make(1),
+        teamId: team.id,
+      });
+      yield* memberships.insert(matsLock, {
+        ...term,
+        leader: false,
+        positionId: PositionId.make(2),
+        teamId: team.id,
+      });
 
-        yield* (yield* AdminGrantRepository).create(adminList, liseLock, {
-          grantedBy: null,
-          until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
-        });
-      })
-    )
+      yield* (yield* AdminGrantRepository).create(adminList, liseLock, {
+        grantedBy: null,
+        until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
+      });
+    })
   );
 });
 

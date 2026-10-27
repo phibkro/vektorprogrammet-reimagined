@@ -65,6 +65,9 @@ export class LeaseLost extends Schema.TaggedError<
 /** What `fail` decided: try the period again at a later tick, or leave it for the next period. */
 export type Failure = "retry" | "failed";
 
+/** Requests may proceed while an operator has not approved the automatic schedule. */
+export type ResumeScope = "all" | "requests";
+
 export class JobRuns extends Context.Service<
   JobRuns,
   {
@@ -73,8 +76,11 @@ export class JobRuns extends Context.Service<
       period: JobPeriod,
       leaseSeconds: number
     ) => Effect.Effect<Claim>;
-    /** The periods of `job` that a runner may take now: `partial` ones and `running` ones whose lease ran out. */
-    readonly resumable: (job: SystemJob) => Effect.Effect<readonly JobPeriod[]>;
+    /** Partial or expired periods, restricted to explicit requests when the schedule is unapproved. */
+    readonly resumable: (
+      job: SystemJob,
+      scope: ResumeScope
+    ) => Effect.Effect<readonly JobPeriod[]>;
     /** Asks for a run of `period`: a `partial` row with no cursor. True when the request was new. */
     readonly request: (
       job: SystemJob,

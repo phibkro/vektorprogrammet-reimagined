@@ -11,7 +11,7 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
-import { Job } from "@vektorprogrammet/domain";
+import { Job, JobRun } from "@vektorprogrammet/domain";
 import type { SystemJob } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -30,7 +30,7 @@ import { TestClock } from "effect/testing";
 
 import { dispatchTick } from "../src/server/jobs";
 import type { Runner } from "../src/server/jobs";
-import { transactorLayer } from "../src/server/transactor";
+import { Transactor, transactorLayer } from "../src/server/transactor";
 
 const T0 = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
 
@@ -399,6 +399,102 @@ layer(live, { excludeTestServices: true })(
             yield* sql`delete from job_run where job = 'semesters' and period = ${Job.tickPeriod(tickAt(150))}`;
           })
       );
+      layerTest.effect(
+        "an unapproved schedule does not run, but requested runs finish even behind paused periods",
+        () =>
+          Effect.gen(function* scheduleApproval() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(T0));
+            const sql = yield* SqlClient;
+            yield* sql`delete from job_run where job = 'workspaceSync'`;
+            yield* sql`delete from job_effects`;
+
+            const proposed = Job.make({
+              ...declared("workspaceSync", { chunksPerTick: 1 }),
+              name: "workspaceSync",
+              schedule: { cron: "*/10 * * * *", status: "proposed" },
+            });
+
+            const prepared = yield* Ref.make<readonly string[]>([]);
+            const runner = probeRunner({ prepared, total: 2 });
+            yield* dispatchTick(
+              [proposed],
+              { workspaceSync: runner },
+              { at: T0 }
+            );
+            assert.deepStrictEqual(
+              Arr.filter(yield* jobRuns, (row) => row.job === "workspaceSync"),
+              []
+            );
+            assert.deepStrictEqual(yield* Ref.get(prepared), []);
+
+            const runs = yield* JobRun.JobRuns;
+            const tx = yield* Transactor;
+
+            for (const n of Arr.range(0, 20)) {
+              yield* tx.run(
+                runs.request(
+                  "workspaceSync",
+                  Job.JobPeriod.make(`paused-${String(n).padStart(2, "0")}`)
+                )
+              );
+            }
+
+            yield* tx.run(
+              runs.request("workspaceSync", Job.requestPeriod("manual"))
+            );
+
+            for (const minutes of [10, 20]) {
+              yield* dispatchTick(
+                [proposed],
+                { workspaceSync: runner },
+                { at: tickAt(minutes) }
+              );
+            }
+
+            assert.deepStrictEqual(yield* Ref.get(prepared), [
+              "request:manual#1",
+              "request:manual#2",
+            ]);
+            assert.strictEqual(
+              runOf(yield* jobRuns, "workspaceSync", "request:manual").outcome,
+              "done"
+            );
+            assert.strictEqual(
+              Arr.filter(
+                yield* jobRuns,
+                (row) =>
+                  row.job === "workspaceSync" && row.outcome === "partial"
+              ).length,
+              21
+            );
+
+            const approved = Job.make({
+              ...proposed,
+              name: "workspaceSync",
+              schedule: { ...proposed.schedule, status: "approved" },
+            });
+
+            yield* dispatchTick(
+              [approved],
+              { workspaceSync: runner },
+              { at: tickAt(30) }
+            );
+            assert.strictEqual((yield* Ref.get(prepared))[2], "paused-00#1");
+            yield* sql`delete from job_run where job = 'workspaceSync'`;
+            yield* dispatchTick(
+              [approved],
+              { workspaceSync: runner },
+              { at: tickAt(40) }
+            );
+            assert.strictEqual(
+              (yield* Ref.get(prepared))[3],
+              "2026-10-27T12:40:00.000Z#1"
+            );
+            yield* sql`delete from job_run where job = 'workspaceSync'`;
+            yield* sql`delete from job_effects`;
+          })
+      );
+
       layerTest.effect(
         "falsifier 9: one job's failure does not cancel another due job, and the failed attempt is recorded for a later tick",
         () =>

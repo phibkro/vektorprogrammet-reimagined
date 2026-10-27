@@ -77,23 +77,27 @@ layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
           const repository = yield* TeamRepository;
 
           const others = yield* Effect.forEach(Arr.range(2, 20), (index) =>
-            repository.create({
-              defaultTerm: 2,
-              departmentId: department.id,
-              function: "recruitment",
-              groupEmail: null,
-              name: `Welcome team ${index}`,
-            })
+            transactional(
+              repository.create({
+                defaultTerm: 2,
+                departmentId: department.id,
+                function: "recruitment",
+                groupEmail: null,
+                name: `Welcome team ${index}`,
+              })
+            )
           );
 
           const teams = [team, ...others];
 
           for (const round of Arr.range(1, 100)) {
-            const person = yield* people.create({
-              email: EmailAddress.make(`welcome-${round}@example.org`),
-              fieldOfStudyId: fieldOfStudy.id,
-              name: `Welcome ${round}`,
-            });
+            const person = yield* transactional(
+              people.create({
+                email: EmailAddress.make(`welcome-${round}@example.org`),
+                fieldOfStudyId: fieldOfStudy.id,
+                name: `Welcome ${round}`,
+              })
+            );
 
             const exits = yield* race(
               Arr.map(teams, (candidate) =>

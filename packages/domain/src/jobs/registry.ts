@@ -4,9 +4,8 @@
  * `docs/system/administration.md`, and `test/jobs/registry.test.ts` fails until all four agree. A later spec adds its
  * job by adding its name to `SystemJob`, a declaration below and a runner.
  *
- * Cadence is the operator's decision. The ten-minute tick is the one that specs 0003 and 0006 already run on, so the
- * jobs that inherit it are `approved`; a value that the operator has not yet accepted is `proposed` and is marked so
- * in the documentation. Approving it changes that one word.
+ * Cadence is the operator's decision. The ten-minute tick is inherited and approved; a proposed cadence does not run
+ * or install a trigger until the operator approves it. Explicit requests still use the existing approved tick.
  */
 import { ENDING_SOON_WEEKS } from "../teams/endingSoon.ts";
 import { DueWhen, make } from "./job.ts";

@@ -403,6 +403,29 @@ export const team = pgTable(
   ]
 );
 
+/** One namespace for person and team Google addresses (spec 0008); a claim has exactly one owner. */
+export const companyAddress = pgTable(
+  "company_address",
+  {
+    address: text("address").primaryKey(),
+    personId: integer("person_id").references(() => person.id, {
+      onDelete: "cascade",
+    }),
+    teamId: integer("team_id").references(() => team.id, {
+      onDelete: "cascade",
+    }),
+  },
+  (t) => [
+    check(
+      "company_address_one_owner",
+      sql`(${t.personId} is null) <> (${t.teamId} is null)`
+    ),
+    check("company_address_lowercase", sql`${t.address} = lower(${t.address})`),
+    index("company_address_person_idx").on(t.personId),
+    index("company_address_team_idx").on(t.teamId),
+  ]
+);
+
 /** The value list of positions (`Leder`, `Medlem`, …); the first migration seeds the legacy fixtures. */
 export const position = pgTable(
   "position",

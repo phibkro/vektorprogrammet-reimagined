@@ -35,10 +35,7 @@ export const DueWhen = Schema.TaggedUnion({
 
 export type DueWhen = typeof DueWhen.Type;
 
-/**
- * Whether the operator has accepted a job's cadence. A `proposed` value runs like an `approved` one and is marked in
- * the generated documentation; approving it is the change of this one word in the declaration.
- */
+/** A proposed cadence is inert until the operator changes this one declaration to approved. */
 export const ScheduleStatus = Schema.Literals(["approved", "proposed"]);
 
 export type ScheduleStatus = typeof ScheduleStatus.Type;
@@ -108,9 +105,12 @@ export type JobPeriod = typeof JobPeriod.Type;
 export const tickPeriod = (at: DateTime.Utc): JobPeriod =>
   JobPeriod.make(DateTime.formatIso(DateTime.startOf(at, "minute")));
 
-/** A request for a run is its own period (`request:<n>`), so asking again never collides with a finished one. */
+/** The prefix distinguishes an explicitly requested period from scheduled periods. */
+export const REQUEST_PREFIX = "request:";
+
+/** A request for a run is its own period, so asking again never collides with a finished one. */
 export const requestPeriod = (key: string): JobPeriod =>
-  JobPeriod.make(`request:${key}`);
+  JobPeriod.make(`${REQUEST_PREFIX}${key}`);
 
 /**
  * The periods of `dueWhen` that are due at the tick `at`, each once, in the order of the rules: the tick itself, the
@@ -156,6 +156,11 @@ export const describeDueWhen = (rule: DueWhen): string =>
     })
   );
 
-/** The distinct crons of `jobs`, in declaration order: the Worker's triggers, generated and never listed by hand. */
+/** Distinct approved crons, in declaration order: the Worker's installed triggers. */
 export const cronTriggers = (jobs: readonly Job[]): readonly string[] =>
-  Arr.dedupe(Arr.map(jobs, (job) => job.schedule.cron));
+  Arr.dedupe(
+    Arr.map(
+      Arr.filter(jobs, (job) => job.schedule.status === "approved"),
+      (job) => job.schedule.cron
+    )
+  );

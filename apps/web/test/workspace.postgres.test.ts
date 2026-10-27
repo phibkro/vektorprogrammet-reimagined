@@ -5,14 +5,14 @@
  * state, and one of 21 is refused before any removal. The adapters' own gates are in `workspaceAdapters.test.ts`.
  */
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
 import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import {
+  AggregateLocks,
+  CompanyEmail,
   CurrentPrincipal,
+  Job,
   JobRegistry,
+  Outbox,
+  WorkspaceAssignments,
   WorkspaceModeSetting,
   WorkspaceReports,
   WorkspaceWriter,
@@ -20,7 +20,6 @@ import {
 } from "@vektorprogrammet/domain";
 import type {
   JobRun,
-  Outbox,
   WorkspaceChange,
   WorkspaceDirectory,
   WorkspaceFacts,
@@ -37,6 +36,7 @@ import {
   Layer,
   Logger,
   Option,
+  Predicate,
   Ref,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -47,11 +47,12 @@ import { workspaceSyncRunner } from "../src/server/jobRunners";
 import { dispatchTick } from "../src/server/jobs";
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender } from "../src/server/senders";
-import { Transactor, transactorLayer } from "../src/server/transactor";
+import { Transactor } from "../src/server/transactor";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { workspaceDirectoryLayer } from "../src/server/workspace";
 import { ADMIN } from "./support/principals";
 import { rowsIn } from "./support/rowCount";
+import { workspaceDatabase } from "./support/workspaceDatabase";
 import {
   directoryOver,
   emptyDirectory,
@@ -64,17 +65,7 @@ import type { DirectoryState } from "./support/workspaceWorld";
 /** 02:30 in Oslo on 2026-10-27 (winter time): the nightly window is open and the semester is Høst 2026. */
 const NIGHT = DateTime.makeUnsafe("2026-10-27T01:30:00Z");
 
-const live = Layer.unwrap(
-  Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-    transactorLayer.pipe(
-      Layer.provideMerge(DatabaseLive({ maxConnections: 10, url }))
-    )
-  )
-).pipe(
-  Layer.provideMerge(migratedTestDatabase),
-  Layer.provideMerge(webCryptoLayer),
-  Layer.orDie
-);
+const live = workspaceDatabase.pipe(Layer.provideMerge(webCryptoLayer));
 
 const reset = Effect.gen(function* reset() {
   const sql = yield* SqlClient;
@@ -84,15 +75,24 @@ const reset = Effect.gen(function* reset() {
 
 /** What the Workspace runner needs from its Layer, besides the principal and the transaction that the scheduler provides. */
 type RunnerServices =
+  | AggregateLocks
   | JobRun.JobRuns
   | Outbox
   | WorkspaceDirectory
+  | WorkspaceAssignments
   | WorkspaceFacts
   | Crypto.Crypto
   | WorkspaceReports;
 
+/** Fixture approval exercises the automatic schedule without approving production. */
+const approvedWorkspaceSync = Job.make({
+  ...JobRegistry.workspaceSync,
+  name: "workspaceSync",
+  schedule: { ...JobRegistry.workspaceSync.schedule, status: "approved" },
+});
+
 const tick = dispatchTick<"workspaceSync", RunnerServices>(
-  [JobRegistry.workspaceSync],
+  [approvedWorkspaceSync],
   { workspaceSync: workspaceSyncRunner },
   { at: NIGHT, only: ["workspaceSync"] }
 );
@@ -113,6 +113,14 @@ const worldOfStrays = (strays: number): DirectoryState => ({
       ...gone(strays),
     ],
   },
+});
+
+const twoMemberWorld = Effect.gen(function* twoMemberWorld() {
+  yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
+  yield* reset;
+  yield* seedWorld({ members: 2, teams: 1 });
+
+  return yield* Ref.make(worldOfStrays(0));
 });
 
 /** Runs the job in `mode` against `directory`, with `writer` standing in for the provider's mutations. */
@@ -388,6 +396,7 @@ layer(live, { excludeTestServices: true })(
             yield* seedWorld({ members: 1, teams: 1 });
             const sql = yield* SqlClient;
             yield* sql`update person set company_email = 'invalid@example.org'`;
+            yield* sql`update company_address set address = 'invalid@example.org' where person_id is not null`;
             const directory = yield* Ref.make(worldOfStrays(1));
             yield* runIn("write", directory, refusingWriter);
             const report = yield* latest;
@@ -583,6 +592,162 @@ layer(live, { excludeTestServices: true })(
 
             assert.deepStrictEqual(yield* Ref.get(directory), settled);
           })
+      );
+
+      layerTest.effect(
+        "a generated account keeps its address when the next projection sees it in the directory",
+        () =>
+          Effect.gen(function* repeatedProjection() {
+            const directory = yield* twoMemberWorld;
+            const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
+            const writer = writerOver(directory, asked);
+            yield* runIn("write", directory, writer);
+
+            const first = Option.getOrThrow(
+              Arr.findFirst((yield* latest).accounts, (line) => line.generated)
+            );
+
+            yield* deliverOutbox({ limit: 50 }).pipe(
+              Effect.provide(
+                Layer.mergeAll(
+                  writer,
+                  Layer.mock(AccountDelivery, {}),
+                  Layer.mock(MessageSender, {})
+                )
+              )
+            );
+            const nextDay = DateTime.add(NIGHT, { days: 1 });
+            yield* TestClock.setTime(DateTime.toEpochMillis(nextDay));
+            yield* dispatchTick<"workspaceSync", RunnerServices>(
+              [approvedWorkspaceSync],
+              { workspaceSync: workspaceSyncRunner },
+              { at: nextDay, only: ["workspaceSync"] }
+            ).pipe(
+              Effect.provide(
+                Layer.mergeAll(
+                  directoryOver(directory),
+                  writer,
+                  Layer.succeed(WorkspaceModeSetting)("write")
+                )
+              )
+            );
+
+            const second = Option.getOrThrow(
+              Arr.findFirst(
+                (yield* latest).accounts,
+                (line) => line.personId === first.personId
+              )
+            );
+
+            assert.strictEqual(second.address, first.address);
+            assert.isTrue(second.present);
+            assert.strictEqual((yield* latest).counts.accountsToCreate, 0);
+          })
+      );
+
+      layerTest.effect(
+        "a failed outbox write rolls back the generated Person address",
+        () =>
+          Effect.gen(function* rollbackAssignment() {
+            const directory = yield* twoMemberWorld;
+
+            const result = yield* runIn(
+              "write",
+              directory,
+              refusingWriter
+            ).pipe(
+              Effect.provide(
+                Layer.mock(Outbox, {
+                  enqueue: () => Effect.die("outbox failed"),
+                })
+              )
+            );
+
+            assert.strictEqual(result[0]?.periods[0]?.result, "retry");
+            const sql = yield* SqlClient;
+
+            const rows = yield* sql<{
+              readonly company_email: string | null;
+            }>`select company_email from person where name = 'Medlem1x2 Navn'`;
+
+            assert.strictEqual(rows[0]?.company_email, null);
+            assert.strictEqual(yield* rowsIn("outbox"), 0);
+          })
+      );
+
+      layerTest.effect(
+        "twenty competing assignments in 100 rounds keep one address; omitting the recheck lets all win",
+        () =>
+          Effect.gen(function* assignmentRace() {
+            yield* reset;
+            yield* seedWorld({ members: 1, teams: 1 });
+            const sql = yield* SqlClient;
+
+            const [person] = yield* sql<{
+              readonly id: number;
+            }>`select id from person`;
+
+            const id = person?.id ?? 0;
+            const tx = yield* Transactor;
+            const locks = yield* AggregateLocks;
+            const assignments = yield* WorkspaceAssignments;
+
+            const attempts = (unsafe: boolean) =>
+              Effect.forEach(
+                Arr.range(0, 19),
+                (index) =>
+                  tx
+                    .run(
+                      Effect.gen(function* attempt() {
+                        const locked = yield* locks.lock("Person", id);
+
+                        const address = CompanyEmail.make(
+                          index % 2 === 0
+                            ? "one@vektorprogrammet.no"
+                            : "two@vektorprogrammet.no"
+                        );
+
+                        yield* unsafe
+                          ? sql`update person set company_email = ${address} where id = ${locked.id}`
+                          : assignments.assign(locked, address);
+                      })
+                    )
+                    .pipe(Effect.exit),
+                { concurrency: "unbounded" }
+              );
+
+            for (const round of Arr.range(1, 100)) {
+              yield* sql`delete from company_address where person_id = ${id}`;
+              yield* sql`update person set company_email = null where id = ${id}`;
+              const safe = yield* attempts(false);
+
+              const failures = Arr.flatMap(safe, (exit) =>
+                Exit.isFailure(exit) ? [exit.cause] : []
+              );
+
+              const causes = Arr.join(Arr.map(failures, Cause.pretty), "\n");
+              assert.strictEqual(
+                failures.length,
+                10,
+                `round ${round}: ${causes}`
+              );
+              assert.isTrue(
+                Arr.every(failures, (cause) =>
+                  Predicate.isTagged(Cause.squash(cause), "Conflict")
+                ),
+                `round ${round}: ${causes}`
+              );
+              yield* sql`delete from company_address where person_id = ${id}`;
+              yield* sql`update person set company_email = null where id = ${id}`;
+              const unsafe = yield* attempts(true);
+              assert.strictEqual(
+                Arr.filter(unsafe, Exit.isFailure).length,
+                0,
+                `negative control round ${round}`
+              );
+            }
+          }),
+        { timeout: 120_000 }
       );
 
       layerTest.effect(

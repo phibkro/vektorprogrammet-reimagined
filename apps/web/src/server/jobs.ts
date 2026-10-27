@@ -2,10 +2,10 @@
  * The scheduler (spec 0008): one `scheduled` tick runs every job of the registry that is due, in declaration order,
  * each as its own `System` principal, each isolated from the others' failures.
  *
- * A job is due for the periods its rules name (`Job.duePeriods`) and for the periods that an earlier tick left
- * `partial` (`JobRuns.resumable`: a budget that ended, a request that waits, an attempt that failed, a lease that ran
- * out). `JobRuns.claim` gives each period to exactly one caller; the rest skip it. A claimed period runs chunk by
- * chunk until it is done or the job's `chunksPerTick` is spent, and then it is released `partial` for the next tick.
+ * Approved schedules run their due periods and resume their partial or expired periods. A proposed schedule runs
+ * only explicit requests, including requests left partial; it never resumes an automatic period until approved.
+ * `JobRuns.claim` gives each period to exactly one caller. A claimed period runs chunk by chunk until it is done
+ * or the job's `chunksPerTick` is spent, and then it is released `partial` for the next tick.
  *
  * A runner has one shape: `prepare` reads providers (or does work that manages its own statements, as the outbox
  * sweep does), outside any transaction, and returns the program that commits the chunk. The scheduler runs that
@@ -145,14 +145,20 @@ const runPeriod = <R>(
     return { remaining: 0, result: "partial" } satisfies Progress;
   });
 
+/** An unapproved cadence has no automatic periods. */
+const automaticPeriods = (job: Job.Job, at: DateTime.Utc) =>
+  job.schedule.status === "approved" ? Job.duePeriods(job.dueWhen, at) : [];
+
 /** Claims the periods of `job` that are due or waiting, and runs them while the budget lasts. */
 const runDue = <R>(job: Job.Job, runner: Runner<R>, at: DateTime.Utc) =>
   Effect.gen(function* periodsOfJob() {
     const runs = yield* JobRun.JobRuns;
 
+    const approved = job.schedule.status === "approved";
+
     const periods = Arr.dedupe([
-      ...(yield* runs.resumable(job.name)),
-      ...Job.duePeriods(job.dueWhen, at),
+      ...(yield* runs.resumable(job.name, approved ? "all" : "requests")),
+      ...automaticPeriods(job, at),
     ]);
 
     const reports: PeriodReport[] = [];

@@ -2,9 +2,9 @@
  * The Workspace projection's ports (spec 0008). The domain states what it needs; `apps/web` builds the directory and
  * the writer by deployment, and `packages/db` reads the facts and keeps the report.
  *
- * The directory is read-only and the writer is a different service, so a program that only reads (the dry-run) has no
- * mutation in its type. No call to Google exists on this branch: the production adapter needs credentials that the
- * operator holds, and until then `WorkspaceDirectory` fails `WorkspaceNotConfigured` and the report says so.
+ * The provider directory and writer are separate services: a dry-run never calls the writer. The report is persisted
+ * locally, but generated Person addresses are assigned only in write mode. No call to Google exists on this branch:
+ * without operator-held credentials the directory fails `WorkspaceNotConfigured` and the report says so.
  */
 import { Context, Schema } from "effect";
 import type { Effect, Option } from "effect";
@@ -12,6 +12,8 @@ import type { Effect, Option } from "effect";
 import type { JobPeriod } from "../jobs/job.ts";
 import type { Counts } from "../jobs/runs.ts";
 import type { Semester } from "../organisation/semester.ts";
+import type { Locked } from "../shared/aggregate.ts";
+import type { AlreadyExists, Conflict } from "../shared/errors.ts";
 import type { TeamId } from "../shared/ids.ts";
 import type { InTransaction } from "../shared/transaction.ts";
 import type { WorkspaceChange } from "./change.ts";
@@ -124,6 +126,17 @@ export class WorkspaceFacts extends Context.Service<
     ) => Effect.Effect<readonly TeamFact[]>;
   }
 >()("@vektorprogrammet/domain/workspace/WorkspaceFacts") {}
+
+/** A generated address is assigned only when a write-mode report is committed. */
+export class WorkspaceAssignments extends Context.Service<
+  WorkspaceAssignments,
+  {
+    readonly assign: (
+      locked: Locked<"Person">,
+      address: CompanyEmail
+    ) => Effect.Effect<void, AlreadyExists | Conflict, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/workspace/WorkspaceAssignments") {}
 
 /** What one chunk adds to a report. */
 export interface ReportPart {

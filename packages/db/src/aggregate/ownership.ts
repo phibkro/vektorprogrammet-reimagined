@@ -54,6 +54,8 @@ export const Ownership = [
 export const NotOwned = {
   authUser:
     "Better Auth's table. The library writes it through its own connection, outside every domain transaction, and a command never writes it: it enqueues an outbox message that the delivery performs after commit (spec 0007).",
+  companyAddress:
+    "A shared unique address namespace: each row belongs to either a person or a team. Person claims and releases use the Person token through Aggregates; team claims use the same unique index in their transaction.",
   endingSoonDigest:
     "A claim ledger: its only write is INSERT … ON CONFLICT DO NOTHING on its own primary key (person, term, year), which the unique index orders, and nothing is decided from the person's other rows. A person lock would only queue the digest behind unrelated writes.",
 } as const satisfies Readonly<Record<string, string>>;

@@ -192,6 +192,7 @@ const effectConfig: EffectConfigInput = {
         "tools/effx-conformance/test/conformance.test.ts",
         "packages/db/test/accounts.postgres.test.ts",
         "packages/db/test/adminList.postgres.test.ts",
+        "packages/db/test/companyAddressMigration.postgres.test.ts",
         "apps/web/test/support/workerRuntime.ts",
       ],
       platform: "node",
