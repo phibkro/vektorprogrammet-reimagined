@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["tools/oxlint/anti-slop/**"],
+  "ignore": ["tools/oxlint/anti-slop/**", ".agents/skills/**/*.map.mjs"],
   "ignoreDependencies": ["@effect/language-service"],
   "workspaces": {
     "tools/quality": {

@@ -1,0 +1,611 @@
+/**
+ * The PostgreSQL behaviour that the model of `.agents/skills/verify-membership-writes` assumes, each claim shown on
+ * real PostgreSQL (devenv) in a disposable database. The model (`model/MembershipWrites.tla`) runs the statements of
+ * the code against rules that PostgreSQL, not this code, defines: how an exclusion constraint is checked, what a row
+ * lock waits for, what the deadlock detector does. A model of those rules is worth what the rules are worth, so each
+ * one is pinned here, and a PostgreSQL release that changes one fails this file instead of leaving the model true to
+ * a database that no longer exists. Every test names the model action it stands behind.
+ *
+ * A session is one transaction on its own connection, driven statement by statement. A statement that has to wait for
+ * another session does not block the test: the test asks PostgreSQL who is blocked (`pg_blocking_pids`) and only then
+ * lets the other session end.
+ */
+import { assert, layer } from "@effect/vitest";
+import {
+  MembershipRepository,
+  advanceSemester,
+  semesterOrdinal,
+} from "@vektorprogrammet/domain";
+import type {
+  MembershipId,
+  PersonId,
+  PositionId,
+  Semester,
+  TeamId,
+} from "@vektorprogrammet/domain";
+import {
+  Array as Arr,
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  Order,
+  Predicate,
+  Queue,
+} from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
+
+import { transactional } from "../src/index.ts";
+import { postgresDatabase } from "./support/database.ts";
+import { insertMembership, world } from "./support/teamsWorld.ts";
+
+type Statement = Effect.Effect<unknown, SqlError, SqlClient>;
+
+type Ending = "commit" | "rollback";
+
+/** Semester number `n` after Vår 3000, so that every term below is a small number. */
+const at = (n: number): Semester =>
+  advanceSemester({ term: "VAR", year: 3000 }, n);
+
+interface Who {
+  readonly personId: PersonId;
+  readonly positionId: PositionId;
+  readonly teamId: TeamId;
+}
+
+/** `SELECT ... FOR NO KEY UPDATE` on the person's row: the lock of `MembershipRepository.insert`. */
+const lockPerson = (personId: PersonId): Statement =>
+  Effect.gen(function* lockPersonStatement() {
+    const sql = yield* SqlClient;
+
+    return yield* sql`select id from person where id = ${personId} for no key update`;
+  });
+
+/** The INSERT of `MembershipRepository.insert`, without its lock: what PostgreSQL does with the row and its entry. */
+const insertTerm = (who: Who, start: number, end: number): Statement =>
+  Effect.gen(function* insertStatement() {
+    const sql = yield* SqlClient;
+
+    return yield* sql`insert into membership (person_id, team_id, position_id, start_term, start_year, end_term, end_year)
+      values (${who.personId}, ${who.teamId}, ${who.positionId}, ${at(start).term}, ${at(start).year}, ${at(end).term}, ${at(end).year})
+      returning id`;
+  });
+
+/** The UPDATE of `MembershipRepository.setEnd`: the end moves only if it is still the one that the caller read. */
+const moveEnd = (
+  id: MembershipId,
+  newEnd: number,
+  observedEnd: number,
+  current: number
+): Statement =>
+  Effect.gen(function* updateStatement() {
+    const sql = yield* SqlClient;
+
+    return yield* sql`update membership set end_term = ${at(newEnd).term}, end_year = ${at(newEnd).year}
+      where id = ${id} and end_ordinal = ${semesterOrdinal(at(observedEnd))}
+        and start_ordinal <= ${semesterOrdinal(at(current))} and end_ordinal >= ${semesterOrdinal(at(current))}
+      returning id`;
+  });
+
+const deleteRow = (id: MembershipId): Statement =>
+  Effect.gen(function* deleteStatement() {
+    const sql = yield* SqlClient;
+
+    return yield* sql`delete from membership where id = ${id} returning id`;
+  });
+
+/** The SQLSTATE that the driver reports in a failed statement (`23P01`, `40P01`). */
+const driverCode = (failure: SqlError): Option.Option<string> => {
+  const { cause } = failure.reason;
+
+  return Predicate.hasProperty(cause, "code") && Predicate.isString(cause.code)
+    ? Option.some(cause.code)
+    : Option.none();
+};
+
+/** What a statement ended as: `ok`, the SQLSTATE of its failure, or `defect`. */
+const sqlstateOf = (exit: Exit.Exit<unknown, SqlError>): string =>
+  Exit.isSuccess(exit)
+    ? "ok"
+    : Option.getOrElse(
+        Option.flatMap(Cause.findErrorOption(exit.cause), driverCode),
+        () => "defect"
+      );
+
+const rowCountOf = (exit: Exit.Exit<unknown, SqlError>): number =>
+  Exit.isSuccess(exit) && Arr.isArray(exit.value) ? exit.value.length : -1;
+
+/** What a session runs next; `false` ends it. */
+type Step = Effect.Effect<boolean, never, SqlClient>;
+
+interface Session {
+  /** The session ends: its transaction commits or rolls back. */
+  readonly end: (how: Ending) => Effect.Effect<void>;
+  readonly fiber: Fiber.Fiber<Exit.Exit<void>>;
+  /** The statement starts in the session's transaction at once; the result arrives when PostgreSQL answers. */
+  readonly start: (
+    statement: Statement
+  ) => Effect.Effect<Deferred.Deferred<Exit.Exit<unknown, SqlError>>>;
+}
+
+/** One transaction, on its own connection, that runs the statements it is given until it is told to end. */
+const session = Effect.fnUntraced(function* session() {
+  const steps = yield* Queue.unbounded<Step>();
+
+  const serve: Effect.Effect<void, never, SqlClient> = Effect.flatMap(
+    Queue.take(steps),
+    (step) => Effect.flatMap(step, (more) => (more ? serve : Effect.void))
+  );
+
+  const fiber = yield* Effect.forkChild(Effect.exit(transactional(serve)));
+
+  return {
+    // A rollback is a defect in the session's program: a typed failure or a defect rolls the transaction back.
+    end: (how: Ending) =>
+      Queue.offer(
+        steps,
+        how === "commit"
+          ? Effect.succeed(false)
+          : Effect.die("the test rolls this session back")
+      ),
+    fiber,
+    start: (statement: Statement) =>
+      Effect.gen(function* startStatement() {
+        const result = yield* Deferred.make<Exit.Exit<unknown, SqlError>>();
+
+        yield* Queue.offer(
+          steps,
+          Effect.flatMap(Effect.exit(statement), (exit) =>
+            Effect.as(Deferred.succeed(result, exit), true)
+          )
+        );
+
+        return result;
+      }),
+  } satisfies Session;
+});
+
+/** How many sessions of this database wait for another one right now. */
+const blockedSessions = Effect.gen(function* blockedSessions() {
+  const sql = yield* SqlClient;
+
+  const rows = yield* sql<{
+    readonly blocked: number;
+  }>`select count(*)::int as blocked from pg_stat_activity
+    where datname = current_database() and cardinality(pg_blocking_pids(pid)) > 0`;
+
+  return rows[0]?.blocked ?? 0;
+});
+
+/** True once PostgreSQL shows `wanted` sessions waiting, false when none shows up within five seconds. */
+const untilBlocked = Effect.fnUntraced(function* untilBlocked(wanted: number) {
+  for (const _ of Arr.range(1, 500)) {
+    if ((yield* blockedSessions) >= wanted) {
+      return true;
+    }
+
+    yield* Effect.sleep("10 millis");
+  }
+
+  return false;
+});
+
+const fresh = Effect.fnUntraced(function* fresh(tag: string) {
+  const found = yield* world(tag);
+
+  return {
+    personId: found.person.id,
+    positionId: found.memberPosition,
+    teamId: found.team.id,
+  } satisfies Who;
+});
+
+/**
+ * Session 1 runs `first` and stays open. Session 2 runs `second`, which has to wait for it. Session 1 then ends as
+ * `firstEnds` says. The result is how `second` ended, and whether PostgreSQL showed it waiting before that.
+ */
+const waitsForTheFirst = Effect.fnUntraced(function* waitsForTheFirst(
+  first: Statement,
+  second: Statement,
+  firstEnds: Ending
+) {
+  const one = yield* session();
+  const two = yield* session();
+  yield* Deferred.await(yield* one.start(first));
+
+  const answer = yield* two.start(second);
+  const waited = yield* untilBlocked(1);
+  const stillWaiting = !(yield* Deferred.isDone(answer));
+
+  yield* one.end(firstEnds);
+  const exit = yield* Deferred.await(answer);
+  yield* two.end("rollback");
+  yield* Fiber.join(one.fiber);
+  yield* Fiber.join(two.fiber);
+
+  return { exit, waited: waited && stillWaiting };
+});
+
+/**
+ * Each session holds something that the other one then asks for: a cycle of waits. PostgreSQL finds it after
+ * `deadlock_timeout` and rolls one of the two back with 40P01; the other goes on. The result is how the two wanting
+ * statements ended, sorted.
+ */
+const crosswise = Effect.fnUntraced(function* crosswise(options: {
+  readonly firstHolds: Statement;
+  readonly secondHolds: Statement;
+  readonly firstWants: Statement;
+  readonly secondWants: Statement;
+}) {
+  const one = yield* session();
+  const two = yield* session();
+  yield* Deferred.await(yield* one.start(options.firstHolds));
+  yield* Deferred.await(yield* two.start(options.secondHolds));
+
+  const firstAnswer = yield* one.start(options.firstWants);
+  yield* untilBlocked(1);
+  const secondAnswer = yield* two.start(options.secondWants);
+
+  const results = [
+    sqlstateOf(yield* Deferred.await(firstAnswer)),
+    sqlstateOf(yield* Deferred.await(secondAnswer)),
+  ];
+
+  yield* one.end("rollback");
+  yield* two.end("rollback");
+  yield* Fiber.join(one.fiber);
+  yield* Fiber.join(two.fiber);
+
+  return Arr.sort(results, Order.String);
+});
+
+layer(postgresDatabase(), { excludeTestServices: true })(
+  "PostgreSQL behaviour that the membership-write model assumes",
+  (it) => {
+    // ------------------------------------------------ the exclusion constraint (CheckWait, CheckRefuse, CheckPass)
+
+    for (const ending of ["commit", "rollback"] as const) {
+      const refusedAfterCommit = ending === "commit" ? "23P01" : "ok";
+      const acceptedAfterCommit = ending === "commit" ? "ok" : "23P01";
+
+      it.effect(
+        `INSERT overlapping an unfinished INSERT waits for it; after its ${ending} it ends as ${refusedAfterCommit}`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            const who = yield* fresh(`ins${ending}`);
+
+            const result = yield* waitsForTheFirst(
+              insertTerm(who, 10, 11),
+              insertTerm(who, 11, 12),
+              ending
+            );
+
+            assert.isTrue(result.waited);
+            assert.strictEqual(sqlstateOf(result.exit), refusedAfterCommit);
+          })
+      );
+
+      it.effect(
+        `INSERT overlapping a row that an unfinished transaction deleted waits for it; after its ${ending} it ends as ${acceptedAfterCommit}`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            const who = yield* fresh(`del${ending}`);
+
+            const base = yield* insertMembership(who, {
+              end: at(21),
+              start: at(20),
+            });
+
+            const result = yield* waitsForTheFirst(
+              deleteRow(base.id),
+              insertTerm(who, 21, 22),
+              ending
+            );
+
+            assert.isTrue(result.waited);
+            assert.strictEqual(sqlstateOf(result.exit), acceptedAfterCommit);
+          })
+      );
+
+      it.effect(
+        `an UPDATE that moves a term is checked like an INSERT: it waits for an unfinished overlapping INSERT, and after its ${ending} ends as ${refusedAfterCommit}`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            const who = yield* fresh(`upd${ending}`);
+
+            const base = yield* insertMembership(who, {
+              end: at(31),
+              start: at(30),
+            });
+
+            const result = yield* waitsForTheFirst(
+              insertTerm(who, 33, 33),
+              moveEnd(base.id, 33, 31, 31),
+              ending
+            );
+
+            assert.isTrue(result.waited);
+            assert.strictEqual(sqlstateOf(result.exit), refusedAfterCommit);
+          })
+      );
+    }
+
+    it.effect(
+      "two writes that each wait for the other's unfinished row are a deadlock: PostgreSQL rolls back exactly one with 40P01",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const who = yield* fresh("cross");
+
+          // Session 1 wrote [40, 41] and session 2 wrote [42, 43]. Session 2 now writes [41, 41] and session 1
+          // writes [42, 42]: each overlaps the other's unfinished row, so each waits for the other.
+          const results = yield* crosswise({
+            firstHolds: insertTerm(who, 40, 41),
+            firstWants: insertTerm(who, 42, 42),
+            secondHolds: insertTerm(who, 42, 43),
+            secondWants: insertTerm(who, 41, 41),
+          });
+
+          // The victim's rows die with it, so the survivor's write no longer overlaps anything.
+          assert.deepStrictEqual(results, ["40P01", "ok"]);
+        })
+    );
+
+    // ------------------------------------------------ the person's row lock (LockPerson)
+
+    it.effect(
+      "FOR NO KEY UPDATE on the person: a second one waits, an INSERT's foreign-key check does not (FOR UPDATE would block it)",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const who = yield* fresh("lock");
+          const other = yield* fresh("lockother");
+          const sql = yield* SqlClient;
+
+          const holder = yield* session();
+          yield* Deferred.await(yield* holder.start(lockPerson(who.personId)));
+
+          const writer = yield* session();
+          const inserted = yield* writer.start(insertTerm(who, 50, 51));
+
+          assert.strictEqual(
+            sqlstateOf(yield* Deferred.await(inserted)),
+            "ok",
+            "the foreign-key check does not conflict with FOR NO KEY UPDATE"
+          );
+
+          const locker = yield* session();
+          const locked = yield* locker.start(lockPerson(who.personId));
+          assert.isTrue(
+            yield* untilBlocked(1),
+            "a second FOR NO KEY UPDATE waits"
+          );
+          assert.isFalse(yield* Deferred.isDone(locked));
+
+          yield* holder.end("commit");
+          assert.strictEqual(sqlstateOf(yield* Deferred.await(locked)), "ok");
+
+          // The contrast that "no foreign-key check conflicts with it" rests on.
+          const exclusive = yield* session();
+
+          yield* Deferred.await(
+            yield* exclusive.start(
+              sql`select id from person where id = ${other.personId} for update`
+            )
+          );
+
+          const checked = yield* writer.start(insertTerm(other, 52, 53));
+          assert.isTrue(
+            yield* untilBlocked(1),
+            "FOR UPDATE blocks the foreign-key check"
+          );
+          yield* exclusive.end("commit");
+          assert.strictEqual(sqlstateOf(yield* Deferred.await(checked)), "ok");
+
+          yield* locker.end("rollback");
+          yield* writer.end("rollback");
+          yield* Effect.forEach([holder, exclusive, locker, writer], (done) =>
+            Fiber.join(done.fiber)
+          );
+        })
+    );
+
+    it.effect(
+      "the join form of setEnd's lock takes the person's row and not the membership's row",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const who = yield* fresh("join");
+          const sql = yield* SqlClient;
+
+          const base = yield* insertMembership(who, {
+            end: at(71),
+            start: at(70),
+          });
+
+          const holder = yield* session();
+
+          yield* Deferred.await(
+            yield* holder.start(
+              sql`select person.id from person inner join membership on membership.person_id = person.id
+                where membership.id = ${base.id} for no key update of person`
+            )
+          );
+
+          const writer = yield* session();
+
+          assert.strictEqual(
+            sqlstateOf(
+              yield* Deferred.await(
+                yield* writer.start(moveEnd(base.id, 72, 71, 70))
+              )
+            ),
+            "ok",
+            "the membership row is not locked: its UPDATE does not wait"
+          );
+
+          const locked = yield* writer.start(lockPerson(who.personId));
+          assert.isTrue(yield* untilBlocked(1), "the person's row is locked");
+          yield* holder.end("commit");
+          assert.strictEqual(sqlstateOf(yield* Deferred.await(locked)), "ok");
+          yield* writer.end("rollback");
+          yield* Fiber.join(holder.fiber);
+          yield* Fiber.join(writer.fiber);
+        })
+    );
+
+    // ------------------------------------------------ the conditional UPDATE (UpdateEnd)
+
+    for (const ending of ["commit", "rollback"] as const) {
+      it.effect(
+        `a conditional UPDATE waits for the row's unfinished writer; after its ${ending} it changes ${ending === "commit" ? "no row, because the end is no longer the observed one" : "one row"}`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            const who = yield* fresh(`cond${ending}`);
+
+            const base = yield* insertMembership(who, {
+              end: at(61),
+              start: at(60),
+            });
+
+            const result = yield* waitsForTheFirst(
+              moveEnd(base.id, 62, 61, 61),
+              moveEnd(base.id, 61, 61, 61),
+              ending
+            );
+
+            assert.isTrue(result.waited);
+            assert.strictEqual(
+              rowCountOf(result.exit),
+              ending === "commit" ? 0 : 1
+            );
+          })
+      );
+    }
+
+    // ------------------------------------------------ what the lock order must prevent (WhatIf, Pair)
+
+    it.effect(
+      "a DELETE before the lock, against a lock before an INSERT that overlaps the deleted row, is a deadlock (the `replace` what-if)",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const who = yield* fresh("replace");
+
+          const planned = yield* insertMembership(who, {
+            end: at(91),
+            start: at(91),
+          });
+
+          // Session 1 deleted the planned membership and has not taken the lock. Session 2 holds the lock and
+          // writes a term over the deleted row, so it waits for session 1. Now session 1 asks for the lock.
+          const results = yield* crosswise({
+            firstHolds: deleteRow(planned.id),
+            firstWants: lockPerson(who.personId),
+            secondHolds: lockPerson(who.personId),
+            secondWants: insertTerm(who, 91, 92),
+          });
+
+          // Which one is the victim is up to PostgreSQL. If session 1 is, its DELETE is undone, the planned row is
+          // alive again, and session 2's write meets it (23P01); if session 2 is, session 1 gets the lock (ok).
+          assert.strictEqual(
+            Arr.filter(results, (result) => result === "40P01").length,
+            1
+          );
+          assert.isTrue(
+            Arr.some(results, (result) => result === "ok" || result === "23P01")
+          );
+        })
+    );
+
+    it.effect(
+      "two commands that lock two persons in opposite orders are a deadlock (spec 0006b locks in id order for this reason)",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const first = yield* fresh("pairone");
+          const second = yield* fresh("pairtwo");
+
+          const results = yield* crosswise({
+            firstHolds: lockPerson(first.personId),
+            firstWants: lockPerson(second.personId),
+            secondHolds: lockPerson(second.personId),
+            secondWants: lockPerson(first.personId),
+          });
+
+          assert.deepStrictEqual(results, ["40P01", "ok"]);
+        })
+    );
+
+    // ------------------------------------------------ the platform
+
+    it.effect(
+      "a command's transaction is READ COMMITTED, the isolation level that the model has",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const rows = yield* transactional(
+            Effect.gen(function* isolationLevel() {
+              const sql = yield* SqlClient;
+
+              return yield* sql<{
+                readonly level: string;
+              }>`select current_setting('transaction_isolation') as level`;
+            })
+          );
+
+          assert.strictEqual(rows[0]?.level, "read committed");
+        })
+    );
+
+    // ------------------------------------------------ the repository's own lock order (Shapes.tla `repo`)
+
+    it.effect(
+      "setEnd waits for the person's row lock before it writes anything (the order that keeps an extension and an insert from deadlocking)",
+      () =>
+        Effect.gen(function* effectProgram() {
+          const who = yield* fresh("setend");
+          const sql = yield* SqlClient;
+
+          const base = yield* insertMembership(who, {
+            end: at(81),
+            start: at(80),
+          });
+
+          const holder = yield* session();
+          yield* Deferred.await(yield* holder.start(lockPerson(who.personId)));
+
+          const extension = yield* Effect.forkChild(
+            Effect.exit(
+              transactional(
+                MembershipRepository.use((memberships) =>
+                  memberships.setEnd({
+                    activeIn: at(80),
+                    id: base.id,
+                    newEnd: at(82),
+                    observedEnd: at(81),
+                  })
+                )
+              )
+            )
+          );
+
+          assert.isTrue(
+            yield* untilBlocked(1),
+            "setEnd waits for the person's lock"
+          );
+
+          const unchanged = yield* sql<{
+            readonly endOrdinal: number;
+          }>`select end_ordinal as "endOrdinal" from membership where id = ${base.id}`;
+
+          assert.strictEqual(
+            unchanged[0]?.endOrdinal,
+            semesterOrdinal(at(81)),
+            "and has written nothing yet"
+          );
+
+          yield* holder.end("commit");
+          assert.isTrue(Exit.isSuccess(yield* Fiber.join(extension)));
+          yield* Fiber.join(holder.fiber);
+        })
+    );
+  }
+);
