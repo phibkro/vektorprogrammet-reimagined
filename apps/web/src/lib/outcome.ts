@@ -33,6 +33,10 @@ export const failureOutcome = (fields: FailureFields): Failure =>
 export const success = <A>(value: A): Outcome<A> =>
   outcomeConstructors.Success({ value });
 
+/** The key a `ValidationFailed` issue files under: the dotted path, which a `Field` of that name shows. */
+const issueKey = (issue: { readonly path: readonly string[] }): string =>
+  Arr.join(issue.path, ".");
+
 export type FieldErrors = Readonly<Record<string, readonly string[]>>;
 
 /** Field → messages, for forms (empty unless the failure is `ValidationFailed`). */
@@ -50,7 +54,7 @@ export const fieldErrors = (
   const fields = new Map<string, string[]>();
 
   for (const issue of result.error.issues) {
-    const key = Arr.join(issue.path, ".");
+    const key = issueKey(issue);
     const messages = fields.get(key);
 
     if (messages === undefined) {
@@ -64,11 +68,14 @@ export const fieldErrors = (
 };
 
 /**
- * The text of a failure that no field shows: every failure but a validation one (a refusal, a
- * duplicate, a missing row), and a validation issue that names no field.
+ * The text of a failure that no visible field shows: every failure but a validation one (a refusal,
+ * a duplicate, a missing row), and each validation issue whose path is not one of `shownFields`,
+ * the names of the fields the form renders. An issue on a hidden input, or on no field at all,
+ * has nowhere else to appear and must not be lost (issue 26).
  */
 export const formLevelMessage = (
-  result: Outcome<unknown> | null | undefined
+  result: Outcome<unknown> | null | undefined,
+  shownFields: ReadonlySet<string>
 ): string | null => {
   if (!result || Predicate.isTagged(result, "Success")) {
     return null;
@@ -78,15 +85,15 @@ export const formLevelMessage = (
     return result.message;
   }
 
-  const general = Arr.filter(
+  const unshown = Arr.filter(
     result.error.issues,
-    (issue) => issue.path.length === 0
+    (issue) => !shownFields.has(issueKey(issue))
   );
 
-  return general.length === 0
+  return unshown.length === 0
     ? null
     : Arr.join(
-        Arr.map(general, (issue) => issue.message),
+        Arr.map(unshown, (issue) => issue.message),
         " "
       );
 };

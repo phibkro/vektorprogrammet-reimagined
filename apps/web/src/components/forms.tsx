@@ -1,6 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Array as Arr, Effect, Predicate } from "effect";
+import { Array as Arr, Effect, Option, Predicate } from "effect";
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -44,7 +44,7 @@ export const Field = ({
   const messages = useContext(FieldErrorsContext)[name] ?? [];
 
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-1.5" data-field={name}>
       <Label className="grid">
         <span className="mb-1.5">{label}</span>
         {children}
@@ -58,11 +58,23 @@ export const Field = ({
   );
 };
 
+/** The names of the `Field`s a form renders: the only places a validation issue can show under its field. */
+const renderedFields = (form: HTMLFormElement): ReadonlySet<string> =>
+  new Set(
+    Arr.getSomes(
+      Arr.map(
+        Arr.fromIterable(form.querySelectorAll<HTMLElement>("[data-field]")),
+        (element) => Option.fromNullishOr(element.dataset.field)
+      )
+    )
+  );
+
 /**
  * A control-panel form backed by a server function that takes `FormData` and
  * answers an `Outcome` notice. On success the route's data is re-loaded and
  * `onSuccess` runs (a dialog closes). A failure stays on screen: validation
- * messages under their field, every other refusal (403, a duplicate) in an alert.
+ * messages under their field, every other refusal (403, a duplicate) in an alert, and so is a
+ * validation issue on a field the form does not render (a hidden `id`, issue 26).
  * The browser's own validation is off (`noValidate`), so the only rules and the only
  * messages are the domain's.
  */
@@ -84,6 +96,11 @@ export const CommandForm = ({
   const router = useRouter();
   const run = useServerFn(action);
   const [outcome, setOutcome] = useState<Outcome<string> | null>(null);
+
+  const [shownFields, setShownFields] = useState<ReadonlySet<string>>(
+    new Set()
+  );
+
   const [crashed, setCrashed] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -100,6 +117,7 @@ export const CommandForm = ({
     Effect.gen(function* submitCommand() {
       const result = yield* Effect.tryPromise(() => run({ data }));
       yield* Effect.sync(() => {
+        setShownFields(renderedFields(form));
         setOutcome(result);
       });
 
@@ -130,7 +148,7 @@ export const CommandForm = ({
 
   const problem = crashed
     ? "Noe gikk galt. Prøv igjen senere."
-    : formLevelMessage(outcome);
+    : formLevelMessage(outcome, shownFields);
 
   return (
     <form
