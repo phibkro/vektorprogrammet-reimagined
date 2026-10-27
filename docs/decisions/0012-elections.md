@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Elections: electorate, typed voting systems and the secret ballot
