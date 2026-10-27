@@ -63,6 +63,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "alchemy": "catalog:",
     "esbuild": "catalog:",
+    "happy-dom": "catalog:",
     "miniflare": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
