@@ -32,7 +32,23 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Person**: One human known to Vektorprogrammet: an applicant, an assistant, a team member, or a former one. One person has one record, even when they leave and come back. _Avoid_: user, member, account (an account is how a person logs in)
 
-**Principal**: A person, a system job, the separate emergency principal, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
+**Principal** (aktør): The accountable party that holds grants: a Person, a named system principal, `Emergency`, or `Anonymous`. _Avoid_: user, role.
+
+**Agent**: The business word for the software that acts on behalf of a principal; this system calls it a **Client**. An agent never has grants of its own. _Avoid_: principal, actor.
+
+**Activity**: An occasion that persons plan and the system schedules, runs and notifies: for example a social event, meeting or election. It is not an audit event. _Avoid_: event (for the occasion).
+
+**Activity type**: A declaration in code that sets an Activity's audience and capabilities. _Avoid_: event type.
+
+**Capability**: An optional part of an Activity type, such as RSVP, Check-in or Voting. A type says which capabilities are required, optional or absent.
+
+**Check-in**: A record that a person is present at an Activity during its check-in window. It can count toward quorum.
+
+**Organiser**: A person named on an Activity who may manage it. The role-kind question is open in ADR 0013.
+
+**RSVP**: A person's answer to an Activity invitation: yes, no or maybe.
+
+**Slack link**: A recorded link between one Person and one Slack user id. It records whether it came from verified e-mail or manual Sign in with Slack. The person can remove it on Min side.
 
 **Engagement**: A period in which a person works for Vektorprogrammet: a placement or a current role assignment in an internal unit (Department or Team). A School or Sponsor contact assignment is not an engagement. _Avoid_: involvement, participation
 
@@ -51,8 +67,6 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 **Alumnus** (tidligere medlem): A person with no current engagement in an internal unit who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
 
 ## Acting in the system
-
-**Principal** (aktør): The party that is accountable for an action: a person, a named system job, the separate `Emergency` principal, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
 
 **System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. _Avoid_: root, service account, bot
 

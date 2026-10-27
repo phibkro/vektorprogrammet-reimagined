@@ -32,6 +32,7 @@
 7. Redeploy `main` and confirm that the CMS answers (`GET /_emdash/api/setup/status` is 200 on its `workers.dev` URL). `bun run check:cms` proves the bundle in workerd against a local PostgreSQL, so the first deploy after the R3 fix is the proof against Hyperdrive and Neon.
 8. ADR 0011, “Units, roles and decisions,” is accepted (operator, 2026-10-27), including Emergency's least-privilege grants. Its remaining design questions are listed at the end of `docs/decisions/0011-units-roles-and-decisions.md`; the kernel change is a later spec.
 9. ADR 0012, “Elections,” is accepted (operator, 2026-10-27). Its open questions and bylaw assumptions are listed at the end of `docs/decisions/0012-elections.md`; the build is a later spec.
+10. Review ADR 0013, “Activities,” on `docs/adr-0013-activities`; decide the open questions on assistants as an audience, social-event cost sharing and RSVP retention, waitlist promotion, organiser status, Slack ballot channel and calendar export.
 
 ## Blocked on the operator
 
