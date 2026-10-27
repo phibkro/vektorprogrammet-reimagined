@@ -18,7 +18,7 @@ stop:   after round 3, unless an open finding is critical or high (then keep goi
 
 ## 1. Prepare
 
-- Create a separate detached worktree for each reviewer/fixer role: `git worktree add --detach ../reimagined-pr-$N-<role> origin/<head branch>` (no local branch); each worktree has its own devenv state. The `verify-vektorprogrammet` skill's `pr-$N` recipe is for a single reviewer, so do not share that worktree among parallel reviewers. If PostgreSQL tests fail with "PgConnection: Failed to connect" in a worktree, run `devenv processes list`. If postgres is `gave_up`, read `devenv processes logs postgres`: (a) "Address already in use" means another worktree's services hold the port; run `devenv down` here and start again, or stop the other worktree's services; (b) "lock file postmaster.pid already exists" naming another worktree's server indicates a foreign state copy (observed; cause unknown); run `devenv down; rm -rf .devenv/state/postgres .devenv/state/mysql; devenv up -d`. Never touch another worktree's state (AGENTS.md).
+- Create a separate detached worktree for each reviewer/fixer role: `git worktree add --detach ../reimagined-pr-$N-<role> origin/<head branch>` (no local branch); each worktree has its own devenv state. The `verify-vektorprogrammet` skill's `pr-$N` recipe is for a single reviewer, so do not share that worktree among parallel reviewers. If PostgreSQL fails to start in the worktree, follow the worktree gotcha in `AGENTS.md` (§ Run it).
 - Read the PR body, its spec in `docs/specs/` (falsifiers and Revisions), and `git diff --stat origin/main...HEAD`.
 
 ## 2. Review round: two independent reviewers, in parallel
