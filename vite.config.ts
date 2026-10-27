@@ -7,15 +7,9 @@ import core from "ultracite/oxlint/core";
 import shadcn from "ultracite/oxlint/shadcn";
 import { defineConfig } from "vite-plus";
 
-const tsgoPresets = [strict, effectNative];
+import { diagnosticRules } from "./tools/quality/diagnosticRules.ts";
 
-const tsgoRules: Record<string, "error"> = {};
-
-for (const preset of tsgoPresets) {
-  for (const rule of Object.getOwnPropertyNames(preset.rules ?? {})) {
-    tsgoRules[rule] = "error";
-  }
-}
+export const tsgoRules = diagnosticRules.lint;
 
 const effectConfig: EffectConfigInput = {
   groups: [

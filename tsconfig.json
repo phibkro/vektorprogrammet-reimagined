@@ -1,77 +1,628 @@
 {
   "compilerOptions": {
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnostics": true,
+        "allowedUnstableApis": [
+          "effect/FileSystem",
+          "effect/Path",
+          "effect/Crypto",
+          "effect/PlatformError",
+          "effect/Stdio",
+          "effect/rpc/Rpc",
+          "effect/rpc/RpcGroup",
+          "effect/rpc/RpcClient",
+          "effect/rpc/RpcServer"
+        ],
+        "diagnosticSeverity": {
+          "abortControllerInEffect": "error",
+          "acquireReleaseDisposable": "error",
+          "allOfMapToForEach": "error",
+          "asyncFunction": "error",
+          "catchAllTagDispatchToCatchTag": "error",
+          "catchAllToMapError": "error",
+          "catchChainToFirstSuccessOf": "error",
+          "catchConditionalRefailToCatchIf": "error",
+          "catchDieToOrDie": "error",
+          "catchIfTagToCatchTag": "error",
+          "catchRefailToTapError": "error",
+          "catchTagToCatchReason": "error",
+          "catchToIgnore": "error",
+          "catchToOrElseSucceed": "error",
+          "catchUnfailableEffect": "error",
+          "classSelfMismatch": "error",
+          "cryptoRandomUUID": "error",
+          "cryptoRandomUUIDInEffect": "error",
+          "duplicatePackage": "error",
+          "effectFnIife": "error",
+          "effectFnImplicitAny": "error",
+          "effectFnOpportunity": "error",
+          "effectGenUsesAdapter": "error",
+          "effectInFailure": "error",
+          "effectInVoidSuccess": "error",
+          "effectMapFlatten": "error",
+          "effectMapVoid": "error",
+          "effectSleepZeroToYieldNow": "error",
+          "effectSucceedWithVoid": "error",
+          "errorPayloadShadowsName": "error",
+          "experimentalApiUsage": "error",
+          "extendsNativeError": "error",
+          "flatMapConditionalToFilterOrFail": "error",
+          "flatMapIgnoredParamToAndThen": "error",
+          "flatMapToMap": "error",
+          "flatMapToTap": "error",
+          "floatingEffect": "error",
+          "floatingEffectInVitest": "error",
+          "genericEffectServices": "error",
+          "globalConsole": "error",
+          "globalConsoleInEffect": "error",
+          "globalDate": "error",
+          "globalDateInEffect": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "globalFetch": "error",
+          "globalFetchInEffect": "error",
+          "globalRandom": "error",
+          "globalRandomInEffect": "error",
+          "globalTimers": "error",
+          "globalTimersInEffect": "error",
+          "instanceOfSchema": "error",
+          "layerMergeAllWithDependencies": "error",
+          "lazyEffect": "error",
+          "lazyPromiseInEffectSync": "error",
+          "leakingRequirements": "error",
+          "mapSomeToAsSome": "error",
+          "matchEffectToMapBoth": "error",
+          "matchEffectToMatch": "error",
+          "missingEffectContext": "error",
+          "missingEffectError": "error",
+          "missingLayerContext": "error",
+          "missingReturnYieldStar": "error",
+          "missingStarInYieldEffectGen": "error",
+          "multipleCatchTag": "error",
+          "multipleEffectProvide": "error",
+          "newPromise": "error",
+          "nodeBuiltinImport": "error",
+          "nonObjectEffectServiceType": "error",
+          "obsoleteMatchImport": "error",
+          "obsoleteSchemaImport": "error",
+          "optionMatchToFromOption": "error",
+          "outdatedApi": "error",
+          "overriddenSchemaConstructor": "error",
+          "preferEffectArray": "error",
+          "preferEffectRecord": "error",
+          "preferSchemaOverJson": "error",
+          "preferSucceedSomeOrNone": "error",
+          "preferTypedSchemaDecoder": "error",
+          "preferUnsafeConstructor": "error",
+          "processEnv": "error",
+          "processEnvInEffect": "error",
+          "promiseInEffectSuccess": "error",
+          "provideLayerSucceedToProvideService": "error",
+          "raceFirstWithSleepToTimeout": "error",
+          "redundantMapError": "error",
+          "redundantOrDie": "error",
+          "redundantSchemaTagIdentifier": "error",
+          "returnEffectInGen": "error",
+          "runEffectInsideEffect": "error",
+          "runOfExitToRunExit": "error",
+          "schemaClassMissingBrand": "error",
+          "schemaLiteralNonFinite": "error",
+          "schemaNumber": "error",
+          "schemaOpaqueInstanceMember": "error",
+          "schemaStructWithTag": "error",
+          "schemaSync": "error",
+          "schemaSyncInEffect": "error",
+          "scopeInLayerEffect": "error",
+          "syncToSucceed": "error",
+          "timeoutCatchTagToTimeoutOrElse": "error",
+          "tryCatchInEffectGen": "error",
+          "unknownInEffectCatch": "error",
+          "unnecessaryEffectGen": "error",
+          "unnecessaryFailYieldableError": "error",
+          "unnecessaryPipe": "error",
+          "unnecessaryPipeChain": "error",
+          "unnecessaryTypeofType": "error",
+          "unstableApiUsage": "error"
+        },
+        "overrides": [
+          {
+            "include": [
+              "test/**/*.ts",
+              "test/**/*.tsx",
+              "../../test/**/*.ts",
+              "../../test/**/*.tsx",
+              "**/test/**/*.ts",
+              "**/test/**/*.tsx",
+              "../../**/test/**/*.ts",
+              "../../**/test/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg"
+              ]
+            }
+          },
+          {
+            "include": [
+              "tools/**/*.ts",
+              "tools/**/*.tsx",
+              "../../tools/**/*.ts",
+              "../../tools/**/*.tsx",
+              "packages/*/scripts/**/*.ts",
+              "packages/*/scripts/**/*.tsx",
+              "../../packages/*/scripts/**/*.ts",
+              "../../packages/*/scripts/**/*.tsx",
+              "apps/*/scripts/**/*.ts",
+              "apps/*/scripts/**/*.tsx",
+              "../../apps/*/scripts/**/*.ts",
+              "../../apps/*/scripts/**/*.tsx",
+              "apps/*/e2e/**/*.ts",
+              "apps/*/e2e/**/*.tsx",
+              "../../apps/*/e2e/**/*.ts",
+              "../../apps/*/e2e/**/*.tsx",
+              "apps/cms/build/**/*.ts",
+              "apps/cms/build/**/*.tsx",
+              "../../apps/cms/build/**/*.ts",
+              "../../apps/cms/build/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli"
+              ]
+            }
+          },
+          {
+            "include": [
+              "tools/*/test/**/*.ts",
+              "tools/*/test/**/*.tsx",
+              "../../tools/*/test/**/*.ts",
+              "../../tools/*/test/**/*.tsx",
+              "apps/*/e2e/**/*.ts",
+              "apps/*/e2e/**/*.tsx",
+              "../../apps/*/e2e/**/*.ts",
+              "../../apps/*/e2e/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli"
+              ]
+            }
+          },
+          {
+            "include": [
+              "packages/db/src/**/*.ts",
+              "packages/db/src/**/*.tsx",
+              "../../packages/db/src/**/*.ts",
+              "../../packages/db/src/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg"
+              ]
+            }
+          },
+          {
+            "include": [
+              "apps/web/src/server/**/*.ts",
+              "apps/web/src/server/**/*.tsx",
+              "../../apps/web/src/server/**/*.ts",
+              "../../apps/web/src/server/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse"
+              ]
+            }
+          },
+          {
+            "include": [
+              "packages/cms-client/src/**/*.ts",
+              "packages/cms-client/src/**/*.tsx",
+              "../../packages/cms-client/src/**/*.ts",
+              "../../packages/cms-client/src/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse"
+              ]
+            }
+          },
+          {
+            "include": [
+              "tools/import/src/**/*.ts",
+              "tools/import/src/**/*.tsx",
+              "../../tools/import/src/**/*.ts",
+              "../../tools/import/src/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "@effect/sql-mysql2",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli"
+              ]
+            }
+          },
+          {
+            "include": [
+              "tools/import/test/**/*.ts",
+              "tools/import/test/**/*.tsx",
+              "../../tools/import/test/**/*.ts",
+              "../../tools/import/test/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "@effect/sql-mysql2",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli"
+              ]
+            }
+          },
+          {
+            "include": [
+              "packages/cms-client/scripts/**/*.ts",
+              "packages/cms-client/scripts/**/*.tsx",
+              "../../packages/cms-client/scripts/**/*.ts",
+              "../../packages/cms-client/scripts/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli",
+                "effect/http-api/OpenApi"
+              ]
+            }
+          },
+          {
+            "include": [
+              "packages/cms-client/test/client.test.ts",
+              "../../packages/cms-client/test/client.test.ts",
+              "apps/web/test/sandbox.test.ts",
+              "../../apps/web/test/sandbox.test.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse"
+              ]
+            }
+          },
+          {
+            "include": [
+              "packages/db/test/support/disposableDatabase.ts",
+              "../../packages/db/test/support/disposableDatabase.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/reactivity/Reactivity"
+              ]
+            }
+          },
+          {
+            "include": [
+              "tools/db-path-spike/test/support/localWorker.ts",
+              "../../tools/db-path-spike/test/support/localWorker.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse",
+                "effect/process",
+                "effect/cli",
+                "effect/reactivity/Reactivity"
+              ]
+            }
+          },
+          {
+            "include": [
+              "tools/oxlint/anti-slop/**/*.ts",
+              "tools/oxlint/anti-slop/**/*.tsx",
+              "../../tools/oxlint/anti-slop/**/*.ts",
+              "../../tools/oxlint/anti-slop/**/*.tsx",
+              "packages/cms-client/src/generated.ts",
+              "../../packages/cms-client/src/generated.ts"
+            ],
+            "options": {
+              "diagnosticSeverity": {
+                "preferEffectArray": "off",
+                "preferEffectRecord": "off"
+              }
+            }
+          },
+          {
+            "include": [
+              "apps/web/e2e/**/*.ts",
+              "apps/web/e2e/**/*.tsx",
+              "../../apps/web/e2e/**/*.ts",
+              "../../apps/web/e2e/**/*.tsx",
+              "apps/web/test/contact.test.ts",
+              "../../apps/web/test/contact.test.ts",
+              "apps/web/test/errors.test.ts",
+              "../../apps/web/test/errors.test.ts",
+              "apps/web/test/organisationPanel.test.ts",
+              "../../apps/web/test/organisationPanel.test.ts",
+              "apps/web/test/support/run.ts",
+              "../../apps/web/test/support/run.ts",
+              "apps/web/test/site.test.ts",
+              "../../apps/web/test/site.test.ts",
+              "apps/web/test/panel.test.ts",
+              "../../apps/web/test/panel.test.ts",
+              "apps/web/test/publicFiles.test.ts",
+              "../../apps/web/test/publicFiles.test.ts",
+              "apps/web/test/redirects.test.ts",
+              "../../apps/web/test/redirects.test.ts",
+              "apps/web/test/sandbox.test.ts",
+              "../../apps/web/test/sandbox.test.ts",
+              "tools/db-path-spike/test/**/*.ts",
+              "tools/db-path-spike/test/**/*.tsx",
+              "../../tools/db-path-spike/test/**/*.ts",
+              "../../tools/db-path-spike/test/**/*.tsx"
+            ],
+            "options": {
+              "diagnosticSeverity": {
+                "asyncFunction": "off"
+              }
+            }
+          },
+          {
+            "include": [
+              "apps/web/src/server/errors.ts",
+              "../../apps/web/src/server/errors.ts"
+            ],
+            "options": {
+              "diagnosticSeverity": {
+                "schemaSync": "off"
+              }
+            }
+          }
+        ]
+      }
+    ],
     "noEmit": true,
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
-    "strict": true,
-    "plugins": [
-      {
-        "name": "@effect/language-service",
-        "diagnostics": false,
-        "allowedUnstableApis": [
-          "@effect/platform-bun/BunRuntime#runMain",
-          "@effect/platform-bun/BunServices#layer",
-          "@effect/platform-node/NodeRuntime#runMain",
-          "@effect/platform-node/NodeServices#layer",
-          "@effect/sql-mysql2/MysqlClient#MysqlClient",
-          "@effect/sql-mysql2/MysqlClient#layer",
-          "@effect/sql-pg/PgClient#PgClient",
-          "@effect/sql-pg/PgClient#layer",
-          "@effect/sql-pg/PgClient#make",
-          "@effect/sql-pg/PgClient#TypeId",
-          "@effect/sql-pglite/PgliteClient#layer",
-          "@effect/vitest#it",
-          "@effect/vitest#layer",
-          "effect/Arbitrary",
-          "effect/Crypto#Crypto",
-          "effect/Crypto#make",
-          "effect/FileSystem#FileSystem",
-          "effect/Path#Path",
-          "effect/cli/Command#make",
-          "effect/cli/Command#run",
-          "effect/cli/Command#withDescription",
-          "effect/cli/Flag#Boolean",
-          "effect/cli/Flag#String",
-          "effect/cli/Flag#Directory",
-          "effect/cli/Flag#withDefault",
-          "effect/cli/Flag#withFallbackConfig",
-          "effect/cli/Flag#withDescription",
-          "effect/http-api/OpenApi#OpenAPISpec",
-          "effect/http/FetchHttpClient#layer",
-          "effect/http/Headers#get",
-          "effect/http/HttpClient#HttpClient",
-          "effect/http/HttpClient#filterStatusOk",
-          "effect/http/HttpClient#make",
-          "effect/http/HttpClient#mapRequest",
-          "effect/http/HttpClient#retryTransient",
-          "effect/http/HttpClientError#HttpClientError",
-          "effect/http/HttpClientRequest#HttpClientRequest",
-          "effect/http/HttpClientRequest#acceptJson",
-          "effect/http/HttpClientRequest#bodyJsonUnsafe",
-          "effect/http/HttpClientRequest#bodyUrlParams",
-          "effect/http/HttpClientRequest#bearerToken",
-          "effect/http/HttpClientRequest#get",
-          "effect/http/HttpClientRequest#post",
-          "effect/http/HttpClientRequest#prependUrl",
-          "effect/http/HttpClientRequest#put",
-          "effect/http/HttpClientResponse#HttpClientResponse",
-          "effect/http/HttpClientResponse#filterStatusOk",
-          "effect/http/HttpClientResponse#fromWeb",
-          "effect/http/HttpClientResponse#schemaBodyJson",
-          "effect/process/ChildProcess#make",
-          "effect/process/ChildProcessSpawner#ChildProcessSpawner",
-          "effect/process/ChildProcessSpawner#ExitCode",
-          "effect/reactivity/Reactivity#layer",
-          "effect/rpc",
-          "effect/sql/SqlClient#SqlClient",
-          "effect/sql/SqlError#SqlError",
-          "effect/sql/SqlError#isSqlError",
-          "effect/sql/SqlSchema#findOne"
-        ]
-      }
-    ]
+    "strict": true
   },
   "include": [
     "vite.config.ts",

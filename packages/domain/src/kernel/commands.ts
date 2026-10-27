@@ -5,14 +5,14 @@
  * - `Info`, the annotation every command carries: its summary in plain words, the legacy rules it replaces, the job
  *   that alone runs it (if it is a job's), and the machine whose transition it applies. The grants, the
  *   completeness tests and the generated docs read it.
- * - `inProcess`, the client a server function (or a scheduled job) calls: the group's handlers behind
- *   `RpcTest.makeClient`, so there is no HTTP surface beside TanStack Start's.
+ * - `inProcess`, the client a server function (or a scheduled job) calls: the group’s handlers connected
+ *   in memory, so there is no HTTP surface beside TanStack Start’s.
  * - `decodePayload`, the decoder of a command's payload schema: the form and the handler use the same schema.
  */
 import { Context, Effect } from "effect";
 import type { Layer, Option } from "effect";
-import { RpcTest } from "effect/rpc";
-import type { Rpc, RpcClient, RpcGroup } from "effect/rpc";
+import { RpcClient, RpcServer } from "effect/rpc";
+import type { Rpc, RpcGroup } from "effect/rpc";
 
 import { decodeInput } from "../shared/validation.ts";
 import type { SystemJob } from "./principal.ts";
@@ -54,6 +54,12 @@ export const info = (fields: {
 export const infoOf = (rpc: Rpc.Any): Option.Option<CommandInfo> =>
   Context.getOption(rpc.annotations, Info);
 
+interface RpcLink<Rpcs extends Rpc.Any> {
+  client?: Effect.Success<
+    ReturnType<typeof RpcClient.makeNoSerialization<Rpcs, never>>
+  >;
+}
+
 /**
  * A client for `group` whose handlers run in this process: `inProcess(group, handlers)((client) => …)` builds the
  * handlers, connects a client to them in memory (no serialization, so typed errors arrive as the classes the
@@ -68,11 +74,26 @@ export const inProcess =
   <A, E, R>(
     use: (client: RpcClient.RpcClient<Rpcs>) => Effect.Effect<A, E, R>
   ) =>
-    RpcTest.makeClient(group).pipe(
-      Effect.flatMap(use),
-      Effect.scoped,
-      Effect.provide(handlers)
-    );
+    Effect.gen(function* inProcessClient() {
+      // Effect 4.0.5 RpcTest.makeClient uses the same no-serialization wiring.
+      const link: RpcLink<Rpcs> = {};
+
+      const server = yield* RpcServer.makeNoSerialization(group, {
+        onFromServer: (response) =>
+          link.client === undefined
+            ? Effect.die("RPC client not initialized")
+            : link.client.write(response),
+      });
+
+      const client = yield* RpcClient.makeNoSerialization(group, {
+        onFromClient: ({ message }) => server.write(0, message),
+        supportsAck: true,
+      });
+
+      link.client = client;
+
+      return client.client;
+    }).pipe(Effect.flatMap(use), Effect.scoped, Effect.provide(handlers));
 
 /** Decodes untrusted input with the payload schema of `rpc`; every issue becomes one `ValidationFailed`. */
 export const decodePayload = <
