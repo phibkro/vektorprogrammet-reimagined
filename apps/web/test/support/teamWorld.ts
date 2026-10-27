@@ -32,6 +32,7 @@ import {
   MEMBER_POSITION,
 } from "@vektorprogrammet/domain/testing";
 import { DateTime, Effect, Ref } from "effect";
+import { TestClock } from "effect/testing";
 
 import { fakeDepartment, fakeFieldOfStudy } from "./memory";
 import type { MemoryTables } from "./memory";
@@ -42,7 +43,7 @@ export const BERGEN = 2;
 
 export const TRONDHEIM_TEAM = TeamId.make(1);
 
-const BERGEN_TEAM = TeamId.make(2);
+export const BERGEN_TEAM = TeamId.make(2);
 
 const FIELD_TRONDHEIM = 10;
 
@@ -173,3 +174,15 @@ export const seedWorld = (tables: MemoryTables) => {
     { discard: true }
   );
 };
+
+/** 2026-10-15 12:00 in Oslo: Høst 2026, the semester the world's terms are relative to. */
+const OCTOBER_15 = DateTime.toEpochMillis(
+  DateTime.makeUnsafe("2026-10-15T12:00:00+02:00")
+);
+
+/** `tables` seeded with the world, the test clock set to its date; answers the tables. */
+export const worldAt = (tables: MemoryTables) =>
+  Effect.as(
+    Effect.andThen(TestClock.setTime(OCTOBER_15), seedWorld(tables)),
+    tables
+  );

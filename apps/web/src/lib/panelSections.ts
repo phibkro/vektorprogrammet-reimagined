@@ -1,7 +1,8 @@
 /**
  * The control panel's sections, in the order the sidebar lists them: labels and paths only, so the
  * browser may import it. Who may use a section is not here. The server decides, from the domain's
- * capabilities (`server/shell.ts`), and sends the sidebar only the sections the actor may use.
+ * capabilities (`server/panelAccess.ts`, the one declaration the sidebar and the data guard both read), and
+ * sends the sidebar only the sections the actor may use.
  */
 import { Array as Arr, Option } from "effect";
 

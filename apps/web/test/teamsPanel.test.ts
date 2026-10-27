@@ -11,11 +11,11 @@ import { assert, describe, it } from "@effect/vitest";
 import { anonymous, authorize } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
 import { MEMBER_POSITION } from "@vektorprogrammet/domain/testing";
-import { Array as Arr, DateTime, Effect, Option, Ref } from "effect";
-import { TestClock } from "effect/testing";
+import { Array as Arr, Effect, Option, Ref } from "effect";
 
 import type { Outcome } from "../src/lib/outcome";
 import { SAVED } from "../src/server/panel";
+import { panelReads } from "../src/server/panelReads";
 import {
   addMemberProgram,
   adminsView,
@@ -51,23 +51,11 @@ import {
   PEOPLE,
   TRONDHEIM,
   TRONDHEIM_TEAM,
-  seedWorld,
+  worldAt,
 } from "./support/teamWorld";
 
-/** 2026-10-15 12:00 in Oslo: Høst 2026, the semester the world's terms are relative to. */
-const OCTOBER_15 = DateTime.toEpochMillis(
-  DateTime.makeUnsafe("2026-10-15T12:00:00+02:00")
-);
-
 /** The world of `teamWorld.ts` at its date. */
-const freshWorld = Effect.gen(function* freshWorld() {
-  yield* TestClock.setTime(OCTOBER_15);
-
-  const tables = makeTables();
-  yield* seedWorld(tables);
-
-  return tables;
-});
+const freshWorld = Effect.suspend(() => worldAt(makeTables()));
 
 /** The administrator of the world (`Ada Admin`), whose own place the admin page marks. */
 const ADA = adminOf(PEOPLE.ada);
@@ -530,6 +518,8 @@ describe("spec 0006: the People and Admin pages", () => {
         assert.deepStrictEqual(yield* names(leaderOf(BERGEN)), [
           "Bjorn Bergen",
         ]);
+        // The view alone, whose rows are filtered underneath the section guard: the page itself is refused to a
+        // member (`panelReads.test.ts`, issue 15).
         assert.deepStrictEqual(yield* names(MATS), []);
 
         assert.isTrue(
@@ -575,7 +565,7 @@ describe("spec 0006: the People and Admin pages", () => {
 
         for (const principal of [LISE, MATS, WITHOUT_TEAM, anonymous]) {
           assertRefused(
-            yield* viewAs(tables, principal, adminsView),
+            yield* viewAs(tables, principal, panelReads.getAdmins),
             "Forbidden"
           );
         }

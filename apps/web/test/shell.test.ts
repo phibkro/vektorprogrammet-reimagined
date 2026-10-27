@@ -37,12 +37,8 @@ import {
 import { assertSuccess, isForbidden } from "./support/outcomes";
 import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 import { runAs, viewAs } from "./support/run";
+import { sectionsOf } from "./support/sidebar";
 import { PEOPLE, TRONDHEIM, seedWorld } from "./support/teamWorld";
-
-const sectionsOf = (principal: Principal): readonly SectionKey[] =>
-  Arr.flatMap(navigationFor(principal), (group) =>
-    Arr.map(group.items, (item) => item.key)
-  );
 
 /** Every section, in the sidebar's order. */
 const EVERY_SECTION: readonly SectionKey[] = [

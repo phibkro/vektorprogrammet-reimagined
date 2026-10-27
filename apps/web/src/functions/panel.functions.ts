@@ -8,33 +8,25 @@ import { Effect, Schema } from "effect";
 
 import { decodeDeployment } from "../server/deployment";
 import {
-  dashboardView,
-  departmentsView,
-  fieldsOfStudyView,
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
   saveSocialEventProgram,
-  semestersView,
-  socialEventsView,
 } from "../server/panel";
+import { panelReads } from "../server/panelReads";
 import { runCommand, runQuery } from "../server/runtime";
 import { requestScope } from "../server/scope";
 import { shellView } from "../server/shell";
 import {
   addMemberProgram,
-  adminsView,
   cancelProgram,
   changeProgram,
   deactivateTeamProgram,
   endProgram,
   extendProgram,
   grantAdminProgram,
-  peopleView,
   registerPersonProgram,
   revokeAdminProgram,
   saveTeamProgram,
-  teamView,
-  teamsView,
 } from "../server/teams";
 
 const formData = Schema.toStandardSchemaV1(Schema.FormData);
@@ -58,41 +50,41 @@ export const getShell = createServerFn({ method: "GET" }).handler(
 );
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), dashboardView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getDashboard)
 );
 
 export const getDepartments = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), departmentsView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getDepartments)
 );
 
 export const getSemesters = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), semestersView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getSemesters)
 );
 
 export const getFieldsOfStudy = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), fieldsOfStudyView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getFieldsOfStudy)
 );
 
 export const getSocialEvents = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), socialEventsView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getSocialEvents)
 );
 
 export const getTeams = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), teamsView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getTeams)
 );
 
 export const getTeam = createServerFn({ method: "GET" })
   .validator(TeamInput)
   .handler(({ context, data }) =>
-    runQuery(requestScope(context), teamView(data.id))
+    runQuery(requestScope(context), panelReads.getTeam(data.id))
   );
 
 export const getPeople = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), peopleView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getPeople)
 );
 
 export const getAdmins = createServerFn({ method: "GET" }).handler(
-  ({ context }) => runQuery(requestScope(context), adminsView)
+  ({ context }) => runQuery(requestScope(context), panelReads.getAdmins)
 );
 
 // ---------------------------------------------------------------- C1

@@ -8,11 +8,14 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
+import { LOCAL_PEOPLE } from "@vektorprogrammet/db";
 import { Array as Arr, Record as Rec } from "effect";
 
+import { PANEL_SECTIONS } from "../src/lib/panelSections.ts";
 import {
   TEST_ADMIN,
   TEST_LEADER,
+  TEST_MEMBER,
   expectPageNotReloaded,
   fillSheet,
   markPage,
@@ -293,6 +296,105 @@ test("falsifier 3: a forged request for a capability the page does not offer get
   });
 
   expect(accepted.status()).toBe(200);
+});
+
+/** Every local person and a visitor who is not signed in. */
+const EVERY_ACTOR = [...LOCAL_PEOPLE, "anonymous"] as const;
+
+test("issue 15: a control-panel page answers 2xx exactly when the sidebar shows its section, and 403 otherwise, for every actor", async ({
+  page,
+  context,
+}) => {
+  await signInAs(context, TEST_ADMIN);
+  await openPage(page, "/kontrollpanel/team");
+
+  const teamPath = await page
+    .locator("a[href^='/kontrollpanel/team/']")
+    .first()
+    .getAttribute("href");
+
+  // Every section's page, and one team's page (a page below the Team section).
+  const routes = [
+    ...Arr.map(PANEL_SECTIONS, (section) => ({
+      label: section.label,
+      path: section.to,
+    })),
+    { label: "Team", path: teamPath ?? "" },
+  ];
+
+  const statuses: number[] = [];
+
+  for (const actor of EVERY_ACTOR) {
+    await signInAs(context, actor);
+    await openPage(page, "/kontrollpanel");
+
+    const shown = new Set(
+      Arr.map(
+        await sidebarOf(page).getByRole("link").allTextContents(),
+        (label) => label.trim()
+      )
+    );
+
+    for (const route of routes) {
+      const response = await context.request.get(route.path);
+      const status = response.status();
+
+      statuses.push(status);
+      expect(status, `${actor}: ${route.path}`).toBe(
+        shown.has(route.label) ? 200 : 403
+      );
+    }
+  }
+
+  // Not vacuous: some pages were served and some refused.
+  expect(statuses).toContain(200);
+  expect(statuses).toContain(403);
+});
+
+test("issue 15: a member without viewPeople gets 403 for the people page and for its server function, with no row in the answer; a leader is served", async ({
+  page,
+  context,
+}) => {
+  await signInAs(context, TEST_LEADER);
+  await openPage(page, "/kontrollpanel");
+
+  // Learn the people read's address from the click that loads the page's data.
+  const sent = page.waitForRequest(
+    (request) =>
+      request.url().includes("/_serverFn/") && request.method() === "GET"
+  );
+
+  await sidebarOf(page).getByRole("link", { name: "Personer" }).click();
+
+  const real = await sent;
+
+  const headers = Rec.filter(
+    await real.allHeaders(),
+    (_value, name) => !TRANSPORT_HEADERS.has(name)
+  );
+
+  const served = await context.request.get(real.url(), { headers });
+
+  expect(served.status()).toBe(200);
+  expect(await served.text()).toContain(TEST_MEMBER);
+
+  // Control above: the same request answers the leader. The member and the visitor hold no `viewPeople`.
+  for (const actor of [TEST_MEMBER, "anonymous"]) {
+    await signInAs(context, actor);
+
+    const refused = await context.request.get(real.url(), { headers });
+
+    expect(refused.status(), `${actor}: the people read`).toBe(403);
+
+    const body = await refused.text();
+
+    expect(body).toContain("Du har ikke tilgang til dette.");
+    expect(body).not.toContain(TEST_MEMBER);
+
+    const refusedPage = await page.goto("/kontrollpanel/personer");
+
+    expect(refusedPage?.status(), `${actor}: the people page`).toBe(403);
+  }
 });
 
 test("falsifier 4: create and edit happen in a right-hand Sheet; a saved edit shows in the table without a page reload; Escape and Cancel close it and return focus to the opener", async ({
