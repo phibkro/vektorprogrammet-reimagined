@@ -27,6 +27,7 @@ export const NonEntityResources = [
   "AuditEntry",
   "OutboxMessage",
   "SupportTicket",
+  "WorkspaceReport",
 ] as const;
 
 /**

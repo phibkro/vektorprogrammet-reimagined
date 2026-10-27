@@ -225,7 +225,7 @@ export const catalog: readonly {
   },
   {
     definition:
-      "A scheduled job (`semesters`, `outboxSweep`, `endingSoon`), which runs as its own principal",
+      "A scheduled job (the registry in `docs/system/administration.md`), which runs as its own principal",
     notation: "System(job)",
   },
 ];

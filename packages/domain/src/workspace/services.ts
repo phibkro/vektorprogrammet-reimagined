@@ -1,0 +1,154 @@
+/**
+ * The Workspace projection's ports (spec 0008). The domain states what it needs; `apps/web` builds the directory and
+ * the writer by deployment, and `packages/db` reads the facts and keeps the report.
+ *
+ * The directory is read-only and the writer is a different service, so a program that only reads (the dry-run) has no
+ * mutation in its type. No call to Google exists on this branch: the production adapter needs credentials that the
+ * operator holds, and until then `WorkspaceDirectory` fails `WorkspaceNotConfigured` and the report says so.
+ */
+import { Context, Schema } from "effect";
+import type { Effect, Option } from "effect";
+
+import type { JobPeriod } from "../jobs/job.ts";
+import type { Counts } from "../jobs/runs.ts";
+import type { Semester } from "../organisation/semester.ts";
+import type { TeamId } from "../shared/ids.ts";
+import type { InTransaction } from "../shared/transaction.ts";
+import type { WorkspaceChange } from "./change.ts";
+import type { CompanyEmail } from "./companyEmail.ts";
+import type {
+  AccountLine,
+  GroupLine,
+  Issue,
+  PersonFact,
+  TeamFact,
+  Unmanaged,
+} from "./plan.ts";
+import type {
+  ActualState,
+  ReportStatus,
+  WorkspaceMode,
+  WorkspaceReport,
+} from "./report.ts";
+
+/** Nothing is provisioned to ask the directory (no credentials): the operator's gate. The same call never succeeds before then. */
+export class WorkspaceNotConfigured extends Schema.TaggedError<
+  WorkspaceNotConfigured,
+  { readonly brand: unique symbol }
+>()("WorkspaceNotConfigured", { reason: Schema.String }) {}
+
+/** The provider failed. The same call may succeed later, so the run is retried. */
+export class WorkspaceProviderFailed extends Schema.TaggedError<
+  WorkspaceProviderFailed,
+  { readonly brand: unique symbol }
+>()("WorkspaceProviderFailed", { reason: Schema.String }) {}
+
+/** The directory was asked to change while writes are off (`WORKSPACE_MODE` is not `write`). */
+export class WorkspaceWriteRefused extends Schema.TaggedError<
+  WorkspaceWriteRefused,
+  { readonly brand: unique symbol }
+>()("WorkspaceWriteRefused", { reason: Schema.String }) {}
+
+export type WorkspaceReadFailure =
+  | WorkspaceNotConfigured
+  | WorkspaceProviderFailed;
+
+/** The Google Workspace directory, read only. Addresses are lower case. */
+export class WorkspaceDirectory extends Context.Service<
+  WorkspaceDirectory,
+  {
+    /** Every company account of the domain. */
+    readonly accounts: Effect.Effect<
+      readonly CompanyEmail[],
+      WorkspaceReadFailure
+    >;
+    /** Every group address of the domain. */
+    readonly groups: Effect.Effect<
+      readonly CompanyEmail[],
+      WorkspaceReadFailure
+    >;
+    /** The members of one group, or `"missing"` when the directory has no such group. */
+    readonly members: (
+      group: CompanyEmail
+    ) => Effect.Effect<
+      readonly CompanyEmail[] | "missing",
+      WorkspaceReadFailure
+    >;
+  }
+>()("@vektorprogrammet/domain/workspace/WorkspaceDirectory") {}
+
+/** The only way to change the directory. Each change is a statement of state, so applying one twice is harmless. */
+export class WorkspaceWriter extends Context.Service<
+  WorkspaceWriter,
+  {
+    readonly apply: (
+      change: WorkspaceChange
+    ) => Effect.Effect<void, WorkspaceWriteRefused | WorkspaceProviderFailed>;
+  }
+>()("@vektorprogrammet/domain/workspace/WorkspaceWriter") {}
+
+/**
+ * Whether the projection may queue changes. `dry-run` unless the deployment says `write`; reading it is the whole of
+ * the gate, so approving writes is one value that the operator sets.
+ */
+export const WorkspaceModeSetting = Context.Reference<WorkspaceMode>(
+  "@vektorprogrammet/domain/workspace/Mode",
+  { defaultValue: () => "dry-run" }
+);
+
+/** The projection's inputs, read the way a display reads: no lock, no write. `packages/db` implements it. */
+export class WorkspaceFacts extends Context.Service<
+  WorkspaceFacts,
+  {
+    /** Everyone with an active membership in `semester` and an Active account. */
+    readonly people: (
+      semester: Semester
+    ) => Effect.Effect<readonly PersonFact[]>;
+    /** Every company address that any person has (the addresses that RULE-058 must not give out again). */
+    readonly storedAddresses: Effect.Effect<ReadonlySet<string>>;
+    /** Every group address that a team has configured, whatever the team's state. */
+    readonly configuredGroupAddresses: Effect.Effect<ReadonlySet<string>>;
+    /** The next `limit` active teams after `after` (`null`: from the first), each with the people active in it. */
+    readonly teamsAfter: (
+      semester: Semester,
+      after: TeamId | null,
+      limit: number
+    ) => Effect.Effect<readonly TeamFact[]>;
+  }
+>()("@vektorprogrammet/domain/workspace/WorkspaceFacts") {}
+
+/** What one chunk adds to a report. */
+export interface ReportPart {
+  readonly accounts?: readonly AccountLine[];
+  readonly groups?: readonly GroupLine[];
+  readonly issues?: readonly Issue[];
+  readonly unmanaged?: Unmanaged;
+}
+
+/** The report of a run, kept in the chunks' own transactions (`packages/db`). */
+export class WorkspaceReports extends Context.Service<
+  WorkspaceReports,
+  {
+    /** Opens the report of `period`; a chunk of an earlier attempt may have opened it already, so this is idempotent. */
+    readonly open: (input: {
+      readonly period: JobPeriod;
+      readonly mode: WorkspaceMode;
+      readonly semester: Semester;
+      readonly actual: ActualState;
+    }) => Effect.Effect<void, never, InTransaction>;
+    readonly append: (
+      period: JobPeriod,
+      part: ReportPart
+    ) => Effect.Effect<void, never, InTransaction>;
+    readonly complete: (
+      period: JobPeriod,
+      status: Exclude<ReportStatus, "running">,
+      counts: Counts
+    ) => Effect.Effect<void, never, InTransaction>;
+    readonly read: (
+      period: JobPeriod
+    ) => Effect.Effect<Option.Option<WorkspaceReport>>;
+    /** The newest report: what the Integrations page shows. A read. */
+    readonly latest: Effect.Effect<Option.Option<WorkspaceReport>>;
+  }
+>()("@vektorprogrammet/domain/workspace/WorkspaceReports") {}

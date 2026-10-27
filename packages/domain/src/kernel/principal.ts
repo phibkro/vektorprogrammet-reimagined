@@ -24,6 +24,7 @@ export const SystemJob = Schema.Literals([
   "semesters",
   "outboxSweep",
   "endingSoon",
+  "workspaceSync",
 ]);
 
 export type SystemJob = typeof SystemJob.Type;

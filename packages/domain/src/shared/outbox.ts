@@ -4,12 +4,13 @@
  * sweep). Only production builds real mail/Slack transports; other deployments
  * capture messages (architecture §4).
  */
-import { Context, Schema } from "effect";
+import { Context, Match, Schema } from "effect";
 import type { Effect } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
 import { CodePurpose } from "../accounts/code.ts";
 import { PasswordHash } from "../accounts/passwordHasher.ts";
+import { WorkspaceChange } from "../workspace/change.ts";
 import { PersonId } from "./ids.ts";
 import type { OutboxMessageId } from "./ids.ts";
 import { EmailAddress } from "./validation.ts";
@@ -32,6 +33,15 @@ export const SlackTarget = Schema.TaggedUnion({
 
 export type SlackTarget = typeof SlackTarget.Type;
 
+/** The channel a Slack target names: the department's own, or the organisation-wide `#notifications`. */
+export const slackChannelOf = (target: SlackTarget): string =>
+  Match.value(target).pipe(
+    Match.tagsExhaustive({
+      DepartmentChannel: ({ channel }) => channel,
+      Notifications: () => "#notifications",
+    })
+  );
+
 /** Persisted as jsonb by `packages/db`; decode with this schema on read. */
 export const OutboxMessage = Schema.TaggedUnion({
   Email: {
@@ -52,6 +62,10 @@ export const OutboxMessage = Schema.TaggedUnion({
   SlackPost: {
     target: SlackTarget,
     text: Schema.String,
+  },
+  /** A change to the Google Workspace directory (spec 0008): delivered by the sweep to `WorkspaceWriter`, not a transport message. */
+  WorkspaceChange: {
+    change: WorkspaceChange,
   },
 });
 

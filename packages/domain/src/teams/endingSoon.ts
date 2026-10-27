@@ -13,12 +13,11 @@ import type { NonEmptyReadonlyArray } from "effect/Array";
 import { recordAudit } from "../audit/auditLog.ts";
 import type { Principal } from "../kernel/principal.ts";
 import {
+  inLastWeeksOf,
   semesterForDate,
   semesterLabel,
-  semesterWindow,
 } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
-import { addOsloCalendar, isBefore } from "../shared/clock.ts";
 import type { DepartmentId, PersonId } from "../shared/ids.ts";
 import { Outbox, OutboxMessage } from "../shared/outbox.ts";
 import { SiteOrigin } from "../shared/siteOrigin.ts";
@@ -34,12 +33,7 @@ export const ENDING_SOON_WEEKS = 4;
 export const isEndingSoon = (
   semester: Semester,
   now: DateTime.DateTime
-): boolean => {
-  const { end } = semesterWindow(semester);
-  const opens = addOsloCalendar(end, { weeks: -ENDING_SOON_WEEKS });
-
-  return !isBefore(now, opens) && isBefore(now, end);
-};
+): boolean => inLastWeeksOf(semester, ENDING_SOON_WEEKS, now);
 
 /** One leader's digest: the memberships that end in the semester, in the departments the leader leads. */
 export interface Digest {

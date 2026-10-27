@@ -77,6 +77,30 @@ export * as Audit from "./audit/declaration.ts";
 // outbox sweep (the job `outboxSweep`; the handler is in apps/web)
 export * as OutboxSweep from "./outbox/declaration.ts";
 
+// scheduled jobs (spec 0008): the declarations, the due rules, the record of runs and the completeness check
+export * as Job from "./jobs/job.ts";
+
+export * as JobRegistry from "./jobs/registry.ts";
+
+export * as JobRun from "./jobs/runs.ts";
+
+export { jobProblems } from "./jobs/problems.ts";
+
+// Google Workspace projection (spec 0008): the company address rule, the pure plan, the ports and the handlers
+export * from "./workspace/change.ts";
+
+export * from "./workspace/commands.ts";
+
+export * from "./workspace/companyEmail.ts";
+
+export * as WorkspacePlan from "./workspace/plan.ts";
+
+export * as Workspace from "./workspace/declaration.ts";
+
+export * from "./workspace/report.ts";
+
+export * from "./workspace/services.ts";
+
 // organisation (C1, C2)
 export * from "./organisation/admission.ts";
 
