@@ -91,6 +91,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Commit message | commitlint, Conventional Commits | automatic (`.vite-hooks/commit-msg`) |
 | Pre-push | `vp run -r test` | automatic (`.vite-hooks/pre-push`) |
 | Suppressions | every `oxlint-disable` / `@ts-expect-error` needs an entry in `tools/quality/effect-exceptions.json` | `devenv shell -- bun run check:exceptions` |
+| Effect family | every `@effect/*` package in `bun.lock` except `@effect/tsgo` is the version of `effect` | `devenv shell -- bunx vp -C tools/quality test test/effectFamily.test.ts` |
 | Browser tests | Playwright 1.63.0 (pinned to nixpkgs' `playwright-driver`) on devenv's Chromium, against `vp dev`, the real CMS (`astro dev` on the database's `emdash` schema, its seed copy and the importer's fixture, imported twice) and a disposable migrated database that the real importer fills from its fake fixture; one Effect program owns the lifecycle (`apps/web/e2e/run.ts`) | `devenv shell -- bun run e2e` |
 | CI | the same gates, including the browser tests (that step is limited to 15 minutes; a run takes a few minutes) and the CMS bundle check, on every pull request | `.github/workflows/checks.yml` |
 
