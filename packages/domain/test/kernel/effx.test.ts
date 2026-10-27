@@ -462,13 +462,49 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
       Arr.sort(Rec.keys(Effx.Gap.cases), Order.String)
     );
 
-    for (const [kind, closure] of Rec.toEntries(Effx.closures)) {
-      assert.isAbove(closure.change.length, 0, kind);
+    for (const [kind, steps] of Rec.toEntries(Effx.closures)) {
+      assert.isAbove(steps.length, 0, kind);
 
-      if (closure.by === "effx") {
-        assert.match(closure.change, /effx (?:issue|spec) \d+/u, kind);
+      for (const step of steps) {
+        assert.isAbove(step.change.length, 0, kind);
+
+        if (step.by === "effx") {
+          assert.match(step.change, /effx (?:issue|spec) \d+/u, kind);
+        }
       }
     }
+  });
+
+  it("a dropped machine is closed by whoever closes each of its reasons, and the kernel closes one of the three", () => {
+    const withoutFields: Declaration = {
+      ...Teams.TeamsDomain,
+      machines: [{ ...Teams.MembershipMachine, fields: [] }],
+    };
+
+    // the three ways that the real declarations and the controls drop a machine
+    const reasons = Arr.dedupe(
+      Arr.map(
+        Arr.flatMap(
+          [Accounts.AccountDomain, Sample, withoutFields],
+          (declaration) => gapsOf(declaration, Effx.Gap.guards.MachineDropped)
+        ),
+        ({ reason }) => reason
+      )
+    );
+
+    assert.deepStrictEqual(Arr.sort(reasons, Order.String), [
+      "a guard reads a semester that the machine does not declare",
+      "a guard uses a check that effx does not know",
+      "a transition applies activateAccount, which effx cannot be given",
+    ]);
+
+    assert.deepStrictEqual(
+      Arr.sort(
+        Arr.map(Effx.closures.MachineDropped, ({ by }) => by),
+        Order.String
+      ),
+      ["effx", "effx", "kernel"]
+    );
   });
 });
 

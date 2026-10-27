@@ -180,63 +180,115 @@ export const Gap = Schema.TaggedUnion({
 
 export type Gap = typeof Gap.Type;
 
-/** Who can remove a kind of gap, and what they change. */
+/** Who can remove a kind of gap, or a part of one, and what they change. */
 export interface Closure {
   /** The kernel's own declarations, or effx: an issue on `phibkro/effx` or a spec of its own. */
   readonly by: "effx" | "kernel";
   readonly change: string;
 }
 
+interface DropReason {
+  readonly closure: Closure;
+  /** The words that `MachineDropped` says it in; a reason that names the commands that left takes them, joined. */
+  readonly say: string | ((commands: string) => string);
+}
+
 /**
- * What closes each kind of gap. The type is a record over the kinds, so a kind that nobody has said how to close does
- * not compile. This repository never edits effx: a closure by effx is an issue there, and spec 0007d says where each
- * stands.
+ * The ways in which a machine cannot be given to effx whole, each with the words that `MachineDropped` says it in and
+ * the party that removes it. `MachineDropped` has no closure of its own: it is closed by whoever closes each of its
+ * reasons, and they are not all effx's (the kernel closes a semester that its guards read and `fields` does not
+ * declare). The words and the party are one record, so a reason without a party does not compile.
  */
-export const closures: Readonly<Record<Gap["_tag"], Closure>> = {
-  AdminExpiry: {
-    by: "effx",
-    change:
-      "state that a place ends when a stored field of the place, of an order of its own, is reached by the clock (effx issue 10)",
+const dropReasons = {
+  lostCommand: {
+    closure: {
+      by: "effx",
+      change:
+        "an `Anonymous` subject and a credential subject, for a command that left with its subject (effx issue 9)",
+    },
+    say: (commands: string) =>
+      `a transition applies ${commands}, which effx cannot be given`,
   },
-  AdminListUnclear: {
-    by: "kernel",
-    change:
-      "the domain declares one command that grants a place and one that revokes it, or neither",
+  undeclaredSemester: {
+    closure: {
+      by: "kernel",
+      change:
+        "the machine declares each semester that its guards read, in `fields`",
+    },
+    say: "a guard reads a semester that the machine does not declare",
   },
-  MachineDropped: {
-    by: "effx",
-    change:
-      "close each reason that the gap gives: a check that effx does not know, and a command that left with its subject (effx issue 9)",
+  unknownCheck: {
+    closure: {
+      by: "effx",
+      change:
+        "guard operands that are ids and flags, with comparisons over them (effx issue 9)",
+    },
+    say: "a guard uses a check that effx does not know",
   },
-  MissingDeclaration: {
-    by: "kernel",
-    change:
-      "the machine declares each semester that its guards read, in `fields`",
-  },
-  NoDescription: {
-    by: "effx",
-    change:
-      "close the gaps that left nothing to say: for `contact`, the `Anyone` subject (effx issue 9)",
-  },
-  NoField: {
-    by: "effx",
-    change:
-      "a field of the description for the aggregate roots, with entities and relationships (the entity slice of effx spec 0031)",
-  },
-  UndeclaredWrites: {
-    by: "kernel",
-    change:
-      "each command declares the stored fields that it writes (`writes`, effx spec 0032 §2); effx lets its model choose any value of a written field until its slice of detailed command effects",
-  },
-  UnexpressibleGuard: {
-    by: "effx",
-    change:
-      "guard operands that are ids and flags, with comparisons over them (effx issue 9)",
-  },
-  UnexpressibleSubject: {
-    by: "effx",
-    change: "an `Anonymous` subject and a credential subject (effx issue 9)",
-  },
+} satisfies Readonly<Record<string, DropReason>>;
+
+/**
+ * What closes each kind of gap, as the steps of whoever closes it (a kind that two parties close has a step for each).
+ * The type is a record over the kinds, so a kind that nobody has said how to close does not compile. This repository
+ * never edits effx: a closure by effx is an issue there, and spec 0007d says where each stands.
+ */
+export const closures: Readonly<Record<Gap["_tag"], readonly Closure[]>> = {
+  AdminExpiry: [
+    {
+      by: "effx",
+      change:
+        "state that a place ends when a stored field of the place, of an order of its own, is reached by the clock (effx issue 10)",
+    },
+  ],
+  AdminListUnclear: [
+    {
+      by: "kernel",
+      change:
+        "the domain declares one command that grants a place and one that revokes it, or neither",
+    },
+  ],
+  MachineDropped: Arr.map(Rec.values(dropReasons), ({ closure }) => closure),
+  MissingDeclaration: [
+    {
+      by: "kernel",
+      change:
+        "the machine declares each semester that its guards read, in `fields`",
+    },
+  ],
+  NoDescription: [
+    {
+      by: "effx",
+      change:
+        "close the gaps that left nothing to say: for `contact`, the `Anyone` subject (effx issue 9)",
+    },
+  ],
+  NoField: [
+    {
+      by: "effx",
+      change:
+        "a field of the description for the aggregate roots, with entities and relationships (the entity slice of effx spec 0031)",
+    },
+  ],
+  UndeclaredWrites: [
+    {
+      by: "kernel",
+      change:
+        "each command declares the stored fields that it writes (`writes`, effx spec 0032 §2); effx lets its model choose any value of a written field until its slice of detailed command effects",
+    },
+  ],
+  UnexpressibleGuard: [
+    {
+      by: "effx",
+      change:
+        "guard operands that are ids and flags, with comparisons over them (effx issue 9)",
+    },
+  ],
+  UnexpressibleSubject: [
+    {
+      by: "effx",
+      change: "an `Anonymous` subject and a credential subject (effx issue 9)",
+    },
+  ],
 };
 
 /** What the kernel declares once for every domain and the description has no field for. */
@@ -611,15 +663,13 @@ const blockers = (
   const reasons = [
     ...(Arr.isReadonlyArrayEmpty(unknown)
       ? []
-      : ["a guard uses a check that effx does not know"]),
+      : [dropReasons.unknownCheck.say]),
     ...(Arr.isReadonlyArrayEmpty(undeclared)
       ? []
-      : ["a guard reads a semester that the machine does not declare"]),
+      : [dropReasons.undeclaredSemester.say]),
     ...(Arr.isReadonlyArrayEmpty(lostCommands)
       ? []
-      : [
-          `a transition applies ${Arr.join(lostCommands, ", ")}, which effx cannot be given`,
-        ]),
+      : [dropReasons.lostCommand.say(Arr.join(lostCommands, ", "))]),
   ];
 
   const gaps = [
