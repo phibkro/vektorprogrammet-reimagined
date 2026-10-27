@@ -73,7 +73,7 @@ export interface MachineRow<
   readonly where?: SQL | undefined;
 }
 
-/** What an insert does when the row is already there: nothing, or set the given columns of the row that is. */
+/** What an insert does when a row is already there: nothing, or set the given columns of the owner's own row that is. */
 export type OnConflict<
   Table extends PgTable,
   Owner extends string,
@@ -142,8 +142,9 @@ export class Aggregates extends Context.Service<
     ) => Statement<O["table"]>;
     /**
      * Inserts a row for the owner. `onConflict` says what a row that is already there means: `ignore` writes nothing
-     * (the result is empty), `replace` sets the given columns of the row that is there (`target` names the unique
-     * columns that collide).
+     * (the result is empty), `replace` sets the given columns of the owner's own row that is there (`target` names the
+     * unique columns that collide). A colliding row of another owner is left as it is and the result is empty, because
+     * this transaction does not hold that owner's lock.
      */
     readonly insert: <O extends AnyOwned>(
       locked: Locked<NoInfer<RootNameOf<O>>>,
@@ -276,6 +277,9 @@ export class Aggregates extends Context.Service<
                 insertion
                   .onConflictDoUpdate({
                     set: { ...onConflict.set },
+                    // The owner's lock covers the owner's rows. A target that leaves the owner column out (a unique
+                    // index on one other column) can collide with another owner's row, which must stay as it is.
+                    setWhere: eq(owned.owner, locked.id),
                     target: [...onConflict.target],
                   })
                   .returning()

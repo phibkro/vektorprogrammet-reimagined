@@ -18,6 +18,7 @@ import type { Locked } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
+  DateTime,
   Effect,
   Exit,
   Option,
@@ -29,7 +30,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { Aggregates } from "../src/aggregate/aggregates.ts";
 import { Person } from "../src/aggregate/declaration.ts";
-import { transactional } from "../src/index.ts";
+import { schema, transactional } from "../src/index.ts";
 import { activateAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
@@ -439,7 +440,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
     );
 
     it.effect(
-      "a token that no lock made, or of another root, or from a finished transaction, never reads or writes",
+      "a token that no lock made, or respelled for another row, or of another root, or from a finished transaction, never reads or writes",
       () =>
         Effect.gen(function* refusedTokens() {
           const { fieldOfStudy } = yield* world("refused");
@@ -455,7 +456,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           const refusals = yield* transactional(
             Effect.gen(function* refusals() {
-              yield* lockPerson(held.id);
+              const heldToken = yield* lockPerson(held.id);
 
               return {
                 anotherRoot: yield* Effect.exit(
@@ -469,6 +470,10 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                 ),
                 madeUp: yield* Effect.exit(
                   readMemberships(forged(other.id, "Person"))
+                ),
+                // A spread copies the brand and `id` is an ordinary property, so this type-checks as a token of `other`.
+                respelled: yield* Effect.exit(
+                  readMemberships({ ...heldToken, id: other.id })
                 ),
                 write: yield* Effect.exit(
                   Aggregates.use((aggregates) =>
@@ -493,6 +498,10 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             ["a token of another root", refusals.anotherRoot],
             ["a token of a finished transaction", refusals.finished],
             ["a token that no lock made", refusals.madeUp],
+            [
+              "a token respelled from a held one for a row that this transaction does not hold",
+              refusals.respelled,
+            ],
             ["a write with a token that no lock made", refusals.write],
             ["a token outside any transaction", outside],
           ];
@@ -654,6 +663,77 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               describeExit(exit)
             );
           }
+        })
+    );
+
+    it.effect(
+      "an upsert whose target leaves the owner out never rewrites another owner's row, and still replaces its own",
+      () =>
+        Effect.gen(function* upsertAcrossOwners() {
+          const { fieldOfStudy } = yield* world("upsert");
+          const [owner, other] = yield* twoPeople(fieldOfStudy.id, "upsert");
+
+          const issued = DateTime.toDateUtc(
+            DateTime.makeUnsafe("2099-01-01T00:00:00Z")
+          );
+
+          const changed = DateTime.toDateUtc(
+            DateTime.makeUnsafe("2099-06-01T00:00:00Z")
+          );
+
+          const taken = "1".repeat(64);
+          const own = "2".repeat(64);
+
+          // `code_hash_unique` is a unique index on the hash alone: a target without the owner column collides with
+          // the row of whoever holds the hash.
+          const upsert = (who: typeof owner, hash: string, expiresAt: Date) =>
+            asPerson(who.id, (locked) =>
+              Aggregates.use((aggregates) =>
+                aggregates.insert(
+                  locked,
+                  Person.owned.code,
+                  { expiresAt, hash, purpose: "activation", usedAt: null },
+                  {
+                    action: "replace",
+                    set: { expiresAt },
+                    target: [schema.code.hash],
+                  }
+                )
+              )
+            );
+
+          yield* upsert(owner, taken, issued);
+          const crossing = yield* upsert(other, taken, changed);
+          yield* upsert(other, own, issued);
+          const replacing = yield* upsert(other, own, changed);
+
+          const kept = yield* asPerson(owner.id, (locked) =>
+            Aggregates.use((aggregates) =>
+              aggregates.select(locked, Person.owned.code)
+            )
+          );
+
+          assert.deepStrictEqual(
+            crossing,
+            [],
+            "the upsert wrote a row: it rewrote the row of the owner whose lock this transaction does not hold"
+          );
+
+          assert.deepStrictEqual(
+            Arr.map(kept, (row) => [
+              row.subject,
+              row.hash,
+              row.expiresAt.getTime(),
+            ]),
+            [[owner.id, taken, issued.getTime()]],
+            "another owner's row was rewritten"
+          );
+
+          assert.deepStrictEqual(
+            Arr.map(replacing, (row) => [row.subject, row.expiresAt.getTime()]),
+            [[other.id, changed.getTime()]],
+            "an upsert on the owner's own row replaces it"
+          );
         })
     );
   }
