@@ -70,7 +70,9 @@
       "jobs": [
         "semesters",
         "outboxSweep",
-        "endingSoon"
+        "endingSoon",
+        "retention",
+        "alumniConsent"
       ]
     }
   },

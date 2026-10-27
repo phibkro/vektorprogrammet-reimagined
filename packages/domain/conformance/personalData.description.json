@@ -1,0 +1,136 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "setPhoto"
+    },
+    {
+      "kind": "Command",
+      "name": "setAlumniConsent"
+    },
+    {
+      "kind": "Command",
+      "name": "exportMyData"
+    },
+    {
+      "kind": "Command",
+      "name": "erasePerson"
+    },
+    {
+      "kind": "Command",
+      "name": "mergePersons"
+    },
+    {
+      "kind": "Command",
+      "name": "runRetention",
+      "runBy": {
+        "job": "retention"
+      }
+    },
+    {
+      "kind": "Command",
+      "name": "sendAlumniConsent",
+      "runBy": {
+        "job": "alumniConsent"
+      }
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "setPhoto",
+        "setAlumniConsent",
+        "exportMyData",
+        "erasePerson"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
+        "setPhoto"
+      ],
+      "scope": "department",
+      "subject": "Leader(d)@department"
+    },
+    {
+      "permits": [
+        "runRetention"
+      ],
+      "scope": "all",
+      "subject": "System(retention)@all"
+    },
+    {
+      "permits": [
+        "sendAlumniConsent"
+      ],
+      "scope": "all",
+      "subject": "System(alumniConsent)@all"
+    },
+    {
+      "permits": [
+        "setPhoto",
+        "setAlumniConsent",
+        "exportMyData",
+        "erasePerson",
+        "mergePersons"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "personalData",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon",
+        "retention",
+        "alumniConsent"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Self"
+      },
+      "name": "Self@own"
+    },
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "position": "leader",
+        "term": "active"
+      },
+      "name": "Leader(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "retention"
+      },
+      "name": "System(retention)@all"
+    },
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "alumniConsent"
+      },
+      "name": "System(alumniConsent)@all"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}
