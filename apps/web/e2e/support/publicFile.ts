@@ -34,9 +34,9 @@ export const seedPublicFile = Effect.fn("seedPublicFile")(
 
     const publicFileKey = fileKeyFor(digest, "application/octet-stream");
 
+    // Outside the worktree: a stack stopped without finalizers must not leave an untracked file in it.
     const configDirectory = yield* fs.makeTempDirectoryScoped({
-      directory: path.join(webDirectory, "e2e"),
-      prefix: ".r2-seed-",
+      prefix: "vk-r2-seed-",
     });
 
     const configPath = path.join(configDirectory, "wrangler.json");
@@ -45,7 +45,7 @@ export const seedPublicFile = Effect.fn("seedPublicFile")(
       [
         "{",
         `  "compatibility_date": "${COMPATIBILITY_DATE}",`,
-        '  "main": "../support/r2SeedWorker.ts",',
+        `  "main": "${path.join(webDirectory, "e2e", "support", "r2SeedWorker.ts")}",`,
         '  "name": "vektorprogrammet-e2e-r2-seed",',
         '  "r2_buckets": [{',
         '    "binding": "PUBLIC_FILES",',

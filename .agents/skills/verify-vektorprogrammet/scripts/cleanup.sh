@@ -10,9 +10,14 @@ set -euo pipefail
 # shellcheck disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+if [[ -z "${VERIFY_RUN_DIR:-}" && ! -f "$POINTER" ]]; then
+  rm -rf "$TREE"/apps/web/e2e/.r2-seed-*
+  echo "nothing to clean"
+  exit 0
+fi
+
 resolve_run_dir
 set -a
-# shellcheck disable=SC1091
 [[ -f "$RUN_DIR/state.env" ]] && . "$RUN_DIR/state.env"
 # shellcheck disable=SC1091
 [[ -f "$RUN_DIR/meta.env" ]] && . "$RUN_DIR/meta.env"
@@ -24,8 +29,8 @@ wait_gone() { # pid, seconds
   [[ ! -r "/proc/$pid/cmdline" ]]
 }
 
-# 1. The stack: SIGTERM is interruption for runMain, so its scope releases the dev server, the CMS and the database
-#    in reverse order. Only a pid that is still our serve.ts is signalled.
+# 1. Signal the serve.ts process if it is still ours. SIGTERM may exit it with status 143 without closing its scope;
+#    the recorded-port and database cleanup below handles resources left behind. Only our process is signalled.
 if serve_alive "${VERIFY_PID:-}"; then
   echo "stopping serve.ts (pid $VERIFY_PID)"
   kill -TERM "$VERIFY_PID"
@@ -59,7 +64,11 @@ if [[ -n "${E2E_DATABASE_URL:-}" ]]; then
       fi')"
   fi
 fi
-echo "database ${database:-?}: $database_left"
+if [[ -n "${E2E_DATABASE_URL:-}" ]]; then
+  echo "database $database: $database_left"
+fi
+
+rm -rf "$TREE"/apps/web/e2e/.r2-seed-*
 
 # 4. Overlay files, secrets, the pointer.
 if [[ -f "$RUN_DIR/overlay.list" ]]; then

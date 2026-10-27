@@ -10,7 +10,7 @@
 # It: refuses to double-drive, checks headroom, makes sure devenv's PostgreSQL runs, adds the harness files an older
 # worktree lacks (the "overlay"), then execs `bun e2e/serve.ts` (apps/web), which owns a disposable migrated and
 # seeded database, the CMS and `vp dev` and prints `VERIFY READY ...` when the instance is usable.
-# Interrupting it (SIGINT or SIGTERM) releases all of that. Then run scripts/cleanup.sh.
+# SIGTERM may end serve.ts with status 143 before scoped processes exit; run cleanup.sh to sweep recorded resources.
 set -euo pipefail
 # shellcheck disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
