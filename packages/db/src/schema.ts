@@ -16,16 +16,21 @@
 import {
   ADMIN_LIST_ID,
   AccountState,
+  ActualState,
   AuditAction,
   AuditClient,
+  COMPANY_EMAIL_PATTERN,
   CodePurpose,
   EntityName,
   FileExtension,
+  JobRun,
   OutboxMessage,
+  ReportStatus,
   StoredContentType,
   SystemJob,
   TeamFunction,
   Term,
+  WorkspaceMode,
 } from "@vektorprogrammet/domain";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -330,14 +335,35 @@ export const authVerification = pgTable(
   (t) => [index("auth_verification_identifier_idx").on(t.identifier)]
 );
 
-/** A fake mailbox: only the local and preview sender layers can write it. */
-export const capturedMail = pgTable("captured_mail", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  recipient: text("recipient").notNull(),
-  sentAt: instant("sent_at").notNull(),
-  subject: text("subject").notNull(),
-  text: text("text").notNull(),
-});
+/**
+ * A fake mailbox: only the local and preview sender layers can write it. `delivery_key` is the outbox row's id, the
+ * key that a provider with idempotency would deduplicate on: a message that is delivered twice is captured once.
+ */
+export const capturedMail = pgTable(
+  "captured_mail",
+  {
+    deliveryKey: text("delivery_key"),
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    recipient: text("recipient").notNull(),
+    sentAt: instant("sent_at").notNull(),
+    subject: text("subject").notNull(),
+    text: text("text").notNull(),
+  },
+  (t) => [unique("captured_mail_delivery_key_unique").on(t.deliveryKey)]
+);
+
+/** The fake Slack workspace, beside the fake mailbox: a Slack post of a non-production deployment is kept here. */
+export const capturedSlack = pgTable(
+  "captured_slack",
+  {
+    channel: text("channel").notNull(),
+    deliveryKey: text("delivery_key"),
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    sentAt: instant("sent_at").notNull(),
+    text: text("text").notNull(),
+  },
+  (t) => [unique("captured_slack_delivery_key_unique").on(t.deliveryKey)]
+);
 
 /** A team of one department (RULE-157: the name is unique there). Deactivated, never deleted (RULE-233). */
 export const team = pgTable(
@@ -349,12 +375,21 @@ export const team = pgTable(
       .notNull()
       .references(() => department.id),
     function: teamFunction("function").notNull(),
+    /** The Google Workspace group of the team (spec 0008). A team without one gets an issue in the report, never a guessed address. */
+    groupEmail: text("group_email"),
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     name: text("name").notNull(),
   },
   (t) => [
     unique(UniqueConstraint.teamName).on(t.departmentId, t.name),
+    uniqueIndex("team_group_email_unique")
+      .on(t.groupEmail)
+      .where(sql`${t.groupEmail} is not null`),
     check("team_default_term", sql`${t.defaultTerm} in (1, 2)`),
+    check(
+      "team_group_email",
+      sql`${t.groupEmail} is null or ${t.groupEmail} ~ ${sql.raw(literal(COMPANY_EMAIL_PATTERN.source))}`
+    ),
     check("team_name", sql`length(${t.name}) > 0`),
   ]
 );
@@ -589,6 +624,93 @@ export const auditLog = pgTable(
     check(
       "audit_log_principal",
       sql`(${t.personId} is not null) <> (${t.systemJob} is not null)`
+    ),
+  ]
+);
+
+/**
+ * A scheduled job's periods (spec 0008): one row per `(job, period)`, the claim that makes a period run once, the
+ * cursor that makes a killed run resume, and the fence (`attempt`) that stops a runner whose lease was taken over.
+ * It holds no foreign key and no person: the closure test of spec 0006b has nothing to declare here.
+ */
+export const jobRun = pgTable(
+  "job_run",
+  {
+    attempt: integer("attempt").notNull().default(0),
+    counts: jsonb("counts")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    cursor: jsonb("cursor"),
+    endedAt: instant("ended_at"),
+    job: text("job").notNull(),
+    lastError: text("last_error"),
+    leaseUntil: instant("lease_until").notNull(),
+    outcome: text("outcome").notNull(),
+    period: text("period").notNull(),
+    startedAt: instant("started_at"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.job, t.period], name: "job_run_pk" }),
+    index("job_run_resume_idx").on(t.job, t.outcome),
+    check("job_run_job", oneOf(sql`${t.job}`, SystemJob.literals)),
+    check(
+      "job_run_outcome",
+      oneOf(sql`${t.outcome}`, JobRun.RunOutcome.literals)
+    ),
+    check("job_run_attempt", sql`${t.attempt} >= 0`),
+  ]
+);
+
+/**
+ * The report of one Google Workspace projection run (spec 0008): what the system wants, what the directory held and
+ * the difference, written chunk by chunk. People are ids and addresses in the sections, with no foreign key, because
+ * a report is a snapshot that outlives what it names (as `audit_log` does).
+ */
+export const workspaceReport = pgTable(
+  "workspace_report",
+  {
+    accounts: jsonb("accounts")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    actual: text("actual").notNull(),
+    completedAt: instant("completed_at"),
+    counts: jsonb("counts")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    groups: jsonb("groups")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    issues: jsonb("issues")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    mode: text("mode").notNull(),
+    period: text("period").notNull(),
+    semesterTerm: semesterTerm("semester_term").notNull(),
+    semesterYear: integer("semester_year").notNull(),
+    startedAt: instant("started_at").notNull(),
+    status: text("status").notNull(),
+    unmanaged: jsonb("unmanaged")
+      .notNull()
+      .default(sql`'{"accounts":[],"groups":[]}'::jsonb`),
+  },
+  (t) => [
+    unique("workspace_report_period_unique").on(t.period),
+    check(
+      "workspace_report_actual",
+      oneOf(sql`${t.actual}`, ActualState.literals)
+    ),
+    check(
+      "workspace_report_mode",
+      oneOf(sql`${t.mode}`, WorkspaceMode.literals)
+    ),
+    check(
+      "workspace_report_status",
+      oneOf(sql`${t.status}`, ReportStatus.literals)
+    ),
+    check(
+      "workspace_report_completed",
+      sql`(${t.status} = 'running') = (${t.completedAt} is null)`
     ),
   ]
 );

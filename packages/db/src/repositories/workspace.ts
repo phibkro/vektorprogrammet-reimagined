@@ -1,0 +1,382 @@
+/**
+ * The Workspace projection's two repositories (spec 0008).
+ *
+ * `WorkspaceFacts` reads the projection's inputs the way a display reads: no lock and no write (spec 0006b: the
+ * projection decides no write on a table that the Person root owns), and it is registered with the SELECT-only role
+ * test. `WorkspaceReports` writes the report in the chunk's transaction. Only the job's run writes a given period's
+ * report, one chunk at a time under the period's lease, so a read-modify-write of its sections races with nothing.
+ * Stored sections are decoded on read: a row that violates the domain schema is a defect, not an empty report.
+ */
+import {
+  CompanyEmail,
+  InTransaction,
+  PersonId,
+  TeamId,
+  WorkspaceFacts,
+  WorkspacePlan,
+  WorkspaceReport,
+  WorkspaceReports,
+  semesterOrdinal,
+} from "@vektorprogrammet/domain";
+import type {
+  ReportPart,
+  Semester,
+  Job,
+  JobRun,
+} from "@vektorprogrammet/domain";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  lte,
+} from "drizzle-orm";
+import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
+
+import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
+import {
+  account,
+  membership,
+  person,
+  team,
+  workspaceReport,
+} from "../schema.ts";
+
+const PersonRow = Schema.Struct({
+  companyAddress: Schema.NullOr(CompanyEmail),
+  name: Schema.String,
+  personId: PersonId,
+});
+
+const TeamRow = Schema.Struct({
+  groupAddress: Schema.NullOr(CompanyEmail),
+  name: Schema.String,
+  teamId: TeamId,
+});
+
+const MemberRow = Schema.Struct({ personId: PersonId, teamId: TeamId });
+
+/** A membership that is active in the semester of `ordinal`, in a team that is active, of a person whose Account is Active. */
+const activeIn = (ordinal: number) =>
+  and(
+    lte(membership.startOrdinal, ordinal),
+    gte(membership.endOrdinal, ordinal),
+    eq(team.active, true),
+    eq(account.state, "Active")
+  );
+
+export const WorkspaceFactsLive = Layer.effect(
+  WorkspaceFacts,
+  Effect.gen(function* WorkspaceFactsLive() {
+    const db = yield* Drizzle;
+    const decodePeople = decodeWith(Schema.Array(PersonRow));
+    const decodeTeams = decodeWith(Schema.Array(TeamRow));
+    const decodeMembers = decodeWith(Schema.Array(MemberRow));
+    const decodeAddresses = decodeWith(Schema.Array(CompanyEmail));
+
+    const people = Effect.fn("WorkspaceFacts.people")(function* people(
+      semester: Semester
+    ) {
+      const ordinal = semesterOrdinal(semester);
+
+      const rows = yield* db
+        .select({
+          companyAddress: person.companyEmail,
+          name: person.name,
+          personId: person.id,
+        })
+        .from(person)
+        .where(
+          exists(
+            db
+              .select({ personId: membership.personId })
+              .from(membership)
+              .innerJoin(team, eq(team.id, membership.teamId))
+              .innerJoin(account, eq(account.personId, membership.personId))
+              .where(and(eq(membership.personId, person.id), activeIn(ordinal)))
+          )
+        )
+        .orderBy(asc(person.id))
+        .pipe(Effect.orDie);
+
+      return yield* decodePeople(rows);
+    });
+
+    const storedAddresses = Effect.gen(function* storedAddresses() {
+      const rows = yield* db
+        .select({ address: person.companyEmail })
+        .from(person)
+        .where(isNotNull(person.companyEmail))
+        .pipe(Effect.orDie);
+
+      return new Set<string>(
+        yield* decodeAddresses(
+          Arr.flatMap(rows, (row) =>
+            row.address === null ? [] : [row.address]
+          )
+        )
+      );
+    }).pipe(Effect.withSpan("WorkspaceFacts.storedAddresses"));
+
+    const configuredGroupAddresses = Effect.gen(
+      function* configuredGroupAddresses() {
+        const rows = yield* db
+          .select({ address: team.groupEmail })
+          .from(team)
+          .where(isNotNull(team.groupEmail))
+          .pipe(Effect.orDie);
+
+        return new Set<string>(
+          yield* decodeAddresses(
+            Arr.flatMap(rows, (row) =>
+              row.address === null ? [] : [row.address]
+            )
+          )
+        );
+      }
+    ).pipe(Effect.withSpan("WorkspaceFacts.configuredGroupAddresses"));
+
+    const teamsAfter = Effect.fn("WorkspaceFacts.teamsAfter")(
+      function* teamsAfter(
+        semester: Semester,
+        after: TeamId | null,
+        limit: number
+      ) {
+        const ordinal = semesterOrdinal(semester);
+
+        const teams = yield* decodeTeams(
+          yield* db
+            .select({
+              groupAddress: team.groupEmail,
+              name: team.name,
+              teamId: team.id,
+            })
+            .from(team)
+            .where(
+              and(
+                eq(team.active, true),
+                after === null ? undefined : gt(team.id, after)
+              )
+            )
+            .orderBy(asc(team.id))
+            .limit(limit)
+            .pipe(Effect.orDie)
+        );
+
+        const members = yield* decodeMembers(
+          yield* db
+            .selectDistinct({
+              personId: membership.personId,
+              teamId: membership.teamId,
+            })
+            .from(membership)
+            .innerJoin(team, eq(team.id, membership.teamId))
+            .innerJoin(account, eq(account.personId, membership.personId))
+            .where(
+              and(
+                inArray(
+                  membership.teamId,
+                  Arr.map(teams, (row) => row.teamId)
+                ),
+                activeIn(ordinal)
+              )
+            )
+            .orderBy(asc(membership.personId))
+            .pipe(Effect.orDie)
+        );
+
+        return Arr.map(teams, (row) => ({
+          groupAddress: row.groupAddress,
+          members: Arr.flatMap(members, (member) =>
+            member.teamId === row.teamId ? [member.personId] : []
+          ),
+          name: row.name,
+          teamId: row.teamId,
+        }));
+      }
+    );
+
+    return WorkspaceFacts.of({
+      configuredGroupAddresses,
+      people,
+      storedAddresses,
+      teamsAfter,
+    });
+  })
+);
+
+/** One stored row of `workspace_report`, as the domain's record: the semester and the instants are assembled here. */
+const toRecord = (row: typeof workspaceReport.$inferSelect) => ({
+  accounts: row.accounts,
+  actual: row.actual,
+  completedAt:
+    row.completedAt === null ? null : DateTime.fromDateUnsafe(row.completedAt),
+  counts: row.counts,
+  groups: row.groups,
+  issues: row.issues,
+  mode: row.mode,
+  period: row.period,
+  semester: { term: row.semesterTerm, year: row.semesterYear },
+  startedAt: DateTime.fromDateUnsafe(row.startedAt),
+  status: row.status,
+  unmanaged: row.unmanaged,
+});
+
+export const WorkspaceReportsLive = Layer.effect(
+  WorkspaceReports,
+  Effect.gen(function* WorkspaceReportsLive() {
+    const db = yield* Drizzle;
+    const decodeRecord = decodeFirstOption(decodeWith(WorkspaceReport));
+    const decodeAccounts = decodeWith(Schema.Array(WorkspacePlan.AccountLine));
+    const decodeGroups = decodeWith(Schema.Array(WorkspacePlan.GroupLine));
+    const decodeIssues = decodeWith(Schema.Array(WorkspacePlan.Issue));
+
+    const encodeAccounts = Schema.encodeEffect(
+      Schema.Array(WorkspacePlan.AccountLine)
+    );
+
+    const encodeGroups = Schema.encodeEffect(
+      Schema.Array(WorkspacePlan.GroupLine)
+    );
+
+    const encodeIssues = Schema.encodeEffect(Schema.Array(WorkspacePlan.Issue));
+    const encodeUnmanaged = Schema.encodeEffect(WorkspacePlan.Unmanaged);
+
+    const open = Effect.fn("WorkspaceReports.open")(function* open(input: {
+      readonly period: Job.JobPeriod;
+      readonly mode: WorkspaceReport["mode"];
+      readonly semester: Semester;
+      readonly actual: WorkspaceReport["actual"];
+    }) {
+      yield* InTransaction;
+
+      yield* db
+        .insert(workspaceReport)
+        .values({
+          actual: input.actual,
+          mode: input.mode,
+          period: input.period,
+          semesterTerm: input.semester.term,
+          semesterYear: input.semester.year,
+          startedAt: DateTime.toDateUtc(yield* DateTime.now),
+          status: "running",
+        })
+        .onConflictDoNothing()
+        .pipe(Effect.orDie);
+    });
+
+    /** The report row of `period`, with the sections that a chunk adds to. Not finding it is a broken invariant. */
+    const sections = Effect.fnUntraced(function* sections(
+      period: Job.JobPeriod
+    ) {
+      const [row] = yield* db
+        .select({
+          accounts: workspaceReport.accounts,
+          groups: workspaceReport.groups,
+          issues: workspaceReport.issues,
+        })
+        .from(workspaceReport)
+        .where(eq(workspaceReport.period, period))
+        .pipe(Effect.orDie);
+
+      if (row === undefined) {
+        return yield* Effect.die(`no report is open for ${period}`);
+      }
+
+      return row;
+    });
+
+    const append = Effect.fn("WorkspaceReports.append")(function* append(
+      period: Job.JobPeriod,
+      part: ReportPart
+    ) {
+      yield* InTransaction;
+      const row = yield* sections(period);
+
+      const unmanaged =
+        part.unmanaged === undefined
+          ? undefined
+          : yield* Effect.orDie(encodeUnmanaged(part.unmanaged));
+
+      yield* db
+        .update(workspaceReport)
+        .set({
+          accounts: yield* Effect.orDie(
+            encodeAccounts([
+              ...(yield* decodeAccounts(row.accounts)),
+              ...(part.accounts ?? []),
+            ])
+          ),
+          groups: yield* Effect.orDie(
+            encodeGroups([
+              ...(yield* decodeGroups(row.groups)),
+              ...(part.groups ?? []),
+            ])
+          ),
+          issues: yield* Effect.orDie(
+            encodeIssues([
+              ...(yield* decodeIssues(row.issues)),
+              ...(part.issues ?? []),
+            ])
+          ),
+          unmanaged,
+        })
+        .where(eq(workspaceReport.period, period))
+        .pipe(Effect.orDie);
+    });
+
+    const complete = Effect.fn("WorkspaceReports.complete")(function* complete(
+      period: Job.JobPeriod,
+      status: Exclude<WorkspaceReport["status"], "running">,
+      counts: JobRun.Counts
+    ) {
+      yield* InTransaction;
+
+      yield* db
+        .update(workspaceReport)
+        .set({
+          completedAt: DateTime.toDateUtc(yield* DateTime.now),
+          counts,
+          status,
+        })
+        .where(eq(workspaceReport.period, period))
+        .pipe(Effect.orDie);
+    });
+
+    const read = Effect.fn("WorkspaceReports.read")(function* read(
+      period: Job.JobPeriod
+    ) {
+      return yield* decodeRecord(
+        Arr.map(
+          yield* db
+            .select()
+            .from(workspaceReport)
+            .where(eq(workspaceReport.period, period))
+            .pipe(Effect.orDie),
+          toRecord
+        )
+      );
+    });
+
+    const latest = Effect.gen(function* latest() {
+      return yield* decodeRecord(
+        Arr.map(
+          yield* db
+            .select()
+            .from(workspaceReport)
+            .orderBy(desc(workspaceReport.id))
+            .limit(1)
+            .pipe(Effect.orDie),
+          toRecord
+        )
+      );
+    }).pipe(Effect.withSpan("WorkspaceReports.latest"));
+
+    return WorkspaceReports.of({ append, complete, latest, open, read });
+  })
+);
