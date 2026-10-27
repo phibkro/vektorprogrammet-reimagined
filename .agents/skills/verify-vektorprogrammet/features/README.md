@@ -8,7 +8,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - `scripts/doctor.sh` printed `DOCTOR OK`. Never drive an instance that did not.
 - The instance belongs to this run: one per worktree, ports and database drawn at random, listed in the run directory's `state.env`. Never drive an origin you did not launch.
 - The machine has outbound network: the contact form's Turnstile widget and verification call Cloudflare's servers.
-- Seeded data at launch (read from the first run, 2026-10-27): departments `Avdeling Alfa` (short name `ALFA`, Alfaby, `/kontakt/alfaby`) and `Avdeling Beta` (`BETA`, Betaby); four semesters, the current one named by the wall clock (`Høst 2026` on that day) and the next (`Vår 2027`) made by the cron job that the launch runs once; teams `Rekruttering` and `Styret` in Avdeling Alfa; CMS articles (`/nyhet/opptak-apner`), texts, FAQ and one sponsor. The people:
+- Seeded data at launch (read from the first run, 2026-10-27): departments `Avdeling Alfa` (short name `ALFA`, Alfaby, `/kontakt/alfaby`) and `Avdeling Beta` (`BETA`, Betaby); four semesters, the current one named by the wall clock (`Høst 2026` on that day) and the next (`Vår 2027`) made by the cron job that the launch runs once; teams `Rekruttering` and `Styret` in Avdeling Alfa; CMS articles (`/nyhet/opptak-apner`), texts, FAQ and one sponsor; and a synthetic public-file object registered under `state.env`’s `E2E_PUBLIC_FILE_KEY`. The people:
 
 | Person (cookie value) | What they are | What they may open in the control panel |
 | --- | --- | --- |
@@ -38,9 +38,9 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 ## Features
 
-- [Public site](./public-site.md) covers the anonymous pages, the CMS content they show, publishing an edit without a deploy, and the legacy URL redirects.
+- [Public site](./public-site.md) covers the anonymous pages, CMS publishing, public file responses, and legacy URL redirects.
 - [Contact form](./contact-form.md) covers the browser form with Turnstile, the no-JS post, the refusals, and the queued mail and Slack messages.
-- [Control panel sidebar](./control-panel-sidebar.md) covers what each seeded person sees and may open, the not-signed-in and no-access pages, forged requests, and the sidebar on desktop and phone.
+- [Control panel sidebar](./control-panel-sidebar.md) covers each seeded person's reads, admin-place grant and revoke rules, forged requests, and the sidebar on desktop and phone.
 - [Team memberships](./team-memberships.md) covers the spec 0006 journey: create a team, register people, add, extend, change and end memberships, and switch principal.
 - [Organisation admin](./organisation-admin.md) covers departments, semesters (read-only), and fields of study with their department scoping.
 - [Accounts and sessions](./accounts.md) covers spec 0007: invitation, activation, profile and sessions, password change and reset, deactivation, and the identical answers of the reset and refusal paths.

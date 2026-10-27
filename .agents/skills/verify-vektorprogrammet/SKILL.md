@@ -36,13 +36,13 @@ What it does, in order (read `scripts/launch.sh`, it is short):
 1. **Refuses to double-drive.** One instance per worktree. If the pointer (`<git dir>/verify-run`) names a live run it stops with that run's directory; a stale pointer is cleaned first.
 2. **Checks headroom** (`scripts/headroom.sh`): CPU idle, `MemAvailable`, swap free and swap-in rate, busy time of the disk the worktree and evidence sit on, free disk, each with at least 20% left after the job's expected demand (stack 5.5 GiB RSS measured, plus a browser). I/O pressure is printed, not gated. Short on any → it exits 1 and says which. `VERIFY_FORCE=1` skips it and the report records that. Wait for another job to finish rather than forcing.
 3. **Installs dependencies** in a fresh worktree: `devenv shell -- bun install --frozen-lockfile` (the system Bun hangs).
-4. **Starts devenv's PostgreSQL 18 and MySQL 8.4** with `devenv up -d` if they are not usable, and waits until both are (MySQL's `legacy_reader` user exists). The importer needs MySQL: it loads the fake legacy fixture into a throwaway MySQL database first. Start both together; see the Gotchas.
+4. **Records the run before starting services.** Writes its evidence directory, metadata and per-worktree pointer first, so `cleanup.sh` can find the run even if service readiness fails. If PostgreSQL or MySQL are not usable, starts both with `devenv up -d` and waits until they are (MySQL's `legacy_reader` user exists). The importer needs MySQL: it loads the fake legacy fixture into a throwaway MySQL database first. Start both together; see the Gotchas. `VERIFY_SERVICES_WAIT_SECONDS` defaults to 120; a timed-out launch leaves a pointer for `cleanup.sh`.
 5. **Overlay.** A worktree older than this skill (a PR head) lacks `apps/web/e2e/serve.ts` and `apps/web/e2e/support/stack.ts`. They are copied in from the skill's own tree as untracked verification scaffolding, listed in the run directory's `overlay.list`, and removed by `cleanup.sh`. A tree that has them is left alone.
-6. **Execs `bun e2e/serve.ts`** (in `apps/web`, inside `devenv shell`): a disposable PostgreSQL database `vp_db_test_*` (created, migrated), the importer's fake fixture into it, the six local people (`db:seed:local`), the CMS (`astro dev` on the database's `emdash` schema, the importer's fixture imported twice to prove idempotence), `vp dev` on a random port with the `local` deployment (test actor, capture sink, simulated R2) and Cloudflare's always-pass Turnstile test keys, and the cron's `scheduled` handler run once (it makes the current and next semester). Only then it writes `state.env` and `secrets.env` and prints `VERIFY READY origin=http://localhost:<port> cms=http://localhost:<port>`.
+6. **Execs `bun e2e/serve.ts`** (in `apps/web`, inside `devenv shell`): creates/migrates disposable PostgreSQL `vp_db_test_*`, imports the fake fixture, seeds the six local people (`db:seed:local`) and a synthetic public file (text object in local simulated R2 plus its `public_file` row), starts the CMS and `vp dev`, then runs the scheduled handler once. It writes `state.env` including `E2E_PUBLIC_FILE_KEY` and `secrets.env`, then prints `VERIFY READY`.
 
 From nothing (no `node_modules`, no devenv data directory) that is: install (about 15 s warm), devenv's first start (about 15 s), migrate + import + seed + CMS + `vp dev` (about 40 s on 2026-10-27). **Ready means usable**: the line is printed only after the app answered, the CMS imported its fixture twice, and the cron ran. `scripts/doctor.sh` then confirms it.
 
-Knobs (environment): `VERIFY_TREE` (worktree to verify), `VERIFY_EVIDENCE_ROOT` (default `~/.local/state/vektorprogrammet-verify`), `VERIFY_FORCE=1`, `DEMAND_CPUS` / `DEMAND_MEM_MIB` / `DEMAND_DISK_MIB`.
+Knobs (environment): `VERIFY_TREE` (worktree to verify), `VERIFY_EVIDENCE_ROOT` (default `~/.local/state/vektorprogrammet-verify`), `VERIFY_FORCE=1`, `VERIFY_SERVICES_WAIT_SECONDS` (default 120), test-only `VERIFY_FORCE_SERVICE_READINESS_FAILURE=1`, `DEMAND_CPUS` / `DEMAND_MEM_MIB` / `DEMAND_DISK_MIB`.
 
 Isolation: ports are drawn at random (30000–50000), the database name is unique, the pointer is per worktree. Two worktrees can run side by side, each with its own devenv services (devenv allocates their ports), if headroom allows; two instances in one worktree are refused. Never drive an origin this run did not print.
 
@@ -74,7 +74,7 @@ The run directory is `~/.local/state/vektorprogrammet-verify/<UTC time>-<short s
 | Path | What |
 | --- | --- |
 | `REPORT.md` | commit, branch, tree status at launch, features driven, spec results, every artifact with size and SHA-256, teardown time |
-| `state.env`, `meta.env`, `git-status.txt`, `overlay.list` | what the run was (no secrets) |
+| `state.env`, `meta.env`, `git-status.txt`, `overlay.list` | run origins, disposable database URL, synthetic public-file key, and launch metadata (no secrets) |
 | `serve.log` | everything the stack printed: `vp dev`, the CMS, the capture sink's lines |
 | `drive-<n>.log`, `results-<n>.json`, `playwright/` | spec output; traces |
 | `screenshots/`, `pages/`, `probes/` | what you captured |
@@ -134,27 +134,19 @@ Pull requests target `main` (earlier ones were stacked, each on the branch below
 
    | Changed path | Drive |
    | --- | --- |
-   | `apps/web/src/routes/kontrollpanel/**`, `components/panel/**`, `functions/panel.functions.ts`, `server/shell.ts`, `server/panel.ts`, `lib/panelSections.ts`, `packages/domain/src/**` grants and commands | [control-panel-sidebar](features/control-panel-sidebar.md): every seeded person with `page.sh`, plus `shell.spec.ts` |
+   | `apps/web/src/routes/kontrollpanel/**`, `apps/web/src/server/panelAccess.ts`, `apps/web/src/server/panelReads.ts`, `apps/web/src/server/runtime.ts`, `components/panel/**`, `functions/panel.functions.ts`, `server/shell.ts`, `server/panel.ts`, `lib/panelSections.ts`, `packages/domain/src/**` grants and commands | [control-panel-sidebar](features/control-panel-sidebar.md): every seeded person with `page.sh`, plus `shell.spec.ts` and the admin-place grant/revoke journey |
    | `apps/web/src/server/teams.ts`, `routes/kontrollpanel/team/**`, `personer.tsx`, `teamForms.tsx`, `packages/db/src/repositories/teams.ts`, membership migrations | [team-memberships](features/team-memberships.md) on a fresh instance, plus the sidebar for the member it creates |
    | `apps/web/src/server/contact.ts`, `contactPost.ts`, `turnstile.ts`, `senders.ts`, `outboxDelivery.ts`, `outboxSweep.ts`, `routes/kontakt/**`, `packages/domain/src/contact/**` | [contact-form](features/contact-form.md), both outcomes and the no-JS post |
+   | `apps/web/src/routes/filer/$key.ts`, `apps/web/src/server/publicFiles.ts` | [public-site](features/public-site.md): seeded file 200 with emitted headers and unknown-key 404 |
    | `apps/web/src/routes/*.tsx` outside the panel, `components/site/**`, `src/lib/textSlots.ts`, `apps/cms/**`, `packages/cms-client/**` | [public-site](features/public-site.md) |
    | departments, semesters, fields of study (`server/panel.ts`, `routes/kontrollpanel/{avdelinger,semestre,linjer,arrangementer}.tsx`, `packages/domain/src/organisation/**`) | [organisation-admin](features/organisation-admin.md) |
-   | `packages/db/drizzle/**`, `packages/db/src/**`, `bun.lock`, `package.json`, `devenv.nix`, Effect or Drizzle versions | the launch itself (migrations and the seed run on a fresh database), then the whole suite in one fresh instance: `scripts/drive.sh journey.spec.ts public.spec.ts shell.spec.ts teams.spec.ts accounts.spec.ts` (Playwright takes the files in name order; 48 tests passed in 3.6 min on 2026-10-27 at `0da92b0`; a spec re-run on the same instance collides with its own fixed names). The package tests (`vp run -r test`, real-PostgreSQL race tests) are a different job and not covered here |
-   | `apps/web/src/lib/authClient.ts`, `sessionClient.ts`, `routes/{logg-inn,aktiver,glemt-passord,tilbakestill-passord,min-side,etter-innlogging}.tsx`, `server/auth.ts`, `server/account*`, `server/principal.ts`, `packages/domain/src/accounts/**` | [accounts](features/accounts.md): `drive.sh accounts.spec.ts` on a fresh instance, then the control panel as a signed-in person; also the sidebar and team features, because `principal.ts` decides every actor, cookie or session |
-   | `apps/web/e2e/**` | run `drive.sh` for every spec the change touches and read the diff of `support/` for what a spec stopped asserting |
-   | docs, specs, `AGENTS.md`, `.agents/**` only | nothing to drive; say so, and verify the docs' claims against the code instead |
-
-   A feature file lists more entry points than one run covers; a proof that drives one convenient entry point (the browser form) when the change also touches another (the no-JS post) is incomplete. Drive each entry point the change can reach, or list the ones you skipped.
-
-3. **Attach to the review** (a comment on the PR, written by whoever has authority to post; this skill never pushes or comments):
-   - the head commit (`REPORT.md` has it) and the run directory path;
-   - `REPORT.md` (features driven, spec pass/fail counts, artifact hashes) and the doctor output;
-   - for UI changes, screenshots per affected person (`shot.sh`), the old behaviour where the base can show it (launch the base branch the same way and compare, or say that you did not);
-   - for stored-state changes, the `probe.sh` before/after files;
-   - for any failed or flaky spec, its `trace.zip` and `drive-<n>.log` excerpt;
-   - what was **not** driven and why, and every stand-in (the cookie actor, the capture sink, simulated R2, Turnstile test keys).
-
-## Stand-ins and what is unverified
+   | `packages/db/drizzle/**`, `packages/db/src/**`, `bun.lock`, `package.json`, Effect or Drizzle versions | launch itself (migrations and seed on a fresh database), then the whole suite in one fresh instance: `scripts/drive.sh journey.spec.ts public.spec.ts shell.spec.ts teams.spec.ts accounts.spec.ts` (48 tests passed in 3.6 min on 2026-10-27 at `0da92b0`; re-running a spec on the same instance collides with its fixed names). Package tests (`vp run -r test`, real-PostgreSQL race tests) are a different job and not covered here |
+   | `apps/web/src/lib/authClient.ts`, `sessionClient.ts`, `routes/{logg-inn,aktiver,glemt-passord,tilbakestill-passord,min-side,etter-innlogging}.tsx`, `server/auth.ts`, `server/account*`, `server/principal.ts`, `packages/domain/src/accounts/**` | [accounts](features/accounts.md): `drive.sh accounts.spec.ts` on a fresh instance, then the control panel as a signed-in person; also sidebar and team features because `principal.ts` decides every actor |
+   | `apps/web/e2e/**` | run the full browser suite once on a fresh instance; read `support/` diffs for assertions removed |
+   | `.agents/skills/verify-membership-writes/**` | applies when `.agents/skills/verify-membership-writes/run.sh --touched origin/main` prints `touched`; follow that skill's procedure |
+   | `.github/workflows/**`, `knip.json`, `vite.config.ts` | CI/tooling: no drive, read the diff |
+   | `devenv.nix` | If changing the default shell or services, use the launch and full-suite row above. Changes confined to the opt-in `formal` profile do not need a full launch; use `verify-membership-writes` |
+   | docs, specs, `AGENTS.md`, `.agents/**` only | nothing to drive; say so, and verify docs' claims against code |
 
 - The local stack stands in for Cloudflare: `vp dev` with the Cloudflare Vite plugin (workerd) instead of deployed Workers, devenv PostgreSQL 18 instead of Neon through Hyperdrive, a simulated R2, the capture sink instead of Cloudflare Email Service and Slack, `astro dev` instead of the CMS Worker bundle. Whatever those differ in is unverified here: `bun run check:cms` (the bundled CMS in workerd) and the deployed Previews cover the rest (AGENTS.md: "Run what is deployed, not a stand-in").
 - Sign-in has two forms here: real Better Auth sessions (driven by `accounts.spec.ts`, the [accounts](features/accounts.md) feature) and the local `vp-test-actor` cookie (every other feature). Passkeys for editors (the CMS's own, D6) and anything deployed (Previews, production, Hyperdrive, the real mail provider) are not driven.
