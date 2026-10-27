@@ -13,13 +13,13 @@ import {
 } from "@vektorprogrammet/domain";
 import type { Person, Team } from "@vektorprogrammet/domain";
 import { Array as Arr, Cause, DateTime, Effect, Exit, Layer } from "effect";
-import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { race } from "./support/race.ts";
 import { placeMembership, semester, world } from "./support/teamsWorld.ts";
+import { countsFor } from "./support/welcomeCounts.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
 
@@ -42,25 +42,6 @@ const create = (person: Person, team: Team, start = semester("HOST", 2026)) =>
     start,
     teamId: team.id,
   }).pipe(Effect.provideService(CurrentPrincipal, ADMIN));
-
-const countsFor = (person: Person) =>
-  Effect.gen(function* welcomeCounts() {
-    const sql = yield* SqlClient;
-
-    const [ledger] = yield* sql<{
-      readonly n: number;
-    }>`select count(*)::int as n from welcome_ledger where person_id = ${person.id}`;
-
-    const [mail] = yield* sql<{
-      readonly n: number;
-    }>`select count(*)::int as n from outbox where kind = 'Email' and payload ->> 'to' = ${person.email}`;
-
-    const [memberships] = yield* sql<{
-      readonly n: number;
-    }>`select count(*)::int as n from membership where person_id = ${person.id}`;
-
-    return [ledger?.n, mail?.n, memberships?.n];
-  });
 
 layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
   it.layer(TestClock.layer())((clocked) => {
