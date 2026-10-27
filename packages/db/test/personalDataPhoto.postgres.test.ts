@@ -20,7 +20,7 @@ import { Array as Arr, DateTime, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { postgresDatabase } from "./support/database.ts";
-import { failedWith, refusalOf } from "./support/failures.ts";
+import { assertFailedWith, refusalOf } from "./support/failures.ts";
 import {
   adminPrincipal,
   countWhere,
@@ -29,10 +29,16 @@ import {
 } from "./support/personalDataActors.ts";
 import { nothing, seedPerson } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
-import { describeExit } from "./support/race.ts";
 import { snapshot } from "./support/snapshot.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
+
+/** How many audit rows say that the person's photo consent was given, and that also satisfy `condition` (by whom, say). */
+const givenRows = (personId: number, condition = "true") =>
+  countWhere(
+    "audit_log",
+    `action = 'consent.given' and entity_key = '${personId}:photo' and ${condition}`
+  );
 
 /** A person with a public file to use as the photo. */
 const withFile = (tag: string) =>
@@ -131,10 +137,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                 setPhoto(actor, ola.personId, payload)
               );
 
-              assert.isTrue(
-                failedWith(exit, Conflict),
-                `${who}, ${how}: ${describeExit(exit)}`
-              );
+              assertFailedWith(exit, Conflict, `${who}, ${how}`);
 
               assert.include(refusalOf(exit), "samtykke");
             }
@@ -155,13 +158,10 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const leader = yield* leaderOf(lise, ola);
 
           // Control of the refusal above: the same leader call, before the person has consented, is refused.
-          assert.isTrue(
-            failedWith(
-              yield* Effect.exit(
-                setPhoto(leader, ola.personId, { photo: key })
-              ),
-              Conflict
-            )
+          assertFailedWith(
+            yield* Effect.exit(setPhoto(leader, ola.personId, { photo: key })),
+            Conflict,
+            "a leader before the person has consented"
           );
 
           yield* setPhoto(selfPrincipal(ola.personId), ola.personId, {
@@ -177,10 +177,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           // The audit row says who gave the consent: the person, and nobody else did.
           assert.strictEqual(
-            yield* countWhere(
-              "audit_log",
-              `action = 'consent.given' and entity_key = '${ola.personId}:photo' and person_id = ${ola.personId}`
-            ),
+            yield* givenRows(ola.personId, `person_id = ${ola.personId}`),
             1
           );
 
@@ -196,13 +193,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             { text_version: 1, withdrawn: false },
           ]);
 
-          assert.strictEqual(
-            yield* countWhere(
-              "audit_log",
-              `action = 'consent.given' and entity_key = '${ola.personId}:photo'`
-            ),
-            1
-          );
+          assert.strictEqual(yield* givenRows(ola.personId), 1);
         })
     );
 
@@ -246,7 +237,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             setPhoto(leader, ola.personId, { photo: nextKey })
           );
 
-          assert.isTrue(failedWith(exit, Conflict), describeExit(exit));
+          assertFailedWith(exit, Conflict, "a leader after the photo went");
           assert.deepStrictEqual(yield* snapshot, before);
         })
     );
@@ -265,7 +256,11 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             })
           );
 
-          assert.isTrue(failedWith(exit, ValidationFailed), describeExit(exit));
+          assertFailedWith(
+            exit,
+            ValidationFailed,
+            "a photo that is not a registered file"
+          );
           assert.deepStrictEqual(yield* snapshot, before);
         })
     );

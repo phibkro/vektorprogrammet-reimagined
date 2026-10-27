@@ -25,7 +25,7 @@ import { TestClock } from "effect/testing";
 
 import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
-import { failedWith } from "./support/failures.ts";
+import { assertFailedWith } from "./support/failures.ts";
 import {
   adminPrincipal,
   runAs,
@@ -33,7 +33,6 @@ import {
 } from "./support/personalDataActors.ts";
 import { nothing, seedPerson } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
-import { describeExit } from "./support/race.ts";
 import { snapshot } from "./support/snapshot.ts";
 import { asPerson } from "./support/teamsWorld.ts";
 
@@ -326,10 +325,7 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
               answerFor(adminPrincipal(admin.personId), alma.personId, payload)
             );
 
-            assert.isTrue(
-              failedWith(refused, Forbidden),
-              `${label}: ${describeExit(refused)}`
-            );
+            assertFailedWith(refused, Forbidden, label);
           }
 
           // No consent row, no audit row, nothing: the refusal is before the first lock.

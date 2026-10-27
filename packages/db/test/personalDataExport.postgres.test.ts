@@ -27,7 +27,7 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { postgresDatabase } from "./support/database.ts";
-import { failedWith } from "./support/failures.ts";
+import { assertFailedWith } from "./support/failures.ts";
 import { encodeJson } from "./support/json.ts";
 import {
   adminPrincipal,
@@ -42,7 +42,6 @@ import {
   seedPerson,
 } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
-import { describeExit } from "./support/race.ts";
 import { snapshot } from "./support/snapshot.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
@@ -247,7 +246,11 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             )
           );
 
-          assert.isTrue(failedWith(refused, Forbidden), describeExit(refused));
+          assertFailedWith(
+            refused,
+            Forbidden,
+            "an administrator asks for another person's file"
+          );
 
           // Not even the audit row of a download: the refusal is before the first statement.
           assert.deepStrictEqual(yield* snapshot, before);
