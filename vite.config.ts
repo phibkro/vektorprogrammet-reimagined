@@ -178,6 +178,13 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
+      // Renders React into a happy-dom document (`// @vitest-environment happy-dom`).
+      files: ["apps/web/test/outcomeMessages.test.tsx"],
+      platform: "browser",
+      role: "test",
+      strictness: "strict",
+    },
+    {
       files: [
         "packages/cms-client/test/collections.test.ts",
         "apps/web/test/textSlots.test.ts",

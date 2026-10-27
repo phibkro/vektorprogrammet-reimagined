@@ -56,7 +56,8 @@
       "scope": {
         "files": [
           "apps/web/e2e/teams.spec.ts",
-          "apps/web/e2e/accounts.spec.ts"
+          "apps/web/e2e/accounts.spec.ts",
+          "apps/web/e2e/admins.spec.ts"
         ],
         "symbols": [
           "register",

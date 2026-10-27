@@ -237,3 +237,58 @@ export const forgetLegacyFile = Effect.flatMap(
   SqlClient,
   (sql) => sql`delete from public_file where key = ${LEGACY_FILE_KEY}`
 );
+
+const AdminGrantRow = Schema.Struct({
+  id: Schema.Int,
+  person: Schema.String,
+  until: Schema.String,
+});
+
+/** The admin list as stored, in id order: who holds a place and until when. */
+export const adminGrantRows = rowsOf(
+  AdminGrantRow,
+  (sql) =>
+    sql`select g.id, p.name as person, g.until::text as until
+      from admin_grant g join person p on p.id = g.person_id
+      order by g.id`
+);
+
+/** Sets the end of a person's admin places (a timestamp literal, as `adminGrantRows` reads it). */
+export const endAdminPlacesAt = (person: string, until: string) =>
+  Effect.flatMap(
+    SqlClient,
+    (sql) =>
+      sql`update admin_grant set until = ${until}::timestamptz
+        where person_id = (select id from person where name = ${person})`
+  );
+
+/** Ends a person's admin places within the hour: still valid now, gone before the semester ends. */
+export const endAdminPlacesSoon = (person: string) =>
+  Effect.flatMap(
+    SqlClient,
+    (sql) =>
+      sql`update admin_grant set until = now() + interval '1 hour'
+        where person_id = (select id from person where name = ${person})`
+  );
+
+/** Gives `person` a place until `until`, granted by `grantedBy`; the new place's id. */
+export const addAdminPlace = (
+  person: string,
+  grantedBy: string,
+  until: string
+) =>
+  rowOf(
+    Schema.Struct({ id: Schema.Int }),
+    (sql) =>
+      sql`insert into admin_grant (person_id, granted_by, until)
+        select holder.id, granter.id, ${until}::timestamptz
+        from person holder, person granter
+        where holder.name = ${person} and granter.name = ${grantedBy}
+        returning id`
+  ).pipe(Effect.map(({ id }) => id));
+
+export const deleteAdminPlace = (id: number) =>
+  Effect.flatMap(
+    SqlClient,
+    (sql) => sql`delete from admin_grant where id = ${id}`
+  );
