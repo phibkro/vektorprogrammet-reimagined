@@ -82,6 +82,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://local
 - Real-PostgreSQL tests create and drop their own `vp_db_test_*` databases, through one helper (`@vektorprogrammet/db/testing`; `@vektorprogrammet/db/testing/read-only-role` adds a SELECT-only role on top). The importer's MySQL fixture databases are `import_test_*`.
 - The CMS has its own run steps (`apps/cms/README.md` § Run it locally) and so does the importer's pair of programs (`tools/import/README.md`); the browser tests start the CMS themselves, put the importer's fixture in it twice, and need outbound network for Turnstile's always-pass test keys.
 - The local test actor exists only when `DEPLOYMENT=local`. The cookie selects a seeded person when no Better Auth cookie exists. Preview and production use real sessions and never accept the test-actor cookie.
+- **A new git worktree starts with a copy of the main worktree's database state** (devenv 2.4.0 seeds `.devenv/state`), including a `postmaster.pid` that names the main worktree's running PostgreSQL. The worktree's PostgreSQL then refuses to start ("lock file postmaster.pid already exists"), and tests fail with "PgConnection: Failed to connect". It is also a copy of a running data directory, so not a consistent one. In a new worktree, before the first `devenv up -d`: `rm -rf .devenv/state/postgres .devenv/state/mysql`, then `devenv up -d && devenv processes wait`.
 
 ## Quality gates
 
