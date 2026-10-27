@@ -1,6 +1,6 @@
 # Alchemy Domain beta.84 PostgreSQL spike
 
-**Status: ongoing; not adoption-ready.** The generic platform contract suite passed twice (24 tests/run). The real PostgreSQL Person create/extend/end-early/delete journey and 300 fresh-state AdminList deactivate/revoke rounds also passed. The deterministic race negative controls, 300-round membership stress, SELECT-only model execution, Story parity, erasure scan/implementation, matched repository latency and docgen check are still in progress; no push yet. Recommendation remains **partly** until every required falsifier is complete.
+**Status: ongoing; not adoption-ready.** The generic platform contract suite passed twice (24 tests/run). The real PostgreSQL Person create/extend/end-early/delete journey, 300 fresh-state AdminList deactivate/revoke rounds, 300 fresh-state overlapping-membership race rounds, and the repository's deterministic split-decision negative control have passed. The SELECT-only model execution, Story parity, erasure scan/implementation, matched repository latency and docgen check remain; recommendation remains **partly** until every required falsifier is complete.
 
 ## Scope and evidence actually obtained
 
@@ -37,8 +37,8 @@ A further adoption risk identified by source audit: event-sourced aggregates sta
 | Requested falsifier | Evidence/status |
 | --- | --- |
 | #17 deactivate/revoke race, 300 fresh-state rounds; print losing Causes | **Passed:** 300 PostgreSQL rounds; reset the aggregate and read model each round. Loser type and active valid-grant count asserted. Evidence: `/tmp/alchemy-admin-race-300-seed3.log`. |
-| Deterministic #17 negative control without lock/split decision | **Not run yet.** Next required acceptance item. |
-| 300 fresh-state overlapping membership-write rounds, no overlap/deadlock | **Not run yet.** The one-command overlapping create refusal is verified in the Person journey, not a race. |
+| Deterministic #17 negative control without lock/split decision | **Passed in the existing repository control:** devenv shell -- bunx vp -C packages/db test test/adminList.postgres.test.ts -t "negative control: the same two decisions under each person"; it asserts zero Active administrators with a valid place in all 300 fresh-state rounds under the pre-R2 split decision. This is a repository baseline control, not a mutation of the spike's lock implementation. |
+| 300 fresh-state overlapping membership-write rounds, no overlap/deadlock | **Passed:** devenv shell -- bunx vp -C spikes/alchemy-domain test test/model.postgres.test.ts -t "overlapping membership writes"; 300 fresh Person instances, exactly one successful create and one membership row per round. Evidence: /tmp/alchemy-membership-race-300.log. |
 | Duplicate commandId → one decision | **Passed for generic Counter**; no Person/AdminList-specific duplicate test yet. |
 | SELECT-only projection/fact reads via repository role helper | **Not run yet** for the model. Resolver query inspection is not role-enforced evidence. |
 | Same observable race result in Story and PostgreSQL | **Not run yet.** |
