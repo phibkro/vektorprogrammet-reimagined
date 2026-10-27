@@ -104,7 +104,7 @@ Each domain page starts with a plain description. A **Reference** section for de
 | [Economy](economy.md) | Expense claims, refunds, bookkeeping export |
 | [Administration](administration.md) | Accounts, the admin list, personal data and retention |
 
-How the system is built (technology, packages, one command end to end) is in [Architecture](architecture.md). Decisions that are hard to change are in `../decisions/`.
+Every command of every domain, by the resource it acts on, is in [Commands by resource](commands.md). How the system is built (technology, packages, one command end to end) is in [Architecture](architecture.md). Decisions that are hard to change are in `../decisions/`.
 
 ## How the system decides what is allowed
 
@@ -128,4 +128,4 @@ The Reference section of each domain page declares, for developers:
 - the personal data: purpose, legal basis and retention
 - the legacy rules (RULE-nnn) that each item replaces
 
-Specs 0006 and 0007 generate the marked teams and accounts blocks from `packages/domain`. Run `bun run docs` after changing declarations. CI runs `bun run check:docs`. Other references remain hand-written until their slices are built.
+Specs 0006, 0007 and 0007c generate the marked teams, accounts and commands-by-resource blocks from `packages/domain`. Run `bun run docs` after changing declarations. CI runs `bun run check:docs`. Other references remain hand-written until their slices are built.

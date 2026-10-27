@@ -38,7 +38,7 @@ const terms = yield * memberships.listLocked(locked); // the facts the decision 
 yield * memberships.insert(locked, draft);
 ```
 
-- Whether an Active administrator is left spans every administrator, so it is decided under the admin list's lock (`lockAdminList`, spec 0006b R2), which comes before every person: `deactivate`, `reactivate`, `grantAdmin` and `revokeAdmin` lock it first, and `AccountRepository.isLastActiveAdmin` and `AdminGrantRepository.revoke` read through its token. A place counts only while an Active account holds it. A decision about a few known people (a merge) locks all of them in one `lockAll` and reads through every token.
+- Whether an Active administrator is left spans every administrator, so it is decided under the admin list's lock (`lockAdminList`, spec 0006b R2), which comes before every person: `deactivateAccount`, `reactivateAccount`, `createAdminGrant` and `deleteAdminGrant` lock it first, and `AccountRepository.isLastActiveAdmin` and `AdminGrantRepository.revoke` read through its token. A place counts only while an Active account holds it. A decision about a few known people (a merge) locks all of them in one `lockAll` and reads through every token.
 - `apps/web`'s in-memory test layer (`@vektorprogrammet/domain/testing`) provides the same service, so a handler's tests run the same protocol without a database.
 
 ## Commands
@@ -47,14 +47,14 @@ Each domain declares its commands as `Rpc.make` in one `RpcGroup` (`declaration.
 
 | Needs `InTransaction` (wrap with the runner) | Runs outside a transaction |
 | --- | --- |
-| `OrganisationEndpoints.*`, `ContentEndpoints.createSocialEvent`, `ContactEndpoints.submitContact`, `FilesEndpoints.registerPublicFile`, every `TeamsEndpoints.*` | `storeUpload` (R2 put; **must not** be in a transaction); `currentSemester` and `findCurrentSemester` (reads); queries: `listSemestersNewestFirst`, `listFieldsOfStudy`, `servePublicFile`, `resolveLegacyFilePath` |
+| `OrganisationEndpoints.*`, `ContentEndpoints.createSocialEvent`, `ContactEndpoints.submitContact`, `FilesEndpoints.createPublicFile`, every `TeamsEndpoints.*` | `storeUpload` (R2 put; **must not** be in a transaction); `currentSemester` and `findCurrentSemester` (reads); queries: `listSemestersNewestFirst`, `listFieldsOfStudy`, `servePublicFile`, `resolveLegacyFilePath` |
 | the jobs: `semesterJob` (`System("semesters")`), `endingSoonJob` (`System("endingSoon")`) | the outbox sweep (`sweepOutbox`, `System("outboxSweep")`): each claim and mark is its own statement |
 
 A job is provided `CurrentPrincipal` = `System(job)` by its runner (`apps/web`), and then passes through `authorize` like any command.
 
 The pure rules of the public pages (`selectFrontPageNews`, `paginate`, `sortSponsorsForFooter`, `slugify`) take already-read rows: the news, texts and sponsors come from the CMS (spec 0005), not from a repository.
 
-Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; pass it to `FilesEndpoints.registerPublicFile` inside the runner. Keys are content hashes, so an orphaned or repeated put is harmless.
+Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; pass it to `FilesEndpoints.createPublicFile` inside the runner. Keys are content hashes, so an orphaned or repeated put is harmless.
 
 ## Repository contract
 

@@ -14,12 +14,14 @@ Domains are declared as data; the runtime, the control panel, the tests and `doc
 | `authorize.ts` | `authorize(principal, command, resource)` reads the grant table and every principal narrowing. `canAnywhere` drives the sidebar. |
 | `guard.ts` | Native `Schema.makeFilter` semester checks (typed paths, after/same/not/or), `describe`, and `SchemaRepresentation` revivers. Their JSON representations are available to compilers as well as the runtime. |
 | `machine.ts` | `Machine.make` (transition tables over a `Schema.TaggedUnion` of states and a context schema, typed by the domain's `RpcGroup`), `can`, `startsFrom`, `available`, `next`. Guard checks are compiled once; their JSON is exposed in machine descriptions. Calculated transitions are declared, not stored. |
-| `commands.ts` | `Info` (the annotation each `Rpc` carries: summary, the legacy rules it replaces, the job that alone runs it, its machine), `inProcess` (the group's handlers behind a client in this process) and `endpoint` (untrusted input in, the command's own result out). |
-| `domain.ts` | `Domain.make({ commands, reads, grants, machines })`, `handle` and `problems`. It also exposes the existing command metadata, grant constructor and subject sets for declarations. `departmentResource` selects the department from a command payload. |
+| `commands.ts` | `Info` (the annotation each `Rpc` carries: summary, the `resource` it acts on and the `method` it uses, the legacy rules it replaces, the job that alone runs it, its machine), `Resource` and `Method` (closed sets), `inProcess` (the group's handlers behind a client in this process) and `endpoint` (untrusted input in, the command's own result out). |
+| `domain.ts` | `Domain.make({ commands, reads, grants, machines })`, `handle`, `problems` (what makes one declaration incomplete) and `allProblems` (those of every domain, and a tag or a resource and method that two commands share). It also exposes the existing command metadata, grant constructor and subject sets for declarations. `departmentResource` selects the department from a command payload. |
 
 `declarations.ts` lists every domain and builds `GrantTable` (the rows of all domains, and the one `Admin` row that names everything a person may run) and the root `authorize` and `canAnywhere`. A domain that is not in that list has no permissions and no page.
 
 A principal is a person with facts, never a role (ADR 0001). The scheduled jobs run as their own `System` principal through the same `authorize`: `ensureSemesters` is granted only to `System("semesters")`, `sweepOutbox` only to `System("outboxSweep")` and `sendEndingSoon` only to `System("endingSoon")`. No person holds a job's command, an admin included.
+
+**A command names its resource and method** (ADR 0010, spec 0007c): `info({ summary, resource: "Membership", method: ":extend" })`. `resource` is `EntityName` or one of the nouns in `NonEntityResources` (`kernel/commands.ts`); `method` is `get`, `list`, `create`, `update`, `delete`, or a custom verb with a colon. Both are required, so a command without them does not type-check. `Domain.problems` then checks what the types cannot: a standard method's name is its verb and resource (`createTeam`, `updatePerson`), a `list` and a custom method start with their verb (`listAuditEntries`, `extendMembership`), a `get` or `list` changes nothing (no machine, job or credential), a `create` starts every transition from `[*]`, a `delete` ends every transition in `[*]`, an `update` changes no state, and no two commands share a resource and method. There is no way to promise a `412`: no row version exists. `docs/system/commands.md` lists every command by resource.
 
 ## Bounded contexts (`src/`)
 
@@ -32,7 +34,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `content` | C3, C5, C8 | the pure rules the public pages use (page size and order of news RULE-326/331, the sponsors' footer order), the rich-text sanitizer (RULE-133, run by the CMS importer), slugs, social events (RULE-085/188). Articles, static texts and sponsors live in the CMS since spec 0005 |
 | `contact` | C10 | support ticket (RULE-156/327) and its notifications (RULE-249) |
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |
-| `audit` | C12 | `AuditEntry` (it records the principal: a person id or a job name), `AuditLog`, `recordAudit`, the `readAudit` command |
+| `audit` | C12 | `AuditEntry` (it records the principal: a person id or a job name), `AuditLog`, `recordAudit`, the `listAuditEntries` query |
 | `outbox` | C12 | the `sweepOutbox` job command; its handler is in `apps/web` |
 
 ## Services

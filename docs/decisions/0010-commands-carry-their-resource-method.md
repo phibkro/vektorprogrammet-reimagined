@@ -28,5 +28,6 @@ A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's
 - The kernel's command declaration gains `resource` and `method`. The completeness test fails when a command has neither, and when a `create`, `update` or `delete` contradicts its transition (a `delete` that ends in a state, an `update` that changes one).
 - The HTTP API is generated from the declarations (effx spec 0031, its `Operation` resource annotation), not written by hand, and only when a client outside the web app needs it. Until then the server functions stay the only HTTP surface (ADR 0006).
 - Existing command names move to the convention in one mechanical change (`editTeam` → `updateTeam`, `renameFieldOfStudy` → `updateFieldOfStudy`, `extend` → `extendMembership`, and so on), with the grant table, docs and tests following.
+- Built by spec 0007c (`docs/specs/0007c-command-resources.md`): the field, its checks and the rename (its table has the full mapping). The method has no field that could promise a `412`, so an `update` cannot claim one before a row version exists.
 
 Source: operator decision, 2026-10-27.
