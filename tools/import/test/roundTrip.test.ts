@@ -509,7 +509,7 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           sql`delete from outbox where payload ->> 'text' = 'test:import'`,
         held: "a queued message",
         make: (sql) =>
-          sql`insert into outbox (kind, next_attempt_at, payload) values ('SlackPost', now(), '{"_tag":"SlackPost","channel":"test","text":"test:import"}'::jsonb)`,
+          sql`insert into outbox (created_at, kind, next_attempt_at, payload) values (now(), 'SlackPost', now(), '{"_tag":"SlackPost","channel":"test","text":"test:import"}'::jsonb)`,
         read: (sql) =>
           sql`select id from outbox where payload ->> 'text' = 'test:import'`,
       },
