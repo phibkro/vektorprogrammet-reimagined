@@ -45,6 +45,7 @@ The `sync-digest` is the digest of the covered paths at the last confirmation. `
 devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh          # about 1 minute
 devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --quick  # about 35 seconds
 devenv up -d postgres && devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --code
+devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --digest  # print the covered-path digest for the coverage block
 ```
 
 The `formal` profile of `devenv.nix` adds TLA+ tools 1.7.4 (TLC, with the Java 8 that nixpkgs builds them with), pinned by `devenv.lock`, with the Java heap capped; the default shell does not have them. The machine is shared: `run.sh` prints the load and stops when it is above 80% of the CPUs or under 4 GB are free (`FORCE=1` overrides). It runs one TLC at a time with 8 workers (`TLC_WORKERS`) and a 2 GB heap (`TLC_HEAP`); the largest run, three commands, took 1.6 GB resident and 20 seconds. `--code` also runs the tests of the real repositories that pin the facts that `Shapes.tla` takes from the code (needs PostgreSQL).

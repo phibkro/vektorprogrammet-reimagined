@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One command for the verify-membership-writes skill (read SKILL.md first).
 #
-#   devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh [--quick] [--code] [--list]
+#   devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh [--quick] [--code] [--list] [--digest]
 #   .agents/skills/verify-membership-writes/run.sh --touched <base-ref>   (no tools needed; used by CI)
 #
 # It does these things, in this order:
