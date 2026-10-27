@@ -58,7 +58,7 @@ Read-only. Prints `DOCTOR OK` and exits 0 only if: `serve.ts` is alive; the work
 
 Pick the feature file(s) for what you are verifying from `features/README.md` (index, seeded people, conventions) and follow it. Four tools, all writing into the run directory (`state.env` names it; `scripts/*.sh` find it through the worktree's pointer):
 
-- **The repository's specs** — `scripts/drive.sh <spec file regex> [-g "<title regex>"] [playwright options]`, for example `scripts/drive.sh public.spec.ts -g "falsifier 3"`. It sets `E2E_BASE_URL`, `E2E_CMS_URL`, `E2E_CMS_TOKEN`, `E2E_DATABASE_URL` from this run, turns tracing on (`playwright/<test>/trace.zip`: every action, DOM snapshot and network call), writes `results-<n>.json`, `drive-<n>.log` and the specs' own screenshots into `screenshots/`. Exit code is Playwright's. These are the same specs CI runs (`journey`, `public`, `shell`, `teams`; `accounts` on spec 0007), so a green run proves exactly what the spec asserts and nothing else.
+- **The repository's specs** — `scripts/drive.sh <spec file regex> [-g "<title regex>"] [playwright options]`, for example `scripts/drive.sh public.spec.ts -g "falsifier 3"`. It sets `E2E_BASE_URL`, `E2E_CMS_URL`, `E2E_CMS_TOKEN`, `E2E_DATABASE_URL` from this run, turns tracing on (`playwright/<test>/trace.zip`: every action, DOM snapshot and network call), writes `results-<n>.json`, `drive-<n>.log` and the specs' own screenshots into `screenshots/`. Exit code is Playwright's. These are the same specs CI runs (`journey`, `public`, `shell`, `teams`, `accounts`), so a green run proves exactly what the spec asserts and nothing else.
 - **What the server decided** — `scripts/page.sh <path> --as "<person>"|anonymous [--name <label>]`: status, redirect, title, `h1`, the control-panel links of the page, saved as HTML + headers in `pages/`. No browser: it shows authorisation before any script runs. `--as` is required; without the cookie the instance silently acts as Ada Admin.
 - **What it looked like** — `scripts/shot.sh <path> <name> --as "<person>"|anonymous [--phone]`: a full-page Chromium screenshot (1280×900, or 390×844) into `screenshots/<name>.png`. Read the image; do not assume it.
 - **What it stored** — `scripts/probe.sh "<select …>" [--name <label>]`: one read-only SQL statement against this run's database (`default_transaction_read_only=on`), statement and result saved in `probes/`. Tables: `outbox`, `audit_log`, `membership`, `person`, `team`, `position`, `department`, `semester`, `admin_grant` (`packages/db/src/schema.ts`).
@@ -82,7 +82,7 @@ The run directory is `~/.local/state/vektorprogrammet-verify/<UTC time>-<short s
 
 Proof standards:
 
-- **Exercise the real user path.** Browser clicks, real form posts, real pages. Not internal setters, not test-only endpoints, not a database edit. The `vp-test-actor` cookie is the repository's own stand-in for sign-in until spec 0007; say which person acted.
+- **Exercise the real user path.** Browser clicks, real form posts, real pages. Not internal setters, not test-only endpoints, not a database edit. Say which kind of actor acted: a person who signed in (a Better Auth session, `/logg-inn`), or the `vp-test-actor` cookie, the repository's local stand-in that a session outranks.
 - **Capture the action and the resulting state**, not only the final screen: the trace or screenshot of the action, a `probe.sh` read of the stored row, the capture-sink lines for mail.
 - **Verify side effects next to what is visible**: outbox rows for contact posts, `audit_log` for staff writes, `membership` rows for team changes. Compare against a `probe.sh` taken _before_, never a fixed count.
 - **Mocks only where a production boundary already isolates the external system.** Here that is exactly mail and Slack (the capture sink) and R2. Observing what a mode skips beats trusting its name: the capture sink is verified by the log lines and `delivered` rows, and Turnstile in this mode still calls Cloudflare.
@@ -116,12 +116,12 @@ Stop the supervised launch first if you can (OMP: kill the named bash job), then
 
 ## Reviewing a pull request
 
-The open pull requests are stacked (each one's base is the branch below it), so a PR's head contains everything beneath it. Review it at its **head**, against its **base**.
+Pull requests target `main` (earlier ones were stacked, each on the branch below; the first stack, #9 to #13, was squash-merged into `main` on 2026-10-27). If a PR's base is another PR's branch, its head contains everything beneath it: review it at its **head**, against its **base**.
 
 1. **Get the head into its own worktree**, next to the others, from a clean place (never from a dirty worktree someone else is using):
 
    ```sh
-   N=13
+   N=<pull request number>
    git fetch origin pull/$N/head:pr-$N
    git worktree add ../reimagined-pr-$N pr-$N
    BASE=$(gh pr view $N --json baseRefName --jq .baseRefName)
@@ -139,8 +139,8 @@ The open pull requests are stacked (each one's base is the branch below it), so 
    | `apps/web/src/server/contact.ts`, `contactPost.ts`, `turnstile.ts`, `senders.ts`, `outboxDelivery.ts`, `outboxSweep.ts`, `routes/kontakt/**`, `packages/domain/src/contact/**` | [contact-form](features/contact-form.md), both outcomes and the no-JS post |
    | `apps/web/src/routes/*.tsx` outside the panel, `components/site/**`, `src/lib/textSlots.ts`, `apps/cms/**`, `packages/cms-client/**` | [public-site](features/public-site.md) |
    | departments, semesters, fields of study (`server/panel.ts`, `routes/kontrollpanel/{avdelinger,semestre,linjer,arrangementer}.tsx`, `packages/domain/src/organisation/**`) | [organisation-admin](features/organisation-admin.md) |
-   | `packages/db/drizzle/**`, `packages/db/src/**`, `bun.lock`, `package.json`, `devenv.nix`, Effect or Drizzle versions | the launch itself, then every feature in order (`drive.sh journey.spec.ts`, then each of `public`, `shell`, `teams` on a fresh instance each, they write by fixed names); the package tests (`vp run -r test`, real-PostgreSQL race tests) are a different job and not covered here |
-   | `apps/web/src/lib/authClient.ts`, `routes/logg-inn.tsx`, `server/account*`, `accounts.spec.ts` (spec 0007, PR #13) | `drive.sh accounts.spec.ts` on a fresh instance, **and** note that the `vp-test-actor` shortcut may no longer be how people sign in there: read `apps/web/src/lib/testActor.ts` and the spec first. The map has no feature file for accounts yet: write one from what you drove |
+   | `packages/db/drizzle/**`, `packages/db/src/**`, `bun.lock`, `package.json`, `devenv.nix`, Effect or Drizzle versions | the launch itself (migrations and the seed run on a fresh database), then the whole suite in one fresh instance: `scripts/drive.sh journey.spec.ts public.spec.ts shell.spec.ts teams.spec.ts accounts.spec.ts` (Playwright takes the files in name order; 48 tests passed in 3.6 min on 2026-10-27 at `0da92b0`; a spec re-run on the same instance collides with its own fixed names). The package tests (`vp run -r test`, real-PostgreSQL race tests) are a different job and not covered here |
+   | `apps/web/src/lib/authClient.ts`, `sessionClient.ts`, `routes/{logg-inn,aktiver,glemt-passord,tilbakestill-passord,min-side,etter-innlogging}.tsx`, `server/auth.ts`, `server/account*`, `server/principal.ts`, `packages/domain/src/accounts/**` | [accounts](features/accounts.md): `drive.sh accounts.spec.ts` on a fresh instance, then the control panel as a signed-in person; also the sidebar and team features, because `principal.ts` decides every actor, cookie or session |
    | `apps/web/e2e/**` | run `drive.sh` for every spec the change touches and read the diff of `support/` for what a spec stopped asserting |
    | docs, specs, `AGENTS.md`, `.agents/**` only | nothing to drive; say so, and verify the docs' claims against the code instead |
 
@@ -157,7 +157,7 @@ The open pull requests are stacked (each one's base is the branch below it), so 
 ## Stand-ins and what is unverified
 
 - The local stack stands in for Cloudflare: `vp dev` with the Cloudflare Vite plugin (workerd) instead of deployed Workers, devenv PostgreSQL 18 instead of Neon through Hyperdrive, a simulated R2, the capture sink instead of Cloudflare Email Service and Slack, `astro dev` instead of the CMS Worker bundle. Whatever those differ in is unverified here: `bun run check:cms` (the bundled CMS in workerd) and the deployed Previews cover the rest (AGENTS.md: "Run what is deployed, not a stand-in").
-- Sign-in is the `vp-test-actor` cookie. Passkeys for editors, Better Auth and accounts are not driven by the features here.
+- Sign-in has two forms here: real Better Auth sessions (driven by `accounts.spec.ts`, the [accounts](features/accounts.md) feature) and the local `vp-test-actor` cookie (every other feature). Passkeys for editors (the CMS's own, D6) and anything deployed (Previews, production, Hyperdrive, the real mail provider) are not driven.
 - Dependency install, devenv services and the headroom check run on this host; a clean machine adds the Nix builds that `devenv` does first.
 
 ## Gotchas

@@ -23,6 +23,10 @@ set -a
 [[ -f "$RUN_DIR/meta.env" ]] && . "$RUN_DIR/meta.env"
 set +a
 
+# What you said you drove is kept in features.txt, so the report that cleanup.sh regenerates still names it.
+[[ -n "$features" ]] && echo "$features" >>"$RUN_DIR/features.txt"
+[[ -f "$RUN_DIR/features.txt" ]] && features="$(paste -sd';' "$RUN_DIR/features.txt" | sed 's/;/; /g')"
+
 summarise_results() { # prints one line per Playwright result file
   local file
   for file in "$RUN_DIR"/results-*.json; do

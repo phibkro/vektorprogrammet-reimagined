@@ -33,11 +33,11 @@ else
   "$SKILL_DIR/scripts/headroom.sh"
 fi
 
-# 2b. A fresh worktree (a PR head) has no node_modules: install exactly what the lockfile says, inside devenv (the
-#     system Bun hangs on `bun install`). The root `prepare` script runs too, as it does for any checkout.
-if [[ ! -d "$TREE/node_modules" ]]; then
-  in_devenv bun install --frozen-lockfile
-fi
+# 2b. Install exactly what the lockfile says, inside devenv (the system Bun hangs on `bun install`). Always, not only in a
+#     fresh worktree: a checkout of another commit (a rebase, a PR head) may have new dependencies, and a stale
+#     node_modules fails late (the first run after the rebase onto spec 0007 died on a missing `bcryptjs` during the
+#     seed). With nothing to change it takes a few seconds. The root `prepare` script runs too, as for any checkout.
+in_devenv bun install --frozen-lockfile
 
 # 3. devenv's PostgreSQL (the disposable database is created in it) and MySQL (the importer loads its fake legacy
 #    fixture into a throwaway MySQL database first). Ready means usable, not just that a port answers: PostgreSQL

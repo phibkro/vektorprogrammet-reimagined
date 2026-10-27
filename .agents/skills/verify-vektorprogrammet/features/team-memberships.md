@@ -35,7 +35,7 @@ Preconditions:
 
 ## Gotchas
 
-- Local sign-in is the `vp-test-actor` cookie (spec 0007 brings real accounts), so a switch of principal is a cookie, not a session: the journey proves what the grant table says for that person, not an authentication flow.
+- In the committed story a switch of principal is the `vp-test-actor` cookie, not a session: it proves what the grant table says for that person, not an authentication flow (see [accounts](./accounts.md) for sign-in). A browser that also holds a Better Auth session ignores the cookie.
 - Terms follow the current semester and the cron job's semesters. A launch in another semester changes the end labels the spec reads from the form, never what it asserts: they come from the page, not from constants.
 - `Forleng` reads `Ny slutt` from a select; the spec takes the preselected option. A team with a default term of one semester may offer no later end, and the journey then fails for the reason, not for a bug in the spec.
 - The overlap rule (no overlapping memberships of one person in one team) lives in the database; the race test for it is a package test (`packages/db`), not a browser journey. Do not claim it verified from this feature.

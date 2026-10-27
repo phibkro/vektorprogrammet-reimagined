@@ -23,7 +23,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 ## Driving conventions
 
 - Start every recipe from the baseline state unless its preconditions say otherwise. The specs change the database (they create departments, teams and people by fixed names), so a story that has run once cannot run again on the same instance: clean up and relaunch for a fresh story.
-- The local test actor is the `vp-test-actor` cookie, whose value is a person's name or `anonymous`. It exists only under `DEPLOYMENT=local`, and without the cookie the instance acts as `Ada Admin`: always name the actor (`scripts/page.sh` and `scripts/shot.sh` require `--as`).
+- Two ways to be someone. The local test actor is the `vp-test-actor` cookie, whose value is a person's name or `anonymous`; it exists only under `DEPLOYMENT=local`, and without the cookie the instance acts as `Ada Admin`: always name the actor (`scripts/page.sh` and `scripts/shot.sh` require `--as`). Real sign-in (spec 0007, [accounts](./accounts.md)) makes a Better Auth session, and a session outranks the cookie; a stale or deactivated session is anonymous. Both exist side by side on this instance: say which one acted.
 - Prefer ARIA roles and accessible names over CSS selectors (the repository's specs do: `getByRole`, `getByLabel`). The interface is Norwegian; quote labels exactly.
 - The repository's own specs in `apps/web/e2e` are the committed recipes. Run them with `scripts/drive.sh <spec> -g "<title regex>"`; they take a trace of every action.
 - Treat a Playwright pass as proof of the spec's claims only. Anything the changed code does that no spec names needs your own drive: `scripts/page.sh` for what the server decided, `scripts/shot.sh` for what it looked like, `scripts/probe.sh` for what it stored.
@@ -43,3 +43,4 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Control panel sidebar](./control-panel-sidebar.md) covers what each seeded person sees and may open, the not-signed-in and no-access pages, forged requests, and the sidebar on desktop and phone.
 - [Team memberships](./team-memberships.md) covers the spec 0006 journey: create a team, register people, add, extend, change and end memberships, and switch principal.
 - [Organisation admin](./organisation-admin.md) covers departments, semesters (read-only), and fields of study with their department scoping.
+- [Accounts and sessions](./accounts.md) covers spec 0007: invitation, activation, profile and sessions, password change and reset, deactivation, and the identical answers of the reset and refusal paths.
