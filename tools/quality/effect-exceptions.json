@@ -95,7 +95,7 @@
         "directives": ["oxlint-disable-next-line"]
       },
       "reason": "Spec 0007 requires Worker-compatible bcrypt and verification of legacy PHP hashes. Better Auth owns the Promise callback ABI.",
-      "missingCapability": "Effect 4.0.5 Crypto provides digests and random bytes, not bcrypt password hashing.",
+      "missingCapability": "Effect 4.0.6 Crypto provides digests and random bytes, not bcrypt password hashing.",
       "nativeAlternativesExamined": [
         "Effect Crypto.digest provides SHA digests but not bcrypt password hashing.",
         "Better Auth's default verifier uses scrypt and cannot verify PHP bcrypt hashes."
@@ -106,7 +106,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "better-auth": "1.7.14",
         "bcryptjs": "3.0.3"
       },
@@ -139,7 +139,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "better-auth": "1.7.14",
         "pg": "8.23.1",
         "@effect/tsgo": "0.53.1"
@@ -189,7 +189,7 @@
         "devenv shell -- bun run e2e"
       ],
       "owner": "packages/db",
-      "versions": { "effect": "4.0.5", "bcryptjs": "3.0.3" },
+      "versions": { "effect": "4.0.6", "bcryptjs": "3.0.3" },
       "retirementTrigger": "Retire when a native Worker-compatible bcrypt implementation replaces bcryptjs for both live and fake credentials."
     },
     {
@@ -209,7 +209,7 @@
       ],
       "verification": ["devenv shell -- bun run ready"],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.5", "vite-plus": "1.2.0" },
+      "versions": { "effect": "4.0.6", "vite-plus": "1.2.0" },
       "retirementTrigger": "Remove the narrow lint override when the rule recognizes Schema.TaggedError declarations."
     },
     {
@@ -237,7 +237,7 @@
         "devenv shell -- bun run ready"
       ],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.5", "@effect/tsgo": "0.53.1" },
+      "versions": { "effect": "4.0.6", "@effect/tsgo": "0.53.1" },
       "retirementTrigger": "Remove the scoped override when the Promise rule accepts Effect's foreign-call thunks and Worker callbacks."
     },
     {
@@ -259,7 +259,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@cloudflare/workers-types": "5.20261015.1"
       },
       "retirementTrigger": "Remove the bridge when Cloudflare publishes a module-scoped env type compatible with the app's DOM and Node type configuration."

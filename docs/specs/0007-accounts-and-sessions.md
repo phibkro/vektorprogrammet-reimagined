@@ -128,3 +128,7 @@ In preparation for spec 0006b's aggregate lock, Account commands concerning an i
 ### R12 (2026-10-27): scan all application schemas
 
 The plaintext scan traverses text and JSON columns in every non-system database schema, including the migration schema; only `public.captured_mail` is excluded. A negative control places a code in a same-named table in another schema and proves it is detected. PostgreSQL's system catalogs are not application tables.
+
+### R13 (2026-10-27): Effect and Drizzle upgrade
+
+Spec 0007 is rebased on the Effect 4.0.6 family and final Drizzle 1.0.0-rc.5. The account migration's snapshot is upgraded with `drizzle-kit up` to version 9; its SQL and the earlier migrations are unchanged. The account-specific Effect exception records are re-examined against 4.0.6. The upgrade changes no account behaviour.
