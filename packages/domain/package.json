@@ -8,7 +8,7 @@
     "./testing": "./test/support/teamsInMemory.ts"
   },
   "scripts": {
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "check": "vp check"
   },
   "dependencies": {

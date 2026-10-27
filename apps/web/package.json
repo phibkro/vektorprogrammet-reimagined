@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vp dev --port 3000",
     "build": "vp build",
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "e2e": "bun e2e/run.ts",
     "e2e:serve": "bun e2e/serve.ts",
     "check": "vp check",

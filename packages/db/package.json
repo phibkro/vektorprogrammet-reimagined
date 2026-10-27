@@ -10,7 +10,7 @@
     "./testing/read-only-role": "./test/support/readOnlyRole.ts"
   },
   "scripts": {
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "check": "vp check",
     "db:generate": "bun --bun drizzle-kit generate",
     "db:migrate": "bun --bun drizzle-kit migrate",

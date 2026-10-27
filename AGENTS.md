@@ -105,6 +105,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | CI | the same gates, including the browser tests (that step is limited to 15 minutes; a run takes a few minutes) and the CMS bundle check, on every pull request | `.github/workflows/checks.yml` |
 
 - PostgreSQL test files share one local server. The db suite runs one file at a time and the web suite at most two; the concurrent callers within each race are unchanged. This keeps their pools below PostgreSQL's connection limit.
+- Enter devenv once for the workspace task graph. Package test scripts use the already-active shell; concurrent nested `devenv shell` calls race while cleaning and recreating `.devenv/load-exports`.
 - Hooks are installed by `vp config` (the `prepare` script, which also runs `effect-tsgo patch`). Never use `--no-verify`.
 - Fix the code, not the rule. A rule that is wrong for a file class gets a narrow `overrides` entry with a one-line reason. Two presets that contradict each other get one global switch with a comment naming both rules.
 - Editor diagnostics use the TypeScript 7 native language server patched by `effect-tsgo patch`; it reads the `@effect/language-service` tsconfig options. Run `devenv shell -- bunx effect-tsgo diagnostics --project <absolute-tsconfig> --format text` to check the project config. After editing unstable API exceptions, run `devenv shell -- bun run sync:effect-policy`.

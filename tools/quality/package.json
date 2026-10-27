@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "check": "vp check"
   },
   "dependencies": {

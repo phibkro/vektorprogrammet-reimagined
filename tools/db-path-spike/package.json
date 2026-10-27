@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "check": "vp check",
     "cf": "DO_NOT_TRACK=1 cf",
     "db:generate": "bun --bun drizzle-kit generate",

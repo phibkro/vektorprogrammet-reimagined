@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "devenv shell -- node --test \"anti-slop/rules/*.test.ts\""
+    "test": "node --test \"anti-slop/rules/*.test.ts\""
   },
   "devDependencies": {
     "vite-plus": "catalog:"
