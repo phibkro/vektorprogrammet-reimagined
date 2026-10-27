@@ -32,7 +32,7 @@ export interface WorkspaceConfig {
 /** `write` only when the deployment says exactly that; anything else, or nothing, is a dry-run. */
 export const workspaceConfigFromEnv = (
   deployment: Deployment,
-  env: WorkerEnv
+  env: Pick<WorkerEnv, "WORKSPACE_MODE">
 ): WorkspaceConfig => ({
   deployment,
   mode: env.WORKSPACE_MODE === "write" ? "write" : "dry-run",

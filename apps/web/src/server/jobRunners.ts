@@ -96,6 +96,23 @@ const sweepOutbox = Effect.gen(function* sweep() {
   return { delivered, rows };
 });
 
+/**
+ * The Workspace projection (spec 0008): the directory is read in `prepare`, outside any transaction, and the chunk
+ * and its cursor commit together. Named, so a test can run it with the services it needs and no others.
+ */
+export const workspaceSyncRunner = {
+  prepare: (held: JobRun.Held) =>
+    Effect.map(prepareSync(held.cursor), (directory) =>
+      withWorkspace((client) =>
+        client.syncWorkspace({
+          cursor: held.cursor,
+          directory,
+          period: held.period,
+        })
+      )
+    ),
+};
+
 export const runners: Runners = {
   /** Inside the last weeks of the semester; outside them it does nothing, and the ledger makes each mail once. */
   endingSoon: oneShot(
@@ -128,17 +145,5 @@ export const runners: Runners = {
     ),
     () => ({ semesters: 2 })
   ),
-  /** The Workspace projection (spec 0008): the directory is read in `prepare`, the chunk and its cursor commit together. */
-  workspaceSync: {
-    prepare: (held) =>
-      Effect.map(prepareSync(held.cursor), (directory) =>
-        withWorkspace((client) =>
-          client.syncWorkspace({
-            cursor: held.cursor,
-            directory,
-            period: held.period,
-          })
-        )
-      ),
-  },
+  workspaceSync: workspaceSyncRunner,
 };

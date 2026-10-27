@@ -565,6 +565,7 @@ export default defineConfig({
         // Effect.promise takes a thunk. typescript/promise-function-async needs that thunk to be async, while effecttsgo/async-function rejects every async function, so the two rules cannot both hold at a Promise boundary. Test files only: they drive platform Promise surfaces (Response bodies, the SendEmail binding, AbortController, Playwright's browser API).
         files: [
           "apps/web/test/contact.test.ts",
+          "apps/web/test/deliveryBoundary.postgres.test.ts",
           "apps/web/test/errors.test.ts",
           "apps/web/test/organisationPanel.test.ts",
           "apps/web/test/support/run.ts",
