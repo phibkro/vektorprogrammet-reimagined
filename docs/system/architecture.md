@@ -120,6 +120,7 @@ Jobs are declared in code (`packages/domain`): name, when the job is due, its Sy
 | Application | TanStack Start + React; shadcn/ui on Base UI (`base-nova`) | Running |
 | Domain and server | Effect v4: Schema, Effect, `effect/rpc` for command declarations | Running (spec 0006, ADR 0006) |
 | Data access | Drizzle `effect-postgres` on `@effect/sql-pg`; Drizzle schema is the table source, `drizzle-kit` the migrations | Running |
+| Relational queries (Drizzle RQB v2) | Evaluated 2026-10-27 (`docs/research/relational-queries-spike.md`; probes on branch `spike/relational-queries`): works over `effect-postgres` and PGlite, joins the ambient transaction, passes the SELECT-only role. Adopt when relations are generated from declared relationships (effx spec 0031) and a screen needs a nested or paginated read of three or more levels; the people list was 3× slower with it | Not used |
 | Forms | TanStack Form (`@tanstack/react-form-start`), validated through Standard Schema from Effect Schema | New (ADR 0003) |
 | State machines | Transition tables with serializable Effect Schema guards | Running for Membership (spec 0006, ADR 0007) |
 | Permissions | Grant table + `authorize` | Running (spec 0006, ADR 0001) |
