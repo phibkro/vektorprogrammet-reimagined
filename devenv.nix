@@ -81,4 +81,24 @@ in
   enterShell = ''
     export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
   '';
+
+  # Optional: TLA+ tools 1.7.4 (TLC) and the Java 8 runtime that nixpkgs builds them with, for the verify skills under
+  # .agents/skills (a model checker, run by `.agents/skills/verify-membership-writes/run.sh`). A profile keeps them out of the
+  # default shell, so CI and every other session stay as small as they are. Use `devenv shell --profile formal -- <command>`.
+  # TLA2TOOLS and JAVA name the same jar and runtime for tools that take a TLC you already have. The Java heap is capped:
+  # without a cap the JVM grows to a quarter of the machine's memory (a run of one million states reached 5.9 GB), and
+  # the machine is shared.
+  profiles.formal.module =
+    { pkgs, ... }:
+    {
+      packages = [
+        pkgs.tlaplus
+        pkgs.jre8
+      ];
+      env = {
+        JAVA = "${pkgs.jre8}/bin/java";
+        JAVA_TOOL_OPTIONS = "-Xmx4g";
+        TLA2TOOLS = "${pkgs.tlaplus}/share/java/tla2tools.jar";
+      };
+    };
 }

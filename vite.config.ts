@@ -273,6 +273,9 @@ export default defineConfig({
       "apps/web/src/routeTree.gen.ts",
       "packages/cms-client/src/generated.ts",
       "tools/oxlint/anti-slop/**",
+      // A statechart mapping is plain JavaScript that the pstack /statechart skill loads from a scratch folder
+      // outside the repository, where Effect does not resolve, so it cannot use Effect's types or modules.
+      ".agents/skills/**/*.map.mjs",
     ],
     jsPlugins: [
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
