@@ -248,17 +248,21 @@ for (const name of effectAntiSlopRuleNames) {
   localAntiSlopRules[`anti-slop-effect/${name}`] = "error";
 }
 
+const packageSourcePattern = {
+  message:
+    "Import another workspace package through its export map, not its source path.",
+  regex: "^@vektorprogrammet/[^/]+/src(?:/|$)",
+};
+
+const relativeWorkspaceSourcePattern = {
+  message:
+    "Import another workspace package through its export map, not its source path.",
+  regex: "^(?:\\./|(?:\\.\\./)+)(?:apps|packages|tools)/[^/]+/src(?:/|$)",
+};
+
 const restrictedSourcePatterns = [
-  {
-    message:
-      "Import another workspace package through its export map, not its source path.",
-    regex: "^@vektorprogrammet/[^/]+/src(?:/|$)",
-  },
-  {
-    message:
-      "Import another workspace package through its export map, not its source path.",
-    regex: "^(?:\\./|(?:\\.\\./)+)(?:apps|packages|tools)/[^/]+/src(?:/|$)",
-  },
+  packageSourcePattern,
+  relativeWorkspaceSourcePattern,
 ];
 
 export default defineConfig({
@@ -343,6 +347,18 @@ export default defineConfig({
         ],
         rules: {
           "no-redeclare": "off",
+        },
+      },
+      {
+        // Only this spike derives the instant-based semester through the package-internal function; the public package intentionally hides calendar arithmetic.
+        files: ["spikes/alchemy-domain/src/model/calendar.ts"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [packageSourcePattern],
+            },
+          ],
         },
       },
       {

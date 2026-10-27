@@ -73,6 +73,16 @@ const statements: readonly string[] = [
      seq integer not null,
      primary key (projection, key, source)
    )`,
+  `create table if not exists alchemy_admin_account (
+     person_id integer primary key,
+     state text not null
+   )`,
+  `create table if not exists alchemy_admin_place (
+     id integer primary key,
+     person_id integer not null,
+     granted_by integer,
+     until timestamptz not null
+   )`,
   `create table if not exists alchemy_scheduled (
      aggregate text not null,
      id text not null,

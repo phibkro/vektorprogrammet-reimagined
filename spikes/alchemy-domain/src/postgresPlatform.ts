@@ -1,7 +1,7 @@
 import type * as Aggregate from "@alchemy.run/domain/Aggregate";
 /**
  * A PostgreSQL `Platform` for `@alchemy.run/domain` (2.0.0-beta.84): aggregates and projections on the repository's
- * PostgreSQL, everything else delegated to the in-memory platform.
+ * PostgreSQL, with in-memory views and policies. Streams are unsupported.
  *
  * What `AggregateStore.send` does here (the platform contract: single writer per id, dedupe by `commandId`, events,
  * state, receipt and deliveries committed together, then at-least-once ordered delivery):
@@ -339,6 +339,8 @@ const makeProjections = (
       );
     }
 
+    // Serialize each projection key before reading its checkpoints.
+    yield* acceptedSoFar(projection, key, 0);
     const fresh = yield* unhandled(projection, key, group);
     const size = kit.options.batch?.size ?? 1;
 
@@ -823,7 +825,13 @@ const makeScheduler = (
           const store = stores.get(row.aggregate);
 
           if (store === undefined) {
-            return;
+            return yield* Effect.die(
+              new Error(
+                `scheduled aggregate ${
+                  row.aggregate
+                } is not hosted on this platform`
+              )
+            );
           }
 
           yield* store.send(row.id, row.command, row.meta);
@@ -831,6 +839,8 @@ const makeScheduler = (
           yield* sql`update alchemy_scheduled set fired_at = now()
             where aggregate = ${row.aggregate} and id = ${row.id}
               and command_id = ${row.commandId}`;
+
+          return yield* Effect.void;
         }),
       { discard: true }
     );
@@ -904,7 +914,14 @@ export const layer = (
 
             return projectionStore(kit);
           }),
-        stream: inMemory.stream,
+        stream: (definition) =>
+          Effect.die(
+            new Error(
+              `PostgreSQL spike does not support stream ${
+                definition.streamName
+              }`
+            )
+          ),
         view: inMemory.view,
       });
 
