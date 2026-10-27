@@ -8,7 +8,9 @@
  * identity sequences past the kept legacy ids, and read the row counts back.
  * A failure anywhere, including a count that differs from the plan, rolls the
  * target back to its previous state. There is no `CASCADE`: an unlisted reference makes the truncate fail.
- * Targets with credentials or durable integration activity are refused before replacement: the importer cannot restore them.
+ * A target that holds accounts, credentials, consents or durable integration activity is refused before replacement:
+ * this importer does not import credentials (spec 0013), cannot restore a consent (spec 0007b) and cannot restore what
+ * the system itself recorded (welcome claims, messages, job runs and Workspace reports, spec 0008).
  */
 import { PgClient } from "@effect/sql-pg";
 import { schema } from "@vektorprogrammet/db";
@@ -60,13 +62,20 @@ const TABLES = {
   social_event: schema.socialEvent,
 } as const;
 
-/** Later-phase tables to lock. Durable credentials, messages and job records are never erased by replacement. */
+/**
+ * The later-phase tables that reference imported rows. They must be named for PostgreSQL even on an empty target, but a
+ * target that holds an account, a credential, a consent or a durable record of the system's own activity is refused
+ * under an exclusive lock: this import cannot restore credentials, a consent is the record of what a person agreed to,
+ * and messages, job runs and reports are never erased by a replacement.
+ */
 const BUILT_ON_TABLES = [
   schema.authSession,
   schema.authAccount,
   schema.authUser,
   schema.code,
   schema.account,
+  schema.consent,
+  schema.alumniRequest,
   schema.welcomeLedger,
   schema.outbox,
   schema.capturedMail,
@@ -153,6 +162,7 @@ export class ImportTarget extends Context.Service<
               schema.account,
               schema.code,
               schema.authUser,
+              schema.consent,
               schema.welcomeLedger,
               schema.outbox,
               schema.capturedMail,
@@ -160,14 +170,14 @@ export class ImportTarget extends Context.Service<
               schema.jobRun,
               schema.workspaceReport,
             ],
-            (table) => db.$count(table).pipe(step("check accounts"))
+            (table) => db.$count(table).pipe(step("check records"))
           );
 
           if (Arr.some(protectedRows, (count) => count > 0)) {
             return yield* new TargetWriteError({
               cause:
-                "target contains accounts, credentials or durable integration activity; replacing them is outside this importer",
-              step: "protect accounts",
+                "target contains accounts, credentials, consents or durable integration activity; replacing them is outside this importer",
+              step: "protect records",
             });
           }
 

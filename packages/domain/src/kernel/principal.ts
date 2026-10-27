@@ -24,6 +24,8 @@ export const SystemJob = Schema.Literals([
   "semesters",
   "outboxSweep",
   "endingSoon",
+  "retention",
+  "alumniConsent",
   "workspaceSync",
 ]);
 

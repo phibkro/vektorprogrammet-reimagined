@@ -74,16 +74,6 @@ const importOnce = Effect.fn("importOnce")(function* importOnce(
   };
 });
 
-/** The same refusal must protect every kind of durable target activity. */
-const expectProtected = Effect.gen(function* protectedTarget() {
-  const failed = yield* Effect.flip(importOnce(Option.none()));
-  assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
-
-  if (Predicate.isTagged(failed, "TargetWriteError")) {
-    assert.strictEqual(failed.step, "protect accounts");
-  }
-});
-
 interface DatabaseRecord {
   readonly [column: string]: DatabaseValue;
 }
@@ -460,87 +450,119 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           assert.isFalse(yield* fs.exists(`${reportDir}/reconciliation.json`));
         })
     );
-    it.effect(
-      "spec 0008: replacement refuses a target with a first-membership welcome claim",
-      () =>
-        Effect.gen(function* preserveWelcome() {
-          yield* importOnce(Option.none());
 
-          const inserted = yield* queryTarget(
-            (sql) =>
-              sql<{ readonly id: number }>`insert into person ${sql.insert({
-                email: "welcome-protected@example.org",
-                field_of_study_id: 1,
-                name: "Welcome fixture",
-              })} returning id`
-          );
+    type Statement<A> = (sql: PgClient.PgClient) => Effect.Effect<A, SqlError>;
 
-          const person = Option.getOrThrow(Arr.head(inserted));
-          yield* queryTarget(
-            (sql) =>
-              sql`insert into welcome_ledger (person_id, recorded_at) values (${person.id}, now())`
-          );
-          yield* expectProtected;
+    /** What a replacement must refuse to destroy, because the importer cannot restore it: how to make it, read it, drop it. */
+    const unrestorable: readonly {
+      readonly held: string;
+      readonly make: Statement<unknown>;
+      readonly read: Statement<readonly unknown[]>;
+      readonly drop: Statement<unknown>;
+    }[] = [
+      {
+        drop: (sql) =>
+          sql`delete from account where person_id in (select id from person where email = 'protected@example.org')`,
+        held: "an account",
+        make: (sql) =>
+          sql`insert into account (person_id, state) select id, 'Active' from person where email = 'protected@example.org'`,
+        read: (sql) =>
+          sql`select p.email, a.state from person p join account a on a.person_id = p.id where p.email = 'protected@example.org'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from consent where person_id in (select id from person where email = 'protected@example.org')`,
+        held: "a consent",
+        make: (sql) =>
+          sql`insert into consent (given_at, kind, person_id, text_version) select now(), 'news', id, 1 from person where email = 'protected@example.org'`,
+        read: (sql) =>
+          sql`select p.email, c.kind from person p join consent c on c.person_id = p.id where p.email = 'protected@example.org'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from welcome_ledger where person_id in (select id from person where email = 'protected@example.org')`,
+        held: "a first-membership welcome claim",
+        make: (sql) =>
+          sql`insert into welcome_ledger (person_id, recorded_at) select id, now() from person where email = 'protected@example.org'`,
+        read: (sql) =>
+          sql`select p.email from person p join welcome_ledger w on w.person_id = p.id where p.email = 'protected@example.org'`,
+      },
+      {
+        drop: (sql) => sql`delete from job_run where period = 'test:import'`,
+        held: "a job run",
+        make: (sql) =>
+          sql`insert into job_run (job, period, lease_until, outcome) values ('semesters', 'test:import', now(), 'partial')`,
+        read: (sql) =>
+          sql`select period from job_run where period = 'test:import'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from workspace_report where period = 'test:import'`,
+        held: "a Workspace report",
+        make: (sql) =>
+          sql`insert into workspace_report (actual, completed_at, mode, period, semester_term, semester_year, started_at, status) values ('read', now(), 'dry-run', 'test:import', 'HOST', 2026, now(), 'complete')`,
+        read: (sql) =>
+          sql`select period from workspace_report where period = 'test:import'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from outbox where payload ->> 'text' = 'test:import'`,
+        held: "a queued message",
+        make: (sql) =>
+          sql`insert into outbox (kind, next_attempt_at, payload) values ('SlackPost', now(), '{"_tag":"SlackPost","channel":"test","text":"test:import"}'::jsonb)`,
+        read: (sql) =>
+          sql`select id from outbox where payload ->> 'text' = 'test:import'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from captured_mail where recipient = 'test-import@example.org'`,
+        held: "a captured mail",
+        make: (sql) =>
+          sql`insert into captured_mail (recipient, sent_at, subject, text) values ('test-import@example.org', now(), 'Emne', 'Tekst')`,
+        read: (sql) =>
+          sql`select id from captured_mail where recipient = 'test-import@example.org'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from captured_slack where channel = 'test-import'`,
+        held: "a captured Slack post",
+        make: (sql) =>
+          sql`insert into captured_slack (channel, sent_at, text) values ('test-import', now(), 'Tekst')`,
+        read: (sql) =>
+          sql`select id from captured_slack where channel = 'test-import'`,
+      },
+    ];
 
-          const claims = yield* queryTarget(
-            (sql) =>
-              sql`select person_id from welcome_ledger where person_id = ${person.id}`
-          );
+    for (const { drop, held, make, read } of unrestorable) {
+      it.effect(
+        `spec 0007 R8 and 0007b: replacement refuses a target that holds ${held} without changing its rows`,
+        () =>
+          Effect.gen(function* preserveRecords() {
+            yield* importOnce(Option.none());
+            yield* queryTarget(
+              (sql) =>
+                sql`insert into person (name, email, field_of_study_id) select 'Fake Person', 'protected@example.org', id from field_of_study order by id limit 1`
+            );
+            yield* queryTarget(make);
+            const before = yield* dumpTarget;
+            const failed = yield* Effect.flip(importOnce(Option.none()));
+            assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
 
-          assert.strictEqual(claims.length, 1);
-          yield* queryTarget(
-            (sql) =>
-              sql`delete from welcome_ledger where person_id = ${person.id}`
-          );
-          yield* queryTarget(
-            (sql) => sql`delete from person where id = ${person.id}`
-          );
-        })
-    );
-    it.effect("spec 0008: replacement refuses to erase a durable job run", () =>
-      Effect.gen(function* preserveJob() {
-        yield* importOnce(Option.none());
-        yield* queryTarget(
-          (sql) =>
-            sql`insert into job_run (job, period, lease_until, outcome) values ('semesters', 'test:import', now(), 'partial')`
-        );
-        yield* expectProtected;
+            if (Predicate.isTagged(failed, "TargetWriteError")) {
+              assert.strictEqual(failed.step, "protect records");
+            }
 
-        const rows = yield* queryTarget(
-          (sql) => sql`select period from job_run where period = 'test:import'`
-        );
+            assert.strictEqual(yield* dumpTarget, before);
+            assert.strictEqual((yield* queryTarget(read)).length, 1);
 
-        assert.strictEqual(rows.length, 1);
-        yield* queryTarget(
-          (sql) => sql`delete from job_run where period = 'test:import'`
-        );
-      })
-    );
-    it.effect(
-      "spec 0007 R8: replacement refuses an account-bearing target without changing its rows",
-      () =>
-        Effect.gen(function* preserveAccounts() {
-          yield* importOnce(Option.none());
-          yield* queryTarget(
-            (sql) =>
-              sql`insert into person (name, email, field_of_study_id) select 'Fake Account', 'protected@example.org', id from field_of_study order by id limit 1`
-          );
-          yield* queryTarget(
-            (sql) =>
-              sql`insert into account (person_id, state) select id, 'Active' from person where email = 'protected@example.org'`
-          );
-          const before = yield* dumpTarget;
-          yield* expectProtected;
-
-          assert.strictEqual(yield* dumpTarget, before);
-
-          const protectedRows = yield* queryTarget(
-            (sql) =>
-              sql`select p.email, a.state from person p join account a on a.person_id = p.id where p.email = 'protected@example.org'`
-          );
-
-          assert.strictEqual(protectedRows.length, 1);
-        })
-    );
+            // Released, so that the next case starts from a target that only the import has written.
+            yield* queryTarget(drop);
+            yield* queryTarget(
+              (sql) =>
+                sql`delete from person where email = 'protected@example.org'`
+            );
+          })
+      );
+    }
   }
 );

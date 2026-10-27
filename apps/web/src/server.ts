@@ -95,7 +95,8 @@ export default {
     ctx: ExecutionContext
   ): void {
     // Each due job runs as its own System principal in declaration order, and a failing job never cancels the next:
-    // no promise rejects. The outbox sweep is declared last, so it delivers what the jobs before it queued.
+    // no promise rejects. The tick's cron and the retention's own nightly cron are told apart by `controller.cron`
+    // inside the dispatcher, and the outbox sweep is declared last, so it delivers what the jobs before it queued.
     ctx.waitUntil(runTick(env, controller));
   },
 };

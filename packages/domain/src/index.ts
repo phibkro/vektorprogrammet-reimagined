@@ -155,6 +155,8 @@ export * from "./contact/commands.ts";
 
 export * as Contact from "./contact/declaration.ts";
 
+export { ContactForm } from "./contact/personalData.ts";
+
 export * from "./contact/supportTicket.ts";
 
 // files (C11)
@@ -184,3 +186,32 @@ export * from "./teams/refusals.ts";
 export * from "./teams/services.ts";
 
 export * from "./teams/term.ts";
+
+// personal data (spec 0007b): the declarations, their derivations, consent, and the commands that use them
+export * as PersonalDataDeclaration from "./personalData/declaration.ts";
+
+export { ConsentKind } from "./personalData/declaration.ts";
+
+export * as PersonalDataRpcs from "./personalData/rpc.ts";
+
+export * from "./personalData/alumni.ts";
+
+export * from "./personalData/catalog.ts";
+
+export * from "./personalData/commands.ts";
+
+export * from "./personalData/consents.ts";
+
+export * from "./personalData/derive.ts";
+
+export * from "./personalData/duration.ts";
+
+export * from "./personalData/forms.ts";
+
+export * from "./personalData/notice.ts";
+
+export * from "./personalData/periods.ts";
+
+export * from "./personalData/services.ts";
+
+export * from "./personalData/texts.ts";

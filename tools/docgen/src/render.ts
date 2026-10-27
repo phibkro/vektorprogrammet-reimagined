@@ -1,14 +1,29 @@
-/** Pure renderers for the declaration-derived teams, accounts, commands-by-resource and scheduled-jobs references. */
+/**
+ * Pure renderers for the declaration-derived teams, accounts, commands-by-resource, scheduled-jobs and personal data
+ * references.
+ */
 import {
   Commands,
   Domain,
   Job,
   JobRegistry,
   Subject,
+  approvalWords,
   codePolicy,
+  consentNames,
+  consentTexts,
+  draftNote,
   jobProblems,
+  privacyNotice,
+  recordOfProcessing,
 } from "@vektorprogrammet/domain";
-import type { Grant, Machine } from "@vektorprogrammet/domain";
+import type {
+  CatalogOf,
+  FormDeclaration,
+  Grant,
+  Machine,
+  RecordRow,
+} from "@vektorprogrammet/domain";
 import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
 
 interface Entry {
@@ -426,11 +441,13 @@ export const renderAccountsDocument = (
       const entries = entriesOf(domain);
 
       const policy = alignedTable(
-        ["Purpose", "Command", "Lifetime (hours)"],
+        ["Purpose", "Command", "Hours", "Account", "Single use"],
         Arr.map(Rec.toEntries(codePolicy), ([purpose, value]) => [
           purpose,
           value.command,
           String(value.lifetimeSeconds / 3600),
+          value.account ?? "none",
+          value.singleUse ? "yes" : "no",
         ])
       );
 
@@ -467,6 +484,121 @@ export const checkCommandsDocument = (
 ): Result.Result<void, string> =>
   checkRendered(document, renderCommandsDocument(document, domains, grants));
 
+/** What the personal data document is generated from besides the declarations: the catalog and the forms that collect. */
+export interface PersonalDataSources {
+  readonly catalog: CatalogOf;
+  readonly forms: readonly FormDeclaration[];
+}
+
+/** The mark beside a value that the operator has not decided: the document's footnote explains it. */
+const proposedMark = (approval: RecordRow["periodApproval"]): string =>
+  approval === "proposed" ? " \\*" : "";
+
+/** How long each kind of data is kept, and what happens then: the record of processing, without its legal columns. */
+const retentionSchedule = (catalog: CatalogOf): string =>
+  table(
+    ["Data", "Kept for", "At the end"],
+    Arr.map(recordOfProcessing(catalog), (row) => [
+      row.purpose.en,
+      `${row.kept.en}${proposedMark(row.periodApproval)}`,
+      row.atEnd.en,
+    ])
+  );
+
+/** The columns of one row of the record, grouped by the table that holds them. */
+const columnsByTable = (names: readonly string[]): string =>
+  Arr.join(
+    Arr.map(
+      Rec.toEntries(
+        Arr.groupBy(names, (name) => name.slice(0, name.indexOf(".")))
+      ),
+      ([stored, columns]) =>
+        `\`${stored}\`: ${Arr.join(
+          Arr.map(columns, (column) => column.slice(column.indexOf(".") + 1)),
+          ", "
+        )}`
+    ),
+    "<br>"
+  );
+
+/**
+ * The approval cell of a row of the record: which of its two decisions, the period and the legal basis, the operator has
+ * not made. Both are named, so approving the periods of a row does not read as approving its basis.
+ */
+export const approvalCell = (row: RecordRow): string => {
+  const open = Arr.flatMap(
+    [
+      { approval: row.periodApproval, name: "period" },
+      { approval: row.basisApproval, name: "legal basis" },
+    ],
+    ({ approval, name }) => (approval === "proposed" ? [name] : [])
+  );
+
+  return open.length === 0
+    ? "decided"
+    : `${Arr.join(open, " and ")}: ${approvalWords.proposed?.en ?? "proposed"}`;
+};
+
+/** The record of processing activities (GDPR Art. 30): every personal column, by what it is for. */
+const processingRecord = (catalog: CatalogOf): string =>
+  table(
+    ["Purpose", "Legal basis", "Data", "Kept for", "At the end", "Approval"],
+    Arr.map(recordOfProcessing(catalog), (row) => [
+      row.purpose.en,
+      `${row.basis.en} (${row.basis.citation})`,
+      columnsByTable(row.data),
+      row.kept.en,
+      row.atEnd.en,
+      approvalCell(row),
+    ])
+  );
+
+/** The privacy notice of each form, in English, from the same value that the form's page renders in Norwegian. */
+const privacyNotices = (
+  forms: readonly FormDeclaration[],
+  catalog: CatalogOf
+): string =>
+  Arr.join(
+    Arr.map(forms, (form) => {
+      const notice = privacyNotice(form, catalog);
+      const draft = draftNote(notice.open, "en");
+
+      return Arr.join(
+        [
+          `#### ${form.title.en}`,
+          draft === undefined ? "" : `_${draft}_`,
+          notice.controller.en,
+          table(
+            ["Field", "Why", "Legal basis", "Who receives it", "Kept for"],
+            Arr.map(notice.entries, (entry) => [
+              entry.label.en,
+              entry.purpose.en,
+              `${entry.basis.en} (${entry.basis.citation})`,
+              entry.recipients.en,
+              entry.kept.en,
+            ])
+          ),
+          notice.rights.en,
+        ],
+        "\n\n"
+      );
+    }),
+    "\n\n"
+  );
+
+/** Each consent, the version of its text, and the text in both languages. A record names a version and can name only the current one. */
+const consentTable = (): string =>
+  table(
+    ["Consent", "Version", "What the person sees", "In English", "Approval"],
+    Arr.map(Rec.toEntries(consentTexts), ([kind, text]) => [
+      consentNames[kind].en,
+      String(text.version),
+      text.no,
+      text.en,
+      approvalWords[text.approval]?.en ?? "decided",
+    ])
+  );
+
 /**
  * The scheduled jobs of the registry (spec 0008): what each does, when it is due, its cron and whether it is approved.
  * Wide, so Oxfmt keeps it compact (`table`); `alignedTable` is for the short tables that it aligns.
@@ -484,31 +616,55 @@ const jobsTable = (jobs: readonly Job.Job[]): string =>
   );
 
 /**
- * `administration.md`: the table of scheduled jobs is the registry, rendered. The registry is checked against the
- * declarations first (`jobProblems`), so a job without a declaration, a command or a name is refused here too. `jobs`
- * is the real registry; the tests pass a changed one to show that a changed declaration changes the page.
+ * The generated parts of `administration.md`: the retention schedule, the record of processing, the privacy notices, the
+ * consent texts and the commands of the personal data domain (spec 0007b), and the table of scheduled jobs (spec 0008).
+ * The catalog and the declarations are what the runtime uses, so the document cannot say another period than the nightly
+ * job applies; the jobs table is the registry, rendered, and the registry is checked against the declarations first
+ * (`jobProblems`), so a job without a declaration, a command or a name is refused here too. `jobs` is the real registry;
+ * the tests pass a changed one to show that a changed declaration changes the page.
  */
 export const renderAdministrationDocument = (
   document: string,
   domains: readonly Declaration[],
-  _grants: readonly GrantRow[],
+  grants: readonly GrantRow[],
+  sources: PersonalDataSources,
   jobs: readonly Job.Job[] = JobRegistry.Jobs
 ): Result.Result<string, string> =>
   Result.flatMap(completeDomains(domains), (complete) => {
+    const domain = Option.getOrUndefined(
+      Arr.findFirst(complete, (entry) => entry.name === "personalData")
+    );
+
+    if (domain === undefined) {
+      return Result.fail("The personalData declaration is missing");
+    }
+
     const problems = jobProblems(jobs, complete);
 
-    return problems.length > 0
-      ? Result.fail(`Incomplete job registry: ${Arr.join(problems, "; ")}`)
-      : replaceBlocks(document, [["jobs", jobsTable(jobs)]]);
+    if (problems.length > 0) {
+      return Result.fail(
+        `Incomplete job registry: ${Arr.join(problems, "; ")}`
+      );
+    }
+
+    return replaceBlocks(document, [
+      ["retention", retentionSchedule(sources.catalog)],
+      ["personal-data-commands", commands(entriesOf(domain), grants)],
+      ["record", processingRecord(sources.catalog)],
+      ["notices", privacyNotices(sources.forms, sources.catalog)],
+      ["consents", consentTable()],
+      ["jobs", jobsTable(jobs)],
+    ]);
   });
 
 export const checkAdministrationDocument = (
   document: string,
   domains: readonly Declaration[],
   grants: readonly GrantRow[],
+  sources: PersonalDataSources,
   jobs: readonly Job.Job[] = JobRegistry.Jobs
 ): Result.Result<void, string> =>
   checkRendered(
     document,
-    renderAdministrationDocument(document, domains, grants, jobs)
+    renderAdministrationDocument(document, domains, grants, sources, jobs)
   );

@@ -7,7 +7,11 @@ export * as schema from "./schema.ts";
 
 export { UniqueConstraint } from "./schema.ts";
 
-export { DatabaseLive, type DatabaseConfig } from "./databaseLive.ts";
+export {
+  DatabaseLive,
+  JobDatabaseLive,
+  type DatabaseConfig,
+} from "./databaseLive.ts";
 
 export { transactional } from "./transactional.ts";
 

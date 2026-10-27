@@ -319,6 +319,7 @@ export const peopleView = Effect.gen(function* peopleView() {
   );
 
   return {
+    canMerge: authorize(principal, "mergePersons"),
     canRegister: registrable.length > 0,
     fieldsOfStudy: Arr.flatten(fields),
     people: Arr.map(
@@ -355,6 +356,9 @@ export const peopleView = Effect.gen(function* peopleView() {
           canDeactivate: mayChange("deactivateAccount"),
           canEditProfile: authorize(principal, "updatePerson", {
             departmentId: person.departmentId,
+            personId: person.id,
+          }),
+          canErase: authorize(principal, "erasePerson", {
             personId: person.id,
           }),
           canInvite:

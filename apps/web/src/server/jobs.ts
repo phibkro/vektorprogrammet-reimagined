@@ -190,7 +190,10 @@ const runDue = <R>(job: Job.Job, runner: Runner<R>, at: DateTime.Utc) =>
 export interface TickOptions {
   /** The instant of the tick: the scheduled time that the platform passed, which names the tick's period. */
   readonly at: DateTime.Utc;
-  /** The cron that fired; empty or absent (the local trigger) runs every job's due check. */
+  /**
+   * The cron that fired: only the jobs that declare it run. Empty or absent runs every job it is given (the Worker never
+   * passes none: it names the tick's cron for a local trigger, `runRetention` gives one job).
+   */
   readonly cron?: string | undefined;
   /** Runs only these jobs (an explicit invocation against fake data). */
   readonly only?: readonly SystemJob[] | undefined;

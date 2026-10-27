@@ -47,7 +47,7 @@ import type {
   TeamDraft,
   TeamId,
 } from "@vektorprogrammet/domain";
-import { and, asc, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
 
@@ -119,11 +119,15 @@ export const PersonRepositoryLive = Layer.effect(
     const list = Effect.fn("PersonRepository.list")(function* list(
       departmentId: DepartmentId | null
     ) {
+      // An anonymised person (an erasure, the nightly run, a merged tombstone) is a record with no data: not listed.
       const rows = yield* joined()
         .where(
-          departmentId === null
-            ? undefined
-            : eq(fieldOfStudy.departmentId, departmentId)
+          and(
+            isNull(person.anonymisedAt),
+            departmentId === null
+              ? undefined
+              : eq(fieldOfStudy.departmentId, departmentId)
+          )
         )
         .orderBy(asc(person.name), asc(person.id))
         .pipe(Effect.orDie);
@@ -136,9 +140,12 @@ export const PersonRepositoryLive = Layer.effect(
     ) {
       yield* InTransaction;
 
+      // The creation date is the Clock's, so that a retention run under a test clock sees the dates it expects.
+      const createdAt = DateTime.toDateUtc(yield* DateTime.now);
+
       const rows = yield* db
         .insert(person)
-        .values({ ...draft, companyEmail: null })
+        .values({ ...draft, companyEmail: null, createdAt })
         .returning({ id: person.id })
         .pipe(Effect.catch((error) => classifySqlFailure(error, draft.email)));
 

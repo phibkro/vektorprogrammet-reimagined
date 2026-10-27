@@ -175,6 +175,127 @@ const kinds = (report: Report): Readonly<Record<string, number>> =>
     (rows) => rows.length
   );
 
+/** Non-admin people whose only viewTeams grant is the Member row. */
+const memberRowsLost = (vectors: VectorsFile): number =>
+  Arr.reduce(vectors.instances, 0, (sum, world) => {
+    const people = new Set(
+      Arr.map(
+        Arr.filter(
+          world.principals,
+          (person) => person.kind === "Person" && !person.admin
+        ),
+        ({ id }) => id
+      )
+    );
+
+    return (
+      sum +
+      Arr.filter(
+        world.allows,
+        ({ permission, principal }) =>
+          permission === "viewTeams" && people.has(principal)
+      ).length
+    );
+  });
+
+/** Whether a person belongs to either subject of the leader/board grant, without a department restriction. */
+const hasLeaderOrBoard = (
+  world: VectorsFile["instances"][number],
+  person: string
+): boolean =>
+  Arr.some(
+    world.memberships,
+    (membership) =>
+      membership.active &&
+      membership.person === person &&
+      (membership.position === "leader" ||
+        Arr.some(
+          world.teams,
+          (team) => team.id === membership.team && team.function === "board"
+        ))
+  );
+
+/** The ungranted vector rows that the widened leader/board grant would add. */
+const widenedLeaderRows = (
+  vectors: VectorsFile,
+  commands: readonly string[]
+): number => {
+  const names = new Set(Arr.map(vectors.permissions, ({ name }) => name));
+  const checked = Arr.filter(commands, (command) => names.has(command));
+
+  return Arr.reduce(vectors.instances, 0, (sum, world) => {
+    const allowed = new Set(
+      Arr.map(
+        world.allows,
+        (row) => `${row.principal}|${row.permission}|${row.target}`
+      )
+    );
+
+    const people = Arr.filter(
+      world.principals,
+      (person) => person.kind === "Person" && hasLeaderOrBoard(world, person.id)
+    );
+
+    return (
+      sum +
+      Arr.reduce(
+        people,
+        0,
+        (byPerson, person) =>
+          byPerson +
+          Arr.reduce(
+            world.targets,
+            0,
+            (byTarget, target) =>
+              byTarget +
+              Arr.filter(
+                checked,
+                (command) =>
+                  !allowed.has(`${person.id}|${command}|${target.id}`)
+              ).length
+          )
+      )
+    );
+  });
+};
+
+/** One eligible Active row for each context and phase in which effx did not enable the transition. */
+const disabledActiveRows = (vectors: VectorsFile, name: string): number =>
+  Arr.reduce(
+    vectors.instances,
+    0,
+    (sum, world) =>
+      sum +
+      Arr.reduce(world.contexts, 0, (byContext, context) => {
+        if (context.machine !== "Membership") {
+          return byContext;
+        }
+
+        return (
+          byContext +
+          Arr.reduce(["atNow", "afterTick"] as const, 0, (byPhase, phase) => {
+            if (
+              phase === "afterTick" &&
+              (world.clock === null || world.clock.afterTick === null)
+            ) {
+              return byPhase;
+            }
+
+            const enabled = Arr.some(
+              world.enabled[phase],
+              (row) =>
+                row.machine === "Membership" &&
+                row.state === "Active" &&
+                row.context === context.id &&
+                row.transition === name
+            );
+
+            return byPhase + Number(!enabled);
+          })
+        );
+      })
+  );
+
 /**
  * What differs between the committed descriptions and the export: a line for each domain whose text differs, naming
  * the domain and the first line that does. The check and its negative controls both ask this.
@@ -625,7 +746,13 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
             Arr.contains(row.commands, "createTeam")
         );
 
-        assert.isTrue(Option.isSome(leaderRow));
+        const leaderCommands = Option.match(leaderRow, {
+          onNone: () => assert.fail("leader grant is missing"),
+          onSome: ({ commands }) => commands,
+        });
+
+        const committed = yield* Committed;
+        const vectors = must(committed.vectors.teams, "teams vectors").decoded;
 
         // the Member row of viewTeams removed
         const withoutMember = yield* conform("teams", {
@@ -651,7 +778,9 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         );
 
         // the `viewTeams` rows that only the removed row granted
-        assert.deepStrictEqual(kinds(withoutMember), { authorize: 1536 });
+        assert.deepStrictEqual(kinds(withoutMember), {
+          authorize: memberRowsLost(vectors),
+        });
 
         // the leaders' scope widened from their department to all
         const widened = yield* conform("teams", {
@@ -669,14 +798,14 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
               row.kind === "authorize" &&
               row.kernel &&
               !row.effx &&
-              Option.exists(leaderRow, ({ commands }) =>
-                Arr.contains(commands, row.permission)
-              )
+              Arr.contains(leaderCommands, row.permission)
           )
         );
 
         // the rows of the leaders' commands that the wider scope grants and the vectors do not
-        assert.deepStrictEqual(kinds(widened), { authorize: 11_016 });
+        assert.deepStrictEqual(kinds(widened), {
+          authorize: widenedLeaderRows(vectors, leaderCommands),
+        });
 
         // the guard of extendMembership removed
         const unguarded = yield* conform("teams", {
@@ -714,9 +843,10 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         );
 
         // each row of state Active where the guard was false is both a transition row and a `Machine.can` row
+        const unguardedRows = disabledActiveRows(vectors, "Transition0_2");
         assert.deepStrictEqual(kinds(unguarded), {
-          command: 22_464,
-          transition: 22_464,
+          command: unguardedRows,
+          transition: unguardedRows,
         });
 
         // the end that has passed no longer has to have passed: the guard of the change to Ended removed
@@ -751,10 +881,11 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         );
 
         // each row of state Active where the end has not passed
-        assert.deepStrictEqual(kinds(alwaysEnds), { transition: 19_968 });
+        assert.deepStrictEqual(kinds(alwaysEnds), {
+          transition: disabledActiveRows(vectors, "Transition0_9"),
+        });
 
         // a table without its changes of time disagrees with nothing and compares fewer rows than the file asks for
-        const committed = yield* Committed;
 
         const ignoring = yield* conform("teams", {
           machines: [

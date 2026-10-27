@@ -9,7 +9,7 @@ import { postgresDatabase } from "./support/database.ts";
 const live = Layer.merge(postgresDatabase(), NodeServices.layer);
 
 const migration = new URL(
-  "../drizzle/20261027152508_backfill_company_addresses/migration.sql",
+  "../drizzle/20261027204231_backfill_company_addresses/migration.sql",
   import.meta.url
 ).pathname;
 

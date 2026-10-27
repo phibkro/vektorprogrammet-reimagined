@@ -11,9 +11,11 @@ request ─► src/server.ts  fetch
              └─ TanStack Start handler, context = { env, ctx }
                   ├─ CSRF middleware (src/start.ts): server functions + every non-GET page request
                   ├─ server functions (src/functions/*.functions.ts)
-                  ├─ server routes: /filer/$key (GET), /kontakt + /kontakt/$department (POST, no-JS form), /kontakt/avdeling/$id (GET → 301)
+                  ├─ server routes: /filer/$key (GET), /kontakt + /kontakt/$department (POST, no-JS form), /kontakt/avdeling/$id (GET → 301), /api/eksport (POST, the download)
                   └─ SSR routes (loaders call server functions)
-cron ────► src/server.ts  scheduled → runTick(env) → declared jobs in order
+cron ────► src/server.ts  scheduled → runTick(env, controller) → the registered jobs of that cron, in declaration order
+          (every 10 min: semesters, ending soon, alumni consent, Workspace sync, outbox sweep last)
+          (RETENTION_CRON, 02:17 UTC: the retention run; `controller.cron` tells the two apart; the mode, apply or count only, is `retentionModeFor(DEPLOYMENT)`)
 ```
 
 Each server function or server route:
@@ -66,6 +68,7 @@ Each server function or server route:
 | `/filer/{key}` | C11 | RULE-290 replacement |
 | `/kontrollpanel` + `avdelinger`, `semestre`, `linjer` | C1, C2 | RULE-033/237, 084, 139 (spec 0001); `semestre` is a list only, no create form (spec 0003, RULE-144 and 190 retired) |
 | `/kontrollpanel/arrangementer` | C8 | RULE-085, 188 |
+| `/min-side` (consents, download, erasure), `/alumni?kode=…`, `/slettet`, `/api/eksport` (POST) | spec 0007b | Two consent questions with one click each, the JSON file of a person's data, the erasure and its confirmation. The alumni page is public: its code is the credential. |
 | `/kontrollpanel/team`, `/kontrollpanel/team/{id}`, `/kontrollpanel/personer`, `/kontrollpanel/administratorer` | spec 0006 | Teams, people, membership terms and admin grants |
 | `/kontrollpanel/integrasjoner` | spec 0008 | Administrators request a dry-run and inspect the latest account and group report |
 | `/logg-inn`, `/aktiver`, `/glemt-passord`, `/tilbakestill-passord`, `/min-side` | spec 0007 | Sign-in, single-use codes, profile, sessions and password |
@@ -123,7 +126,7 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 
 | Stage | What it is | Database | Deployed by |
 | --- | --- | --- | --- |
-| `main` | the base Worker, built from `main`; parent of every Preview; runs the registered jobs | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
+| `main` | the base Worker, built from `main`; parent of every Preview; runs the registered jobs (the tick: semester job, ending soon, alumni consent, Workspace sync and the outbox sweep; the nightly retention run, which changes rows here because this is a preview deployment: production only counts while a period is a proposal, spec 0007b R4) | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
 | `pr-<n>` | a [Cloudflare Worker Preview](https://developers.cloudflare.com/workers/previews/) of `main`: own URL, bindings, Hyperdrive config and R2 bucket; no crons | Neon `preview/pr-<n>`, forked from `dev` and migrated before the deploy; expires 14 days after the last push | the same workflow on every push to a pull request; destroyed when it closes |
 | `production` | the production deployment (not deployed yet) | Neon `production` | operator only |
 

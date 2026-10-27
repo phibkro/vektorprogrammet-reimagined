@@ -16,6 +16,7 @@ import * as Grant from "./kernel/grant.ts";
 import * as Subject from "./kernel/subject.ts";
 import { OrganisationDomain } from "./organisation/declaration.ts";
 import { OutboxDomain } from "./outbox/declaration.ts";
+import { PersonalDataDomain } from "./personalData/rpc.ts";
 import { TeamsDomain } from "./teams/declaration.ts";
 import { WorkspaceDomain } from "./workspace/declaration.ts";
 
@@ -29,6 +30,7 @@ export const Declarations = [
   ContactDomain,
   AuditDomain,
   OutboxDomain,
+  PersonalDataDomain,
   WorkspaceDomain,
 ] as const;
 

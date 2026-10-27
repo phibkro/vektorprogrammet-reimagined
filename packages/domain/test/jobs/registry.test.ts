@@ -11,10 +11,13 @@ import {
   Job,
   JobRegistry,
   OutboxSweep,
+  Periods,
   SystemJob,
+  afterDuration,
   jobProblems,
   systemPrincipal,
 } from "../../src/index.ts";
+import { semesterWindow } from "../../src/organisation/semester.ts";
 import { oslo } from "../support/calendar.ts";
 
 const at = (local: string): DateTime.Utc => DateTime.toUtc(oslo(local));
@@ -161,7 +164,10 @@ describe("spec 0008 falsifier 9, pure half: when a job is due", () => {
   });
 
   it("the Worker's triggers are the registry's crons, each once and in declaration order", () => {
-    assert.deepStrictEqual(Job.cronTriggers(Jobs), ["*/10 * * * *"]);
+    assert.deepStrictEqual(Job.cronTriggers(Jobs), [
+      "*/10 * * * *",
+      "17 2 * * *",
+    ]);
 
     const nightly = Job.make({
       ...workspaceSync,
@@ -216,5 +222,51 @@ describe("spec 0008 falsifier 9, pure half: when a job is due", () => {
     assert.throws(() => {
       Job.make({ ...valid, schedule: { cron: "daily", status: "approved" } });
     });
+  });
+});
+
+describe("spec 0008 with spec 0007b: the two jobs of the personal data engine are registered", () => {
+  it("the retention run has a cron of its own, approved, and runs at each tick of it; the alumni mail runs at the tick", () => {
+    const { alumniConsent, retention } = JobRegistry;
+
+    assert.strictEqual(retention.schedule.cron, "17 2 * * *");
+    assert.strictEqual(retention.schedule.status, "approved");
+    assert.notStrictEqual(retention.schedule.cron, semesters.schedule.cron);
+    assert.strictEqual(alumniConsent.schedule.cron, semesters.schedule.cron);
+    assert.strictEqual(alumniConsent.schedule.cron, JobRegistry.TICK_CRON);
+
+    for (const job of [retention, alumniConsent]) {
+      assert.deepStrictEqual(job.dueWhen, [
+        Job.DueWhen.cases.EveryTick.make({}),
+      ]);
+    }
+  });
+
+  it("the sweep is the last job of the tick, so it delivers what the alumni mail and the digest queued", () => {
+    const tick = Arr.map(
+      Arr.filter(
+        JobRegistry.Jobs,
+        (job) => job.schedule.cron === JobRegistry.TICK_CRON
+      ),
+      (job) => job.name
+    );
+
+    assert.deepStrictEqual(Arr.takeRight(tick, 1), ["outboxSweep"]);
+  });
+
+  it("the ledger of runs is kept longer than a period lasts: a claim made when a semester starts is held until it ends", () => {
+    // `semesters` is due once per semester and its claim is the row that says so. A row that retention forgot before the
+    // semester ended would let the job claim the semester again.
+    for (const term of ["VAR", "HOST"] as const) {
+      const { end, start } = semesterWindow({ term, year: 2026 });
+
+      assert.isTrue(
+        DateTime.isGreaterThan(
+          afterDuration(start, Periods.jobRuns.duration),
+          end
+        ),
+        `${term}: Periods.jobRuns must outlast the semester`
+      );
+    }
   });
 });

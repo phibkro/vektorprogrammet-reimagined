@@ -123,6 +123,15 @@ export const violatedUniqueConstraint = (
     )
   );
 
+/** Whether a failure is the database refusing a row: a unique, exclusion, check, foreign-key or not-null violation. */
+export const isConstraintViolation = (failure: unknown): boolean =>
+  Option.exists(
+    findSqlError(failure),
+    ({ reason }) =>
+      Predicate.isTagged(reason, "UniqueViolation") ||
+      Predicate.isTagged(reason, "ConstraintError")
+  );
+
 /**
  * `AlreadyExists` for a unique violation of a known constraint (`key` is the
  * natural key that collided, as text); a defect for everything else.

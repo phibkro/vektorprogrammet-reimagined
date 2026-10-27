@@ -8,7 +8,8 @@
  * - `production`: the production deployment, the only one with real mail, Slack and Turnstile keys.
  * - `main` (`BASE_STAGE`): long-lived Workers built from `main`, on Neon `dev` with fake data.
  * - any other stage (`pr-<n>`): a Cloudflare Worker Preview of each `main` Worker, on its own Neon
- *   branch. A Preview cannot own crons, so the registered jobs run on
+ *   branch. A Preview cannot own crons, so the registered jobs (the outbox sweep, the semester job, the digest, the
+ *   alumni consent job, the Workspace sync and the retention run, specs 0003, 0006, 0007b and 0008) run on
  *   `main` and `production` only; a Preview's semester rows come from its Neon fork of `dev`. A `Web` Preview
  *   reads the `Cms` Preview of the same pull request.
  *

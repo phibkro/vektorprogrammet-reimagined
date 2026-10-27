@@ -1,0 +1,677 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0233daff-b6ed-4979-8d15-72e17aff25b6",
+  "prevIds": ["34c8a5e1-e1db-454e-b768-9cb012a6f456"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "alumni_request"],
+      "writes": [
+        "s|tbl|public.alumni_request",
+        "n|tbl|public.alumni_request",
+        "e|tbl|public.alumni_request",
+        "n|rel|public.alumni_request",
+        "n|type|public.alumni_request",
+        "n|rel|public.alumni_request_pk"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "consent"],
+      "writes": [
+        "s|tbl|public.consent",
+        "n|tbl|public.consent",
+        "e|tbl|public.consent",
+        "n|rel|public.consent",
+        "n|type|public.consent",
+        "n|rel|public.consent_person_kind_pk"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "audit_log", "counts"],
+      "writes": [
+        "s|col|public.audit_log.counts",
+        "n|col|public.audit_log.counts",
+        "e|col|public.audit_log.counts"
+      ],
+      "reads": ["n|tbl|public.audit_log", "n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "person", "anonymised_at"],
+      "writes": [
+        "s|col|public.person.anonymised_at",
+        "n|col|public.person.anonymised_at",
+        "e|col|public.person.anonymised_at"
+      ],
+      "reads": ["n|tbl|public.person", "n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "person", "created_at"],
+      "writes": [
+        "s|col|public.person.created_at",
+        "n|col|public.person.created_at",
+        "e|col|public.person.created_at"
+      ],
+      "reads": ["n|tbl|public.person", "n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "person", "merged_into"],
+      "writes": [
+        "s|col|public.person.merged_into",
+        "n|col|public.person.merged_into",
+        "e|col|public.person.merged_into"
+      ],
+      "reads": ["n|tbl|public.person", "n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "person", "photo_key"],
+      "writes": [
+        "s|col|public.person.photo_key",
+        "n|col|public.person.photo_key",
+        "e|col|public.person.photo_key"
+      ],
+      "reads": ["n|tbl|public.person", "n|sch|public"]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "alumni_request"],
+      "writes": [
+        "s|fk|public.alumni_request.alumni_request_person_id_person_id_fkey",
+        "n|fk|public.alumni_request.alumni_request_person_id_person_id_fkey",
+        "e|fk|public.alumni_request.alumni_request_person_id_person_id_fkey",
+        "n|con|public.alumni_request.alumni_request_person_id_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.alumni_request",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.alumni_request.person_id",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "consent"],
+      "writes": [
+        "s|fk|public.consent.consent_person_id_person_id_fkey",
+        "n|fk|public.consent.consent_person_id_person_id_fkey",
+        "e|fk|public.consent.consent_person_id_person_id_fkey",
+        "n|con|public.consent.consent_person_id_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.consent",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.consent.person_id",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "person"],
+      "writes": [
+        "s|fk|public.person.person_merged_into_person_id_fkey",
+        "n|fk|public.person.person_merged_into_person_id_fkey",
+        "e|fk|public.person.person_merged_into_person_id_fkey",
+        "n|con|public.person.person_merged_into_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.person.merged_into",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "person"],
+      "writes": [
+        "s|fk|public.person.person_photo_key_public_file_key_fkey",
+        "n|fk|public.person.person_photo_key_public_file_key_fkey",
+        "e|fk|public.person.person_photo_key_public_file_key_fkey",
+        "n|con|public.person.person_photo_key_public_file_key_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|tbl|public.public_file",
+        "n|sch|public",
+        "n|col|public.person.photo_key",
+        "n|col|public.public_file.key",
+        "e|uniqueness|public.public_file.key"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": [
+        "s|ck|public.audit_log.audit_log_counts",
+        "n|ck|public.audit_log.audit_log_counts",
+        "e|ck|public.audit_log.audit_log_counts",
+        "n|con|public.audit_log.audit_log_counts"
+      ],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.counts"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "person"],
+      "writes": [
+        "s|ck|public.person.person_merged_not_self",
+        "n|ck|public.person.person_merged_not_self",
+        "e|ck|public.person.person_merged_not_self",
+        "n|con|public.person.person_merged_not_self"
+      ],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.person.merged_into",
+        "n|col|public.person.id"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "person"],
+      "writes": [
+        "s|ck|public.person.person_merged_anonymised",
+        "n|ck|public.person.person_merged_anonymised",
+        "e|ck|public.person.person_merged_anonymised",
+        "n|con|public.person.person_merged_anonymised"
+      ],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.person.merged_into",
+        "n|col|public.person.anonymised_at"
+      ]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_action"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.action",
+        "e|col|public.audit_log.action"
+      ],
+      "sqlHash": "a43cecbbe8caef95"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_entity"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.entity",
+        "e|col|public.audit_log.entity"
+      ],
+      "sqlHash": "dcbda76c404ec52b"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_system_job"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.system_job",
+        "e|col|public.audit_log.system_job"
+      ],
+      "sqlHash": "0788349113678e44"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "code"],
+      "writes": ["s|ck|public.code.code_purpose"],
+      "reads": [
+        "n|tbl|public.code",
+        "n|sch|public",
+        "n|col|public.code.purpose",
+        "e|col|public.code.purpose"
+      ],
+      "sqlHash": "ec0e181a915d615f"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "alumni_request",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "consent",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "alumni_request",
+        "name": "engagement_end",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "alumni_request",
+        "name": "person_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "alumni_request",
+        "name": "requested_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "audit_log",
+        "name": "counts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "decided_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": {
+          "as": "greatest(given_at, coalesce(withdrawn_at, given_at))",
+          "type": "stored"
+        },
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "given_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "person_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "text_version",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "withdrawn_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "anonymised_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "merged_into",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "photo_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "alumni_request",
+        "name": "alumni_request_person_id_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["person_id"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "consent_person_id_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["person_id"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "person_merged_into_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["merged_into"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "person_photo_key_public_file_key_fkey",
+        "nameExplicit": false,
+        "columns": ["photo_key"],
+        "schemaTo": "public",
+        "tableTo": "public_file",
+        "columnsTo": ["key"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "alumni_request",
+        "name": "alumni_request_pk",
+        "columns": ["person_id", "engagement_end"],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "consent_person_kind_pk",
+        "columns": ["person_id", "kind"],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "audit_log",
+        "name": "audit_log_counts",
+        "value": "\"counts\" is null or (jsonb_typeof(\"counts\") = 'object' and not jsonb_path_exists(\"counts\", '$.* ? (@.type() != \"number\")'))",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "consent_kind",
+        "value": "\"kind\" in ('keepDetails', 'news', 'photo')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "consent_text_version",
+        "value": "\"text_version\" > 0",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "consent",
+        "name": "consent_withdrawn_after_given",
+        "value": "\"withdrawn_at\" is null or \"withdrawn_at\" >= \"given_at\"",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "person_merged_not_self",
+        "value": "\"merged_into\" is null or \"merged_into\" <> \"id\"",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "person_merged_anonymised",
+        "value": "\"merged_into\" is null or \"anonymised_at\" is not null",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_action\"]",
+      "set": {
+        "value": "\"action\" in ('department.created', 'department.updated', 'fieldOfStudy.created', 'fieldOfStudy.updated', 'socialEvent.created', 'publicFile.registered', 'person.registered', 'person.profileUpdated', 'account.invited', 'account.activated', 'account.deactivated', 'account.reactivated', 'account.passwordReset', 'team.created', 'team.updated', 'team.deactivated', 'membership.added', 'membership.extended', 'membership.changed', 'membership.endedEarly', 'membership.cancelled', 'adminGrant.granted', 'adminGrant.revoked', 'endingSoon.sent', 'consent.given', 'consent.withdrawn', 'person.exported', 'person.erased', 'person.merged', 'person.photoSet', 'person.photoRemoved', 'alumni.requested', 'retention.ran')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_entity\"]",
+      "set": {
+        "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'SocialEvent', 'PublicFile', 'Person', 'Account', 'Team', 'Position', 'Membership', 'AdminGrant', 'AdminList', 'Consent', 'Retention')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_system_job\"]",
+      "set": {
+        "value": "\"system_job\" in ('semesters', 'outboxSweep', 'endingSoon', 'retention', 'alumniConsent')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"code\",\"code_purpose\"]",
+      "set": {
+        "value": "\"purpose\" in ('activation', 'alumniConsent', 'resetPassword')"
+      }
+    }
+  ]
+}

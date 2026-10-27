@@ -16,7 +16,7 @@
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
-import { DatabaseLive } from "@vektorprogrammet/db";
+import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
 import type {
   CapturedMessageStore,
   OutboxDelivery,
@@ -34,19 +34,23 @@ import type {
   AdminGrantRepository,
   AggregateLocks,
   AdmissionPeriodRepository,
+  AlumniRequests,
   AuditLog,
   CodeRepository,
+  ConsentRepository,
   DepartmentRepository,
   DigestLedger,
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
   JobRun,
+  LegalHolds,
   MembershipRepository,
   OutboxMessageId,
   PasswordHasher,
   PersonId,
   PersonRepository,
+  PersonalDataStore,
   PositionRepository,
   PrincipalDirectory,
   PublicFileRepository,
@@ -59,6 +63,7 @@ import type {
   WorkspaceFacts,
   WorkspaceReports,
   WorkspaceWriter,
+  RetentionRun,
 } from "@vektorprogrammet/domain";
 import {
   Cause,
@@ -83,7 +88,7 @@ import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
 import type { RequestError } from "./errors";
 import { r2FileStoreLayer } from "./fileStore";
-import { runners } from "./jobRunners";
+import { retentionRunner, runners } from "./jobRunners";
 import type { TickServices } from "./jobRunners";
 import { dispatchTick } from "./jobs";
 import { withOutbox } from "./outboxSweep";
@@ -91,6 +96,7 @@ import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
 import { contactRateLimiterLayer } from "./rateLimit";
 import type { ContactRateLimiter } from "./rateLimit";
+import { retentionModeFor } from "./retentionMode";
 import { messageSenderLayer, senderConfigFromEnv } from "./senders";
 import type { MessageSender } from "./senders";
 import { Transactor, transactorLayer } from "./transactor";
@@ -135,6 +141,11 @@ export type DatabaseServices =
   | AdminGrantRepository
   | DigestLedger
   | WelcomeLedger
+  | ConsentRepository
+  | AlumniRequests
+  | LegalHolds
+  | PersonalDataStore
+  | RetentionRun
   | PrincipalDirectory
   | Outbox
   | AuditLog
@@ -300,9 +311,13 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
 ): Promise<Outcome<A>> =>
   runOutcome(liveRequestLayer(scope), program, scope.signal);
 
-/** Outbox delivery with its own connection: used by `waitUntil` and by the cron sweep. */
+/**
+ * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the
+ * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one.
+ */
 const deliveryLayer = (
-  env: WorkerEnv
+  env: WorkerEnv,
+  database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Layer.Layer<
   | AccountDelivery
   | MessageSender
@@ -320,7 +335,7 @@ const deliveryLayer = (
             messageSenderLayer(senderConfigFromEnv(deployment, env)).pipe(
               Layer.provide(FetchHttpClient.layer),
               Layer.orDie,
-              Layer.provideMerge(databaseLayer(env))
+              Layer.provideMerge(database)
             ),
             workspaceWriterLayer(workspaceConfigFromEnv(deployment, env)),
             authLayer(env).pipe(Layer.orDie),
@@ -407,7 +422,39 @@ export const runSignInPerson = (
   );
 
 /**
- * The Layer of one scheduled tick (spec 0008): the delivery services, which hold the database, the senders and the
+ * What a scheduled job reads of the Worker's bindings: the deployment, the site's origin and the database's connection
+ * string. A test runs a job without a Cloudflare binding.
+ */
+export type RetentionEnv = Pick<WorkerEnv, "DEPLOYMENT" | "SITE_URL"> & {
+  readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
+};
+
+/**
+ * The database of every scheduled job: `JobDatabaseLive`, the only layer that carries a retention run that changes
+ * rows, in the mode that `retentionModeFor` decides from the deployment and the approval of the periods (spec 0007b
+ * R4). The mode is fixed here, so no job chooses it.
+ */
+const jobDatabaseLayer = (env: RetentionEnv): Layer.Layer<DatabaseServices> =>
+  Layer.unwrap(
+    Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
+      JobDatabaseLive({
+        maxConnections: MAX_CONNECTIONS_PER_REQUEST,
+        retention: retentionModeFor(deployment),
+        url: Redacted.make(env.HYPERDRIVE.connectionString),
+      }).pipe(Layer.orDie)
+    )
+  );
+
+/** The Layer of the retention job alone: the transaction runner and the site's origin over the job database. */
+const retentionJobLayer = (
+  env: RetentionEnv
+): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
+  Layer.mergeAll(transactorLayer, Layer.succeed(SiteOrigin)(env.SITE_URL)).pipe(
+    Layer.provideMerge(jobDatabaseLayer(env))
+  );
+
+/**
+ * The Layer of one scheduled tick (spec 0008): the delivery services, which hold the job database, the senders and the
  * Workspace writer, the transaction runner, and the Workspace directory and mode by deployment.
  */
 const tickLayer = (env: WorkerEnv): Layer.Layer<TickServices | Transactor> =>
@@ -418,15 +465,19 @@ const tickLayer = (env: WorkerEnv): Layer.Layer<TickServices | Transactor> =>
       return Layer.mergeAll(
         workspaceDirectoryLayer(workspace),
         workspaceModeLayer(workspace),
-        transactorLayer.pipe(Layer.provideMerge(deliveryLayer(env)))
+        transactorLayer.pipe(
+          Layer.provideMerge(deliveryLayer(env, jobDatabaseLayer(env)))
+        )
       );
     })
   );
 
 /**
- * One cron tick: every registered job that is due runs (spec 0008), each as its own `System` principal, in
- * declaration order, and one that fails never stops the next. Never rejects, so `waitUntil` is safe; a run that
- * failed or died is recorded in `job_run` and left for a later tick.
+ * One cron tick: every registered job of that cron that is due runs (spec 0008), each as its own `System` principal,
+ * in declaration order, and one that fails never stops the next. The platform always names the cron that fired; only a
+ * local trigger (`/cdn-cgi/handler/scheduled`) passes none, and it runs the ten-minute tick, so the nightly retention
+ * run needs its own cron string (spec 0007b). Never rejects, so `waitUntil` is safe; a run that failed or died is
+ * recorded in `job_run` and left for a later tick.
  */
 export const runTick = (
   env: WorkerEnv,
@@ -437,9 +488,27 @@ export const runTick = (
     tickLayer(env),
     dispatchTick(JobRegistry.Jobs, runners, {
       at: DateTime.makeUnsafe(controller.scheduledTime),
-      cron: controller.cron,
+      cron: controller.cron === "" ? JobRegistry.TICK_CRON : controller.cron,
       only,
     })
+  );
+
+/**
+ * The nightly retention run of spec 0007b, through the scheduler: the job's own declaration and runner, over the
+ * Layer of that job alone (a test, and nothing else, runs it without the Worker's other bindings). The deployment and
+ * the approval of the periods decide what the run does (`retentionModeFor`): in production, while a period is a
+ * proposal, it only counts and audits what it would change.
+ */
+export const runRetention = (env: RetentionEnv): Promise<void> =>
+  runScheduled(
+    retentionJobLayer(env),
+    Effect.flatMap(DateTime.now, (at) =>
+      dispatchTick(
+        [JobRegistry.retention],
+        { retention: retentionRunner },
+        { at }
+      )
+    )
   );
 
 /**

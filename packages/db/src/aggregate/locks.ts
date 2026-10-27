@@ -8,7 +8,7 @@
  */
 import { AggregateLocks, NotFound } from "@vektorprogrammet/domain";
 import type { AggregateRoot, Locked } from "@vektorprogrammet/domain";
-import { asc, inArray, sql } from "drizzle-orm";
+import { and, asc, inArray, isNull, sql } from "drizzle-orm";
 import { Array as Arr, Effect, Layer, Option, Order, Ref } from "effect";
 import { cast } from "effect/Function";
 
@@ -105,7 +105,13 @@ const makeLocks = (db: Drizzle["Service"], roots: DeclaredRoots) => {
       const rows = yield* db
         .select({ id: sql<number>`${root.key}` })
         .from(root.table)
-        .where(inArray(root.key, fresh))
+        .where(
+          and(
+            inArray(root.key, fresh),
+            // A tombstone (a merged person) is not a row that a command can lock: it is refused as missing.
+            root.tombstone === undefined ? undefined : isNull(root.tombstone)
+          )
+        )
         .orderBy(asc(root.key))
         .for("no key update")
         .pipe(Effect.orDie);

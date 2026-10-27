@@ -7,10 +7,13 @@ import {
   CodeRepository,
   OutboxMessage,
   PersonRepository,
+  PersonalDataDeclaration,
   SiteOrigin,
   codePolicy,
+  lifetimeWords,
   mintCode,
 } from "@vektorprogrammet/domain";
+import type { Account } from "@vektorprogrammet/domain";
 import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -25,20 +28,33 @@ type CredentialIntent = Extract<
   { readonly _tag: "SetCredential" }
 >;
 
+/** The wording of each purpose's mail; the link is the purpose's page and `?kode=`, and the lifetime is spelled from the policy by `lifetimeWords`. */
 const codeMail = {
   activation: {
-    expectedState: "Invited",
     path: "/aktiver",
     subject: "Aktiver kontoen din",
-    verb: "Aktiver kontoen",
+    text: (link: string) => `Aktiver kontoen: ${link}`,
+  },
+  alumniConsent: {
+    path: "/alumni",
+    subject: "To spørsmål om opplysningene dine",
+    text: (link: string, lifetime: string) =>
+      `Du er ikke lenger medlem eller assistent i Vektorprogrammet. Vi vil gjerne spørre deg om to ting som gjelder opplysningene dine. Svar med ett klikk på hvert spørsmål: ${link}\n\nLenken virker i ${lifetime}, og du kan endre svaret så lenge den virker. Du trenger ikke svare.`,
   },
   resetPassword: {
-    expectedState: "Active",
     path: "/tilbakestill-passord",
     subject: "Tilbakestill passordet ditt",
-    verb: "Velg et nytt passord",
+    text: (link: string) => `Velg et nytt passord: ${link}`,
   },
 } as const;
+
+/** The account that a purpose needs, if it needs one: `null` needs none (an alumnus may have no account). */
+const accountFits = (
+  needed: "Active" | "Invited" | null,
+  account: Option.Option<Account>
+): boolean =>
+  needed === null ||
+  Option.exists(account, (found) => found.state._tag === needed);
 
 export class AccountDelivery extends Context.Service<
   AccountDelivery,
@@ -77,21 +93,23 @@ export const accountDeliveryLayer = Layer.effect(
               .lock("Person", message.personId)
               .pipe(Effect.option);
 
-            const account = Option.isSome(locked)
-              ? yield* accounts.findLocked(locked.value)
-              : Option.none();
+            if (Option.isNone(locked)) {
+              return yield* delivery.markDelivered(row.id, row.claimToken);
+            }
 
-            const presentation = codeMail[message.purpose];
+            const account = yield* accounts.findLocked(locked.value);
+            const recipient = yield* people.findLocked(locked.value);
+            const policy = codePolicy[message.purpose];
 
+            // Nothing is sent when the purpose's account is not there any more, or the person was erased meanwhile:
+            // anonymisation leaves an address that cannot receive mail.
             if (
-              Option.isNone(locked) ||
-              Option.isNone(account) ||
-              account.value.state._tag !== presentation.expectedState
+              !accountFits(policy.account, account) ||
+              PersonalDataDeclaration.isAnonymisedEmail(recipient.email)
             ) {
               return yield* delivery.markDelivered(row.id, row.claimToken);
             }
 
-            const recipient = yield* people.findLocked(locked.value);
             const now = yield* DateTime.now;
 
             const { token, hash } = yield* mintCode().pipe(
@@ -101,16 +119,22 @@ export const accountDeliveryLayer = Layer.effect(
 
             yield* codes.replace(locked.value, {
               expiresAt: DateTime.add(now, {
-                seconds: codePolicy[message.purpose].lifetimeSeconds,
+                seconds: policy.lifetimeSeconds,
               }),
               hash,
               purpose: message.purpose,
             });
 
+            const presentation = codeMail[message.purpose];
+            const link = `${origin}${presentation.path}?kode=${token}`;
+
             const email = OutboxMessage.cases.Email.make({
               replyTo: null,
               subject: presentation.subject,
-              text: `${presentation.verb}: ${origin}${presentation.path}?kode=${token}`,
+              text: presentation.text(
+                link,
+                lifetimeWords(policy.lifetimeSeconds, "no")
+              ),
               to: recipient.email,
             });
 

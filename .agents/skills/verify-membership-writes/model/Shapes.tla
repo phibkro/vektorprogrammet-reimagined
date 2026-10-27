@@ -22,8 +22,9 @@
 (*   insertRow         INSERT INTO membership                              *)
 (*   updateEnd         UPDATE membership SET end ... WHERE <setEndWhere>   *)
 (*   deleteRow         DELETE FROM membership WHERE <removeWhere>          *)
-(* A write also has `person_id = :token` in its WHERE (aggregates.ts); the *)
-(* rows of the model are the locked person's, so that always holds.        *)
+(* A write also has `person_id IN (the tokens' ids)` in its WHERE          *)
+(* (aggregates.ts, `ofHeld`); a command holds one token, and the rows of   *)
+(* the model are that person's, so that always holds.                      *)
 (***************************************************************************)
 EXTENDS Sequences
 
@@ -31,8 +32,8 @@ CurrentCode == [
     \* The calls that each command makes, in order (each handler runs in one
     \* transaction, packages/db/src/transactional.ts:41-58). `createAdminGrant` and
     \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
-    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:251-252,
-    \* 277-278, through lockAccount at 106-121) take the same two locks.
+    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:197-198,
+    \* 223-224, through lockAccount at 51-66) take the same two locks.
     \* createMembership reads history and claims welcome_ledger; deleteMembership
     \* also claims it after removal. Both use the existing Person token and take
     \* no new root lock. Ledger and outbox guarantees are tested on PostgreSQL.
@@ -53,20 +54,20 @@ CurrentCode == [
     repo |-> [
         \* beginTransition: the unlocked read that finds the owner, the lock
         \* of that person, the read through its token, on which the machine
-        \* decides (teams/commands.ts:118-148).
-        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 126, 127, 128, 129-145
-        find     |-> <<"find">>,                       \* teams.ts:465-475
-        read     |-> <<"read">>,                       \* teams.ts:477-485
+        \* decides (teams/commands.ts:115-145).
+        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 123, 124, 125, 126-142
+        find     |-> <<"find">>,                       \* teams.ts:388-398
+        read     |-> <<"read">>,                       \* teams.ts:400-408
         \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
-        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-111, 136-142). A row
+        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-117, 142-148). A row
         \* that the transaction holds sends no statement (87-90).
         lock     |-> <<"lockPerson">>,
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
         \* (domain/shared/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
-        insert   |-> <<"insertRow">>,                  \* teams.ts:558-577, Aggregates.insert
-        setEnd   |-> <<"updateEnd">>,                  \* teams.ts:584-614, Aggregates.update
-        remove   |-> <<"deleteRow">>                   \* teams.ts:620-649, Aggregates.remove
+        insert   |-> <<"insertRow">>,                  \* teams.ts:481-500, Aggregates.insert (aggregates.ts:304-343)
+        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:502-537, Aggregates.update (aggregates.ts:370-390, onHeld :144-162)
+        remove   |-> <<"deleteRow">>                   \* teams.ts:539-572, Aggregates.remove (aggregates.ts:360-364, onHeld :144-162)
     ],
     \* A lock that would come before one that the transaction holds is a defect
     \* before any statement is sent (db/aggregate/locks.ts:92-103,
@@ -74,14 +75,14 @@ CurrentCode == [
     \* (domain/shared/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:609-613, 644-645).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:598-603
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:632-640
+    \* row is `lostRace`, the typed Conflict (teams.ts:336-341, 532-536, 567-569).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:521-526
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:555-563
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
     \* What the caller is told for each SQLSTATE that a write can meet.
-    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:99-124, 130-149
+    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:95-120, 135-154
     on40P01 |-> "defect"                            \* classifySqlFailure.ts: no case; test classifySqlFailure.test.ts:51
 ]
 
@@ -90,7 +91,7 @@ CurrentCode == [
 (***************************************************************************)
 
 \* The lock without the row lock: the SELECT of AggregateLocks.lock loses its
-\* FOR NO KEY UPDATE (locks.ts:110), so every lock, of a person and of the
+\* FOR NO KEY UPDATE (locks.ts:116), so every lock, of a person and of the
 \* admin list, is a plain read. The state before spec 0006 R6 and mutation M1
 \* of spec 0006b R3: two writes of one person overlap, and one of them dies as
 \* the victim of a deadlock.
@@ -170,7 +171,7 @@ ReplaceThroughConstruct == [CurrentCode EXCEPT !.compose =
 (***************************************************************************)
 
 \* lockAll("Person", [a, b]) is one statement, SELECT ... WHERE id IN (a, b)
-\* ORDER BY id FOR NO KEY UPDATE (locks.ts:105-111). PostgreSQL takes the rows
+\* ORDER BY id FOR NO KEY UPDATE (locks.ts:105-117). PostgreSQL takes the rows
 \* one at a time in ORDER BY order, and a row that another transaction holds
 \* makes the statement wait while the rows before it stay locked: two
 \* acquisitions, the lower id first, whatever the order of the arguments

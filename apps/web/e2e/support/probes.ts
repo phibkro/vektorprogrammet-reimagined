@@ -311,3 +311,61 @@ export const deleteAdminPlace = (id: number) =>
     SqlClient,
     (sql) => sql`delete from admin_grant where id = ${id}`
   );
+
+const ConsentRow = Schema.Struct({
+  kind: Schema.String,
+  textVersion: Schema.Int,
+  withdrawn: Schema.Boolean,
+});
+
+/** The consent records of the person with this address, by kind: the text version they saw, and whether they withdrew. */
+export const consentsOf = (email: string) =>
+  rowsOf(
+    ConsentRow,
+    (sql) =>
+      sql`select c.kind, c.text_version as "textVersion", c.withdrawn_at is not null as withdrawn
+        from consent c join person p on p.id = c.person_id
+        where p.email = ${email}
+        order by c.kind`
+  );
+
+/** A person with no engagement whose record is three years old, which the nightly run must anonymise; the id. */
+export const insertExpiredPerson = (name: string, email: string) =>
+  rowOf(
+    Schema.Struct({ id: Schema.Int }),
+    (sql) =>
+      sql`insert into person (name, email, field_of_study_id, created_at)
+        select ${name}, ${email}, id, now() - interval '3 years'
+        from field_of_study order by id limit 1
+        returning id`
+  ).pipe(Effect.map(({ id }) => id));
+
+/** The id of the person with this address. */
+export const personIdOf = (email: string) =>
+  rowOf(
+    Schema.Struct({ id: Schema.Int }),
+    (sql) => sql`select id from person where email = ${email}`
+  ).pipe(Effect.map(({ id }) => id));
+
+const PersonCore = Schema.Struct({
+  anonymised: Schema.Boolean,
+  email: Schema.String,
+  mergedInto: Schema.NullOr(Schema.Int),
+  name: Schema.String,
+});
+
+/** What the person row holds now: the core fields, whether it was anonymised, and the record it was merged into. */
+export const personCore = (id: number) =>
+  rowOf(
+    PersonCore,
+    (sql) =>
+      sql`select name, email, anonymised_at is not null as anonymised, merged_into as "mergedInto"
+        from person where id = ${id}`
+  );
+
+/** The counts of the latest retention run's audit row: integers per table, never a value. */
+export const latestRetentionCounts = rowOf(
+  Schema.Struct({ counts: Schema.Record(Schema.String, Schema.Int) }),
+  (sql) =>
+    sql`select counts from audit_log where action = 'retention.ran' order by id desc limit 1`
+);

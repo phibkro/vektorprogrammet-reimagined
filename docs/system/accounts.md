@@ -51,18 +51,21 @@ stateDiagram-v2
 
 <!-- docgen:end commands -->
 
-## Single-use codes
+## Codes
 
 <!-- docgen:begin code-policy -->
 
-| Purpose       | Command         | Lifetime (hours) |
-| ------------- | --------------- | ---------------- |
-| activation    | activateAccount | 336              |
-| resetPassword | resetPassword   | 24               |
+| Purpose       | Command             | Hours | Account | Single use |
+| ------------- | ------------------- | ----- | ------- | ---------- |
+| activation    | activateAccount     | 336   | Invited | yes        |
+| alumniConsent | answerAlumniConsent | 1440  | none    | no         |
+| resetPassword | resetPassword       | 24    | Active  | yes        |
 
 <!-- docgen:end code-policy -->
 
 Delivery mints a new random code and stores only its SHA-256 hash. A retry replaces the previous code. The plaintext stays in memory and in the delivered email. The non-production mailbox stores that email for tests. A conditional update gives one winner. The expiry comparison uses the whole stored instant.
+
+A single-use code ends with its first use. A code that is not single use (the alumni consent code) is checked and never consumed, so the person can answer again until it expires. It opens one command, and only for the person it names. A purpose that needs no account (the alumni consent code) works for a person who has none.
 
 ## Sessions
 

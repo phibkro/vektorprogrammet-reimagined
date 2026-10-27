@@ -1,0 +1,1292 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "ffb1095b-b353-48aa-b1e7-d7a3da3361f5",
+  "prevIds": ["e66dc622-451d-43cb-9ab4-c5b3bb95acc8"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "captured_slack"],
+      "writes": [
+        "s|tbl|public.captured_slack",
+        "n|tbl|public.captured_slack",
+        "e|tbl|public.captured_slack",
+        "n|rel|public.captured_slack",
+        "n|type|public.captured_slack",
+        "n|rel|public.captured_slack_pkey",
+        "n|rel|public.captured_slack_delivery_key_unique"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "company_address"],
+      "writes": [
+        "s|tbl|public.company_address",
+        "n|tbl|public.company_address",
+        "e|tbl|public.company_address",
+        "n|rel|public.company_address",
+        "n|type|public.company_address",
+        "n|rel|public.company_address_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "job_run"],
+      "writes": [
+        "s|tbl|public.job_run",
+        "n|tbl|public.job_run",
+        "e|tbl|public.job_run",
+        "n|rel|public.job_run",
+        "n|type|public.job_run",
+        "n|rel|public.job_run_pk"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "welcome_ledger"],
+      "writes": [
+        "s|tbl|public.welcome_ledger",
+        "n|tbl|public.welcome_ledger",
+        "e|tbl|public.welcome_ledger",
+        "n|rel|public.welcome_ledger",
+        "n|type|public.welcome_ledger",
+        "n|rel|public.welcome_ledger_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "workspace_report"],
+      "writes": [
+        "s|tbl|public.workspace_report",
+        "n|tbl|public.workspace_report",
+        "e|tbl|public.workspace_report",
+        "n|rel|public.workspace_report",
+        "n|type|public.workspace_report",
+        "n|rel|public.workspace_report_pkey",
+        "n|rel|public.workspace_report_period_unique"
+      ],
+      "reads": ["n|sch|public", "n|enum|public.semester_term"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "captured_mail", "delivery_key"],
+      "writes": [
+        "s|col|public.captured_mail.delivery_key",
+        "n|col|public.captured_mail.delivery_key",
+        "e|col|public.captured_mail.delivery_key"
+      ],
+      "reads": ["n|tbl|public.captured_mail", "n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "team", "group_email"],
+      "writes": [
+        "s|col|public.team.group_email",
+        "n|col|public.team.group_email",
+        "e|col|public.team.group_email"
+      ],
+      "reads": ["n|tbl|public.team", "n|sch|public"]
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": ["table", "public", "captured_mail"],
+      "writes": [
+        "s|uq|public.captured_mail.captured_mail_delivery_key_unique",
+        "n|uq|public.captured_mail.captured_mail_delivery_key_unique",
+        "e|uq|public.captured_mail.captured_mail_delivery_key_unique",
+        "n|con|public.captured_mail.captured_mail_delivery_key_unique",
+        "n|rel|public.captured_mail_delivery_key_unique"
+      ],
+      "reads": [
+        "n|tbl|public.captured_mail",
+        "n|sch|public",
+        "n|col|public.captured_mail.delivery_key"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "company_address",
+        "company_address_person_idx"
+      ],
+      "writes": [
+        "s|idx|public.company_address_person_idx",
+        "n|idx|public.company_address_person_idx",
+        "e|idx|public.company_address_person_idx",
+        "n|rel|public.company_address_person_idx"
+      ],
+      "reads": [
+        "n|tbl|public.company_address",
+        "n|sch|public",
+        "n|col|public.company_address.person_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "company_address",
+        "company_address_team_idx"
+      ],
+      "writes": [
+        "s|idx|public.company_address_team_idx",
+        "n|idx|public.company_address_team_idx",
+        "e|idx|public.company_address_team_idx",
+        "n|rel|public.company_address_team_idx"
+      ],
+      "reads": [
+        "n|tbl|public.company_address",
+        "n|sch|public",
+        "n|col|public.company_address.team_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": ["index", "public", "job_run", "job_run_resume_idx"],
+      "writes": [
+        "s|idx|public.job_run_resume_idx",
+        "n|idx|public.job_run_resume_idx",
+        "e|idx|public.job_run_resume_idx",
+        "n|rel|public.job_run_resume_idx"
+      ],
+      "reads": [
+        "n|tbl|public.job_run",
+        "n|sch|public",
+        "n|col|public.job_run.job",
+        "n|col|public.job_run.outcome"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": ["index", "public", "team", "team_group_email_unique"],
+      "writes": [
+        "s|idx|public.team_group_email_unique",
+        "n|idx|public.team_group_email_unique",
+        "e|idx|public.team_group_email_unique",
+        "n|rel|public.team_group_email_unique"
+      ],
+      "reads": [
+        "n|tbl|public.team",
+        "n|sch|public",
+        "n|col|public.team.group_email"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "company_address"],
+      "writes": [
+        "s|fk|public.company_address.company_address_person_id_person_id_fkey",
+        "n|fk|public.company_address.company_address_person_id_person_id_fkey",
+        "e|fk|public.company_address.company_address_person_id_person_id_fkey",
+        "n|con|public.company_address.company_address_person_id_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.company_address",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.company_address.person_id",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "company_address"],
+      "writes": [
+        "s|fk|public.company_address.company_address_team_id_team_id_fkey",
+        "n|fk|public.company_address.company_address_team_id_team_id_fkey",
+        "e|fk|public.company_address.company_address_team_id_team_id_fkey",
+        "n|con|public.company_address.company_address_team_id_team_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.company_address",
+        "n|sch|public",
+        "n|tbl|public.team",
+        "n|sch|public",
+        "n|col|public.company_address.team_id",
+        "n|col|public.team.id",
+        "e|uniqueness|public.team.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "welcome_ledger"],
+      "writes": [
+        "s|fk|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey",
+        "n|fk|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey",
+        "e|fk|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey",
+        "n|con|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.welcome_ledger",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.welcome_ledger.person_id",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "team"],
+      "writes": [
+        "s|ck|public.team.team_group_email",
+        "n|ck|public.team.team_group_email",
+        "e|ck|public.team.team_group_email",
+        "n|con|public.team.team_group_email"
+      ],
+      "reads": [
+        "n|tbl|public.team",
+        "n|sch|public",
+        "n|col|public.team.group_email"
+      ]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "outbox"],
+      "writes": ["s|ck|public.outbox.outbox_kind"],
+      "reads": [
+        "n|tbl|public.outbox",
+        "n|sch|public",
+        "n|col|public.outbox.kind",
+        "e|col|public.outbox.kind"
+      ],
+      "sqlHash": "2fd4155ec2fecdf7"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_system_job"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.system_job",
+        "e|col|public.audit_log.system_job"
+      ],
+      "sqlHash": "9c3346352efe7e59"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "captured_slack",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "company_address",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "job_run",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "welcome_ledger",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "workspace_report",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_mail",
+        "name": "delivery_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "channel",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "delivery_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": {
+          "type": "always",
+          "name": "captured_slack_id_seq",
+          "increment": "1",
+          "startWith": "1",
+          "minValue": "1",
+          "maxValue": "2147483647",
+          "cache": 1,
+          "cycle": false
+        },
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "sent_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "text",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "address",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "person_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "team_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "attempt",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "counts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "cursor",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "ended_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "last_error",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "lease_until",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "outcome",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "period",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "started_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "team",
+        "name": "group_email",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "person_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "recorded_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "accounts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "actual",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "completed_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "counts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "department_lists",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "groups",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": {
+          "type": "always",
+          "name": "workspace_report_id_seq",
+          "increment": "1",
+          "startWith": "1",
+          "minValue": "1",
+          "maxValue": "2147483647",
+          "cache": 1,
+          "cycle": false
+        },
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "issues",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "mode",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "period",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "semester_term",
+        "type": "semester_term",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "semester_year",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "started_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "status",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "unmanaged",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{\"accounts\":[],\"groups\":[]}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_person_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "person_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_team_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "team_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job_run_resume_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "job",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "outcome",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "team",
+        "name": "team_group_email_unique",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "group_email",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": "\"group_email\" is not null",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_person_id_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["person_id"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_team_id_team_id_fkey",
+        "nameExplicit": false,
+        "columns": ["team_id"],
+        "schemaTo": "public",
+        "tableTo": "team",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "welcome_ledger_person_id_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["person_id"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job_run_pk",
+        "columns": ["job", "period"],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "captured_slack_pkey",
+        "columns": ["id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_pkey",
+        "columns": ["address"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "welcome_ledger_pkey",
+        "columns": ["person_id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "workspace_report_pkey",
+        "columns": ["id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_mail",
+        "name": "captured_mail_delivery_key_unique",
+        "nameExplicit": true,
+        "columns": ["delivery_key"],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "captured_slack",
+        "name": "captured_slack_delivery_key_unique",
+        "nameExplicit": true,
+        "columns": ["delivery_key"],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "workspace_report_period_unique",
+        "nameExplicit": true,
+        "columns": ["period"],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_one_owner",
+        "value": "(\"person_id\" is null) <> (\"team_id\" is null)",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "company_address",
+        "name": "company_address_lowercase",
+        "value": "\"address\" = lower(\"address\")",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job_run_job",
+        "value": "\"job\" in ('semesters', 'outboxSweep', 'endingSoon', 'retention', 'alumniConsent', 'workspaceSync')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job_run_outcome",
+        "value": "\"outcome\" in ('running', 'partial', 'done', 'failed')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job_run_attempt",
+        "value": "\"attempt\" >= 0",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "team",
+        "name": "team_group_email",
+        "value": "\"group_email\" is null or \"group_email\" ~ '^[a-z0-9._+-]+@vektorprogrammet\\.no$'",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "workspace_report_actual",
+        "value": "\"actual\" in ('read', 'unavailable')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "workspace_report_mode",
+        "value": "\"mode\" in ('dry-run', 'write')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "workspace_report_status",
+        "value": "\"status\" in ('running', 'complete', 'refused')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "workspace_report_completed",
+        "value": "(\"status\" = 'running') = (\"completed_at\" is null)",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"outbox\",\"outbox_kind\"]",
+      "set": {
+        "value": "\"kind\" in ('Email', 'IssueCode', 'SetCredential', 'SlackPost', 'WorkspaceChange')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_system_job\"]",
+      "set": {
+        "value": "\"system_job\" in ('semesters', 'outboxSweep', 'endingSoon', 'retention', 'alumniConsent', 'workspaceSync')"
+      }
+    }
+  ]
+}

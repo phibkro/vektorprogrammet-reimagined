@@ -55,6 +55,8 @@
         "semesters",
         "outboxSweep",
         "endingSoon",
+        "retention",
+        "alumniConsent",
         "workspaceSync"
       ]
     }

@@ -17,17 +17,20 @@ import type {
 } from "@vektorprogrammet/cms-client";
 import {
   AdmissionPeriodRepository,
+  Catalog,
+  ContactForm,
   DepartmentRepository,
   NotFound,
   contactReceiptNotice,
   hasOpenAdmission,
   osloParts,
   paginate,
+  privacyNotice,
   selectFrontPageNews,
   slugify,
   sortSponsorsForFooter,
 } from "@vektorprogrammet/domain";
-import type { Department } from "@vektorprogrammet/domain";
+import type { Department, PrivacyNotice } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -451,6 +454,8 @@ export interface ContactPageView {
   readonly texts: TextViews;
   /** The receipt notice after a successful post (legacy wording, from the domain). */
   readonly notice: string | null;
+  /** What the form collects, why, and how long it is kept: generated from the declarations (spec 0007b). */
+  readonly privacy: PrivacyNotice;
 }
 
 /** Kontakt: `slug` selects the tab; `sentTo` is the department of a just-sent message. */
@@ -472,6 +477,7 @@ export const contactPage = Effect.fn("contactPage")(function* contactPage(
   return {
     departments,
     notice: sentTo ? contactReceiptNotice(selected.value) : null,
+    privacy: privacyNotice(ContactForm, Catalog),
     selected: selected.value,
     texts: yield* pageTexts("contact"),
   } satisfies ContactPageView;

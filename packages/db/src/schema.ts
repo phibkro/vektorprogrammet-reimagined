@@ -21,6 +21,7 @@ import {
   AuditClient,
   COMPANY_EMAIL_PATTERN,
   CodePurpose,
+  ConsentKind,
   EntityName,
   FileExtension,
   JobRun,
@@ -52,6 +53,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { Array as Arr, pipe, Record as Rec } from "effect";
 
 /** A SQL string literal for a code constant (never user input). */
@@ -179,18 +181,28 @@ export const fieldOfStudy = pgTable(
   ]
 );
 
-/** Spec 0006: one human known to Vektorprogrammet. The department is the field of study's (RULE-164). */
+/**
+ * Spec 0006: one human known to Vektorprogrammet. The department is the field of study's (RULE-164). Spec 0007b adds
+ * the creation time (the start of the period of a person with no engagement), the photo, `anonymised_at` (set when the
+ * core fields were anonymised) and `merged_into` (the tombstone of a merge, which `AggregateLocks` does not lock).
+ */
 export const person = pgTable(
   "person",
   {
+    anonymisedAt: instant("anonymised_at"),
     companyEmail: text("company_email"),
+    createdAt: instant("created_at")
+      .notNull()
+      .default(sql`now()`),
     email: text("email").notNull(),
     emailVerified: boolean("email_verified").notNull().default(false),
     fieldOfStudyId: integer("field_of_study_id")
       .notNull()
       .references(() => fieldOfStudy.id),
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    mergedInto: integer("merged_into").references((): AnyPgColumn => person.id),
     name: text("name").notNull(),
+    photoKey: text("photo_key").references(() => publicFile.key),
   },
   (t) => [
     uniqueIndex(UniqueConstraint.personEmail)
@@ -206,6 +218,14 @@ export const person = pgTable(
       sql`${t.companyEmail} is null or ${t.companyEmail} = lower(${t.companyEmail})`
     ),
     check("person_name", sql`length(${t.name}) > 0`),
+    check(
+      "person_merged_not_self",
+      sql`${t.mergedInto} is null or ${t.mergedInto} <> ${t.id}`
+    ),
+    check(
+      "person_merged_anonymised",
+      sql`${t.mergedInto} is null or ${t.anonymisedAt} is not null`
+    ),
   ]
 );
 
@@ -254,6 +274,60 @@ export const code = pgTable(
     unique("code_hash_unique").on(t.hash),
     check("code_purpose", oneOf(sql`${t.purpose}`, CodePurpose.literals)),
     check("code_hash_format", sql`${t.hash} ~ '^[0-9a-f]{64}$'`),
+  ]
+);
+
+/**
+ * Spec 0007b: what a person agreed to. One record per person and kind: the version of the text they saw, when they
+ * gave it and when they withdrew it. A "no" is a record whose withdrawal is its giving. `decided_at` is the later of
+ * the two, so a merge keeps the newest decision.
+ */
+export const consent = pgTable(
+  "consent",
+  {
+    decidedAt: instant("decided_at").generatedAlwaysAs(
+      sql.raw("greatest(given_at, coalesce(withdrawn_at, given_at))")
+    ),
+    givenAt: instant("given_at").notNull(),
+    kind: text("kind").notNull(),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    textVersion: integer("text_version").notNull(),
+    withdrawnAt: instant("withdrawn_at"),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.personId, t.kind],
+      name: "consent_person_kind_pk",
+    }),
+    check("consent_kind", oneOf(sql`${t.kind}`, ConsentKind.literals)),
+    check("consent_text_version", sql`${t.textVersion} > 0`),
+    check(
+      "consent_withdrawn_after_given",
+      sql`${t.withdrawnAt} is null or ${t.withdrawnAt} >= ${t.givenAt}`
+    ),
+  ]
+);
+
+/**
+ * Spec 0007b: the alumni e-mail was requested for a person and an engagement end. The primary key is what makes the
+ * request, and so the e-mail, happen once.
+ */
+export const alumniRequest = pgTable(
+  "alumni_request",
+  {
+    engagementEnd: instant("engagement_end").notNull(),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    requestedAt: instant("requested_at").notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.personId, t.engagementEnd],
+      name: "alumni_request_pk",
+    }),
   ]
 );
 
@@ -627,7 +701,8 @@ export const outbox = pgTable(
 /**
  * C12 change audit: one row per write, in the write's transaction. It records the principal (spec 0006, R1): a
  * person id or the name of a scheduled job, never both. There is no foreign key: the audit trail outlives whatever it
- * names.
+ * names. A retention run's row carries `counts` (spec 0007b): an object whose every value is a number, so the row can
+ * say how many rows a run removed and never what was in them.
  */
 export const auditLog = pgTable(
   "audit_log",
@@ -635,6 +710,7 @@ export const auditLog = pgTable(
     action: text("action").notNull(),
     at: instant("at").notNull(),
     client: text("client").notNull().default("server"),
+    counts: jsonb("counts"),
     entity: text("entity").notNull(),
     entityKey: text("entity_key").notNull(),
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -656,6 +732,10 @@ export const auditLog = pgTable(
     check(
       "audit_log_principal",
       sql`(${t.personId} is not null) <> (${t.systemJob} is not null)`
+    ),
+    check(
+      "audit_log_counts",
+      sql`${t.counts} is null or (jsonb_typeof(${t.counts}) = 'object' and not jsonb_path_exists(${t.counts}, ${sql.raw(`'$.* ? (@.type() != "number")'`)}))`
     ),
   ]
 );

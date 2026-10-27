@@ -14,6 +14,7 @@ import {
   saveSocialEventProgram,
 } from "../server/panel";
 import { panelReads } from "../server/panelReads";
+import { mergePersonsProgram } from "../server/personalData";
 import { runCommand, runQuery } from "../server/runtime";
 import { requestScope } from "../server/scope";
 import { shellView } from "../server/shell";
@@ -138,6 +139,12 @@ export const registerPerson = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
     runCommand(requestScope(context), registerPersonProgram(data))
+  );
+
+export const mergePeople = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), mergePersonsProgram(data))
   );
 
 export const addMember = createServerFn({ method: "POST" })

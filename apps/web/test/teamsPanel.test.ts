@@ -529,6 +529,14 @@ describe("spec 0006: the People and Admin pages", () => {
           assertSuccess(yield* viewAs(tables, MATS, peopleView)).canRegister
         );
 
+        // Merging two records is an administrator's alone (spec 0007b); a leader is not offered it.
+        assert.isTrue(
+          assertSuccess(yield* viewAs(tables, ADA, peopleView)).canMerge
+        );
+        assert.isFalse(
+          assertSuccess(yield* viewAs(tables, LISE, peopleView)).canMerge
+        );
+
         for (const principal of [ADMIN, LISE, BOARD]) {
           const rows = assertSuccess(
             yield* viewAs(tables, principal, peopleView)
@@ -542,8 +550,30 @@ describe("spec 0006: the People and Admin pages", () => {
                 personId: person.id,
               })
             );
+            assert.strictEqual(
+              person.canErase,
+              authorize(principal, "erasePerson", { personId: person.id })
+            );
           }
         }
+
+        // Erasing is a person's own right and an administrator's on anyone's behalf: a leader is offered only herself.
+        const erasable = (principal: Principal) =>
+          Effect.map(viewAs(tables, principal, peopleView), (outcome) =>
+            Arr.map(
+              Arr.filter(
+                assertSuccess(outcome).people,
+                (person) => person.canErase
+              ),
+              (person) => person.id
+            )
+          );
+
+        assert.deepStrictEqual(yield* erasable(LISE), [PEOPLE.lise]);
+        assert.strictEqual(
+          (yield* erasable(ADA)).length,
+          assertSuccess(yield* viewAs(tables, ADA, peopleView)).people.length
+        );
       })
   );
 

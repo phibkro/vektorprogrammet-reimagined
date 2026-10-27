@@ -45,3 +45,4 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Organisation admin](./organisation-admin.md) covers departments, semesters (read-only), and fields of study with their department scoping.
 - [Accounts and sessions](./accounts.md) covers spec 0007: invitation, activation, profile and sessions, password change and reset, deactivation, and the identical answers of the reset and refusal paths.
 - [Integrations and scheduled jobs](./integrations.md) covers spec 0008: the administrator's Integrasjoner page, a team's Google group address, the dry-run report that the scheduled handler produces from a request, and the job ledger.
+- [Personal data](./personal-data.md) covers spec 0007b: the two consent questions on Min side, the JSON export and the erasure of a person's own data, the alumni e-mail link, the administrator's merge and erasure, the nightly retention cron, and the privacy notice on the contact form.

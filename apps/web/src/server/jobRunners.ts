@@ -6,8 +6,10 @@
  */
 import {
   JobRegistry,
+  alumniConsentJob,
   endingSoonJob,
   prepareSync,
+  retentionJob,
   semesterJob,
   semesterLabel,
   withWorkspace,
@@ -21,7 +23,7 @@ import type {
   WorkspaceDirectory,
   WorkspaceWriter,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect } from "effect";
+import { Array as Arr, Effect, Match } from "effect";
 import type { Crypto } from "effect";
 
 import type { AccountDelivery } from "./accountDelivery";
@@ -115,7 +117,42 @@ export const workspaceSyncRunner = {
     ),
 };
 
+/**
+ * The nightly retention run (spec 0007b): one transaction, in the mode that the job database fixed. Named, so the
+ * Worker's retention test runs it over the services of that job alone. It logs the counts that its audit row holds,
+ * and never a value.
+ */
+export const retentionRunner = oneShot(
+  retentionJob.pipe(
+    Effect.tap(({ counts, mode }) =>
+      Match.value(mode).pipe(
+        Match.when("Apply", () => Effect.logInfo("retention run finished")),
+        Match.when("ReportOnly", () =>
+          Effect.logInfo("retention report finished: nothing was changed")
+        ),
+        Match.exhaustive,
+        Effect.annotateLogs(counts)
+      )
+    )
+  ),
+  ({ counts }) => counts
+);
+
 export const runners: Runners = {
+  /**
+   * When a person's last engagement ends: one request and one `IssueCode` message each, in one transaction (spec
+   * 0007b). The sweep that follows in the same tick mints the code and sends the mail.
+   */
+  alumniConsent: oneShot(
+    alumniConsentJob.pipe(
+      Effect.tap(({ sent }) =>
+        Effect.logInfo("alumni consent job finished").pipe(
+          Effect.annotateLogs({ sent })
+        )
+      )
+    ),
+    ({ sent }) => ({ sent })
+  ),
   /** Inside the last weeks of the semester; outside them it does nothing, and the ledger makes each mail once. */
   endingSoon: oneShot(
     endingSoonJob.pipe(
@@ -133,6 +170,7 @@ export const runners: Runners = {
         Effect.succeed({ counts, cursor: null, done: true })
       ),
   },
+  retention: retentionRunner,
   /** The current and the next semester exist as rows (spec 0003, RULE-237). */
   semesters: oneShot(
     semesterJob.pipe(
