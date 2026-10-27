@@ -71,6 +71,7 @@ export const NoteMachine = Machine.make({
   context: NoteContext,
   name: "Note",
   states: NoteStates,
+  terminal: ["Published"],
   transitions: [
     { command: "createArticle", from: [Machine.Boundary], to: "Draft" },
     {

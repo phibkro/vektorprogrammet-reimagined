@@ -196,6 +196,7 @@ export const AccountMachine = Machine.make({
   context: AccountTransition,
   name: "Account",
   states: AccountState,
+  terminal: [],
   transitions: [
     { command: "createAccount", from: [Machine.Boundary], to: "Invited" },
     { command: "activateAccount", from: ["Invited"], to: "Active" },

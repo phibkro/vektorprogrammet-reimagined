@@ -54,6 +54,19 @@ export interface Calculated<State extends string> {
   readonly when: string;
 }
 
+/**
+ * What a semester in a machine's context is for the formal model (effx spec 0032 R1): a value `stored` in the row
+ * (a membership's start and end), a `parameter` that the command is given (the semester it asks for), or the `clock`,
+ * the current semester. The guards compare them; the kind says who chooses each one.
+ */
+export type FieldKind = "clock" | "parameter" | "stored";
+
+/** A semester of the context, by its path, and its kind. */
+export interface Field {
+  readonly kind: FieldKind;
+  readonly path: readonly string[];
+}
+
 export interface Table<
   State extends string,
   Command extends string,
@@ -61,6 +74,10 @@ export interface Table<
 > {
   readonly name: string;
   readonly states: readonly State[];
+  /** The states that nothing leaves. A machine says so, and the model checker reports any other state without a way out. */
+  readonly terminal: readonly State[];
+  /** The semesters that its guards read, each with its kind. Empty for a machine whose guards read no semester. */
+  readonly fields: readonly Field[];
   readonly transitions: readonly Transition<State, Command, Context>[];
   readonly calculated: readonly Calculated<State>[];
 }
@@ -72,6 +89,8 @@ export interface Table<
 export interface Description {
   readonly name: string;
   readonly states: readonly string[];
+  readonly terminal: readonly string[];
+  readonly fields: readonly Field[];
   readonly transitions: readonly {
     readonly command: string;
     readonly from: readonly string[];
@@ -112,6 +131,13 @@ export const make = <
   readonly context: Schema.Schema<Context>;
   readonly commands: RpcGroup.RpcGroup<Rpcs>;
   readonly states: States;
+  /** The states that nothing leaves (`[]` when every state has a way out). Required: it is never a default. */
+  readonly terminal: readonly TagOf<States>[];
+  /** The semesters that the guards read, by path, with the kind of each. */
+  readonly fields?: readonly {
+    readonly kind: FieldKind;
+    readonly path: Guard.SemesterPath<Context>;
+  }[];
   readonly transitions: readonly Transition<
     TagOf<States>,
     Rpcs["_tag"],
@@ -120,11 +146,13 @@ export const make = <
   readonly calculated?: readonly Calculated<TagOf<States>>[];
 }): Table<TagOf<States>, Rpcs["_tag"], Context> => ({
   calculated: definition.calculated ?? [],
+  fields: definition.fields ?? [],
   name: definition.name,
   states: Arr.filter(
     Rec.keys(definition.states.cases),
     isTagOf(definition.states)
   ),
+  terminal: definition.terminal,
   transitions: Arr.map(definition.transitions, (transition) => {
     if (transition.guard === undefined) {
       return transition;

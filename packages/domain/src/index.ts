@@ -18,6 +18,8 @@ export * as Commands from "./kernel/commands.ts";
 
 export * as Domain from "./kernel/domain.ts";
 
+export * as Effx from "./kernel/effx.ts";
+
 export * as Grant from "./kernel/grant.ts";
 
 export * as Guard from "./kernel/guard.ts";

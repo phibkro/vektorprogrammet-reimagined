@@ -121,6 +121,7 @@ describe("spec 0007: Account declarations", () => {
       context: Accounts.AccountTransition,
       name: "Account",
       states: AccountState,
+      terminal: Accounts.AccountMachine.terminal,
       transitions: Arr.map(Accounts.AccountMachine.transitions, (transition) =>
         transition.command === "deactivateAccount"
           ? {

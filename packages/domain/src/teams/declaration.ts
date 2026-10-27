@@ -282,8 +282,15 @@ export const MembershipMachine = Machine.make({
   ],
   commands: TeamsRpc,
   context: MembershipMoment,
+  fields: [
+    { kind: "clock", path: ["current"] },
+    { kind: "parameter", path: ["requested"] },
+    { kind: "stored", path: ["term", "start"] },
+    { kind: "stored", path: ["term", "end"] },
+  ],
   name: "Membership",
   states: MembershipState,
+  terminal: ["Ended"],
   transitions: [
     {
       command: "createMembership",
@@ -364,6 +371,9 @@ export const TeamsDomain = declareDomain({
     grant([system("endingSoon")], ["sendEndingSoon"], "all"),
   ],
   machines: [MembershipMachine],
+  // Only an Active membership grants (ADR 0001, ADR 0002): `term.ts` calculates the state, and effx's model checks that
+  // no permission comes from a membership outside it.
+  memberships: { grantingStates: ["Active"], machine: "Membership" },
   name: "teams",
   reads: {
     viewPeople: {

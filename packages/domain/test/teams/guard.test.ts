@@ -108,6 +108,7 @@ describe("spec 0006 R4: native checks are declaration data", () => {
       context: ContextSchema,
       name: "Membership",
       states: MembershipState,
+      terminal: MembershipMachine.terminal,
       transitions: Arr.map(MembershipMachine.transitions, (transition) =>
         transition.command === "extendMembership"
           ? {
