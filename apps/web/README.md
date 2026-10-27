@@ -215,7 +215,7 @@ disposable PostgreSQL → legacy fixture → local people → CMS → vp dev →
 
 These checks run only on a deployed preview (workerd + Hyperdrive + Neon). Slice 0000 ran items 1–7 there and they pass (`docs/specs/0000-results.md`, final run from the committed tree). Item 8 was not part of slice 0000 and is still unproven:
 
-1. `DatabaseLive` (`@effect/sql-pg` 4.0.5 over `node:net` + `prepare: false`) connects and selects through Hyperdrive. Drizzle `effect-postgres` works on top of it.
+1. `DatabaseLive` (`@effect/sql-pg` 4.0.6 over `node:net` + `prepare: false`) connects and selects through Hyperdrive. Drizzle `effect-postgres` works on top of it.
 2. A `transactional` command commits; a typed failure and an interruption (request abort) roll back; a nested savepoint works.
 3. `INSERT … ON CONFLICT … RETURNING` and unique-violation classification work through Hyperdrive.
 4. `timestamptz`, `date`, `jsonb` and `numeric` round-trip.

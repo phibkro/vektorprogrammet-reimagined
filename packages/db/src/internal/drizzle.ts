@@ -5,14 +5,20 @@
  *
  * Drizzle's sessions run every statement through the ambient `SqlClient`, so
  * a statement issued inside `SqlClient.withTransaction` joins that transaction.
+ *
+ * The service type leaves the driver's raw result open (`PgQueryResultHKT`): the `effect-postgres` and
+ * `effect-pglite` databases differ there (`Result` against PGlite's `Results`), and the repositories read
+ * mapped rows, never a raw result.
  */
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
+import type { PgQueryResultHKT } from "drizzle-orm/pg-core";
+import type { PgEffectDatabase } from "drizzle-orm/pg-core/effect";
 import { Context, Effect, Layer, Schema } from "effect";
 import type * as Option from "effect/Option";
 
 export class Drizzle extends Context.Service<
   Drizzle,
-  PgDrizzle.EffectPgDatabase
+  PgEffectDatabase<PgDrizzle.EffectPgQueryEffectHKT, PgQueryResultHKT>
 >()("@vektorprogrammet/db/Drizzle") {
   /** Drizzle `effect-postgres` over the `PgClient` in context (no Drizzle logger or cache). */
   static readonly layerPg = Layer.effect(Drizzle, PgDrizzle.makeWithDefaults());
