@@ -4,7 +4,7 @@ import {
   PersonalDataDeclaration,
   afterDuration,
 } from "@vektorprogrammet/domain";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
@@ -74,9 +74,9 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
           assert.deepStrictEqual(yield* snapshot, before);
           const applied = yield* transactional(nightlyOutcome(now));
 
-          const remaining = yield* sql<{
-            readonly id: string;
-          }>`select id from auth_session`;
+          const remaining = yield* Schema.decodeUnknownEffect(
+            Schema.Array(Schema.Struct({ id: Schema.String }))
+          )(yield* sql`select id from auth_session`);
 
           assert.deepStrictEqual(remaining, [{ id: "current-current" }]);
           assert.strictEqual(reported.auth_user, 1);

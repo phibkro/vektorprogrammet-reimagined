@@ -33,6 +33,7 @@ import {
   Order,
   Predicate,
   Record as Rec,
+  Schema,
 } from "effect";
 
 import type { Aggregates } from "../aggregate/aggregates.ts";
@@ -57,6 +58,14 @@ const BULK_CHUNK = 1000;
 
 const catalog: CatalogOf = Catalog;
 const personRoot: Root<"Person"> = roots.Person;
+
+const decodeCount = Schema.decodeUnknownEffect(
+  Schema.Tuple([Schema.Struct({ n: Schema.Int })])
+);
+
+const decodeCandidates = Schema.decodeUnknownEffect(
+  Schema.Array(Schema.Struct({ id: Schema.Int }))
+);
 
 type Tokens = readonly Locked<"Person">[];
 
@@ -191,7 +200,8 @@ const countRows = (
       "objects"
     )
     .pipe(
-      Effect.map(([row]) => row?.n ?? 0),
+      Effect.flatMap(decodeCount),
+      Effect.map(([row]) => row.n),
       Effect.orDie
     );
 
@@ -219,6 +229,7 @@ const candidates = (
           "objects"
         )
         .pipe(
+          Effect.flatMap(decodeCandidates),
           Effect.map((found) => Arr.map(found, ({ id }) => id)),
           Effect.orDie
         )
