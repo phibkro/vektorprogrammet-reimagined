@@ -166,5 +166,7 @@ export default defineConfig(({ command }) => ({
   resolve: { tsconfigPaths: true },
   test: {
     include: ["test/**/*.test.{ts,tsx}"],
+    // Bound simultaneous file-level pools so PostgreSQL retains slots for the 20-way race tests.
+    maxWorkers: 2,
   },
 }));
