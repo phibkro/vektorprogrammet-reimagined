@@ -16,7 +16,7 @@ ADR 0006 stays: each command and query is declared once with `effect/rpc`, and i
 
 A standard method is the default. A custom method is the fallback for an intent that a standard method would blur: `extend`, `change` and `endEarly` all change a membership's end, but they differ in audit meaning and in transition. `extend` and `change` share `grant([leader, board], [...], "department")`; `endEarly` additionally has `grant([self], ["endEarly"], "own")`. So each is a custom method and none of them is an `update`. Names follow the method: `createTeam`, `updatePerson`, `deleteAdminGrant`, `extendMembership`.
 
-A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's conditional transition, which conditions on state. A stale `If-Match` answers `412`, but that needs a row version, which this decision adds for `update` methods: a version column that the `update` checks in its conditional write. It does not exist today.
+A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's conditional transition, which conditions on state. A stale `If-Match` answers `412` only when a row version exists. This decision therefore requires any `update` method to add a version column checked in the conditional write; no such version exists today.
 
 ## Considered options
 
