@@ -176,6 +176,21 @@
         "wrangler": "4.151.0"
       },
       "retirementTrigger": "Remove the local Promise-boundary suppressions when Wrangler exposes an Effect API or the lint rules accept Effect Promise thunks."
+    },
+    {
+      "id": "EX-0024",
+      "scope": {
+        "files": ["packages/db/test/aggregate.types.test.ts"],
+        "directives": ["@ts-expect-error"]
+      },
+      "reason": "Spec 0006b falsifier 1: each statement must not type-check, and the directive fails the type check itself the day one starts to compile.",
+      "nativeAlternativesExamined": [
+        "Vitest expectTypeOf asserts the shape of a type, not that a particular call is rejected, and the spec names the directive.",
+        "A compile-fail fixture project would run a second type check for the same claim."
+      ],
+      "owner": "packages/db",
+      "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
+      "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     }
   ],
   "typeBridges": [
@@ -229,9 +244,18 @@
       "scope": {
         "files": [
           "apps/web/src/server/authError.ts",
-          "apps/web/src/server/deliveryClaimLost.ts"
+          "apps/web/src/server/deliveryClaimLost.ts",
+          "packages/db/src/aggregate/defects.ts"
         ],
-        "symbols": ["AuthBoundaryFailure", "DeliveryClaimLost"]
+        "symbols": [
+          "AuthBoundaryFailure",
+          "DeliveryClaimLost",
+          "LockOrderViolation",
+          "LockNotHeld",
+          "TransitionNotApplicable",
+          "ProtectedColumn",
+          "OwnershipDeclarationError"
+        ]
       },
       "reason": "The configured rule mistakes Schema.TaggedError declarations for throw statements.",
       "missingCapability": "The rule cannot distinguish Effect's native typed error declarations from a throw expression.",
@@ -294,6 +318,38 @@
         "@cloudflare/workers-types": "5.20261015.1"
       },
       "retirementTrigger": "Remove the bridge when Cloudflare publishes a module-scoped env type compatible with the app's DOM and Node type configuration."
+    },
+    {
+      "id": "EX-0023",
+      "rules": ["typescript/no-unsafe-type-assertion"],
+      "scope": {
+        "files": [
+          "packages/db/src/aggregate/aggregates.ts",
+          "packages/db/src/aggregate/locks.ts",
+          "packages/db/src/aggregate/model.ts",
+          "packages/db/test/aggregates.postgres.test.ts",
+          "packages/domain/test/support/teamsInMemory.ts"
+        ],
+        "symbols": ["asRows", "mint", "declare", "forged", "aggregateLocks"]
+      },
+      "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table.",
+      "missingCapability": "TypeScript cannot build a value of an opaque type with an unexported brand from a plain object, and Drizzle 1.0.0-rc.5 has no generic form of insert, update, delete and select on a table type parameter whose rows follow that parameter.",
+      "nativeAlternativesExamined": [
+        "Effect Brand.nominal makes a token without a cast, but its brand key is Effect's public type id, so a hand-made literal with that key would type-check. The spec asks for an unexported brand.",
+        "A class with a private constructor needs a factory that packages/db can call, and anything that can call it can make a token.",
+        "Decoding every returned row through a schema would check at run time what the statement already guarantees, for every write of every repository.",
+        "A type assertion is flagged by typescript/no-unsafe-type-assertion, which the repository keeps on, so each narrowing is one Function.cast with a SAFETY comment at the site."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C packages/db test test/aggregate.types.test.ts test/aggregates.postgres.test.ts"
+      ],
+      "owner": "packages/db",
+      "versions": {
+        "effect": "4.0.6",
+        "drizzle-orm": "1.0.0-rc.5",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Retire the row cast when Drizzle's builders return the select model of a generic table; retire the token cast when TypeScript or Effect offers an opaque-brand constructor that only its declaring module can call."
     }
   ],
   "unstableApis": [
