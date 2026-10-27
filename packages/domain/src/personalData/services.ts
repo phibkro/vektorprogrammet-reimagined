@@ -146,8 +146,8 @@ export class PersonalDataStore extends Context.Service<
 
 /**
  * The nightly retention run, apart from the store: the one place that deletes or anonymises by the clock. Its layer
- * fixes the mode, so a program that runs it cannot choose one (spec 0007b R4): `apps/web` provides it to the cron job
- * only, and decides the mode from the deployment and from the approval of the periods that the run applies.
+ * fixes the mode, so a program that runs it cannot choose one (spec 0007b R4). The cron selects its layer from the
+ * deployment and the approval of the periods. Ordinary database layers provide the report-only implementation.
  */
 export class RetentionRun extends Context.Service<
   RetentionRun,

@@ -226,9 +226,8 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
 );
 
 /**
- * How many runs race in a round, and how many rounds there are, each with people of its own. A round is a race of twenty,
- * not of two: it makes every pair of the runs meet (190 pairs), so fifty rounds are about nine and a half thousand
- * meetings, where the 300 rounds of a race of two are 300. Three hundred rounds of this one take a minute and a half.
+ * Each round starts twenty concurrent runs against fresh people. The runs form 190 possible pairs, but the test does
+ * not prove that every pair interleaves. Fifty rounds exercise the resulting contention.
  */
 const RUNS = 20;
 const ROUNDS = 50;
