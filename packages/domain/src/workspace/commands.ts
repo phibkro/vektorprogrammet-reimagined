@@ -410,11 +410,12 @@ const groupsChunk = Effect.fnUntraced(function* groupsChunk(
 export const WorkspaceHandlers = WorkspaceRpc.toLayer({
   /**
    * An administrator asks for a dry-run: a request row, which the next tick takes. No provider is called and nothing
-   * else is written. The period names the instant and who asked.
+   * else is written. The period names the instant and a random nonce, and no person: `job_run.period` and
+   * `workspace_report.period` are declared not personal. Who asked is the audit entry of this staff write.
    */
   createWorkspaceReport: WorkspaceDomain.handle(createWorkspaceReport, {
     resource: () => Effect.succeed({}),
-    run: (_payload, principal) =>
+    run: () =>
       Effect.gen(function* run() {
         yield* InTransaction;
         const now = yield* DateTime.now;
@@ -423,9 +424,7 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
           (yield* Crypto.Crypto).randomUUIDv4()
         );
 
-        const period = requestPeriod(
-          `${DateTime.toEpochMillis(now)}-${Predicate.isTagged(principal, "Person") ? principal.personId : principal._tag}-${nonce}`
-        );
+        const period = requestPeriod(`${DateTime.toEpochMillis(now)}-${nonce}`);
 
         const inserted = yield* (yield* JobRuns).request(
           "workspaceSync",

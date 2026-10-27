@@ -52,7 +52,7 @@ import { MessageSender } from "../src/server/senders";
 import { Transactor } from "../src/server/transactor";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { workspaceDirectoryLayer } from "../src/server/workspace";
-import { ADMIN } from "./support/principals";
+import { ADMIN, adminOf } from "./support/principals";
 import { rowsIn } from "./support/rowCount";
 import { workspaceDatabase } from "./support/workspaceDatabase";
 import {
@@ -510,6 +510,59 @@ layer(live, { excludeTestServices: true })(
             assert.strictEqual(report.counts.removals, 1);
             assert.strictEqual(yield* rowsIn("outbox"), 0);
             assert.deepStrictEqual(yield* Ref.get(asked), []);
+          })
+      );
+
+      layerTest.effect(
+        "a requested report's period carries no person id, in the request row or in the report",
+        () =>
+          Effect.gen(function* periodWithoutPerson() {
+            const early = DateTime.makeUnsafe("2026-10-27T00:00:00Z");
+            yield* TestClock.setTime(DateTime.toEpochMillis(early));
+            yield* reset;
+            yield* seedWorld({ members: 1, teams: 1 });
+
+            const sql = yield* SqlClient;
+            const transactor = yield* Transactor;
+            const requester = 7_354_219;
+
+            const request = yield* transactor.run(
+              requestWorkspaceReport.pipe(
+                Effect.provideService(CurrentPrincipal, adminOf(requester))
+              )
+            );
+
+            // The instant and the nonce are all a period says: `job_run.period` and `workspace_report.period` are
+            // declared not personal, so who asked is the audit entry's to say.
+            assert.match(
+              request.period,
+              /^request:\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+            );
+
+            const directory = yield* Ref.make(worldOfStrays(0));
+            const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
+
+            yield* dispatchTick<"workspaceSync", RunnerServices>(
+              [JobRegistry.workspaceSync],
+              { workspaceSync: workspaceSyncRunner },
+              { at: early, only: ["workspaceSync"] }
+            ).pipe(
+              Effect.provide(
+                Layer.mergeAll(
+                  directoryOver(directory),
+                  writerOver(directory, asked),
+                  Layer.succeed(WorkspaceModeSetting)("dry-run")
+                )
+              )
+            );
+
+            assert.strictEqual((yield* latest).period, request.period);
+
+            const named = yield* sql<{
+              readonly n: number;
+            }>`select ((select count(*) from job_run where period like ${`%${requester}%`}) + (select count(*) from workspace_report where period like ${`%${requester}%`}))::int as n`;
+
+            assert.strictEqual(named[0]?.n, 0);
           })
       );
 
