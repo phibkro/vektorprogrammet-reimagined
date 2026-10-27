@@ -55,5 +55,5 @@
       "project": ["src/**/*.ts", "test/**/*.ts", "*.ts"]
     }
   },
-  "ignoreBinaries": ["devenv", "gitleaks", "psql"]
+  "ignoreBinaries": ["gitleaks", "psql"]
 }
