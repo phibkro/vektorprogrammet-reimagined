@@ -1,9 +1,9 @@
 /**
  * Spec 0007b R3 item 32 and R4: what a notice awaits follows the three declarations that it rests on, one by one: the
  * approval of its text (`privacyText.approval`), of the legal bases (`basesApproval`) and of the periods that it states.
- * Each case evaluates the domain again with those declarations replaced, so that exactly one of them is a proposal (and
- * a fifth, none): the notice then awaits that decision and no other, and so does every row of the record. The
- * combinations of approvals and the sentence for each are `notice.test.ts`'s. The declarations are constants of two
+ * Each case evaluates the domain again with those declarations replaced. Three cases leave one proposal open, and a
+ * fourth leaves none. The notice then awaits exactly the open decisions, and each row of the record reflects its own.
+ * The combinations of approvals and the sentence for each are in `notice.test.ts`. The declarations are constants of two
  * modules, so the cases are made here, once, before the tests, as `periodsInText.test.ts` makes its second evaluation
  * (two evaluations of one module graph cannot be two static imports).
  */
