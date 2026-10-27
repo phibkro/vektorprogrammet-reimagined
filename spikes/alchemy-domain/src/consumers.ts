@@ -273,7 +273,12 @@ const makeConsumers = (sql: SqlClient) => {
     }).pipe(Effect.orDie);
 
     return {
-      changes: (key: string) => poll(read(key)),
+      changes: (key: string) =>
+        poll(read(key)).pipe(
+          Stream.changesWith(
+            (previous, current) => previous.version === current.version
+          )
+        ),
       list: (key: string) => entries(key),
       read,
       receive,
