@@ -23,7 +23,9 @@ const webDirectory = new URL("..", import.meta.url).pathname;
 
 const main = Effect.gen(function* main() {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  const { cms, databaseUrl, origin } = yield* startStack(webDirectory);
+
+  const { cms, databaseUrl, origin, publicFileKey } =
+    yield* startStack(webDirectory);
 
   yield* Effect.log("starting the browser tests");
 
@@ -44,6 +46,7 @@ const main = Effect.gen(function* main() {
           E2E_CMS_TOKEN: Redacted.value(cms.token),
           E2E_CMS_URL: cms.origin,
           E2E_DATABASE_URL: Redacted.value(databaseUrl),
+          E2E_PUBLIC_FILE_KEY: publicFileKey,
         },
         extendEnv: true,
         stderr: "inherit",
