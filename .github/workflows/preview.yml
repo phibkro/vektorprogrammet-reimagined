@@ -51,6 +51,23 @@ jobs:
         shell: bash
         run: devenv shell -- bun install --frozen-lockfile
 
+      # The Workers are placed next to Neon (`WORKER_PLACEMENT`, derived from `NEON_REGION` in
+      # apps/web/worker.config.ts). The Neon project is not managed by Alchemy, so this fails a deploy whose
+      # declared region is not the live project's region (spec 0000c). It prints only the two region ids.
+      - name: Check that the Neon region is the declared one
+        shell: bash
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          devenv shell -- bash -euo pipefail -c '
+            declared="$(cd apps/web && bun -e "import { NEON_REGION } from \"./worker.config.ts\"; console.log(NEON_REGION)")"
+            live="$(bunx --bun neonctl@8.7.2 --api-key "$NEON_API_KEY" projects get "$NEON_PROJECT_ID" --output json \
+              | bun -e "console.log(JSON.parse(await Bun.stdin.text()).region_id)")"
+            echo "declared: $declared, live: $live"
+            test "$declared" = "$live"
+          '
+
       # A forgotten branch expires on its own two weeks after the last push.
       - name: Compute the Neon branch expiry
         id: expiry

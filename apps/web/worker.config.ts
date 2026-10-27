@@ -77,6 +77,24 @@ const neonOriginAs = (userVariable: string, passwordVariable: string) =>
 export const neonOrigin = neonOriginAs("NEON_USER", "NEON_APP_PASSWORD");
 
 /**
+ * Where the Neon project runs. The project was created outside Alchemy, so this is the one declaration of its
+ * region: the Workers are placed next to it (`WORKER_PLACEMENT`), and the Preview workflow fails when the live
+ * project's `region_id` differs from it (`.github/workflows/preview.yml`, spec 0000c).
+ */
+export const NEON_REGION = "aws-eu-central-1";
+
+/**
+ * Targeted placement next to the database (spec 0000c, which links the measurements). Every statement is a round
+ * trip between the Worker and Neon; slice 0000's placement run measured a median of 1014 ms of database time for 17
+ * sequential statements from Cloudflare's default placement and 216 ms from Frankfurt. Neon's `aws-<region>` is
+ * Cloudflare's `aws:<region>`.
+ */
+export const WORKER_PLACEMENT = {
+  mode: "targeted",
+  region: `aws:${NEON_REGION.slice("aws-".length)}`,
+} as const;
+
+/**
  * The CMS's Hyperdrive origin (spec 0005, D1): the same Neon database as the application, as the role
  * `emdash_app` that owns the schema `emdash` (`apps/cms/db/emdash-role.sql`).
  */
