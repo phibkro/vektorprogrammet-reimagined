@@ -118,8 +118,8 @@ export const workspaceSyncRunner = {
 };
 
 /**
- * The nightly retention run (spec 0007b): one transaction, in the mode that the job database fixed. It runs through
- * `runTick` on the retention cron like every other job. It logs the counts that its audit row holds, and never a value.
+ * The nightly retention run (spec 0007b): one transaction, in the mode that the job database fixed. It runs on the
+ * retention cron like every other job. It logs the counts that its audit row holds, and never a value.
  */
 const retentionRunner = oneShot(
   retentionJob.pipe(
