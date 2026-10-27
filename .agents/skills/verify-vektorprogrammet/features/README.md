@@ -44,3 +44,4 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Team memberships](./team-memberships.md) covers the spec 0006 journey: create a team, register people, add, extend, change and end memberships, and switch principal.
 - [Organisation admin](./organisation-admin.md) covers departments, semesters (read-only), and fields of study with their department scoping.
 - [Accounts and sessions](./accounts.md) covers spec 0007: invitation, activation, profile and sessions, password change and reset, deactivation, and the identical answers of the reset and refusal paths.
+- [Personal data](./personal-data.md) covers spec 0007b: the two consent questions on Min side, the JSON export and the erasure of a person's own data, the alumni e-mail link, the administrator's merge and erasure, the nightly retention cron, and the privacy notice on the contact form.
