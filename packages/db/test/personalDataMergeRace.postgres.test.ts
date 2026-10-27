@@ -14,6 +14,7 @@ import {
   EmailAddress,
   MembershipRepository,
   PersonRepository,
+  lockAdminList,
   answerRecord,
 } from "@vektorprogrammet/domain";
 import type {
@@ -283,6 +284,43 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
             (yield* rowsNaming(into.id, WRITTEN)).membership,
             1
           );
+        })
+    );
+
+    it.effect(
+      "a merge takes the admin list's lock before any person's: it waits for a holder of the list, with no row locked and nothing written, and then goes on",
+      () =>
+        Effect.gen(function* waitsForTheList() {
+          const { admin, setting } = yield* arrange("mgwaitslist");
+          const { from, into } = yield* makePair(setting, "waitslist");
+
+          const meeting = yield* meetsHeldLock(
+            lockAdminList,
+            "%admin_list%for no key update%",
+            mergeAs(admin, into.id, from.id)
+          );
+
+          assert.strictEqual(
+            meeting.waiting,
+            1,
+            "the merge did not wait for the admin list's lock"
+          );
+
+          assert.isTrue(meeting.stillRunning);
+
+          assert.deepStrictEqual(
+            meeting.wrote,
+            [],
+            "the merge wrote before it had the admin list's lock"
+          );
+
+          // A transaction gets its id with its first row lock or write: the merge had locked no person when it waited.
+          assert.isFalse(
+            meeting.hasTransactionId,
+            "the merge locked a person before it had the admin list's lock"
+          );
+
+          assert.isTrue(Exit.isSuccess(meeting.exit));
         })
     );
 

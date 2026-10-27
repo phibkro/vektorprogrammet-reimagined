@@ -2,7 +2,7 @@
  * Spec 0007b falsifier 2, the parts that the table of rules does not say: a person is anonymised one year after their
  * last activity and five while a `keepDetails` consent is current (withdrawing falls back to one), the history row of an
  * engagement outlives the anonymisation by nine years, the audit row of a run holds integer counts and no value, twenty
- * concurrent runs end in the state one run leaves, and a run waits for the lock of a person whom a command is changing
+ * concurrent runs end in the state one run leaves in each of fifty rounds of fresh state, and a run waits for the lock of a person whom a command is changing
  * and then sees what that command wrote, where a command that does not take the lock is not waited for.
  */
 import { assert, layer } from "@effect/vitest";
@@ -240,54 +240,83 @@ layer(postgresDatabase(), { excludeTestServices: true })(
   }
 );
 
-/** The number of runs that race. */
+/**
+ * How many runs race in a round, and how many rounds there are, each with people of its own. A round is a race of twenty,
+ * not of two: it makes every pair of the runs meet (190 pairs), so fifty rounds are about nine and a half thousand
+ * meetings, where the 300 rounds of a race of two are 300. Three hundred rounds of this one take a minute and a half.
+ */
 const RUNS = 20;
+const ROUNDS = 50;
 
 layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
   "spec 0007b falsifier 2: concurrent runs",
   (it) => {
     it.effect(
-      `${RUNS} concurrent runs end in the state that one run leaves, and none of them fails`,
+      `${RUNS} concurrent runs end in the state that one run leaves, and none of them fails, in each of ${ROUNDS} rounds of fresh state`,
       () =>
         Effect.gen(function* concurrentRuns() {
           const sql = yield* SqlClient;
           const now = afterDuration(T0, years(3));
 
-          // Six people who were last active before T0: expired at `now`. Four more created after `now - 1 year`: not.
-          const expired = yield* Effect.forEach(Arr.range(1, 6), (n) =>
-            world(`old${n}`)
-          );
-
-          const current = yield* Effect.forEach(Arr.range(1, 4), (n) =>
-            world(`new${n}`)
-          );
-
-          yield* sql`update person set created_at = ${DateTime.toDateUtc(T0)} where id in ${sql.in(Arr.map(expired, ({ person }) => person.id))}`;
-          yield* sql`update person set created_at = ${DateTime.toDateUtc(secondsFrom(now, -86_400))} where id in ${sql.in(Arr.map(current, ({ person }) => person.id))}`;
-
           const run = transactional(
             PersonalDataStore.use((store) => store.expire(now))
           );
 
-          const exits = yield* race(Arr.makeBy(RUNS, () => run));
+          for (const round of Arr.range(1, ROUNDS)) {
+            // Six people who were last active before T0: expired at `now`. Four more created after `now - 1 year`: not.
+            const expired = yield* Effect.forEach(Arr.range(1, 6), (n) =>
+              world(`old${round}x${n}`)
+            );
 
-          assert.isTrue(
-            Arr.every(exits, Exit.isSuccess),
-            raceReport(RUNS, exits)
+            const current = yield* Effect.forEach(Arr.range(1, 4), (n) =>
+              world(`new${round}x${n}`)
+            );
+
+            yield* sql`update person set created_at = ${DateTime.toDateUtc(T0)} where id in ${sql.in(Arr.map(expired, ({ person }) => person.id))}`;
+            yield* sql`update person set created_at = ${DateTime.toDateUtc(secondsFrom(now, -86_400))} where id in ${sql.in(Arr.map(current, ({ person }) => person.id))}`;
+
+            const exits = yield* race(Arr.makeBy(RUNS, () => run));
+            const report = raceReport(round, exits);
+
+            assert.isTrue(Arr.every(exits, Exit.isSuccess), report);
+
+            const state = yield* peopleState(
+              Arr.map([...expired, ...current], ({ person }) => person.id)
+            );
+
+            assert.deepStrictEqual(
+              Arr.map(state, (row) => row.anonymised),
+              [...Arr.makeBy(6, () => true), ...Arr.makeBy(4, () => false)],
+              report
+            );
+
+            // A run after the race has nothing left to do: the race left the state that one run leaves.
+            const after = yield* run;
+
+            assert.isTrue(
+              Arr.every(Rec.values(after), (n) => n === 0),
+              `round ${round}: a run after the race still had work to do`
+            );
+          }
+        }),
+      // Each round is twenty runs that each sweep every table, so it costs about two tenths of a second on a quiet
+      // machine; fifty rounds are ten seconds, and a loaded machine takes several times that.
+      { timeout: 280_000 }
+    );
+
+    it.effect(
+      "negative control: a run that dies fails the round, and the report names the round and holds the Cause",
+      () =>
+        Effect.gen(function* aRunDies() {
+          const run = transactional(
+            PersonalDataStore.use((store) => store.expire(T0))
           );
 
-          const state = yield* peopleState(
-            Arr.map([...expired, ...current], ({ person }) => person.id)
-          );
+          const exits = yield* race([run, Effect.die("a defect named boom")]);
 
-          assert.deepStrictEqual(
-            Arr.map(state, (row) => row.anonymised),
-            [...Arr.makeBy(6, () => true), ...Arr.makeBy(4, () => false)]
-          );
-
-          // A run after the race has nothing left to do: the race left the state that one run leaves.
-          const after = yield* run;
-          assert.isTrue(Arr.every(Rec.values(after), (n) => n === 0));
+          assert.isFalse(Arr.every(exits, Exit.isSuccess));
+          assert.include(raceReport(7, exits), "round 7");
+          assert.include(raceReport(7, exits), "a defect named boom");
         })
     );
   }

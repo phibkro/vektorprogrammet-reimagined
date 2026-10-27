@@ -2,7 +2,8 @@
  * Spec 0007b falsifier 6: an administrator merges two records of one person. `mergePersons(into, from)` moves every row
  * of `from` to `into` by the merge rules of the catalog, in one transaction, and leaves a tombstone without personal data.
  * Overlapping memberships in one team, two accounts, and a place that would be granted by its holder refuse the merge with
- * a typed conflict and no change. Twenty concurrent merges of one pair have one winner. A second Person cannot verify an
+ * a typed conflict and no change. Twenty concurrent merges of one pair, half in each direction, have one winner in each of
+ * three hundred rounds of fresh state. A second Person cannot verify an
  * e-mail address that a verified Person holds.
  */
 import { assert, layer } from "@effect/vitest";
@@ -33,7 +34,7 @@ import {
 } from "./support/personalDataActors.ts";
 import { everything, nothing, seedPerson } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
-import { race, raceReport } from "./support/race.ts";
+import { describeExit, race, raceReport } from "./support/race.ts";
 import { scan, snapshot } from "./support/snapshot.ts";
 import { asPerson } from "./support/teamsWorld.ts";
 
@@ -60,6 +61,52 @@ const refusedWithoutChange = Effect.fnUntraced(function* refusedWithoutChange(
 
   assert.include(refusalOf(exit), reason);
   assert.deepStrictEqual(yield* snapshot, before);
+});
+
+/** How many merges race in a round, and how many rounds there are, each with a pair of people of its own. */
+const MERGES = 20;
+const ROUNDS = 300;
+
+/**
+ * What a round of merges of the same two records must have left, whichever merge came first: exactly one succeeded and
+ * every other lost with the typed conflict (not a defect, not a deadlock), one record is a tombstone, and the other
+ * holds the memberships of both. The report names the round and prints each loser's whole Cause.
+ */
+const checkMergeRound = Effect.fnUntraced(function* checkMergeRound(
+  round: number,
+  exits: readonly Exit.Exit<unknown, unknown>[],
+  pair: readonly [Seeded, Seeded]
+) {
+  const report = raceReport(round, exits);
+  const [first, second] = pair;
+
+  assert.strictEqual(Arr.filter(exits, Exit.isSuccess).length, 1, report);
+
+  assert.isTrue(
+    Arr.every(Arr.filter(exits, Exit.isFailure), (loser) =>
+      failedWith(loser, Conflict)
+    ),
+    report
+  );
+
+  assert.strictEqual(
+    yield* countWhere(
+      "person",
+      `id in (${first.personId}, ${second.personId}) and merged_into is not null`
+    ),
+    1,
+    report
+  );
+
+  const held = Arr.sort(
+    [
+      (yield* rowsNaming(first.personId, NAMING_TABLES)).membership ?? 0,
+      (yield* rowsNaming(second.personId, NAMING_TABLES)).membership ?? 0,
+    ],
+    Order.Number
+  );
+
+  assert.deepStrictEqual(held, [0, 2], report);
 });
 
 layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
@@ -195,6 +242,53 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
     );
 
     it.effect(
+      "an audit row follows the merge by its actor and keeps the entity key it names: what the merged record wrote is the survivor's, and a row about the merged record still names the tombstone, which points to the survivor",
+      () =>
+        Effect.gen(function* auditRows() {
+          const sql = yield* SqlClient;
+          const admin = yield* administrator("mgauditadmin");
+          const into = yield* seedPerson("mgauditinto", nothing, LATER);
+          const from = yield* seedPerson("mgauditfrom", nothing, LATER);
+          const named = String(from.personId);
+
+          // Two rows that mention the merged record: one that it wrote, and one that the administrator wrote about it.
+          yield* sql`insert into audit_log (action, at, entity, entity_key, person_id)
+            values ('person.photoSet', now(), 'Person', ${named}, ${from.personId}),
+              ('account.invited', now(), 'Account', ${named}, ${admin.personId})`;
+
+          yield* mergeAs(admin.personId, into.personId, from.personId);
+
+          // By actor: the row that the merged record wrote is the survivor's now, and the tombstone has none.
+          assert.strictEqual(
+            yield* countWhere(
+              "audit_log",
+              `action = 'person.photoSet' and person_id = ${into.personId}`
+            ),
+            1
+          );
+          assert.strictEqual(
+            yield* countWhere("audit_log", `person_id = ${from.personId}`),
+            0
+          );
+
+          // By entity: both rows still name the tombstone, a record with no data that points to the survivor.
+          assert.strictEqual(
+            yield* countWhere(
+              "audit_log",
+              `entity_key = '${named}' and entity in ('Person', 'Account')`
+            ),
+            2
+          );
+
+          const [tomb] = yield* sql<{
+            readonly merged_into: number | null;
+          }>`select merged_into from person where id = ${from.personId}`;
+
+          assert.strictEqual(tomb?.merged_into, into.personId);
+        })
+    );
+
+    it.effect(
       "a second merge of the same person is refused: the tombstone cannot be locked or merged again",
       () =>
         Effect.gen(function* again() {
@@ -284,51 +378,68 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
     );
 
     it.effect(
-      "twenty concurrent merges of one pair have one winner, and the others lose with a typed conflict",
+      `${MERGES} concurrent merges of one pair, half in each direction, have one winner in each of ${ROUNDS} rounds of fresh state, and the others lose with the typed conflict`,
       () =>
         Effect.gen(function* concurrent() {
           const admin = yield* administrator("mgraceadmin");
 
-          const into = yield* seedPerson(
-            "mgrace1",
-            { ...nothing, memberships: 1 },
-            LATER
+          for (const round of Arr.range(1, ROUNDS)) {
+            const first = yield* seedPerson(
+              `mgrace${round}a`,
+              { ...nothing, memberships: 1 },
+              LATER
+            );
+
+            const second = yield* seedPerson(
+              `mgrace${round}b`,
+              { ...nothing, memberships: 1 },
+              LATER
+            );
+
+            // Opposite orders of the same two rows: without one global order of the locks (the admin list, then both
+            // people in ascending id order) a merge of the first into the second and one of the second into the first
+            // would wait for each other.
+            const exits = yield* race(
+              Arr.makeBy(MERGES, (index) =>
+                index % 2 === 0
+                  ? mergeAs(admin.personId, first.personId, second.personId)
+                  : mergeAs(admin.personId, second.personId, first.personId)
+              )
+            );
+
+            yield* checkMergeRound(round, exits, [first, second]);
+          }
+        }),
+      // 300 rounds of seeding two people and racing twenty transactions: about a minute and a half on a loaded machine.
+      { timeout: 280_000 }
+    );
+
+    it.effect(
+      "negative control: a round in which two merges succeed, or in which one dies, fails the check, and its report holds the Cause",
+      () =>
+        Effect.gen(function* checkCanFail() {
+          const pair = [
+            yield* seedPerson("mgctrl1", nothing, LATER),
+            yield* seedPerson("mgctrl2", nothing, LATER),
+          ] as const;
+
+          const twoWinners = yield* Effect.exit(
+            checkMergeRound(1, [Exit.succeed(1), Exit.succeed(2)], pair)
           );
 
-          const from = yield* seedPerson(
-            "mgrace2",
-            { ...nothing, memberships: 1 },
-            LATER
-          );
+          assert.isTrue(Exit.isFailure(twoWinners));
 
-          const exits = yield* race(
-            Arr.makeBy(20, () =>
-              mergeAs(admin.personId, into.personId, from.personId)
+          const oneDied = yield* Effect.exit(
+            checkMergeRound(
+              2,
+              [Exit.succeed(1), Exit.die("a defect named boom")],
+              pair
             )
           );
 
-          assert.strictEqual(
-            Arr.filter(exits, Exit.isSuccess).length,
-            1,
-            raceReport(1, exits)
-          );
-
-          // Every loser lost with the typed conflict: not a defect, not a deadlock.
-          assert.isTrue(
-            Arr.every(Arr.filter(exits, Exit.isFailure), (loser) =>
-              failedWith(loser, Conflict)
-            ),
-            raceReport(1, exits)
-          );
-
-          assert.deepStrictEqual(
-            yield* rowsNaming(from.personId, NAMING_TABLES),
-            {}
-          );
-          assert.strictEqual(
-            (yield* rowsNaming(into.personId, NAMING_TABLES)).membership,
-            2
-          );
+          assert.isTrue(Exit.isFailure(oneDied));
+          assert.include(describeExit(oneDied), "a defect named boom");
+          assert.include(describeExit(oneDied), "round 2");
         })
     );
 
