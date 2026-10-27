@@ -1,47 +1,75 @@
 ------------------------------- MODULE Shapes -------------------------------
 (***************************************************************************)
-(* The code, as MembershipWrites.tla sees it: which statements each        *)
-(* repository write runs and in which order, and which commands call which *)
-(* repository writes. `CurrentCode` is the code at the digest-confirmed tree *)
+(* The code, as MembershipWrites.tla sees it: which statements each call   *)
+(* that a command makes runs and in which order, and which calls each      *)
+(* command makes. `CurrentCode` is the code at the digest-confirmed tree   *)
 (* in SKILL.md; every line points at the code that a reviewer can open.    *)
 (* The other records are broken variants: each is `CurrentCode` with one   *)
-(* edit that the code could get, and the comment says which.               *)
+(* edit that the code could get (or, where the code stays safe with one    *)
+(* edit, the edits that break it together), and the comment says which.    *)
 (*                                                                         *)
 (* A statement name is one step of the model:                              *)
-(*   read              a plain SELECT of the membership and the machine's  *)
-(*                     decision on it (no lock)                            *)
-(*   lockPerson        SELECT ... FROM person WHERE id = :person           *)
-(*                     FOR NO KEY UPDATE                                   *)
-(*   lockPersonOfRow   the same through a join on the membership's id      *)
+(*   find              MembershipRepository.findById: a plain SELECT       *)
+(*                     without a lock (it finds whose lock to take)        *)
+(*   read              MembershipRepository.findLocked: a plain SELECT     *)
+(*                     through the lock's token, and the machine's         *)
+(*                     decision on it                                      *)
+(*   lockPerson        SELECT id FROM person WHERE id IN (:person)         *)
+(*                     ORDER BY id FOR NO KEY UPDATE (AggregateLocks.lock) *)
+(*   lockPersonOfRow   the same for the person that the membership found   *)
+(*                     by `find` belongs to                                *)
+(*   lockAdminList     the same on the admin list's one row                *)
 (*   insertRow         INSERT INTO membership                              *)
 (*   updateEnd         UPDATE membership SET end ... WHERE <setEndWhere>   *)
 (*   deleteRow         DELETE FROM membership WHERE <removeWhere>          *)
+(* A write also has `person_id = :token` in its WHERE (aggregates.ts); the *)
+(* rows of the model are the locked person's, so that always holds.        *)
 (***************************************************************************)
 EXTENDS Sequences
 
 CurrentCode == [
-    \* packages/domain/src/teams/commands.ts: the repository calls of each
-    \* handler, in order (each handler runs in one transaction,
-    \* packages/db/src/transactional.ts:20-37).
+    \* The calls that each command makes, in order (each handler runs in one
+    \* transaction, packages/db/src/transactional.ts:41-58). `grantAdmin` and
+    \* `revokeAdmin` write admin_grant, not membership: the model takes only
+    \* their locks. `deactivate` and `reactivate` (accounts/commands.ts:230-231,
+    \* 277-278, through lockAccount at 106-121) take the same two locks.
     compose |-> [
-        addMember |-> <<"insert">>,                 \* commands.ts:185
-        cancel    |-> <<"read", "remove">>,         \* commands.ts:208-214 (beginTransition reads at 115)
-        change    |-> <<"read", "setEnd", "insert">>, \* commands.ts:249, 263, 270
-        endEarly  |-> <<"read", "setEnd">>,         \* commands.ts:332, 338
-        extend    |-> <<"read", "setEnd">>          \* commands.ts:360, 366
+        addMember   |-> <<"lock", "insert">>,           \* teams/commands.ts:166, 197
+        cancel      |-> <<"beginTransition", "remove">>, \* teams/commands.ts:220, 222
+        change      |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:257-258, 268, 275
+        endEarly    |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:336-337, 339
+        extend      |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:361-362, 364
+        grantAdmin  |-> <<"lockList", "lock">>,         \* teams/commands.ts:399-400
+        revokeAdmin |-> <<"lockList", "lock">>          \* teams/commands.ts:451, 461 (452 is a plain read)
     ],
-    \* packages/db/src/repositories/teams.ts, MembershipRepositoryLive: the
-    \* statements of each method, in order.
+    \* The statements of each call, in order.
     repo |-> [
-        read   |-> <<"read">>,                      \* commands.ts:86, 115-132
-        insert |-> <<"lockPerson", "insertRow">>,   \* teams.ts:437-442, 444-461
-        setEnd |-> <<"lockPersonOfRow", "updateEnd">>, \* teams.ts:480-486, 488-504
-        remove |-> <<"deleteRow">>                  \* teams.ts:521-535 (no lock)
+        \* beginTransition: the unlocked read that finds the owner, the lock
+        \* of that person, the read through its token, on which the machine
+        \* decides (teams/commands.ts:115-145).
+        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 123, 124, 125, 126-142
+        find     |-> <<"find">>,                       \* teams.ts:381-391
+        read     |-> <<"read">>,                       \* teams.ts:393-401
+        \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
+        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-111, 136-142). A row
+        \* that the transaction holds sends no statement (87-90).
+        lock     |-> <<"lockPerson">>,
+        \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
+        \* (domain/shared/aggregate.ts:90-91): the same statement on admin_list.
+        lockList |-> <<"lockAdminList">>,
+        insert   |-> <<"insertRow">>,                  \* teams.ts:474-493, Aggregates.insert (aggregates.ts:252-291)
+        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:495-530, Aggregates.update (aggregates.ts:329-350)
+        remove   |-> <<"deleteRow">>                   \* teams.ts:532-565, Aggregates.remove (aggregates.ts:292-305)
     ],
+    \* A lock that would come before one that the transaction holds is a defect
+    \* before any statement is sent (db/aggregate/locks.ts:92-103,
+    \* lockScope.ts:36-44). The order: the admin list, then persons by id
+    \* (domain/shared/aggregate.ts:36-39).
+    orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:310-315, 506-510, 537-539).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:491-498
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:523-533
+    \* row is `lostRace`, the typed Conflict (teams.ts:329-334, 525-529, 560-562).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:514-519
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:548-556
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
@@ -54,24 +82,35 @@ CurrentCode == [
 (* Broken variants of the code. Each is the real code with one edit.       *)
 (***************************************************************************)
 
-\* Before the fix of spec 0006 R6: insert does not take the person's lock.
-InsertWithoutLock ==
-    [CurrentCode EXCEPT !.repo = [CurrentCode.repo EXCEPT !.insert = <<"insertRow">>]]
+\* The lock without the row lock: the SELECT of AggregateLocks.lock loses its
+\* FOR NO KEY UPDATE (locks.ts:110), so every lock, of a person and of the
+\* admin list, is a plain read. The state before spec 0006 R6 and mutation M1
+\* of spec 0006b R3: two writes of one person overlap, and one of them dies as
+\* the victim of a deadlock.
+LockTakesNoRowLock ==
+    [CurrentCode EXCEPT !.repo = [CurrentCode.repo EXCEPT
+        !.beginTransition = <<"find", "read">>, !.lock = <<>>, !.lockList = <<>>]]
 
-\* setEnd does not take the person's lock (the extension and insert race of R6).
-SetEndWithoutLock ==
-    [CurrentCode EXCEPT !.repo = [CurrentCode.repo EXCEPT !.setEnd = <<"updateEnd">>]]
+\* A command decides on a read before its lock (beginTransition reads with
+\* findById, an unlocked read, and locks afterwards). The conditional UPDATE
+\* still catches a stale decision, so the code stays legal.
+DecideBeforeLock ==
+    [CurrentCode EXCEPT !.repo = [CurrentCode.repo EXCEPT
+        !.beginTransition = <<"find", "read", "lockPersonOfRow">>]]
 
-\* insert writes first and takes the lock afterwards: the opposite order.
-InsertLocksAfterWrite ==
-    [CurrentCode EXCEPT !.repo = [CurrentCode.repo EXCEPT !.insert = <<"insertRow", "lockPerson">>]]
+\* The decision before the lock, and the UPDATE of setEnd no longer names the
+\* end that the command read: two guards removed together.
+DecideBeforeLockWithoutObservedEnd ==
+    [DecideBeforeLock EXCEPT !.setEndWhere = {"id", "start<=current", "end>=current"}]
 
-\* The UPDATE of setEnd no longer names the end that the command read.
-SetEndWithoutObservedEnd ==
-    [CurrentCode EXCEPT !.setEndWhere = {"id", "start<=current", "end>=current"}]
+\* The decision before the lock, and the UPDATE is only `WHERE id = :id`: the
+\* negative control of spec 0006 falsifier 3 as it was before spec 0006b.
+DecideBeforeLockUnconditional ==
+    [DecideBeforeLock EXCEPT !.setEndWhere = {"id"}]
 
-\* The UPDATE of setEnd is only `WHERE id = :id` (the negative control of
-\* teams.postgres.test.ts, falsifier 3).
+\* The UPDATE of setEnd is only `WHERE id = :id` and the decision is under the
+\* lock: the lock alone keeps every commit legal (spec 0006b R1 item 10, and
+\* the control in teams.postgres.test.ts that asserts it).
 SetEndUnconditional ==
     [CurrentCode EXCEPT !.setEndWhere = {"id"}]
 
@@ -80,52 +119,69 @@ NoExclusionConstraint == [CurrentCode EXCEPT !.exclusion = FALSE]
 
 \* The caller is told "already exists" for a deadlock victim too, as if 40P01
 \* meant that the other write won. Only visible together with a missing lock.
-DeadlockMappedToAlreadyExists == [InsertWithoutLock EXCEPT !.on40P01 = "AlreadyExists"]
+DeadlockMappedToAlreadyExists == [LockTakesNoRowLock EXCEPT !.on40P01 = "AlreadyExists"]
+
+\* `revokeAdmin` locks the holder of the place before the admin list: the order
+\* that spec 0006b R2 forbids. The registry refuses it, as a defect, before it
+\* sends the second statement.
+ListAfterPerson ==
+    [CurrentCode EXCEPT !.compose = [CurrentCode.compose EXCEPT
+        !.revokeAdmin = <<"lock", "lockList">>]]
+
+\* The same order, and the registry does not refuse it (locks.ts:94-103
+\* deleted): `grantAdmin` holds the list and waits for the person, and
+\* `revokeAdmin` holds the person and waits for the list.
+ListAfterPersonUnchecked == [ListAfterPerson EXCEPT !.orderCheck = FALSE]
 
 (***************************************************************************)
 (* What-if commands that the code does not have. Not covered code: they    *)
-(* show what the rule "take the person's lock before any write" buys.      *)
+(* show what taking the person's lock first buys.                          *)
 (***************************************************************************)
 
-Kinds == {"addMember", "cancel", "change", "endEarly", "extend", "replace"}
+Kinds == {"addMember", "cancel", "change", "endEarly", "extend", "grantAdmin",
+          "revokeAdmin", "replace"}
 
 \* A command that cancels a planned membership and adds another one in the same
-\* transaction, written the obvious way: remove, then insert.
-WithReplace == [CurrentCode EXCEPT !.compose =
-    [k \in Kinds |-> IF k = "replace" THEN <<"read", "remove", "insert">>
+\* transaction, written around the construct: a DELETE with no lock before it
+\* (the lint rule `no-owned-table-write` and the token forbid it), then the
+\* lock and the INSERT.
+ReplaceWritingFirst == [CurrentCode EXCEPT !.compose =
+    [k \in Kinds |-> IF k = "replace" THEN <<"find", "read", "remove", "lock", "insert">>
                      ELSE CurrentCode.compose[k]]]
 
-\* The same command taking the person's lock first.
-WithReplaceLockedFirst == [CurrentCode EXCEPT
-    !.repo = [read   |-> <<"read">>,
-              insert |-> CurrentCode.repo.insert,
-              setEnd |-> CurrentCode.repo.setEnd,
-              remove |-> CurrentCode.repo.remove,
-              lock   |-> <<"lockPersonOfRow">>],
-    !.compose =
-    [k \in Kinds |-> IF k = "replace" THEN <<"read", "lock", "remove", "insert">>
+\* The same command written through the construct: it can only call `remove`
+\* with the token that its lock returned, so it locks first.
+ReplaceThroughConstruct == [CurrentCode EXCEPT !.compose =
+    [k \in Kinds |-> IF k = "replace" THEN <<"beginTransition", "remove", "insert">>
                      ELSE CurrentCode.compose[k]]]
 
-\* Spec 0006b contract 1 ("every write to an owned table takes the lock"): the
-\* delete of `remove` locks the person too, so the new command is safe without
-\* its author remembering anything.
-WithReplaceAllWritesLocked == [WithReplace EXCEPT !.repo =
-    [WithReplace.repo EXCEPT !.remove = <<"lockPersonOfRow", "deleteRow">>]]
-
 (***************************************************************************)
-(* Spec 0006b contract 2, on two persons. Not covered code: the spec is    *)
-(* frozen on branch chore/races-by-construction and no code exists yet.    *)
-(* A command that locks two persons ("merge", a cross-department change).  *)
+(* Two persons: AggregateLocks.lockAll over two ids. No command calls it   *)
+(* with two persons yet (a merge would), so these records are the code of  *)
+(* locks.ts and not of a command.                                          *)
 (***************************************************************************)
 
-\* The two locks in the order that the caller names the persons.
+\* lockAll("Person", [a, b]) is one statement, SELECT ... WHERE id IN (a, b)
+\* ORDER BY id FOR NO KEY UPDATE (locks.ts:105-111). PostgreSQL takes the rows
+\* one at a time in ORDER BY order, and a row that another transaction holds
+\* makes the statement wait while the rows before it stay locked: two
+\* acquisitions, the lower id first, whatever the order of the arguments
+\* (pinned in membershipWriteModel.postgres.test.ts).
+LockAll == [CurrentCode EXCEPT
+    !.repo = [lower |-> <<"lockLowerPerson">>, higher |-> <<"lockHigherPerson">>],
+    !.compose = [lockBoth |-> <<"lower", "higher">>]]
+
+\* The two locks one after the other in the order that the caller names the
+\* persons, written as SQL outside the registry: the negative control of
+\* aggregates.postgres.test.ts, falsifier 2.
 LocksInCallOrder == [CurrentCode EXCEPT
+    !.orderCheck = FALSE,
     !.repo = [first |-> <<"lockPerson">>, second |-> <<"lockSecondPerson">>],
     !.compose = [lockBoth |-> <<"first", "second">>]]
 
-\* `Aggregate.lockAll`: the lower id first, then the higher one.
-LocksInIdOrder == [CurrentCode EXCEPT
-    !.repo = [lower |-> <<"lockLowerPerson">>, higher |-> <<"lockHigherPerson">>],
-    !.compose = [lockBoth |-> <<"lower", "higher">>]]
+\* The same two calls through AggregateLocks.lock: the registry refuses the one
+\* that comes after a higher id (aggregates.postgres.test.ts, "a lock that would
+\* break the global order is a defect").
+LocksInCallOrderThroughRegistry == [LocksInCallOrder EXCEPT !.orderCheck = TRUE]
 
 =============================================================================

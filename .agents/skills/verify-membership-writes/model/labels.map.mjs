@@ -1,5 +1,5 @@
 // Chart labels for the membership-write model, in the words of its reader: an engineer who reviews a change to
-// MembershipRepository or to the Teams commands. The pstack /statechart skill loads this file as the mapping of any
+// MembershipRepository, the aggregate locks or the commands that take them. The pstack /statechart skill loads this file as the mapping of any
 // root module (Race, WhatIf, Pair, Story). It is plain JavaScript on purpose: /statechart loads it from a scratch
 // folder outside the repository, where Effect does not resolve.
 //
@@ -35,6 +35,12 @@ function command(plan) {
     case "replace": {
       return "cancels a planned membership and adds another in its place";
     }
+    case "grantAdmin": {
+      return "grants an admin place (locks the admin list, then the person)";
+    }
+    case "revokeAdmin": {
+      return "revokes an admin place (locks the admin list, then the person)";
+    }
     case "lockBoth": {
       return `locks person ${plan.person}, then person ${plan.person2}`;
     }
@@ -54,10 +60,27 @@ const context = (v) =>
 const answers = {
   AlreadyExists: 'is told "already exists"',
   Conflict: 'is told "it changed"',
+  LockOrderViolation:
+    "dies as a defect: it asked for a lock that comes before one it holds",
   NotFound: 'is told "not found"',
   cancelled: "is cancelled and rolls back",
   defect: "gets an error (500)",
 };
+
+// The lock keys are the admin list (0) and the persons (1, 2, ...). TLC writes a function on 0..n as a list and any
+// other function as an object, so both are read the same way.
+const lockEntries = (v) =>
+  Array.isArray(v.holder)
+    ? v.holder.map((holder, key) => [String(key), holder])
+    : Object.entries(v.holder);
+
+const holds = (v, t) => lockEntries(v).some(([, holder]) => holder === t);
+
+const heldLocks = (v, t) =>
+  lockEntries(v)
+    .filter(([, holder]) => holder === t)
+    .map(([key]) => (key === "0" ? "the admin list's lock" : "the person lock"))
+    .join(" and ");
 
 function phase(v, t) {
   if (v.status[t] === "committed") {
@@ -83,12 +106,12 @@ function phase(v, t) {
       : `wrote its row, its overlap check waits for ${who(waitsFor)}`;
   }
   if (waitsFor !== NOBODY) {
-    return v.holder.includes(waitsFor)
-      ? `waits for ${who(waitsFor)}'s person lock`
+    return holds(v, waitsFor)
+      ? `waits for ${who(waitsFor)}'s row lock`
       : `waits for ${who(waitsFor)}'s change of the row`;
   }
-  if (v.holder.includes(t)) {
-    return "holds the person lock";
+  if (holds(v, t)) {
+    return `holds ${heldLocks(v, t)}`;
   }
   return v.pc[t] === 1 ? "not started" : "running";
 }
@@ -109,7 +132,7 @@ const mover = (before, after) =>
       before.status[t] !== after.status[t] ||
       before.blocked[t] !== after.blocked[t] ||
       before.pending[t].length !== after.pending[t].length ||
-      before.holder.includes(t) !== after.holder.includes(t)
+      holds(before, t) !== holds(after, t)
   );
 
 // The commands that wait for each other in a cycle through `t`.
@@ -124,7 +147,29 @@ function cycle(before, t) {
   return members;
 }
 
+// The lock that a step took: the key whose holder became `t`.
+const lockTaken = (before, after, t) => {
+  const key = lockEntries(after).find(
+    ([name, holder]) =>
+      holder === t &&
+      lockEntries(before).some(([old, was]) => old === name && was !== t)
+  );
+
+  return key !== undefined && key[0] === "0"
+    ? "the admin list's row lock"
+    : "the person's row lock";
+};
+
 const LABELS = {
+  AcquireLock: (t, before, after) => {
+    if (after.status[t] === "aborted") {
+      return `${who(t)} asks for a lock that comes before one it holds: the code refuses it as a defect and rolls back`;
+    }
+
+    return after.blocked[t] === NOBODY
+      ? `${who(t)} takes ${lockTaken(before, after, t)}`
+      : `${who(t)} asks for a row lock and has to wait for ${who(after.blocked[t])}`;
+  },
   CheckPass: (t) => `${who(t)}'s overlap check finds nothing that overlaps`,
   CheckRefuse: (t) =>
     `${who(t)}'s overlap check meets a committed membership: "already exists"`,
@@ -147,10 +192,10 @@ const LABELS = {
   Finished: () => "",
   InsertRow: (t) =>
     `${who(t)} writes the new membership (its row and its index entry)`,
-  LockPerson: (t, before, after) =>
-    after.blocked[t] === NOBODY
-      ? `${who(t)} takes the person's row lock`
-      : `${who(t)} asks for the person's row lock and has to wait for ${who(after.blocked[t])}`,
+  FindRow: (t, before, after) =>
+    after.status[t] === "aborted"
+      ? `${who(t)} looks the membership up (no lock) and finds none: it is told so`
+      : `${who(t)} looks the membership up (no lock) to find whose lock to take`,
   ReadRow: (t) => `${who(t)} reads the membership`,
   UpdateEnd: (t, before, after) => {
     if (after.blocked[t] !== NOBODY) {
