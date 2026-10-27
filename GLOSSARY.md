@@ -50,9 +50,9 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 ## Acting in the system
 
-**Principal** (aktør): The accountable party that holds grants: `Anonymous`, a Person, a named system principal, a `Link(purpose)` holder, or `Emergency`. In business language and in ArchiMate, an actor. _Avoid_: user, role
+**Principal** (aktør): The accountable party that holds grants: `Anonymous`, a Person, a named system principal, a `Link(purpose)` holder, or `Emergency`. A person principal is an actor in business language and an ArchiMate Business Actor. _Avoid_: user, role, actor (in code)
 
-**System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. _Avoid_: root, service account, bot
+**System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. In ArchiMate, an Application Process of an Application Component, not a Business Actor. _Avoid_: root, service account, bot
 
 **Credential** (innloggingsmiddel): What proves a principal: a password, a passkey, a single-use code, or the platform's trigger for a scheduled job. _Avoid_: login, auth
 
