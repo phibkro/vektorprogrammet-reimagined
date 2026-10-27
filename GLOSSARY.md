@@ -101,3 +101,29 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 **Retention period** (lagringstid): How long the system keeps one kind of personal data before it deletes or anonymises it. _Avoid_: TTL, expiry
 
 **Consent** (samtykke): A recorded yes from a person to one purpose, for example admission alerts. A person can withdraw each consent separately. _Avoid_: opt-in, permission
+
+## Elections and voting
+
+**Election** (valg): A democratic decision with candidates for seats, counted by a voting system. The electorate is frozen at the nomination cut-off.
+
+**Election type** (valgtype): A declaration in code that sets the electorate rule, positions and role kinds granted by an election.
+
+**Electorate** (velgermasse): The people eligible to vote in one election, determined by its scope and frozen at nomination cut-off.
+
+**Voting system** (valgsystem): A typed composition of ballot type, aggregation, win condition, denominator and tie-break chain.
+
+**Motion vote** (avstemning): A democratic decision on a proposal, using yes/no/abstain ballots and a declared threshold.
+
+**Certification** (godkjenning): The passed decision that confirms an election result and is the recorded origin of elected role assignments. The election type declares the certifier subject set; `System(elections)` creates the role assignments at term start. When all certifiers are candidates, authority falls to the parent unit's committee and then Admin at the root.
+
+**Ballot type** (stemmeseddeltype): The form of one ballot: yes/no/abstain, single choice, approval, ranked, or score/grade.
+
+**Aggregation** (aggregering): The typed function that combines ballots into a result, such as counting, elimination rounds, or a pairwise matrix.
+
+**Win condition** (vinnerregel): The condition that makes a candidate or motion win, applied to an aggregation result.
+
+**Tie-break chain** (avgjørelseskjede): Zero or more non-deciding rules followed by one terminal rule that always decides. The election default is runoff, committee, then lot; aggregation-specific tie rules run first.
+
+**Denominator** (nevner): The declared basis for a threshold: valid ballots, all ballots cast, checked-in attendees, or the whole electorate.
+
+**Preset** (forhåndsvalg): A named voting-system composition with sensible defaults for its parameters. An election type restricts which presets may be selected.

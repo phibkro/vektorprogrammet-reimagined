@@ -31,6 +31,7 @@
 6. After the local spec 0007 gates, the lead checks CI and the Worker Preview with a seeded fake account. Production deployment remains an operator step.
 7. Redeploy `main` and confirm that the CMS answers (`GET /_emdash/api/setup/status` is 200 on its `workers.dev` URL). `bun run check:cms` proves the bundle in workerd against a local PostgreSQL, so the first deploy after the R3 fix is the proof against Hyperdrive and Neon.
 8. ADR 0011, “Units, roles and decisions,” is accepted (operator, 2026-10-27), including Emergency's least-privilege grants. Its remaining design questions are listed at the end of `docs/decisions/0011-units-roles-and-decisions.md`; the kernel change is a later spec.
+9. ADR 0012, “Elections,” is accepted (operator, 2026-10-27). Its open questions and bylaw assumptions are listed at the end of `docs/decisions/0012-elections.md`; the build is a later spec.
 
 ## Blocked on the operator
 
