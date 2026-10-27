@@ -31,8 +31,10 @@ import {
   Cause,
   Crypto,
   DateTime,
+  Deferred,
   Effect,
   Exit,
+  Fiber,
   Layer,
   Logger,
   Option,
@@ -672,6 +674,64 @@ layer(live, { excludeTestServices: true })(
 
             assert.strictEqual(rows[0]?.company_email, null);
             assert.strictEqual(yield* rowsIn("outbox"), 0);
+          })
+      );
+
+      layerTest.effect(
+        "interrupting an assignment rolls back the Person and namespace and releases its lock",
+        () =>
+          Effect.gen(function* interruptedAssignment() {
+            yield* twoMemberWorld;
+            const sql = yield* SqlClient;
+
+            const [person] = yield* sql<{
+              readonly id: number;
+            }>`select id from person where name = 'Medlem1x2 Navn'`;
+
+            const id = person?.id ?? 0;
+            const tx = yield* Transactor;
+            const locks = yield* AggregateLocks;
+            const assignments = yield* WorkspaceAssignments;
+            const reached = yield* Deferred.make<null>();
+            const hold = yield* Deferred.make<null>();
+
+            const address = CompanyEmail.make(
+              "interrupted@vektorprogrammet.no"
+            );
+
+            const work = Effect.gen(function* assign() {
+              const locked = yield* locks.lock("Person", id);
+              yield* assignments.assign(locked, address);
+              yield* Deferred.succeed(reached, null);
+              yield* Deferred.await(hold);
+            });
+
+            const fiber = yield* Effect.forkChild(tx.run(work));
+            yield* Deferred.await(reached);
+            yield* Fiber.interrupt(fiber);
+
+            const [after] = yield* sql<{
+              readonly company_email: string | null;
+            }>`select company_email from person where id = ${id}`;
+
+            const [claims] = yield* sql<{
+              readonly n: number;
+            }>`select count(*)::int as n from company_address where address = ${address}`;
+
+            assert.strictEqual(after?.company_email, null);
+            assert.strictEqual(claims?.n, 0);
+            yield* tx.run(
+              Effect.gen(function* retry() {
+                const locked = yield* locks.lock("Person", id);
+                yield* assignments.assign(locked, address);
+              })
+            );
+
+            const [retried] = yield* sql<{
+              readonly company_email: string | null;
+            }>`select company_email from person where id = ${id}`;
+
+            assert.strictEqual(retried?.company_email, address);
           })
       );
 
