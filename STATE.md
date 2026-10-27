@@ -31,6 +31,7 @@
 5. Provision the CMS before its first deploy (`apps/cms/README.md`, `apps/web/README.md` § Stages and previews): the Neon role `emdash_app` and schema `emdash` on `dev` and `production` (`apps/cms/db/emdash-role.sql`), the secrets `NEON_EMDASH_PASSWORD`, `EMDASH_ENCRYPTION_KEY` and `CMS_READ_TOKEN`, then deploy `main` first and finish EmDash's setup wizard at once (its first visitor becomes the administrator) to create the read-only token.
 6. After the local spec 0007 gates, the lead checks CI and the Worker Preview with a seeded fake account. Production deployment remains an operator step.
 7. Redeploy `main` and confirm that the CMS answers (`GET /_emdash/api/setup/status` is 200 on its `workers.dev` URL). `bun run check:cms` proves the bundle in workerd against a local PostgreSQL, so the first deploy after the R3 fix is the proof against Hyperdrive and Neon.
+8. The operator reviews ADR 0011, “Units, roles and decisions,” on PR #33 and accepts or rejects it. The remaining design questions are listed at the end of `docs/decisions/0011-units-roles-and-decisions.md`.
 
 ## Blocked on the operator
 
