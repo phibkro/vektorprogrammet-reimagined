@@ -46,10 +46,13 @@ export const ADMIN_LIST_ID = 1;
 declare const lockedBrand: unique symbol;
 
 /**
- * Proof that the running transaction holds the lock of one row of a root. Only `packages/db` makes one (the brand is
- * not exported, so an object made by hand does not type-check), and a repository checks it against the locks that the
- * transaction holds each time it is used: a token from another transaction, or from a savepoint that was rolled back,
- * never reads or writes. A token of one root does not stand for another.
+ * Proof that the running transaction holds the lock of one row of a root. Only `packages/db` makes one. The types
+ * refuse an object literal (the brand is not exported) and a token of another root; they do not tie a token to its
+ * row: a spread such as `{ ...held, id: 7 }` copies the brand, and `id` is an ordinary property, so it type-checks as
+ * a token of row 7. What ties a token to its row is a run-time check: a repository asks the transaction's lock
+ * registry each time it uses a token, and a token that the running transaction does not hold (made by hand,
+ * respelled for another row, from another transaction, from a savepoint that was rolled back) dies as `LockNotHeld`
+ * and never reads or writes (spec 0006b R3).
  */
 export interface Locked<Root extends EntityName> {
   readonly [lockedBrand]: Root;

@@ -3,6 +3,7 @@
  * under a `@ts-expect-error` that fails the type check itself the day the statement starts to compile, so a case cannot
  * rot. The statements never run: the lock registry that refuses the same mistakes at run time is tested in
  * `aggregates.postgres.test.ts`.
+ * One case goes the other way, on purpose: it pins what the types let through (a token respelled with a spread, R3).
  */
 import { assert, describe, it } from "@effect/vitest";
 import type {
@@ -60,6 +61,15 @@ const repositoryOfAnotherRoot = (
 const handMade = (writer: Writer, row: Row) =>
   // @ts-expect-error an object literal lacks the brand that only a lock gives
   writer.insert({ id: 1, root: "Person" }, membership, row);
+
+/**
+ * What the types let through (spec 0006b R3): a spread copies the brand, and `id` is an ordinary property, so a token
+ * of one row type-checks as a token of another. The lock registry refuses it at run time (`aggregates.postgres.test.ts`).
+ */
+const respelled = (held: Locked<"Person">): Locked<"Person"> => ({
+  ...held,
+  id: 7,
+});
 
 const otherOwner = (writer: Writer, locked: Locked<"Person">, row: Row) =>
   // @ts-expect-error the owner column is filled from the token, so it is not a value
@@ -121,6 +131,10 @@ describe("spec 0006b falsifier 1: the construct's promises hold at the type leve
 
   it("a token made by hand does not type-check", () => {
     assert.isFunction(handMade);
+  });
+
+  it("a token respelled from a real one does type-check: the types do not tie a token to its row, the lock registry does", () => {
+    assert.isFunction(respelled);
   });
 
   it("a write cannot name another owner, and only a table with a stored machine can have a transition applied", () => {
