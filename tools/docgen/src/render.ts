@@ -658,13 +658,6 @@ export const renderAdministrationDocument = (
   });
 
 export const checkAdministrationDocument = (
-  document: string,
-  domains: readonly Declaration[],
-  grants: readonly GrantRow[],
-  sources: PersonalDataSources,
-  jobs: readonly Job.Job[] = JobRegistry.Jobs
+  ...inputs: Parameters<typeof renderAdministrationDocument>
 ): Result.Result<void, string> =>
-  checkRendered(
-    document,
-    renderAdministrationDocument(document, domains, grants, sources, jobs)
-  );
+  checkRendered(inputs[0], renderAdministrationDocument(...inputs));
