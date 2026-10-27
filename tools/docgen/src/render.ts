@@ -1,11 +1,22 @@
-/** Pure renderers for the declaration-derived teams, accounts and commands-by-resource references. */
+/** Pure renderers for the declaration-derived teams, accounts, commands-by-resource and personal data references. */
 import {
   Commands,
   Domain,
   Subject,
+  approvalWords,
   codePolicy,
+  consentNames,
+  consentTexts,
+  privacyNotice,
+  recordOfProcessing,
 } from "@vektorprogrammet/domain";
-import type { Grant, Machine } from "@vektorprogrammet/domain";
+import type {
+  CatalogOf,
+  FormDeclaration,
+  Grant,
+  Machine,
+  RecordRow,
+} from "@vektorprogrammet/domain";
 import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
 
 interface Entry {
@@ -423,11 +434,13 @@ export const renderAccountsDocument = (
       const entries = entriesOf(domain);
 
       const policy = alignedTable(
-        ["Purpose", "Command", "Lifetime (hours)"],
+        ["Purpose", "Command", "Hours", "Account", "Single use"],
         Arr.map(Rec.toEntries(codePolicy), ([purpose, value]) => [
           purpose,
           value.command,
           String(value.lifetimeSeconds / 3600),
+          value.account ?? "none",
+          value.singleUse ? "yes" : "no",
         ])
       );
 
@@ -463,3 +476,140 @@ export const checkCommandsDocument = (
   grants: readonly GrantRow[]
 ): Result.Result<void, string> =>
   checkRendered(document, renderCommandsDocument(document, domains, grants));
+
+/** What the personal data document is generated from besides the declarations: the catalog and the forms that collect. */
+export interface PersonalDataSources {
+  readonly catalog: CatalogOf;
+  readonly forms: readonly FormDeclaration[];
+}
+
+/** The mark beside a value that the operator has not decided: the document's footnote explains it. */
+const proposedMark = (approval: RecordRow["approval"]): string =>
+  approval === "proposed" ? " \\*" : "";
+
+/** How long each kind of data is kept, and what happens then: the record of processing, without its legal columns. */
+const retentionSchedule = (catalog: CatalogOf): string =>
+  table(
+    ["Data", "Kept for", "At the end"],
+    Arr.map(recordOfProcessing(catalog), (row) => [
+      row.purpose.en,
+      `${row.kept.en}${proposedMark(row.approval)}`,
+      row.atEnd.en,
+    ])
+  );
+
+/** The columns of one row of the record, grouped by the table that holds them. */
+const columnsByTable = (names: readonly string[]): string =>
+  Arr.join(
+    Arr.map(
+      Rec.toEntries(
+        Arr.groupBy(names, (name) => name.slice(0, name.indexOf(".")))
+      ),
+      ([stored, columns]) =>
+        `\`${stored}\`: ${Arr.join(
+          Arr.map(columns, (column) => column.slice(column.indexOf(".") + 1)),
+          ", "
+        )}`
+    ),
+    "<br>"
+  );
+
+/** The record of processing activities (GDPR Art. 30): every personal column, by what it is for. */
+const processingRecord = (catalog: CatalogOf): string =>
+  table(
+    ["Purpose", "Legal basis", "Data", "Kept for", "At the end", "Approval"],
+    Arr.map(recordOfProcessing(catalog), (row) => [
+      row.purpose.en,
+      `${row.basis.en} (${row.basis.citation})`,
+      columnsByTable(row.data),
+      row.kept.en,
+      row.atEnd.en,
+      approvalWords[row.approval]?.en ?? "decided",
+    ])
+  );
+
+/** The privacy notice of each form, in English, from the same value that the form's page renders in Norwegian. */
+const privacyNotices = (
+  forms: readonly FormDeclaration[],
+  catalog: CatalogOf
+): string =>
+  Arr.join(
+    Arr.map(forms, (form) => {
+      const notice = privacyNotice(form, catalog);
+      const draft = approvalWords[notice.approval]?.en;
+
+      return Arr.join(
+        [
+          `#### ${form.title.en}`,
+          draft === undefined ? "" : `_${draft}._`,
+          notice.controller.en,
+          table(
+            ["Field", "Why", "Legal basis", "Who receives it", "Kept for"],
+            Arr.map(notice.entries, (entry) => [
+              entry.label.en,
+              entry.purpose.en,
+              `${entry.basis.en} (${entry.basis.citation})`,
+              entry.recipients.en,
+              entry.kept.en,
+            ])
+          ),
+          notice.rights.en,
+        ],
+        "\n\n"
+      );
+    }),
+    "\n\n"
+  );
+
+/** Each consent, the version of its text, and the text in both languages. A record names a version and can name only the current one. */
+const consentTable = (): string =>
+  table(
+    ["Consent", "Version", "What the person sees", "In English", "Approval"],
+    Arr.map(Rec.toEntries(consentTexts), ([kind, text]) => [
+      consentNames[kind].en,
+      String(text.version),
+      text.no,
+      text.en,
+      approvalWords[text.approval]?.en ?? "decided",
+    ])
+  );
+
+/**
+ * The personal data parts of `administration.md`: the retention schedule, the record of processing, the privacy notices,
+ * the consent texts and the commands of the personal data domain. The catalog and the declarations are what the runtime
+ * uses (spec 0007b), so the document cannot say another period than the nightly job applies.
+ */
+export const renderAdministrationDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[],
+  sources: PersonalDataSources
+): Result.Result<string, string> =>
+  Result.flatMap(completeDomains(domains), (complete) => {
+    const domain = Option.getOrUndefined(
+      Arr.findFirst(complete, (entry) => entry.name === "personalData")
+    );
+
+    if (domain === undefined) {
+      return Result.fail("The personalData declaration is missing");
+    }
+
+    return replaceBlocks(document, [
+      ["retention", retentionSchedule(sources.catalog)],
+      ["personal-data-commands", commands(entriesOf(domain), grants)],
+      ["record", processingRecord(sources.catalog)],
+      ["notices", privacyNotices(sources.forms, sources.catalog)],
+      ["consents", consentTable()],
+    ]);
+  });
+
+export const checkAdministrationDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[],
+  sources: PersonalDataSources
+): Result.Result<void, string> =>
+  checkRendered(
+    document,
+    renderAdministrationDocument(document, domains, grants, sources)
+  );

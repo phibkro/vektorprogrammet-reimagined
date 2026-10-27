@@ -48,6 +48,10 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | --- | --- | --- | --- | --- |
 | `createPerson` | `create` | teams | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin |
 | `updatePerson` | `update` | accounts | Update a person's profile. | Leader(d); Self; Admin |
+| `setPhoto` | `:set` | personalData | Set a person's photo under their consent, or remove it. A photo is stored only under a current photo consent; withdrawing the consent removes it. | Self; Leader(d); Admin |
+| `exportMyData` | `:export` | personalData | Download everything held about a person as JSON (GDPR Art. 15, 20). Audited. It changes no data. | Self; Admin |
+| `erasePerson` | `:erase` | personalData | Anonymise a person's core fields and delete their account, sessions, consents and subscriptions. The history rows stay (GDPR Art. 17). Refused, with the reason, while a legal hold applies and when it would remove the last Active admin. A second call changes nothing. | Self; Admin |
+| `mergePersons` | `:merge` | personalData | Merge two records of one person: every row of the second follows the first, and the second becomes a tombstone without personal data. Refused with a typed conflict, and nothing changes, when both records have an account or when two memberships in one team would overlap. | Admin |
 
 ### Account
 
@@ -85,6 +89,20 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | --- | --- | --- | --- | --- |
 | `createAdminGrant` | `create` | teams | Put a person on the admin list until a date. Never for oneself. | Admin |
 | `deleteAdminGrant` | `delete` | teams | Take a place off the admin list. Never one's own, and never the last place that ends after the current semester and that an Active account holds. | Admin |
+
+### Consent
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `setAlumniConsent` | `:set` | personalData | Answer the alumni questions on Min side: keep my details for 5 years, and send me alumni news. | Self; Admin |
+| `answerAlumniConsent` | `:answer` | personalData | Answer the alumni questions with the code from the e-mail. The code lives 60 days and can be used again, so an answer can be corrected; it never opens another command. | Holder(alumniConsent) |
+| `sendAlumniConsent` | `:send` | personalData | When a person's last engagement ends, e-mail them the two alumni questions once. One request per person and engagement end. | System(alumniConsent) |
+
+### Retention
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `runRetention` | `:run` | personalData | Each night, delete or anonymise what has reached the end of its declared period. The audit row holds integer counts per table, never a value. | System(retention) |
 
 ### AuditEntry
 

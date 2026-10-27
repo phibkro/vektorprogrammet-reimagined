@@ -1,17 +1,32 @@
 /** Generate or check the declaration-derived blocks in the system documentation. */
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Declarations, GrantTable } from "@vektorprogrammet/domain";
+import {
+  Catalog,
+  Declarations,
+  Forms,
+  GrantTable,
+} from "@vektorprogrammet/domain";
+import type { Domain, Grant } from "@vektorprogrammet/domain";
 import { Console, Effect, FileSystem, Result, Schema } from "effect";
 import { Command, Flag } from "effect/cli";
 
 import {
   checkAccountsDocument,
+  checkAdministrationDocument,
   checkCommandsDocument,
   checkDocument,
   renderAccountsDocument,
+  renderAdministrationDocument,
   renderCommandsDocument,
   renderDocument,
 } from "./render.ts";
+
+/** What the personal data blocks are generated from besides the declarations: the runtime's own catalog and forms. */
+const PERSONAL_DATA = { catalog: Catalog, forms: Forms };
+
+type Declared = readonly Domain.Declaration[];
+
+type Granted = readonly Grant.Row[];
 
 const DOCUMENTS = [
   {
@@ -28,6 +43,13 @@ const DOCUMENTS = [
     check: checkCommandsDocument,
     file: "../../docs/system/commands.md",
     render: renderCommandsDocument,
+  },
+  {
+    check: (document: string, domains: Declared, grants: Granted) =>
+      checkAdministrationDocument(document, domains, grants, PERSONAL_DATA),
+    file: "../../docs/system/administration.md",
+    render: (document: string, domains: Declared, grants: Granted) =>
+      renderAdministrationDocument(document, domains, grants, PERSONAL_DATA),
   },
 ] as const;
 
