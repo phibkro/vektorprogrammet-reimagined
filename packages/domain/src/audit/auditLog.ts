@@ -34,6 +34,15 @@ export const AuditAction = Schema.Literals([
   "adminGrant.granted",
   "adminGrant.revoked",
   "endingSoon.sent",
+  "consent.given",
+  "consent.withdrawn",
+  "person.exported",
+  "person.erased",
+  "person.merged",
+  "person.photoSet",
+  "person.photoRemoved",
+  "alumni.requested",
+  "retention.ran",
 ]);
 
 export type AuditAction = typeof AuditAction.Type;
@@ -50,6 +59,8 @@ export const AuditEntry = Schema.Struct({
   action: AuditAction,
   at: Schema.DateTimeUtc,
   client: AuditClient,
+  /** Integer counts of what a retention run removed or anonymised, per table: never a value (spec 0007b). */
+  counts: Schema.optionalKey(Schema.Record(Schema.String, Schema.Int)),
   entity: EntityName,
   /** The entity's id or natural key, as text. */
   entityKey: Schema.String,
@@ -71,13 +82,15 @@ export class AuditLog extends Context.Service<
 
 /**
  * Records a write of `principal` at the current `Clock` instant. Only a person or a job writes: an anonymous principal
- * holds no grant that writes, so reaching this with one is a bug and a defect.
+ * holds no grant that writes, so reaching this with one is a bug and a defect. A retention run passes its integer
+ * `counts`, which are numbers and never values.
  */
 export const recordAudit = Effect.fnUntraced(function* recordAudit(
   principal: Principal,
   action: AuditAction,
   entity: EntityName,
-  entityKey: string | number
+  entityKey: string | number,
+  counts?: Readonly<Record<string, number>>
 ) {
   const at = yield* DateTime.now;
   const log = yield* AuditLog;
@@ -93,7 +106,7 @@ export const recordAudit = Effect.fnUntraced(function* recordAudit(
     })
   );
 
-  yield* log.record({
+  const entry: AuditEntry = {
     action,
     at,
     client: Predicate.isTagged(principal, "Person")
@@ -105,5 +118,7 @@ export const recordAudit = Effect.fnUntraced(function* recordAudit(
     sessionId: Predicate.isTagged(principal, "Person")
       ? (principal.sessionId ?? null)
       : null,
-  });
+  };
+
+  yield* log.record(counts === undefined ? entry : { ...entry, counts });
 });

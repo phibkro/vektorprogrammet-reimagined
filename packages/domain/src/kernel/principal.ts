@@ -24,6 +24,8 @@ export const SystemJob = Schema.Literals([
   "semesters",
   "outboxSweep",
   "endingSoon",
+  "retention",
+  "alumniConsent",
 ]);
 
 export type SystemJob = typeof SystemJob.Type;
