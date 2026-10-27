@@ -33,6 +33,8 @@ export interface WorkerEnv {
   readonly CMS_URL: string;
   /** A read-only personal access token of the CMS (scopes `content:read`; Worker secret). */
   readonly CMS_TOKEN: string;
+  /** The origin the site is served from (`https://…`, no trailing slash), for the links in messages. Empty where no real message is sent. */
+  readonly SITE_URL: string;
   /** Production only: Cloudflare Email Service binding. */
   readonly SEND_EMAIL?: SendEmail;
   /** Production only: sender address for outbox e-mail. */

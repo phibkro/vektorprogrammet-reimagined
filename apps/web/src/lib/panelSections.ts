@@ -31,6 +31,24 @@ export const PANEL_SECTIONS = [
     to: "/kontrollpanel/linjer",
   },
   {
+    group: "Organisasjon",
+    key: "teams",
+    label: "Team",
+    to: "/kontrollpanel/team",
+  },
+  {
+    group: "Organisasjon",
+    key: "people",
+    label: "Personer",
+    to: "/kontrollpanel/personer",
+  },
+  {
+    group: "Administrasjon",
+    key: "admins",
+    label: "Administratorer",
+    to: "/kontrollpanel/administratorer",
+  },
+  {
     group: "Innhold",
     key: "socialEvents",
     label: "Arrangementer",
@@ -51,11 +69,16 @@ export interface NavigationGroup {
   readonly items: readonly NavigationItem[];
 }
 
-/** The section a pathname belongs to; undefined for a path that is no section (a not-found page). */
-export const sectionOfPath = (pathname: string): PanelSection | undefined =>
-  Option.getOrUndefined(
+/** The section a pathname belongs to (a page below a section's path belongs to it); undefined for a path that is no section. */
+export const sectionOfPath = (pathname: string): PanelSection | undefined => {
+  const path = pathname.replace(/\/$/u, "");
+
+  return Option.getOrUndefined(
     Arr.findFirst(
       PANEL_SECTIONS,
-      (section) => section.to === pathname.replace(/\/$/u, "")
+      (section) =>
+        section.to === path ||
+        (section.key !== "overview" && path.startsWith(`${section.to}/`))
     )
   );
+};

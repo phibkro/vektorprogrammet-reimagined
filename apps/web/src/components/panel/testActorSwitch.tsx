@@ -1,16 +1,6 @@
 import { Array as Arr, Effect } from "effect";
 
-import { TEST_ACTOR_COOKIE } from "@/lib/testActor";
-import type { TestActorName } from "@/lib/testActor";
-
-const TEST_ACTOR_CHOICES: readonly {
-  value: TestActorName | "anonymous";
-  label: string;
-}[] = [
-  { label: "Admin (testaktør)", value: "admin" },
-  { label: "Anonym", value: "anonymous" },
-  { label: "Teamleder (testaktør)", value: "teamLeader" },
-];
+import { ANONYMOUS_CHOICE, TEST_ACTOR_COOKIE } from "@/lib/testActor";
 
 const choose = (value: string) => {
   Effect.tryPromise(() =>
@@ -35,24 +25,33 @@ const choose = (value: string) => {
 
 /**
  * Who is acting, by cookie, for local development: the one deployment with a test actor offers this (the shell
- * data says so), and picking a choice reloads the page as that actor.
+ * data says so, with the names of the seeded people), and picking a choice reloads the page as that person.
  */
-export const TestActorSwitch = () => (
+export const TestActorSwitch = ({ people }: { people: readonly string[] }) => (
   <fieldset className="border-border grid max-w-sm gap-2 rounded-lg border p-4">
     <legend className="px-1 text-sm font-semibold">
       Testaktør (virker bare lokalt)
     </legend>
-    {Arr.map(TEST_ACTOR_CHOICES, (choice) => (
+    {Arr.map(people, (name) => (
       <button
-        key={choice.value}
+        key={name}
         type="button"
         className="text-left text-sm underline"
         onClick={() => {
-          choose(choice.value);
+          choose(name);
         }}
       >
-        {choice.label}
+        {name}
       </button>
     ))}
+    <button
+      type="button"
+      className="text-left text-sm underline"
+      onClick={() => {
+        choose(ANONYMOUS_CHOICE);
+      }}
+    >
+      Anonym
+    </button>
   </fieldset>
 );

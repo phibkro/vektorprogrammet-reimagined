@@ -1,34 +1,32 @@
 /**
- * C1/C2 commands and queries. Staff writes require `InTransaction` (the caller
- * wraps them; see `src/README.md`), authorize first, then validate, write, and
- * record one audit entry. The semester job and the semester reads are not staff
- * writes (spec 0003): the job runs from the Worker's `scheduled` handler, reads write nothing.
+ * C1/C2 command handlers (ADR 0006) and the pure semester reads. Every handler is built with
+ * `OrganisationDomain.handle`, so the grant table is asked before a command runs. Staff writes require
+ * `InTransaction` (the in-process client call is wrapped by the caller; see `src/README.md`), write, and record one
+ * audit entry. The semester job and the semester reads are not staff writes (spec 0003): the job runs from the
+ * Worker's `scheduled` handler as `System("semesters")`, and reads write nothing.
  */
 import { DateTime, Effect } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
-import {
-  Capability,
-  requireCapability,
-  requireStaff,
-} from "../shared/capabilities.ts";
-import type { DepartmentId, FieldOfStudyId } from "../shared/ids.ts";
+import * as Commands from "../kernel/commands.ts";
+import { departmentResource } from "../kernel/domain.ts";
+import type { DepartmentId } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
-import { decodeInput } from "../shared/validation.ts";
-import { DepartmentInput } from "./department.ts";
-import { FieldOfStudyInput, FieldOfStudyRename } from "./fieldOfStudy.ts";
+import {
+  OrganisationDomain,
+  OrganisationRpc,
+  createDepartment,
+  createFieldOfStudy,
+  ensureSemesters,
+  renameFieldOfStudy,
+  updateDepartment,
+} from "./declaration.ts";
 import { nextSemester, semesterForDate, sortNewestFirst } from "./semester.ts";
 import {
   DepartmentRepository,
   FieldOfStudyRepository,
   SemesterRepository,
 } from "./services.ts";
-
-const decodeDepartmentInput = decodeInput(DepartmentInput);
-
-const decodeFieldOfStudyInput = decodeInput(FieldOfStudyInput);
-
-const decodeFieldOfStudyRename = decodeInput(FieldOfStudyRename);
 
 /**
  * RULE-033: which semester it is, by the Oslo calendar and the `Clock`. A pure answer: it needs no
@@ -48,24 +46,6 @@ export const findCurrentSemester = Effect.gen(function* findCurrentSemester() {
   return { semester, stored: yield* semesters.find(semester) };
 }).pipe(Effect.withSpan("findCurrentSemester"));
 
-/**
- * RULE-237 (spec 0003), the scheduled job: the current semester and the one after it (RULE-050)
- * exist as rows. Nobody creates semesters and no page view does. Idempotent and safe under concurrent
- * runs: one `INSERT … ON CONFLICT … RETURNING` per semester on the unique (term, year) constraint.
- * Not a staff write: no actor, no `InTransaction`, no audit entry.
- */
-export const ensureScheduledSemesters = Effect.gen(
-  function* ensureScheduledSemesters() {
-    const semesters = yield* SemesterRepository;
-    const current = yield* currentSemester;
-
-    return {
-      current: yield* semesters.ensure(current),
-      next: yield* semesters.ensure(nextSemester(current)),
-    };
-  }
-).pipe(Effect.withSpan("ensureScheduledSemesters"));
-
 /** RULE-084: semesters newest first. */
 export const listSemestersNewestFirst = Effect.gen(
   function* listSemestersNewestFirst() {
@@ -75,99 +55,138 @@ export const listSemestersNewestFirst = Effect.gen(
   }
 ).pipe(Effect.withSpan("listSemestersNewestFirst"));
 
-export const createDepartment = Effect.fn("createDepartment")(
-  function* createDepartment(input: unknown) {
-    yield* InTransaction;
-    const actor = yield* requireCapability(Capability.CreateDepartment());
-    const draft = yield* decodeDepartmentInput(input);
-    const departments = yield* DepartmentRepository;
-    const created = yield* departments.create(draft);
-    yield* recordAudit(actor, "department.created", "Department", created.id);
+export const OrganisationHandlers = OrganisationRpc.toLayer({
+  createDepartment: OrganisationDomain.handle(createDepartment, {
+    resource: () => Effect.succeed({}),
+    run: (draft, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const departments = yield* DepartmentRepository;
+        const created = yield* departments.create(draft);
+        yield* recordAudit(
+          principal,
+          "department.created",
+          "Department",
+          created.id
+        );
 
-    return created;
-  }
+        return created;
+      }),
+  }),
+  createFieldOfStudy: OrganisationDomain.handle(createFieldOfStudy, {
+    resource: departmentResource,
+    run: (draft, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const fieldsOfStudy = yield* FieldOfStudyRepository;
+        const created = yield* fieldsOfStudy.create(draft);
+        yield* recordAudit(
+          principal,
+          "fieldOfStudy.created",
+          "FieldOfStudy",
+          created.id
+        );
+
+        return created;
+      }),
+  }),
+  /**
+   * RULE-237 (spec 0003), the scheduled job: the current semester and the one after it (RULE-050) exist as rows.
+   * Nobody creates semesters and no page view does. Idempotent and safe under concurrent runs: one
+   * `INSERT … ON CONFLICT … RETURNING` per semester on the unique (term, year) constraint. Not a staff write:
+   * the principal is `System("semesters")` and no audit entry is written.
+   */
+  ensureSemesters: OrganisationDomain.handle(ensureSemesters, {
+    resource: () => Effect.succeed({}),
+    run: () =>
+      Effect.gen(function* run() {
+        const semesters = yield* SemesterRepository;
+        const current = yield* currentSemester;
+
+        return {
+          current: yield* semesters.ensure(current),
+          next: yield* semesters.ensure(nextSemester(current)),
+        };
+      }),
+  }),
+  renameFieldOfStudy: OrganisationDomain.handle(renameFieldOfStudy, {
+    resource: ({ id }) =>
+      Effect.gen(function* resource() {
+        const fieldsOfStudy = yield* FieldOfStudyRepository;
+        const { departmentId } = yield* fieldsOfStudy.findById(id);
+
+        return { departmentId };
+      }),
+    run: ({ id, ...names }, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const fieldsOfStudy = yield* FieldOfStudyRepository;
+        const renamed = yield* fieldsOfStudy.rename(id, names);
+        yield* recordAudit(
+          principal,
+          "fieldOfStudy.updated",
+          "FieldOfStudy",
+          renamed.id
+        );
+
+        return renamed;
+      }),
+  }),
+  updateDepartment: OrganisationDomain.handle(updateDepartment, {
+    resource: ({ id }) => Effect.succeed({ departmentId: id }),
+    run: ({ id, ...draft }, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const departments = yield* DepartmentRepository;
+        const updated = yield* departments.update(id, draft);
+        yield* recordAudit(
+          principal,
+          "department.updated",
+          "Department",
+          updated.id
+        );
+
+        return updated;
+      }),
+  }),
+});
+
+/** The organisation's commands behind the in-process client; see `Commands.inProcess`. */
+export const withOrganisation = Commands.inProcess(
+  OrganisationRpc,
+  OrganisationHandlers
 );
 
-/** Admin, or a team leader of this department, updates it. */
-export const updateDepartment = Effect.fn("updateDepartment")(
-  function* updateDepartment(id: DepartmentId, input: unknown) {
-    yield* InTransaction;
+/** The server functions' entries: untrusted input in, the command's own result out (`Commands.endpoint`). */
+export const OrganisationEndpoints = {
+  createDepartment: Commands.endpoint(createDepartment, (payload) =>
+    withOrganisation((client) => client.createDepartment(payload))
+  ),
+  createFieldOfStudy: Commands.endpoint(createFieldOfStudy, (payload) =>
+    withOrganisation((client) => client.createFieldOfStudy(payload))
+  ),
+  renameFieldOfStudy: Commands.endpoint(renameFieldOfStudy, (payload) =>
+    withOrganisation((client) => client.renameFieldOfStudy(payload))
+  ),
+  updateDepartment: Commands.endpoint(updateDepartment, (payload) =>
+    withOrganisation((client) => client.updateDepartment(payload))
+  ),
+};
 
-    const actor = yield* requireCapability(
-      Capability.UpdateDepartment({ departmentId: id })
-    );
-
-    const draft = yield* decodeDepartmentInput(input);
-    const departments = yield* DepartmentRepository;
-    const updated = yield* departments.update(id, draft);
-    yield* recordAudit(actor, "department.updated", "Department", updated.id);
-
-    return updated;
-  }
+/** The semester job (spec 0003, R1): the Worker's `scheduled` handler runs it as `System("semesters")`. */
+export const semesterJob = withOrganisation((client) =>
+  client.ensureSemesters()
 );
 
 /**
- * RULE-139: a field of study is created in the actor's own department unless
- * an admin names another; a team leader naming another department is refused.
+ * RULE-139: list a department's fields of study. The page that lists them is the page that adds and renames them,
+ * so the grant is the one of `createFieldOfStudy`.
  */
-export const createFieldOfStudy = Effect.fn("createFieldOfStudy")(
-  function* createFieldOfStudy(input: unknown) {
-    yield* InTransaction;
-    const own = yield* requireStaff;
-    const decoded = yield* decodeFieldOfStudyInput(input);
-    const departmentId = decoded.departmentId ?? own.departmentId;
-
-    const actor = yield* requireCapability(
-      Capability.ManageFieldsOfStudy({ departmentId })
-    );
-
-    const fieldsOfStudy = yield* FieldOfStudyRepository;
-
-    const created = yield* fieldsOfStudy.create({
-      departmentId,
-      name: decoded.name,
-      shortName: decoded.shortName,
-    });
-
-    yield* recordAudit(
-      actor,
-      "fieldOfStudy.created",
-      "FieldOfStudy",
-      created.id
-    );
-
-    return created;
-  }
-);
-
-/** RULE-139: only within the field of study's own department. */
-export const renameFieldOfStudy = Effect.fn("renameFieldOfStudy")(
-  function* renameFieldOfStudy(id: FieldOfStudyId, input: unknown) {
-    yield* InTransaction;
-    const fieldsOfStudy = yield* FieldOfStudyRepository;
-    const existing = yield* fieldsOfStudy.findById(id);
-
-    const actor = yield* requireCapability(
-      Capability.ManageFieldsOfStudy({ departmentId: existing.departmentId })
-    );
-
-    const names = yield* decodeFieldOfStudyRename(input);
-    const renamed = yield* fieldsOfStudy.rename(id, names);
-    yield* recordAudit(
-      actor,
-      "fieldOfStudy.updated",
-      "FieldOfStudy",
-      renamed.id
-    );
-
-    return renamed;
-  }
-);
-
-/** RULE-139: list a department's fields of study (same capability as editing them). */
 export const listFieldsOfStudy = Effect.fn("listFieldsOfStudy")(
   function* listFieldsOfStudy(departmentId: DepartmentId) {
-    yield* requireCapability(Capability.ManageFieldsOfStudy({ departmentId }));
+    yield* OrganisationDomain.requireGrant("createFieldOfStudy", {
+      departmentId,
+    });
     const fieldsOfStudy = yield* FieldOfStudyRepository;
 
     return yield* fieldsOfStudy.listByDepartment(departmentId);

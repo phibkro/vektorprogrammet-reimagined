@@ -6,12 +6,12 @@
 import { assert, layer } from "@effect/vitest";
 import {
   AuditLog,
+  AuditPrincipal,
   InTransaction,
   Outbox,
   OutboxMessage,
   SemesterRepository,
   SlackTarget,
-  UserId,
   validationFailed,
 } from "@vektorprogrammet/domain";
 import type { Semester } from "@vektorprogrammet/domain";
@@ -28,10 +28,10 @@ const writeAll = Effect.fnUntraced(function* writeAll(semester: Semester) {
   const created = yield* (yield* SemesterRepository).ensure(semester);
   yield* (yield* AuditLog).record({
     action: "department.created",
-    actorId: UserId.make(1),
     at: AT,
     entity: "Semester",
     entityKey: String(semester.year),
+    principal: AuditPrincipal.cases.System.make({ job: "semesters" }),
   });
   yield* (yield* Outbox).enqueue([
     OutboxMessage.cases.SlackPost.make({

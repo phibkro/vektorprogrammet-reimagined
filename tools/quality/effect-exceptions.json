@@ -18,6 +18,59 @@
         "typescript": "7.0.2"
       },
       "retirementTrigger": "Retire when TanStack Router stops emitting these directives or the generated route tree is no longer part of the workspace source."
+    },
+    {
+      "id": "EX-0003",
+      "rules": ["FX012", "unicorn/throw-new-error"],
+      "scope": {
+        "files": ["tools/docgen/src/main.ts"],
+        "symbols": ["DocumentationError"],
+        "directives": ["oxlint-disable"]
+      },
+      "reason": "The rule mistakes the native Schema.TaggedError class declaration for a throw site; the command needs a typed documentation failure.",
+      "missingCapability": "The installed rule cannot distinguish this Effect error declaration from a throw statement.",
+      "nativeAlternativesExamined": [
+        "Schema.TaggedError is the native typed error; the check is disabled only around its declaration, not its uses.",
+        "Throwing a native error or using an untyped failure would lose the command's typed error channel."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run check:docs"
+      ],
+      "owner": "tools/docgen",
+      "versions": {
+        "effect": "4.0.5",
+        "vite-plus": "1.2.0",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Remove this exception when the rule accepts Schema.TaggedError declarations, then run the documentation checks."
+    },
+    {
+      "id": "EX-0004",
+      "rules": ["FX003", "FX012", "effecttsgo/async-function"],
+      "scope": {
+        "files": ["apps/web/e2e/teams.spec.ts"],
+        "symbols": ["register", "addMember", "Playwright test callbacks"],
+        "directives": ["oxlint-disable"]
+      },
+      "reason": "Playwright owns the browser test callbacks and expects promises; its test functions and helpers await browser operations directly.",
+      "missingCapability": "The Effect async-function diagnostic cannot recognize a Playwright-owned Promise boundary.",
+      "nativeAlternativesExamined": [
+        "Effect.promise can wrap a foreign Promise, but requires a Promise-returning thunk; the configured promise-function-async rule conflicts with effecttsgo/async-function at that boundary.",
+        "An Effect runtime inside each individual browser callback would not remove the framework's Promise ABI or the conflicting rules."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": "apps/web",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1",
+        "@playwright/test": "1.63.0",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Remove the exception when the diagnostics accept Playwright's Promise callbacks without contradicting promise-function-async, then run the browser journey."
     }
   ],
   "typeBridges": [

@@ -101,6 +101,32 @@ const rowsOf = <S extends Schema.Constraint>(Row: S, statement: Statement) =>
     )
   );
 
+const MembershipRow = Schema.Struct({
+  endTerm: Schema.String,
+  endYear: Schema.Int,
+  id: Schema.Int,
+  leader: Schema.Boolean,
+  position: Schema.String,
+  startTerm: Schema.String,
+  startYear: Schema.Int,
+});
+
+/** Membership history for a named person and team, oldest first. */
+export const membershipsNamed = (teamName: string, personName: string) =>
+  rowsOf(
+    MembershipRow,
+    (sql) =>
+      sql`select m.id, m.leader, p.name as position,
+          m.start_term as "startTerm", m.start_year as "startYear",
+          m.end_term as "endTerm", m.end_year as "endYear"
+        from membership m
+        join team t on t.id = m.team_id
+        join person person on person.id = m.person_id
+        join position p on p.id = m.position_id
+        where t.name = ${teamName} and person.name = ${personName}
+        order by m.start_ordinal, m.id`
+  );
+
 const OutboxRow = Schema.Struct({
   kind: Schema.String,
   queuedAt: Schema.String,

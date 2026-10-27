@@ -19,22 +19,32 @@ import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive } from "@vektorprogrammet/db";
 import type { OutboxDelivery } from "@vektorprogrammet/db";
 import {
-  CurrentActor,
+  CurrentPrincipal,
   Outbox,
-  ensureScheduledSemesters,
+  SiteOrigin,
+  endingSoonJob,
+  semesterJob,
   semesterLabel,
+  systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {
+  AdminGrantRepository,
   AdmissionPeriodRepository,
   AuditLog,
   DepartmentRepository,
+  DigestLedger,
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  MembershipRepository,
   OutboxMessageId,
+  PersonRepository,
+  PositionRepository,
+  PrincipalDirectory,
   PublicFileRepository,
   SemesterRepository,
   SocialEventRepository,
+  TeamRepository,
 } from "@vektorprogrammet/domain";
 import { Cause, Effect, Layer, Predicate, Redacted, Ref } from "effect";
 import type { Crypto } from "effect";
@@ -42,13 +52,14 @@ import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
 
 import type { Outcome } from "../lib/outcome";
-import { resolveActor } from "./actor";
 import { decodeDeployment } from "./deployment";
 import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
 import type { RequestError } from "./errors";
 import { r2FileStoreLayer } from "./fileStore";
-import { deliverOutbox, SWEEP_LIMIT } from "./outboxDelivery";
+import { SWEEP_LIMIT } from "./outboxDelivery";
+import { withOutbox } from "./outboxSweep";
+import { resolvePrincipal } from "./principal";
 import { contactRateLimiterLayer } from "./rateLimit";
 import type { ContactRateLimiter } from "./rateLimit";
 import { messageSenderLayer, senderConfigFromEnv } from "./senders";
@@ -78,6 +89,13 @@ export type DatabaseServices =
   | FieldOfStudyRepository
   | SocialEventRepository
   | PublicFileRepository
+  | PersonRepository
+  | TeamRepository
+  | PositionRepository
+  | MembershipRepository
+  | AdminGrantRepository
+  | DigestLedger
+  | PrincipalDirectory
   | Outbox
   | AuditLog
   | OutboxDelivery
@@ -88,7 +106,8 @@ export type RequestServices =
   | DatabaseServices
   | Transactor
   | FileStore
-  | CurrentActor
+  | CurrentPrincipal
+  | SiteOrigin
   | Crypto.Crypto
   | TurnstileVerifier
   | ContactRateLimiter
@@ -109,7 +128,11 @@ export const liveRequestLayer = (
       Layer.mergeAll(
         transactorLayer,
         r2FileStoreLayer(scope.env.PUBLIC_FILES),
-        Layer.succeed(CurrentActor, resolveActor(deployment, scope.testActor)),
+        Layer.effect(
+          CurrentPrincipal,
+          resolvePrincipal(deployment, scope.testActor)
+        ),
+        Layer.succeed(SiteOrigin)(scope.env.SITE_URL),
         webCryptoLayer,
         turnstileLiveLayer(Redacted.make(scope.env.TURNSTILE_SECRET_KEY)),
         contactRateLimiterLayer(scope.env.CONTACT_RATE_LIMIT),
@@ -264,7 +287,10 @@ export const runDelivery = (
 ): Promise<void> =>
   runScheduled(
     deliveryLayer(env),
-    deliverOutbox(options ?? { limit: SWEEP_LIMIT }).pipe(
+    withOutbox((client) =>
+      client.sweepOutbox(options ?? { limit: SWEEP_LIMIT })
+    ).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
       Effect.tap((results) =>
         Effect.logInfo("outbox delivery finished").pipe(
           Effect.annotateLogs({ rows: results.length })
@@ -273,20 +299,47 @@ export const runDelivery = (
     )
   );
 
+/** The Layer of the jobs that write: the database, the transaction runner and the site's origin. */
+const jobLayer = (
+  env: WorkerEnv
+): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
+  Layer.mergeAll(transactorLayer, Layer.succeed(SiteOrigin)(env.SITE_URL)).pipe(
+    Layer.provideMerge(databaseLayer(env))
+  );
+
 /**
  * The semester job (spec 0003, RULE-237): the current and the next semester exist as rows. Runs from the
- * cron `scheduled` handler, and nowhere else; no read path writes a semester.
+ * cron `scheduled` handler, and nowhere else, as `System("semesters")` through `authorize` (spec 0006, R1); no read
+ * path writes a semester.
  */
 export const runSemesterJob = (env: WorkerEnv): Promise<void> =>
   runScheduled(
-    databaseLayer(env),
-    ensureScheduledSemesters.pipe(
+    jobLayer(env),
+    Transactor.use((transactor) => transactor.run(semesterJob)).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("semesters")),
       Effect.tap(({ current, next }) =>
         Effect.logInfo("semester job finished").pipe(
           Effect.annotateLogs({
             current: semesterLabel(current),
             next: semesterLabel(next),
           })
+        )
+      )
+    )
+  );
+
+/**
+ * The "ending soon" digest (spec 0006, falsifier 7): from the cron tick, as `System("endingSoon")`, in one
+ * transaction with its ledger rows and outbox rows. Outside the last four weeks of the semester it does nothing.
+ */
+export const runEndingSoon = (env: WorkerEnv): Promise<void> =>
+  runScheduled(
+    jobLayer(env),
+    Transactor.use((transactor) => transactor.run(endingSoonJob)).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("endingSoon")),
+      Effect.tap(({ sent }) =>
+        Effect.logInfo("ending-soon digest finished").pipe(
+          Effect.annotateLogs({ sent })
         )
       )
     )

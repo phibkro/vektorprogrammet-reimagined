@@ -7,7 +7,10 @@ import {
   GraduationCapIcon,
   LayoutDashboardIcon,
   PartyPopperIcon,
+  ShieldCheckIcon,
   SigmaIcon,
+  UserRoundIcon,
+  UsersIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -44,11 +47,14 @@ import type { NavigationGroup, SectionKey } from "@/lib/panelSections";
 import type { ActorSummary } from "@/server/shell";
 
 const SECTION_ICONS: Readonly<Record<SectionKey, LucideIcon>> = {
+  admins: ShieldCheckIcon,
   departments: BuildingIcon,
   fieldsOfStudy: GraduationCapIcon,
   overview: LayoutDashboardIcon,
+  people: UserRoundIcon,
   semesters: CalendarDaysIcon,
   socialEvents: PartyPopperIcon,
+  teams: UsersIcon,
 };
 
 const PanelSidebar = ({

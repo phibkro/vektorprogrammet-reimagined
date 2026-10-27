@@ -3,9 +3,19 @@ import {
   EmailAddress,
   OutboxMessageId,
   OutboxMessage as OutboxMessageSchema,
+  anonymous,
+  systemPrincipal,
 } from "@vektorprogrammet/domain";
-import type { OutboxMessage } from "@vektorprogrammet/domain";
-import { Array as Arr, pipe, DateTime, Duration, Effect, Layer } from "effect";
+import type { OutboxMessage, Principal } from "@vektorprogrammet/domain";
+import {
+  Array as Arr,
+  DateTime,
+  Duration,
+  Effect,
+  Layer,
+  Predicate,
+  pipe,
+} from "effect";
 import { TestClock } from "effect/testing";
 
 import {
@@ -14,9 +24,11 @@ import {
   deliverOutbox,
   nextAttemptAfterFailure,
 } from "../src/server/outboxDelivery";
+import { withOutbox } from "../src/server/outboxSweep";
 import { DeliveryFailed, MessageSender } from "../src/server/senders";
 import { makeTables, memoryLayer } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
+import { ADMIN, leaderOf } from "./support/principals";
 
 const message: OutboxMessage = OutboxMessageSchema.cases.Email.make({
   replyTo: null,
@@ -152,6 +164,68 @@ describe("outbox delivery (architecture §4)", () => {
         assert.strictEqual(tables.outbox[0]?.attempts, MAX_ATTEMPTS);
         yield* TestClock.adjust("24 hours");
         assert.deepStrictEqual(yield* run(tables, false), []);
+      })
+  );
+});
+
+/** The sweep as the Worker runs it: the command `sweepOutbox`, through the in-process client, as `principal`. */
+const sweepAs = (
+  principal: Principal,
+  tables: MemoryTables,
+  sent: OutboxMessage[]
+) =>
+  withOutbox((client) => client.sweepOutbox({ limit: 50 })).pipe(
+    Effect.provide(
+      Layer.merge(memoryLayer(tables, principal), senderLayer(false, sent))
+    )
+  );
+
+describe("spec 0006, R1: the sweep is a command that only the outboxSweep job holds", () => {
+  it.effect(
+    "the job delivers what is due; every other principal, an administrator included, is refused and sends nothing",
+    () =>
+      Effect.gen(function* sweepGrantedEffect() {
+        const principals: readonly (readonly [string, Principal])[] = [
+          ["the outboxSweep job", systemPrincipal("outboxSweep")],
+          ["the semesters job", systemPrincipal("semesters")],
+          ["an administrator", ADMIN],
+          ["a team leader", leaderOf(1)],
+          ["a visitor", anonymous],
+        ];
+
+        for (const [who, principal] of principals) {
+          const tables = makeTables({ outbox: [pendingRow("a")] });
+          const sent: OutboxMessage[] = [];
+
+          const verdict = yield* sweepAs(principal, tables, sent).pipe(
+            Effect.match({
+              onFailure: (failure) =>
+                Predicate.isTagged(failure, "Forbidden")
+                  ? "Forbidden"
+                  : "another failure",
+              onSuccess: (results) =>
+                pipe(
+                  results,
+                  Arr.map((result) => result.outcome),
+                  Arr.join(",")
+                ),
+            })
+          );
+
+          const delivered = who === "the outboxSweep job";
+
+          assert.strictEqual(
+            verdict,
+            delivered ? "delivered" : "Forbidden",
+            who
+          );
+          assert.strictEqual(sent.length, delivered ? 1 : 0, who);
+          assert.strictEqual(
+            tables.outbox[0]?.status,
+            delivered ? "delivered" : "pending",
+            who
+          );
+        }
       })
   );
 });

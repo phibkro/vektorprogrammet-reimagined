@@ -2,19 +2,21 @@
  * C11 upload and serving. An upload is two steps because R2 is provider I/O and
  * the database rule forbids provider I/O inside a transaction:
  *
- *   1. `storeUpload`        outside any transaction: authorize, type by magic
- *                           bytes, hash, `FileStore.put` (idempotent: the key is
- *                           the content hash, so a retried or orphaned put is harmless).
- *   2. `registerPublicFile` inside the transaction: registry row + audit entry.
+ *   1. `storeUpload`        outside any transaction: ask the grant of `registerPublicFile`, type by magic
+ *                           bytes, hash, `FileStore.put` (idempotent: the key is the content hash, so a
+ *                           retried or orphaned put is harmless).
+ *   2. `registerPublicFile` inside the transaction, as the command of `FilesRpc`: registry row + audit entry.
  */
-import { Crypto, DateTime, Effect, Option, Schema } from "effect";
+import { Crypto, DateTime, Effect, Option, Predicate, Schema } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
-import { Capability, requireCapability } from "../shared/capabilities.ts";
+import * as Commands from "../kernel/commands.ts";
 import { NotFound, validationFailed } from "../shared/errors.ts";
 import { FileKey } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { decodeInput, requiredText } from "../shared/validation.ts";
+import { FilesDomain, FilesRpc, registerPublicFile } from "./declaration.ts";
+import type { StoredUpload } from "./declaration.ts";
 import {
   IMAGE_REQUIRED_MESSAGE,
   classifyUpload,
@@ -22,16 +24,8 @@ import {
   isImageContentType,
   servingHeaders,
 } from "./fileType.ts";
-import type { StoredContentType, UploadAccept } from "./fileType.ts";
+import type { UploadAccept } from "./fileType.ts";
 import { FileStore, PublicFileRepository } from "./services.ts";
-
-/** The result of step 1; the input of step 2. */
-export interface StoredUpload {
-  readonly key: FileKey;
-  readonly name: string;
-  readonly contentType: StoredContentType;
-  readonly size: number;
-}
 
 const decodeFileName = decodeInput(
   Schema.Struct({
@@ -46,7 +40,7 @@ export const storeUpload = Effect.fn("storeUpload")(
     readonly bytes: Uint8Array;
     readonly accept: UploadAccept;
   }) {
-    yield* requireCapability(Capability.UploadFiles());
+    yield* FilesDomain.requireGrant("registerPublicFile", {});
     const { name } = yield* decodeFileName({ name: upload.name });
 
     const contentType = yield* Effect.fromResult(
@@ -72,33 +66,48 @@ export const storeUpload = Effect.fn("storeUpload")(
   }
 );
 
-/** Step 2 (in the transaction): register the stored object and audit it. */
-export const registerPublicFile = Effect.fn("registerPublicFile")(
-  function* registerPublicFile(upload: StoredUpload) {
-    yield* InTransaction;
-    const actor = yield* requireCapability(Capability.UploadFiles());
-    const files = yield* PublicFileRepository;
+export const FilesHandlers = FilesRpc.toLayer({
+  /** Step 2 (in the transaction): register the stored object and audit it. */
+  registerPublicFile: FilesDomain.handle(registerPublicFile, {
+    resource: () => Effect.succeed({}),
+    run: (upload, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const files = yield* PublicFileRepository;
 
-    const registered = yield* files.register({
-      contentType: upload.contentType,
-      key: upload.key,
-      legacyPath: null,
-      name: upload.name,
-      size: upload.size,
-      uploadedAt: yield* DateTime.now,
-      uploadedBy: actor.userId,
-    });
+        const registered = yield* files.register({
+          contentType: upload.contentType,
+          key: upload.key,
+          legacyPath: null,
+          name: upload.name,
+          size: upload.size,
+          uploadedAt: yield* DateTime.now,
+          uploadedBy: Predicate.isTagged(principal, "Person")
+            ? principal.personId
+            : null,
+        });
 
-    yield* recordAudit(
-      actor,
-      "publicFile.registered",
-      "PublicFile",
-      registered.key
-    );
+        yield* recordAudit(
+          principal,
+          "publicFile.registered",
+          "PublicFile",
+          registered.key
+        );
 
-    return registered;
-  }
-);
+        return registered;
+      }),
+  }),
+});
+
+/** The file commands behind the in-process client; see `Commands.inProcess`. */
+export const withFiles = Commands.inProcess(FilesRpc, FilesHandlers);
+
+/** The server functions' entries: untrusted input in, the command's own result out (`Commands.endpoint`). */
+export const FilesEndpoints = {
+  registerPublicFile: Commands.endpoint(registerPublicFile, (payload) =>
+    withFiles((client) => client.registerPublicFile(payload))
+  ),
+};
 
 const decodeFileKey = Schema.decodeUnknownOption(FileKey);
 

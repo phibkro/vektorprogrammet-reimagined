@@ -1,25 +1,20 @@
 /**
- * Spec 0004, falsifier 6: what the control panel shows is computed from the domain's capability function
- * (`authorize`), the one the commands enforce. Three layers of evidence:
+ * What the control panel shows is computed from the one grant table (`authorize` and `canAnywhere`), the one the
+ * commands enforce (spec 0004, falsifier 6; spec 0006 replaces the role with facts about a person). Three layers of
+ * evidence:
  *
- *  1. the sidebar changes when one capability of the actor changes (the executive-board flag, the role, the
- *     department), so no role list stands behind it;
+ *  1. the sidebar changes when one fact about the principal changes (a leader flag, a team's function, the
+ *     department, an admin place), so no role list stands behind it;
  *  2. the shell view carries that sidebar, and the local test-actor switch only in a `local` deployment;
- *  3. every control a page offers is shown exactly when the command behind it would not refuse the actor
+ *  3. every control a page offers is shown exactly when the command behind it would not refuse the principal
  *     (`Forbidden`): the view and the command read the same decision, and this test is the edge between them.
  *
- * The browser tests (`e2e/shell.spec.ts`) show the same per actor in the rendered DOM.
+ * The browser tests (`e2e/shell.spec.ts`) show the same per person in the rendered DOM.
  */
 import { assert, describe, it } from "@effect/vitest";
-import {
-  Actor,
-  DepartmentId,
-  UserId,
-  anonymous,
-  createSocialEvent,
-} from "@vektorprogrammet/domain";
-import type { Actor as ActorType, StaffRole } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Predicate } from "effect";
+import { anonymous } from "@vektorprogrammet/domain";
+import type { Principal } from "@vektorprogrammet/domain";
+import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
 import type { Outcome } from "../src/lib/outcome";
@@ -29,6 +24,7 @@ import {
   fieldsOfStudyView,
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
+  saveSocialEventProgram,
   socialEventsView,
 } from "../src/server/panel";
 import { navigationFor, shellView } from "../src/server/shell";
@@ -38,26 +34,13 @@ import {
   form,
   makeTables,
 } from "./support/memory";
-import { assertSuccess } from "./support/outcomes";
+import { assertSuccess, isForbidden } from "./support/outcomes";
+import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 import { runAs, viewAs } from "./support/run";
+import { PEOPLE, TRONDHEIM, seedWorld } from "./support/teamWorld";
 
-/** An acting staff member; department 1 unless said otherwise. */
-const staff = (
-  role: StaffRole,
-  options: {
-    readonly executiveBoard?: boolean;
-    readonly departmentId?: number;
-  } = {}
-): ActorType =>
-  Actor.cases.Staff.make({
-    departmentId: DepartmentId.make(options.departmentId ?? 1),
-    executiveBoard: options.executiveBoard ?? false,
-    role,
-    userId: UserId.make(900_100),
-  });
-
-const sectionsOf = (actor: ActorType): readonly SectionKey[] =>
-  Arr.flatMap(navigationFor(actor), (group) =>
+const sectionsOf = (principal: Principal): readonly SectionKey[] =>
+  Arr.flatMap(navigationFor(principal), (group) =>
     Arr.map(group.items, (item) => item.key)
   );
 
@@ -67,72 +50,93 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "departments",
   "semesters",
   "fieldsOfStudy",
+  "teams",
+  "people",
+  "admins",
   "socialEvents",
 ];
 
-/** What a team member may use: the departments and fields of study are a leader's. */
+/** What a team member may use: the overview, the semesters, the teams and the events of their department. */
 const MEMBER_SECTIONS: readonly SectionKey[] = [
   "overview",
   "semesters",
+  "teams",
   "socialEvents",
 ];
 
-describe("spec 0004, falsifier 6: the sidebar is computed from the domain's capabilities", () => {
-  it("an anonymous visitor gets no sidebar at all", () => {
+/** A board member also manages the department's people and teams, but is no leader of its fields of study. */
+const BOARD_SECTIONS: readonly SectionKey[] = [
+  "overview",
+  "semesters",
+  "teams",
+  "people",
+  "socialEvents",
+];
+
+/** A leader also changes the department and its fields of study, and manages its people and teams. */
+const LEADER_SECTIONS: readonly SectionKey[] = [
+  "overview",
+  "departments",
+  "semesters",
+  "fieldsOfStudy",
+  "teams",
+  "people",
+  "socialEvents",
+];
+
+const BOARD_MEMBER = memberOf(1, { function: "board" });
+
+describe("spec 0006: the sidebar is computed from the grant table", () => {
+  it("a visitor who is not signed in, and a person with no team, get no sidebar at all", () => {
     assert.deepStrictEqual(navigationFor(anonymous), []);
+    assert.deepStrictEqual(navigationFor(WITHOUT_TEAM), []);
   });
 
-  it("each staff member gets the sections whose capabilities they hold, in the sidebar's order", () => {
+  it("each person gets the sections whose commands they hold, in the sidebar's order", () => {
     const cases: readonly (readonly [
       string,
-      ActorType,
+      Principal,
       readonly SectionKey[],
     ])[] = [
-      ["a team member", staff("teamMember"), MEMBER_SECTIONS],
+      ["a team member", memberOf(1), MEMBER_SECTIONS],
       [
-        "a team member on the executive board",
-        staff("teamMember", { executiveBoard: true }),
+        "a member of a recruitment team",
+        memberOf(1, { function: "recruitment" }),
         MEMBER_SECTIONS,
       ],
-      ["a team leader", staff("teamLeader"), EVERY_SECTION],
-      [
-        "a team leader on the executive board",
-        staff("teamLeader", { executiveBoard: true }),
-        EVERY_SECTION,
-      ],
-      ["an administrator", staff("admin"), EVERY_SECTION],
+      ["a member of the board", BOARD_MEMBER, BOARD_SECTIONS],
+      ["a team leader", leaderOf(1), LEADER_SECTIONS],
+      ["a board leader", leaderOf(1, { function: "board" }), LEADER_SECTIONS],
+      ["an administrator", ADMIN, EVERY_SECTION],
     ];
 
-    for (const [label, actor, expected] of cases) {
-      assert.deepStrictEqual(sectionsOf(actor), expected, label);
+    for (const [label, principal, expected] of cases) {
+      assert.deepStrictEqual(sectionsOf(principal), expected, label);
     }
   });
 
-  it("changing one capability of the actor changes exactly the sections it gates", () => {
-    // The executive-board flag gated only the static texts, which the CMS owns now (spec 0005): it gates no section.
+  it("changing one fact about the person changes exactly the sections it gates", () => {
+    // The leader flag is the only difference: a leader may change departments and fields of study, and manage people.
     assert.deepStrictEqual(
-      Arr.difference(
-        sectionsOf(staff("teamLeader", { executiveBoard: true })),
-        sectionsOf(staff("teamLeader"))
-      ),
-      []
+      Arr.difference(sectionsOf(leaderOf(1)), sectionsOf(memberOf(1))),
+      ["departments", "fieldsOfStudy", "people"]
     );
 
-    // The role is the only difference: a leader may change departments and fields of study, a member may not.
+    // The team's function is the only difference: the board manages people, a recruitment team's plain member does not.
     assert.deepStrictEqual(
-      Arr.difference(
-        sectionsOf(staff("teamLeader")),
-        sectionsOf(staff("teamMember"))
-      ),
-      ["departments", "fieldsOfStudy"]
+      Arr.difference(sectionsOf(BOARD_MEMBER), sectionsOf(memberOf(1))),
+      ["people"]
     );
 
-    // The department is the only difference: the capabilities are the actor's own department's, so the
-    // sections are the same for a leader of department 2.
+    // The admin place is the only difference: the admin list is for administrators alone.
     assert.deepStrictEqual(
-      sectionsOf(staff("teamLeader", { departmentId: 2 })),
-      sectionsOf(staff("teamLeader"))
+      Arr.difference(sectionsOf(ADMIN), sectionsOf(leaderOf(1))),
+      ["admins"]
     );
+
+    // The department is the only difference: the facts are the person's own department's, so the sections are the
+    // same for a leader of department 2.
+    assert.deepStrictEqual(sectionsOf(leaderOf(2)), sectionsOf(leaderOf(1)));
   });
 
   it.effect(
@@ -140,7 +144,9 @@ describe("spec 0004, falsifier 6: the sidebar is computed from the domain's capa
     () =>
       Effect.gen(function* shellViewEffect() {
         const tables = makeTables();
-        const leader = staff("teamLeader");
+        yield* seedWorld(tables);
+
+        const leader = leaderOf(TRONDHEIM, { personId: PEOPLE.lise });
 
         const local = assertSuccess(
           yield* viewAs(tables, leader, shellView("local"))
@@ -156,32 +162,34 @@ describe("spec 0004, falsifier 6: the sidebar is computed from the domain's capa
 
         assert.deepStrictEqual(local.navigation, navigationFor(leader));
         assert.deepStrictEqual(local.actor, {
-          departmentId: DepartmentId.make(1),
-          executiveBoard: false,
-          role: "teamLeader",
+          admin: false,
+          leader: true,
+          member: true,
+          name: "Lise Leder",
         });
-        assert.isTrue(local.testActors);
-        assert.isFalse(preview.testActors);
+        assert.deepStrictEqual(local.testActors, [
+          "Ada Admin",
+          "Bjorn Bergen",
+          "Eva Ekstern",
+          "Lise Leder",
+          "Mats Medlem",
+          "Nora Neste",
+        ]);
+        assert.isNull(preview.testActors);
         assert.deepStrictEqual([visitor.actor, visitor.navigation], [null, []]);
       })
   );
 });
 
-/** Whether the command refused the actor (403): the one thing a hidden control must agree with. */
-const isForbidden = (outcome: Outcome<unknown>): boolean =>
-  Predicate.isTagged(outcome, "Failure") &&
-  Predicate.isTagged(outcome.error, "Forbidden");
-
-/** The acting staff and visitors the controls are compared for: every role, the board flag, both departments. */
-const ACTORS: readonly (readonly [string, ActorType])[] = [
+/** The visitors and people the controls are compared for: nobody, every kind of membership, both departments. */
+const ACTORS: readonly (readonly [string, Principal])[] = [
   ["an anonymous visitor", anonymous],
-  ["an administrator on the board", staff("admin", { executiveBoard: true })],
-  ["an administrator", staff("admin")],
-  ["a team leader of department 1", staff("teamLeader")],
-  ["a team leader of department 2", staff("teamLeader", { departmentId: 2 })],
-  ["a team leader on the board", staff("teamLeader", { executiveBoard: true })],
-  ["a team member", staff("teamMember")],
-  ["a team member on the board", staff("teamMember", { executiveBoard: true })],
+  ["an administrator", ADMIN],
+  ["a team leader of department 1", leaderOf(1)],
+  ["a team leader of department 2", leaderOf(2)],
+  ["a board member of department 1", BOARD_MEMBER],
+  ["a team member of department 1", memberOf(1)],
+  ["a person without a team", WITHOUT_TEAM],
 ];
 
 const SEEDED = () =>
@@ -206,7 +214,19 @@ const departmentForm = (id: string, city: string) =>
     slackChannel: "",
   });
 
-/** The control is shown exactly when the command does not refuse the actor. */
+/** What the form posts for an event in `departmentId`. */
+const eventForm = (departmentId: number) =>
+  form({
+    departmentId: String(departmentId),
+    description: "",
+    endsAt: "2026-10-20T13:00",
+    link: "",
+    semesterId: "1",
+    startsAt: "2026-10-20T12:00",
+    title: "Sosialt",
+  });
+
+/** The control is shown exactly when the command does not refuse the principal. */
 const assertAgrees = (
   label: string,
   shown: boolean,
@@ -215,12 +235,12 @@ const assertAgrees = (
   assert.strictEqual(shown, !isForbidden(attempt), label);
 };
 
-describe("spec 0004, falsifier 6: every control is shown exactly when its command would not refuse the actor", () => {
+describe("spec 0004, falsifier 6: every control is shown exactly when its command would not refuse the principal", () => {
   it.effect("departments: the create button and each row's edit form", () =>
     Effect.gen(function* departmentControlsEffect() {
-      for (const [who, actor] of ACTORS) {
+      for (const [who, principal] of ACTORS) {
         const view = assertSuccess(
-          yield* viewAs(SEEDED(), actor, departmentsView)
+          yield* viewAs(SEEDED(), principal, departmentsView)
         );
 
         assertAgrees(
@@ -228,7 +248,7 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
           view.canCreate,
           yield* runAs(
             SEEDED(),
-            actor,
+            principal,
             saveDepartmentProgram(departmentForm("", "Oslo"))
           )
         );
@@ -239,7 +259,7 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
             row.canEdit,
             yield* runAs(
               SEEDED(),
-              actor,
+              principal,
               saveDepartmentProgram(departmentForm(String(row.id), row.city))
             )
           );
@@ -249,12 +269,12 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
   );
 
   it.effect(
-    "fields of study: the page's list and create form are for the actor's own department",
+    "fields of study: the page's list and create form are for the department the principal leads",
     () =>
       Effect.gen(function* fieldOfStudyControlsEffect() {
-        for (const [who, actor] of ACTORS) {
+        for (const [who, principal] of ACTORS) {
           const view = assertSuccess(
-            yield* viewAs(SEEDED(), actor, fieldsOfStudyView)
+            yield* viewAs(SEEDED(), principal, fieldsOfStudyView)
           );
 
           assertAgrees(
@@ -262,8 +282,14 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
             view.canManage,
             yield* runAs(
               SEEDED(),
-              actor,
-              saveFieldOfStudyProgram(form({ name: "Kjemi", shortName: "KJ" }))
+              principal,
+              saveFieldOfStudyProgram(
+                form({
+                  departmentId: String(view.department?.id ?? 1),
+                  name: "Kjemi",
+                  shortName: "KJ",
+                })
+              )
             )
           );
         }
@@ -280,9 +306,9 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
           )
         );
 
-        for (const [who, actor] of ACTORS) {
+        for (const [who, principal] of ACTORS) {
           const view = assertSuccess(
-            yield* viewAs(SEEDED(), actor, socialEventsView)
+            yield* viewAs(SEEDED(), principal, socialEventsView)
           );
 
           assert.strictEqual(
@@ -300,16 +326,8 @@ describe("spec 0004, falsifier 6: every control is shown exactly when its comman
               ),
               yield* runAs(
                 SEEDED(),
-                actor,
-                createSocialEvent({
-                  departmentId: department,
-                  description: "",
-                  endsAt: "2026-10-20T11:00:00Z",
-                  link: null,
-                  semesterId: 1,
-                  startsAt: "2026-10-20T10:00:00Z",
-                  title: "Sosialt",
-                })
+                principal,
+                saveSocialEventProgram(eventForm(department))
               )
             );
           }

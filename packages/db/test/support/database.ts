@@ -11,6 +11,7 @@
  */
 import { PgClient } from "@effect/sql-pg";
 import { PgliteClient } from "@effect/sql-pglite";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import * as PgliteDrizzle from "drizzle-orm/effect-pglite";
 import { migrate as migratePglite } from "drizzle-orm/effect-pglite/migrator";
 import { Effect, Layer } from "effect";
@@ -36,11 +37,14 @@ const pgliteDrizzle = Layer.effect(
   })
 );
 
-/** Repositories + `SqlClient` + `Drizzle` on a fresh in-memory PGlite. */
+/** Repositories + `SqlClient` + `Drizzle` on a fresh in-memory PGlite (with `btree_gist`, which a migration creates). */
 export const pgliteDatabase = Layer.mergeAll(
   RepositoriesLayer,
   Layer.effect(SqlClient, Effect.service(SqlClient))
-).pipe(Layer.provideMerge(pgliteDrizzle), Layer.provide(PgliteClient.layer()));
+).pipe(
+  Layer.provideMerge(pgliteDrizzle),
+  Layer.provide(PgliteClient.layer({ extensions: { btree_gist } }))
+);
 
 /**
  * `DatabaseLive` on a migrated disposable database, plus `TestDatabaseUrl` and

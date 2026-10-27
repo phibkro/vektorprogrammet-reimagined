@@ -14,7 +14,7 @@ import {
   anonymous,
   classifyUpload,
   detectContentType,
-  registerPublicFile,
+  FilesEndpoints,
   resolveLegacyFilePath,
   servePublicFile,
   servingHeaders,
@@ -25,7 +25,7 @@ import {
   assertAuditEntries,
   TestServices,
   admin,
-  asActor,
+  asPrincipal,
   at,
   failureTag,
   seed,
@@ -65,7 +65,7 @@ const SVG = bytes(
 const HTML = bytes("<!doctype html><script>alert(1)</script>");
 
 const storePng = (name: string) =>
-  asActor(admin)(storeUpload({ accept: "image", bytes: PNG, name }));
+  asPrincipal(admin)(storeUpload({ accept: "image", bytes: PNG, name }));
 
 const messageOf = (error: DomainError) =>
   Predicate.isTagged(error, "ValidationFailed")
@@ -130,7 +130,7 @@ describe("C11 upload and serving", () => {
     () =>
       Effect.gen(function* effectProgram() {
         const error = yield* Effect.flip(
-          asActor(teamMemberBergen)(
+          asPrincipal(teamMemberBergen)(
             storeUpload({
               accept: "imageOrPdf",
               bytes: DOCX,
@@ -154,13 +154,17 @@ describe("C11 upload and serving", () => {
 
         assert.match(stored.key, /^[0-9a-f]{64}\.png$/u);
 
-        const again = yield* asActor(admin)(
+        const again = yield* asPrincipal(admin)(
           storeUpload({ accept: "image", bytes: PNG, name: "kopi.png" })
         );
 
         assert.strictEqual(again.key, stored.key);
-        const registered = yield* asActor(admin)(registerPublicFile(stored));
-        assert.strictEqual(registered.uploadedBy, admin.userId);
+
+        const registered = yield* asPrincipal(admin)(
+          FilesEndpoints.registerPublicFile(stored)
+        );
+
+        assert.strictEqual(registered.uploadedBy, admin.personId);
         const served = yield* servePublicFile(stored.key);
         const body = yield* Stream.runCollect(served.body);
         assert.deepStrictEqual(body, [PNG]);
@@ -245,7 +249,7 @@ describe("C11 upload and serving", () => {
     "RULE-290: legacy 'Offentlige filer' paths resolve through the registry only",
     () =>
       Effect.gen(function* effectProgram() {
-        const stored = yield* asActor(admin)(
+        const stored = yield* asPrincipal(admin)(
           storeUpload({ accept: "any", bytes: PDF, name: "vedtekter.pdf" })
         );
 
@@ -273,7 +277,7 @@ describe("C11 upload and serving", () => {
   it.effect("only staff may upload", () =>
     Effect.gen(function* effectProgram() {
       const exit = yield* Effect.exit(
-        asActor(anonymous)(
+        asPrincipal(anonymous)(
           storeUpload({ accept: "image", bytes: PNG, name: "x.png" })
         )
       );

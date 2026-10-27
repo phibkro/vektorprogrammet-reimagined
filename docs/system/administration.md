@@ -80,7 +80,7 @@ Every login path refuses a Deactivated account (RULE-125, 104 ✗). Leaving Vekt
 | `activate(code)`, `resetPassword(code)` | holder of the code | — | 132 ✗, 220 ✗, 131 ✗, 201, 112 ✗ |
 | `deactivate`, `reactivate` | `Admin` | all, never oneself | 202 ✗, 299 ✗, 117 |
 | `updateProfile`, `setPhoto` | `Self ∪ Leader(d)` | own / department | 143, 160, 142 |
-| `grantAdmin(person, until)`, `revokeAdmin` | `Admin` | all, never oneself, never the last valid grant | 113 ✗, 308 |
+| `grantAdmin`, `revokeAdmin` | See the [teams command table](teams.md#commands-and-grants) |  |  |
 | `mergePersons(a, b)` | `Admin` | all | new |
 | `exportMyData` | `Self` | own | new (GDPR Art. 15, 20) |
 | `eraseMe` / `erasePerson` | `Self` / `Admin` | own / all | new (Art. 17). Refuses, with the reason, while a legal hold applies (an open claim, accounting retention) |
@@ -110,7 +110,7 @@ A test fails if a personal column has no declaration.
 | --- | --- |
 | Semesters | Keeps the current and the next semester present |
 | Outbox sweep | Delivers e-mails that the request could not send |
-| Ending soon | Four weeks before semester end: memberships and admin grants that end |
+| Ending soon | Four weeks before semester end: memberships. Admin-grant reminders are a later slice. |
 | Retention | Deletes or anonymises data at the end of its retention period |
 
 ### Processors

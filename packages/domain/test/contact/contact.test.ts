@@ -10,23 +10,28 @@ import {
 } from "effect";
 
 import {
+  ContactEndpoints,
   DEPARTMENT_UNAVAILABLE_MESSAGE,
   DepartmentId,
   INVALID_EMAIL_MESSAGE,
   SupportTicket,
-  submitContact,
+  anonymous,
   supportTicketMessages,
 } from "../../src/index.ts";
-import type { DomainError } from "../../src/index.ts";
+import type { DomainError, ValidationIssue } from "../../src/index.ts";
 import {
   BERGEN,
   TRONDHEIM,
   TestServices,
+  asPrincipal,
   assertNoRows,
   departmentForTest,
   seed,
   table,
 } from "../support/inMemory.ts";
+
+/** A visitor submits the form: nobody is signed in. */
+const asVisitor = asPrincipal(anonymous);
 
 const department = (
   id: DepartmentId,
@@ -50,6 +55,21 @@ const fieldsOf = (error: DomainError) =>
       )
     : [];
 
+const assertIssues = (
+  error: DomainError,
+  expected: readonly ValidationIssue[]
+) => {
+  if (!Predicate.isTagged(error, "ValidationFailed")) {
+    assert.fail("expected a validation failure");
+  }
+
+  assert.deepStrictEqual(error.issues, expected);
+};
+
+const assertEmptyOutbox = Effect.gen(function* assertEmptyOutbox() {
+  assertNoRows([yield* table((db) => db.outbox)]);
+});
+
 describe("C10 contact form", () => {
   it.effect(
     "RULE-156: an invalid e-mail ('ola@') is rejected and nothing is sent",
@@ -60,25 +80,29 @@ describe("C10 contact form", () => {
         );
 
         const error = yield* Effect.flip(
-          submitContact({ ...ticket, email: "ola@" })
+          asVisitor(
+            ContactEndpoints.submitContact({ ...ticket, email: "ola@" })
+          )
         );
 
-        assert.strictEqual(error._tag, "ValidationFailed");
+        assertIssues(error, [
+          { message: INVALID_EMAIL_MESSAGE, path: ["email"] },
+        ]);
 
-        if (Predicate.isTagged(error, "ValidationFailed")) {
-          assert.deepStrictEqual(error.issues, [
-            { message: INVALID_EMAIL_MESSAGE, path: ["email"] },
-          ]);
-        }
-
-        assertNoRows([yield* table((db) => db.outbox)]);
+        yield* assertEmptyOutbox;
       }).pipe(Effect.provide(TestServices))
   );
 
   it.effect("RULE-156: name, subject, message and region are required", () =>
     Effect.gen(function* effectProgram() {
       const error = yield* Effect.flip(
-        submitContact({ email: "kari@example.com", name: " ", subject: "" })
+        asVisitor(
+          ContactEndpoints.submitContact({
+            email: "kari@example.com",
+            name: " ",
+            subject: "",
+          })
+        )
       );
 
       assert.deepStrictEqual(Arr.sort(fieldsOf(error), Order.String), [
@@ -87,7 +111,7 @@ describe("C10 contact form", () => {
         "name",
         "subject",
       ]);
-      assertNoRows([yield* table((db) => db.outbox)]);
+      yield* assertEmptyOutbox;
     }).pipe(Effect.provide(TestServices))
   );
 
@@ -102,22 +126,17 @@ describe("C10 contact form", () => {
 
         for (const departmentId of [BERGEN, DepartmentId.make(77)]) {
           const error = yield* Effect.flip(
-            submitContact({ ...ticket, departmentId })
+            asVisitor(
+              ContactEndpoints.submitContact({ ...ticket, departmentId })
+            )
           );
 
-          assert.strictEqual(error._tag, "ValidationFailed");
-
-          if (Predicate.isTagged(error, "ValidationFailed")) {
-            assert.deepStrictEqual(error.issues, [
-              {
-                message: DEPARTMENT_UNAVAILABLE_MESSAGE,
-                path: ["departmentId"],
-              },
-            ]);
-          }
+          assertIssues(error, [
+            { message: DEPARTMENT_UNAVAILABLE_MESSAGE, path: ["departmentId"] },
+          ]);
         }
 
-        assertNoRows([yield* table((db) => db.outbox)]);
+        yield* assertEmptyOutbox;
       }).pipe(Effect.provide(TestServices))
   );
 
@@ -128,10 +147,12 @@ describe("C10 contact form", () => {
         yield* seed.department(department(TRONDHEIM, "Trondheim", null));
         yield* seed.department(department(BERGEN, "Bergen", null));
 
-        const result = yield* submitContact({
-          ...ticket,
-          departmentId: BERGEN,
-        });
+        const result = yield* asVisitor(
+          ContactEndpoints.submitContact({
+            ...ticket,
+            departmentId: BERGEN,
+          })
+        );
 
         assert.strictEqual(result.departmentId, BERGEN);
         const [first] = yield* table((db) => db.outbox);
@@ -148,7 +169,7 @@ describe("C10 contact form", () => {
         yield* seed.department(
           department(TRONDHEIM, "Trondheim", "#trondheim")
         );
-        const result = yield* submitContact(ticket);
+        const result = yield* asVisitor(ContactEndpoints.submitContact(ticket));
         assert.strictEqual(
           result.notice,
           "Kontaktforespørsel sendt til trondheim@example.org, takk for henvendelsen!"
@@ -198,7 +219,7 @@ describe("C10 contact form", () => {
     () =>
       Effect.gen(function* effectProgram() {
         yield* seed.department(department(TRONDHEIM, "Trondheim", null));
-        yield* submitContact(ticket);
+        yield* asVisitor(ContactEndpoints.submitContact(ticket));
         const outbox = yield* table((db) => db.outbox);
         assert.deepStrictEqual(
           pipe(

@@ -10,7 +10,7 @@ import {
   AdmissionPeriodRepository,
   AlreadyExists,
   AuditLog,
-  CurrentActor,
+  CurrentPrincipal,
   DepartmentId,
   DepartmentRepository,
   EmailAddress,
@@ -25,22 +25,29 @@ import {
   PublicFileRepository,
   SemesterId,
   SemesterRepository,
+  SiteOrigin,
   SocialEventId,
   SocialEventRepository,
   anonymous,
 } from "@vektorprogrammet/domain";
 import type {
-  Actor,
   AdmissionPeriod,
   AuditEntry,
   Department,
   EntityName,
   FieldOfStudy,
   OutboxMessage,
+  Principal,
   PublicFile,
   SocialEvent,
   StoredSemester,
 } from "@vektorprogrammet/domain";
+import {
+  makeTeamTables,
+  snapshotTeamTables,
+  teamsInMemoryOver,
+} from "@vektorprogrammet/domain/testing";
+import type { TeamTableRefs } from "@vektorprogrammet/domain/testing";
 import {
   Array as Arr,
   Context,
@@ -75,6 +82,8 @@ export interface MemoryTables {
   semesters: StoredSemester[];
   fieldsOfStudy: FieldOfStudy[];
   socialEvents: SocialEvent[];
+  /** The teams repositories' tables: the domain's fakes, shared by every layer built over these tables. */
+  teams: TeamTableRefs;
   /** Number of `Transactor.run` calls that committed. */
   commits: number;
   /** The next id every table hands out; it survives layer builds and rollbacks, as a sequence does. */
@@ -98,6 +107,7 @@ export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   publicFiles: [],
   semesters: [],
   socialEvents: [],
+  teams: makeTeamTables(),
   ...seed,
 });
 
@@ -349,6 +359,8 @@ const repositories = Layer.effectContext(
     });
 
     const auditLog = AuditLog.of({
+      latest: (limit) =>
+        Effect.sync(() => Arr.take(Arr.reverse(db.audit), limit)),
       record: (entry) =>
         Effect.sync(() => {
           db.audit.push(entry);
@@ -449,8 +461,10 @@ const transactor = Layer.effect(
 
     return Transactor.of({
       run: (program) =>
-        Effect.suspend(() => {
-          const before: Omit<MemoryTables, "commits" | "nextId"> = {
+        Effect.gen(function* inTransaction() {
+          const restoreTeams = yield* snapshotTeamTables(db.teams);
+
+          const before: Omit<MemoryTables, "commits" | "nextId" | "teams"> = {
             admissionPeriods: [...db.admissionPeriods],
             audit: [...db.audit],
             departments: [...db.departments],
@@ -462,7 +476,7 @@ const transactor = Layer.effect(
             socialEvents: [...db.socialEvents],
           };
 
-          return Effect.provideService(program, InTransaction, {
+          return yield* Effect.provideService(program, InTransaction, {
             kind: "database-transaction",
           }).pipe(
             Effect.tap(() =>
@@ -471,9 +485,12 @@ const transactor = Layer.effect(
               })
             ),
             Effect.onError(() =>
-              Effect.sync(() => {
-                Object.assign(db, before);
-              })
+              Effect.andThen(
+                Effect.sync(() => {
+                  Object.assign(db, before);
+                }),
+                restoreTeams()
+              )
             )
           );
         }),
@@ -481,16 +498,27 @@ const transactor = Layer.effect(
   })
 );
 
-/** Every in-memory service over `tables` (fresh by default), acting as `actor` (anonymous by default). */
+/** The origin the in-memory site pretends to have (the "ending soon" e-mail's links start with it). */
+const SITE_ORIGIN = "https://vektorprogrammet.test";
+
+/**
+ * Every in-memory service over `tables` (fresh by default), acting as `principal` (anonymous by default). The teams
+ * repositories are the domain's fakes (`@vektorprogrammet/domain/testing`), over their own tables.
+ */
 export const memoryLayer = (
   tables: MemoryTables = makeTables(),
-  actor: Actor = anonymous
+  principal: Principal = anonymous
 ) =>
-  Layer.mergeAll(
-    repositories,
-    transactor,
-    Layer.succeed(CurrentActor, actor)
-  ).pipe(Layer.provideMerge(Layer.succeed(Memory, tables)));
+  teamsInMemoryOver(tables.teams).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        repositories,
+        transactor,
+        Layer.succeed(CurrentPrincipal, principal),
+        Layer.succeed(SiteOrigin, SITE_ORIGIN)
+      ).pipe(Layer.provideMerge(Layer.succeed(Memory, tables)))
+    )
+  );
 
 /** A `FormData` from text fields and (optionally) uploaded files. */
 export const form = (

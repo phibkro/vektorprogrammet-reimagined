@@ -7,8 +7,8 @@
  * table the importer owns, insert the plan in foreign-key order, advance the
  * identity sequences past the kept legacy ids, and read the row counts back.
  * A failure anywhere, including a count that differs from the plan, rolls the
- * target back to its previous state. There is no `CASCADE`: if a later phase
- * adds a table that references these, the truncate fails instead of wiping it.
+ * target back to its previous state. There is no `CASCADE`: a table that references these and is not named here
+ * makes the truncate fail instead of wiping it.
  */
 import { PgClient } from "@effect/sql-pg";
 import { schema } from "@vektorprogrammet/db";
@@ -59,6 +59,20 @@ const TABLES = {
   semester: schema.semester,
   social_event: schema.socialEvent,
 } as const;
+
+/**
+ * The tables of later phases that reference the importer's (a team has a department, a person a field of study).
+ * PostgreSQL refuses to truncate a referenced table unless the referencing one goes with it, so a re-import clears
+ * them too, until spec 0013 imports the legacy teams and memberships and takes over this list. The value list of
+ * positions is not among them: the migration seeds it.
+ */
+const BUILT_ON_TABLES = [
+  schema.endingSoonDigest,
+  schema.adminGrant,
+  schema.membership,
+  schema.team,
+  schema.person,
+] as const;
 
 /** Tables whose integer `id` is an identity column; their sequences follow the kept legacy ids. */
 const IDENTITY_TABLES = [
@@ -115,7 +129,11 @@ export class ImportTarget extends Context.Service<
 
       const replaceAll = Effect.fn("ImportTarget.replaceAll")(
         function* replaceAll(rows: TargetRows) {
-          const tables = Arr.map(TARGET_TABLES, ({ table }) => TABLES[table]);
+          const tables = [
+            ...Arr.map(TARGET_TABLES, ({ table }) => TABLES[table]),
+            ...BUILT_ON_TABLES,
+          ];
+
           yield* db
             .execute(
               sql`truncate table ${sql.join(tables, sql`, `)} restart identity`

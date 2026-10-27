@@ -19,15 +19,19 @@ import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
 import { Route as KontrollpanelIndexRouteImport } from './routes/kontrollpanel/index'
+import { Route as KontrollpanelAdministratorerRouteImport } from './routes/kontrollpanel/administratorer'
 import { Route as KontrollpanelArrangementerRouteImport } from './routes/kontrollpanel/arrangementer'
 import { Route as KontrollpanelAvdelingerRouteImport } from './routes/kontrollpanel/avdelinger'
 import { Route as KontrollpanelLinjerRouteImport } from './routes/kontrollpanel/linjer'
+import { Route as KontrollpanelPersonerRouteImport } from './routes/kontrollpanel/personer'
 import { Route as KontrollpanelSemestreRouteImport } from './routes/kontrollpanel/semestre'
 import { Route as NyhetSlugRouteImport } from './routes/nyhet/$slug'
 import { Route as NyheterIndexRouteImport } from './routes/nyheter/index'
 import { Route as TeamIndexRouteImport } from './routes/team/index'
 import { Route as TeamDepartmentRouteImport } from './routes/team/$department'
 import { Route as KontaktAvdelingIdRouteImport } from './routes/kontakt/avdeling/$id'
+import { Route as KontrollpanelTeamIndexRouteImport } from './routes/kontrollpanel/team/index'
+import { Route as KontrollpanelTeamTeamIdRouteImport } from './routes/kontrollpanel/team/$teamId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -79,6 +83,12 @@ const KontrollpanelIndexRoute = KontrollpanelIndexRouteImport.update({
   path: '/',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
+const KontrollpanelAdministratorerRoute =
+  KontrollpanelAdministratorerRouteImport.update({
+    id: '/administratorer',
+    path: '/administratorer',
+    getParentRoute: () => KontrollpanelRouteRoute,
+  } as any)
 const KontrollpanelArrangementerRoute =
   KontrollpanelArrangementerRouteImport.update({
     id: '/arrangementer',
@@ -93,6 +103,11 @@ const KontrollpanelAvdelingerRoute = KontrollpanelAvdelingerRouteImport.update({
 const KontrollpanelLinjerRoute = KontrollpanelLinjerRouteImport.update({
   id: '/linjer',
   path: '/linjer',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
+const KontrollpanelPersonerRoute = KontrollpanelPersonerRouteImport.update({
+  id: '/personer',
+  path: '/personer',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
 const KontrollpanelSemestreRoute = KontrollpanelSemestreRouteImport.update({
@@ -125,6 +140,16 @@ const KontaktAvdelingIdRoute = KontaktAvdelingIdRouteImport.update({
   path: '/kontakt/avdeling/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KontrollpanelTeamIndexRoute = KontrollpanelTeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
+const KontrollpanelTeamTeamIdRoute = KontrollpanelTeamTeamIdRouteImport.update({
+  id: '/team/$teamId',
+  path: '/team/$teamId',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -135,9 +160,11 @@ export interface FileRoutesByFullPath {
   '/skoler': typeof SkolerRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
+  '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
+  '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
   '/team/$department': typeof TeamDepartmentRoute
@@ -146,6 +173,8 @@ export interface FileRoutesByFullPath {
   '/nyheter/': typeof NyheterIndexRoute
   '/team/': typeof TeamIndexRoute
   '/kontakt/avdeling/$id': typeof KontaktAvdelingIdRoute
+  '/kontrollpanel/team/$teamId': typeof KontrollpanelTeamTeamIdRoute
+  '/kontrollpanel/team/': typeof KontrollpanelTeamIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -155,9 +184,11 @@ export interface FileRoutesByTo {
   '/skoler': typeof SkolerRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
+  '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
+  '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
   '/team/$department': typeof TeamDepartmentRoute
@@ -166,6 +197,8 @@ export interface FileRoutesByTo {
   '/nyheter': typeof NyheterIndexRoute
   '/team': typeof TeamIndexRoute
   '/kontakt/avdeling/$id': typeof KontaktAvdelingIdRoute
+  '/kontrollpanel/team/$teamId': typeof KontrollpanelTeamTeamIdRoute
+  '/kontrollpanel/team': typeof KontrollpanelTeamIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -177,9 +210,11 @@ export interface FileRoutesById {
   '/skoler': typeof SkolerRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
+  '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
+  '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
   '/team/$department': typeof TeamDepartmentRoute
@@ -188,6 +223,8 @@ export interface FileRoutesById {
   '/nyheter/': typeof NyheterIndexRoute
   '/team/': typeof TeamIndexRoute
   '/kontakt/avdeling/$id': typeof KontaktAvdelingIdRoute
+  '/kontrollpanel/team/$teamId': typeof KontrollpanelTeamTeamIdRoute
+  '/kontrollpanel/team/': typeof KontrollpanelTeamIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -200,9 +237,11 @@ export interface FileRouteTypes {
     | '/skoler'
     | '/filer/$key'
     | '/kontakt/$department'
+    | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
     | '/kontrollpanel/linjer'
+    | '/kontrollpanel/personer'
     | '/kontrollpanel/semestre'
     | '/nyhet/$slug'
     | '/team/$department'
@@ -211,6 +250,8 @@ export interface FileRouteTypes {
     | '/nyheter/'
     | '/team/'
     | '/kontakt/avdeling/$id'
+    | '/kontrollpanel/team/$teamId'
+    | '/kontrollpanel/team/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -220,9 +261,11 @@ export interface FileRouteTypes {
     | '/skoler'
     | '/filer/$key'
     | '/kontakt/$department'
+    | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
     | '/kontrollpanel/linjer'
+    | '/kontrollpanel/personer'
     | '/kontrollpanel/semestre'
     | '/nyhet/$slug'
     | '/team/$department'
@@ -231,6 +274,8 @@ export interface FileRouteTypes {
     | '/nyheter'
     | '/team'
     | '/kontakt/avdeling/$id'
+    | '/kontrollpanel/team/$teamId'
+    | '/kontrollpanel/team'
   id:
     | '__root__'
     | '/'
@@ -241,9 +286,11 @@ export interface FileRouteTypes {
     | '/skoler'
     | '/filer/$key'
     | '/kontakt/$department'
+    | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
     | '/kontrollpanel/linjer'
+    | '/kontrollpanel/personer'
     | '/kontrollpanel/semestre'
     | '/nyhet/$slug'
     | '/team/$department'
@@ -252,6 +299,8 @@ export interface FileRouteTypes {
     | '/nyheter/'
     | '/team/'
     | '/kontakt/avdeling/$id'
+    | '/kontrollpanel/team/$teamId'
+    | '/kontrollpanel/team/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -343,6 +392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KontrollpanelIndexRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
+    '/kontrollpanel/administratorer': {
+      id: '/kontrollpanel/administratorer'
+      path: '/administratorer'
+      fullPath: '/kontrollpanel/administratorer'
+      preLoaderRoute: typeof KontrollpanelAdministratorerRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
     '/kontrollpanel/arrangementer': {
       id: '/kontrollpanel/arrangementer'
       path: '/arrangementer'
@@ -362,6 +418,13 @@ declare module '@tanstack/react-router' {
       path: '/linjer'
       fullPath: '/kontrollpanel/linjer'
       preLoaderRoute: typeof KontrollpanelLinjerRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
+    '/kontrollpanel/personer': {
+      id: '/kontrollpanel/personer'
+      path: '/personer'
+      fullPath: '/kontrollpanel/personer'
+      preLoaderRoute: typeof KontrollpanelPersonerRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
     '/kontrollpanel/semestre': {
@@ -406,23 +469,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KontaktAvdelingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kontrollpanel/team/': {
+      id: '/kontrollpanel/team/'
+      path: '/team'
+      fullPath: '/kontrollpanel/team/'
+      preLoaderRoute: typeof KontrollpanelTeamIndexRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
+    '/kontrollpanel/team/$teamId': {
+      id: '/kontrollpanel/team/$teamId'
+      path: '/team/$teamId'
+      fullPath: '/kontrollpanel/team/$teamId'
+      preLoaderRoute: typeof KontrollpanelTeamTeamIdRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
   }
 }
 
 interface KontrollpanelRouteRouteChildren {
+  KontrollpanelAdministratorerRoute: typeof KontrollpanelAdministratorerRoute
   KontrollpanelArrangementerRoute: typeof KontrollpanelArrangementerRoute
   KontrollpanelAvdelingerRoute: typeof KontrollpanelAvdelingerRoute
   KontrollpanelLinjerRoute: typeof KontrollpanelLinjerRoute
+  KontrollpanelPersonerRoute: typeof KontrollpanelPersonerRoute
   KontrollpanelSemestreRoute: typeof KontrollpanelSemestreRoute
   KontrollpanelIndexRoute: typeof KontrollpanelIndexRoute
+  KontrollpanelTeamTeamIdRoute: typeof KontrollpanelTeamTeamIdRoute
+  KontrollpanelTeamIndexRoute: typeof KontrollpanelTeamIndexRoute
 }
 
 const KontrollpanelRouteRouteChildren: KontrollpanelRouteRouteChildren = {
+  KontrollpanelAdministratorerRoute: KontrollpanelAdministratorerRoute,
   KontrollpanelArrangementerRoute: KontrollpanelArrangementerRoute,
   KontrollpanelAvdelingerRoute: KontrollpanelAvdelingerRoute,
   KontrollpanelLinjerRoute: KontrollpanelLinjerRoute,
+  KontrollpanelPersonerRoute: KontrollpanelPersonerRoute,
   KontrollpanelSemestreRoute: KontrollpanelSemestreRoute,
   KontrollpanelIndexRoute: KontrollpanelIndexRoute,
+  KontrollpanelTeamTeamIdRoute: KontrollpanelTeamTeamIdRoute,
+  KontrollpanelTeamIndexRoute: KontrollpanelTeamIndexRoute,
 }
 
 const KontrollpanelRouteRouteWithChildren =
@@ -447,3 +532,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

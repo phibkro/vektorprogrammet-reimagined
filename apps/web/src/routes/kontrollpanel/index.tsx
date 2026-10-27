@@ -42,7 +42,7 @@ const Dashboard = () => {
           </CardHeader>
         </Card>
       </div>
-      {testActors && <TestActorSwitch />}
+      {testActors !== null && <TestActorSwitch people={testActors} />}
     </>
   );
 };

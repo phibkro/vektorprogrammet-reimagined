@@ -117,6 +117,7 @@
         "effect": "catalog:",
       },
       "devDependencies": {
+        "@effect/platform-node": "catalog:",
         "@effect/sql-pglite": "catalog:",
         "@effect/vitest": "catalog:",
         "@electric-sql/pglite": "catalog:",
@@ -160,6 +161,21 @@
         "alchemy": "catalog:",
         "cf": "1.0.0-beta.12",
         "drizzle-kit": "catalog:",
+        "typescript": "catalog:",
+        "vite-plus": "catalog:",
+      },
+    },
+    "tools/docgen": {
+      "name": "@vektorprogrammet/docgen",
+      "version": "0.0.0",
+      "dependencies": {
+        "@effect/platform-node": "catalog:",
+        "@vektorprogrammet/domain": "workspace:*",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "@types/node": "catalog:",
         "typescript": "catalog:",
         "vite-plus": "catalog:",
       },
@@ -1403,6 +1419,8 @@
     "@vektorprogrammet/db": ["@vektorprogrammet/db@workspace:packages/db"],
 
     "@vektorprogrammet/db-path-spike": ["@vektorprogrammet/db-path-spike@workspace:tools/db-path-spike"],
+
+    "@vektorprogrammet/docgen": ["@vektorprogrammet/docgen@workspace:tools/docgen"],
 
     "@vektorprogrammet/domain": ["@vektorprogrammet/domain@workspace:packages/domain"],
 

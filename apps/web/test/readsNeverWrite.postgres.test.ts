@@ -2,8 +2,8 @@
  * Spec 0003, falsifier 3: every public and control-panel read path succeeds against a database role that
  * holds SELECT and nothing else, so no read writes.
  *
- * Each read program a server function (or the Worker entry) runs through `runQuery` is run, once per actor
- * (anonymous, admin, team leader), over `DatabaseLive` connected as the SELECT-only role of a migrated
+ * Each read program a server function (or the Worker entry) runs through `runQuery` is run, once per principal
+ * (anonymous, admin, team leader, team member, a person with no team), over `DatabaseLive` connected as the SELECT-only role of a migrated
  * disposable PostgreSQL database (`@vektorprogrammet/db/testing`). It runs twice: on empty tables (no
  * semester row yet: the state in which the retired `ensureCurrentSemester` inserted from three loaders) and
  * on seeded tables. A write is refused with `permission denied`, which `DatabaseLive` turns into a defect, so
@@ -26,18 +26,33 @@ import {
   readOnlyRole,
 } from "@vektorprogrammet/db/testing/read-only-role";
 import {
-  CurrentActor,
+  AdminGrantRepository,
+  CurrentPrincipal,
+  EmailAddress,
+  FieldOfStudyId,
+  FieldOfStudyRepository,
   FileStore,
+  MembershipRepository,
+  PersonRepository,
+  PositionId,
   SemesterRepository,
+  TeamRepository,
   anonymous,
   currentSemester,
-  ensureScheduledSemesters,
+  semesterJob,
   servePublicFile,
+  systemPrincipal,
 } from "@vektorprogrammet/domain";
-import type { Actor, Forbidden, NotFound } from "@vektorprogrammet/domain";
+import type {
+  Forbidden,
+  NotFound,
+  Principal,
+  ValidationFailed,
+} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
+  DateTime,
   Effect,
   Exit,
   Layer,
@@ -50,7 +65,6 @@ import {
 import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
-import { TEST_ACTORS } from "../src/server/actor";
 import {
   dashboardView,
   departmentsView,
@@ -58,6 +72,7 @@ import {
   semestersView,
   socialEventsView,
 } from "../src/server/panel";
+import { resolvePrincipal } from "../src/server/principal";
 import { legacyFileLocation } from "../src/server/redirects";
 import type { DatabaseServices } from "../src/server/runtime";
 import { shellView } from "../src/server/shell";
@@ -74,10 +89,18 @@ import {
   schoolsPage,
   teamPage,
 } from "../src/server/site/pages";
+import {
+  adminsView,
+  peopleView,
+  teamView,
+  teamsView,
+} from "../src/server/teams";
+import { Transactor, transactorLayer } from "../src/server/transactor";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
+import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 
-type ReadServices = CmsClient | DatabaseServices | CurrentActor | FileStore;
+type ReadServices = CmsClient | DatabaseServices | CurrentPrincipal | FileStore;
 
 /** Every source file of the app, as text: the read paths are checked against its `runQuery` call sites. */
 const SOURCES = import.meta.glob<string>("../src/**/*.{ts,tsx}", {
@@ -86,26 +109,35 @@ const SOURCES = import.meta.glob<string>("../src/**/*.{ts,tsx}", {
   query: "?raw",
 });
 
-/** What a read path answers: a value, or the typed `NotFound` that a missing row means. */
-type Expected = "ok" | "NotFound";
+/** What a read path answers: a value, the typed `NotFound` that a missing row means, or the typed `Forbidden` of its own grant check. */
+type Expected = "ok" | "NotFound" | "Forbidden";
 
 interface ReadPath {
   /** The server function (or entry point) that runs it. */
   readonly site: string;
   readonly program: Effect.Effect<
     unknown,
-    CmsFailure | Forbidden | NotFound,
+    CmsFailure | Forbidden | NotFound | ValidationFailed,
     ReadServices
   >;
   readonly empty: Expected;
   readonly seeded: Expected;
+  /** The principals whose grant check this path fails (typed, before any read) where it would otherwise answer. */
+  readonly refusedTo: readonly string[];
 }
 
 const readPath = (
   site: string,
   program: ReadPath["program"],
-  expected: Partial<Pick<ReadPath, "empty" | "seeded">> = {}
-): ReadPath => ({ empty: "ok", seeded: "ok", ...expected, program, site });
+  expected: Partial<Pick<ReadPath, "empty" | "refusedTo" | "seeded">> = {}
+): ReadPath => ({
+  empty: "ok",
+  refusedTo: [],
+  seeded: "ok",
+  ...expected,
+  program,
+  site,
+});
 
 /** The CMS stand-in: empty with the tables, and an article, a draft, a sponsor and a text once they are seeded. */
 const CMS_SEEDS = {
@@ -132,6 +164,19 @@ const CMS_SEEDS = {
 
 const KEY_SMALL = `${"a".repeat(64)}.png`;
 const LEGACY_PATH = "Offentlige filer/logo.png";
+const TEAM_ID = 1;
+const LOCAL_PERSON = "Lise Leder";
+
+/** Who `openControlPanel` refuses: nobody signed in, and a person with no team and no admin place. */
+const NO_PANEL = ["anonymous", "person without team"];
+
+/** Who `grantAdmin` refuses: everyone but an administrator. */
+const NOT_ADMIN = [
+  "anonymous",
+  "team leader",
+  "team member",
+  "person without team",
+];
 
 /** Every `runQuery` call site of the app, by the server function or entry point that holds it. */
 const READ_PATHS: readonly ReadPath[] = [
@@ -172,11 +217,26 @@ const READ_PATHS: readonly ReadPath[] = [
     empty: "NotFound",
   }),
   readPath("panel.functions getShell", shellView("local")),
-  readPath("panel.functions getDashboard", dashboardView),
+  readPath("panel.functions getDashboard", dashboardView, {
+    refusedTo: NO_PANEL,
+  }),
   readPath("panel.functions getDepartments", departmentsView),
-  readPath("panel.functions getSemesters", semestersView),
+  readPath("panel.functions getSemesters", semestersView, {
+    refusedTo: NO_PANEL,
+  }),
   readPath("panel.functions getFieldsOfStudy", fieldsOfStudyView),
   readPath("panel.functions getSocialEvents", socialEventsView),
+  readPath("panel.functions getTeams", teamsView),
+  readPath("panel.functions getTeam", teamView(TEAM_ID), {
+    empty: "NotFound",
+    refusedTo: NO_PANEL,
+  }),
+  readPath("panel.functions getPeople", peopleView),
+  readPath("panel.functions getAdmins", adminsView, { refusedTo: NOT_ADMIN }),
+  readPath(
+    "server/runtime liveRequestLayer: the principal's facts",
+    resolvePrincipal("local", LOCAL_PERSON)
+  ),
   readPath("routes/filer/$key GET", servePublicFile(KEY_SMALL), {
     empty: "NotFound",
   }),
@@ -185,16 +245,18 @@ const READ_PATHS: readonly ReadPath[] = [
 
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
-  "functions/panel.functions.ts": 6,
+  "functions/panel.functions.ts": 10,
   "functions/public.functions.ts": 11,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,
 };
 
-const ACTORS: readonly (readonly [string, Actor])[] = [
+const ACTORS: readonly (readonly [string, Principal])[] = [
   ["anonymous", anonymous],
-  ["admin", TEST_ACTORS.admin],
-  ["team leader", TEST_ACTORS.teamLeader],
+  ["admin", ADMIN],
+  ["team leader", leaderOf(1)],
+  ["team member", memberOf(1)],
+  ["person without team", WITHOUT_TEAM],
 ];
 
 /** R2 answers every key; whether the key is registered is the database's call. */
@@ -223,14 +285,75 @@ const SEED = [
   `insert into field_of_study (department_id, name, short_name) values (1, 'Fag Alfa', 'FA')`,
 ];
 
-/** The job's two rows, and an event in the current semester of the first department. */
+/**
+ * A leader and a member of one team of the first department, and an admin place, written through the repositories
+ * as the commands write them. The team is `TEAM_ID`, and its memberships run to 2099.
+ */
+const seedTeams = Effect.gen(function* seedTeams() {
+  const field = yield* (yield* FieldOfStudyRepository).findById(
+    FieldOfStudyId.make(1)
+  );
+
+  const people = yield* PersonRepository;
+  const memberships = yield* MembershipRepository;
+
+  const person = (name: string, email: string) =>
+    people.create({
+      email: EmailAddress.make(email),
+      fieldOfStudyId: field.id,
+      name,
+    });
+
+  const lise = yield* person(LOCAL_PERSON, "lise@alfa.example");
+  const mats = yield* person("Mats Medlem", "mats@alfa.example");
+
+  const team = yield* (yield* TeamRepository).create({
+    defaultTerm: 2,
+    departmentId: field.departmentId,
+    function: "recruitment",
+    name: "Rekruttering",
+  });
+
+  assert.strictEqual(team.id, TEAM_ID, "the registered read paths ask for it");
+
+  const term = {
+    end: { term: "HOST", year: 2099 },
+    start: { term: "VAR", year: 2020 },
+  } as const;
+
+  yield* memberships.insert({
+    ...term,
+    leader: true,
+    personId: lise.id,
+    positionId: PositionId.make(1),
+    teamId: team.id,
+  });
+  yield* memberships.insert({
+    ...term,
+    leader: false,
+    personId: mats.id,
+    positionId: PositionId.make(2),
+    teamId: team.id,
+  });
+
+  yield* (yield* AdminGrantRepository).create({
+    grantedBy: null,
+    personId: lise.id,
+    until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
+  });
+});
+
+/** The job's two rows, the teams, and an event in the current semester of the first department. */
 const seedDatabase = Effect.gen(function* seedDatabase() {
   const sql = yield* SqlClient.SqlClient;
   yield* Effect.forEach(SEED, (statement) => sql.unsafe(statement), {
     discard: true,
   });
+  yield* seedTeams;
 
-  const { current } = yield* ensureScheduledSemesters;
+  const { current } = yield* Transactor.use((transactor) =>
+    transactor.run(semesterJob)
+  ).pipe(Effect.provideService(CurrentPrincipal, systemPrincipal("semesters")));
 
   yield* sql.unsafe(
     `insert into social_event (department_id, description, ends_at, semester_id, starts_at, title)
@@ -243,7 +366,9 @@ const seedDatabase = Effect.gen(function* seedDatabase() {
 }).pipe(
   Effect.provide(
     Layer.unwrap(
-      Effect.map(Effect.service(TestDatabaseUrl), (url) => requestServices(url))
+      Effect.map(Effect.service(TestDatabaseUrl), (url) =>
+        transactorLayer.pipe(Layer.provideMerge(requestServices(url)))
+      )
     )
   )
 );
@@ -256,18 +381,18 @@ const readerContext = Effect.gen(function* readerContext() {
 
 const runAs = <A, E>(
   context: Context.Context<DatabaseServices | FileStore>,
-  actor: Actor,
+  principal: Principal,
   program: Effect.Effect<A, E, ReadServices>,
   cms: Partial<CmsSeed> = {}
 ) =>
   program.pipe(
-    Effect.provideService(CurrentActor, actor),
+    Effect.provideService(CurrentPrincipal, principal),
     Effect.provide(memoryCms(cms)),
     Effect.provideContext(context),
     Effect.exit
   );
 
-/** The verdict on one run: it never dies, and it answers (or is `NotFound`) as the case says. */
+/** The verdict on one run: it never dies, and it answers (or is `NotFound` or `Forbidden`) as the case says. */
 const assertVerdict = (
   label: string,
   exit: Exit.Exit<unknown, unknown>,
@@ -286,21 +411,31 @@ const assertVerdict = (
 
   assert.isTrue(
     Exit.isFailure(exit) &&
-      Option.exists(Exit.findErrorOption(exit), Predicate.isTagged("NotFound")),
-    `${label} is NotFound`
+      Option.exists(Exit.findErrorOption(exit), Predicate.isTagged(expected)),
+    `${label} is ${expected}`
   );
 };
+
+/** What `path` answers `principalName` in `phase`: its own refusal where it would otherwise answer. */
+const expectedFor = (
+  path: ReadPath,
+  phase: "empty" | "seeded",
+  principalName: string
+): Expected =>
+  path[phase] === "ok" && path.refusedTo.includes(principalName)
+    ? "Forbidden"
+    : path[phase];
 
 const readEveryPath = (phase: "empty" | "seeded") =>
   Effect.gen(function* readEveryPathIn() {
     const context = yield* readerContext;
 
     for (const path of READ_PATHS) {
-      for (const [actorName, actor] of ACTORS) {
+      for (const [principalName, principal] of ACTORS) {
         assertVerdict(
-          `${path.site} as ${actorName} (${phase})`,
-          yield* runAs(context, actor, path.program, CMS_SEEDS[phase]),
-          path[phase]
+          `${path.site} as ${principalName} (${phase})`,
+          yield* runAs(context, principal, path.program, CMS_SEEDS[phase]),
+          expectedFor(path, phase, principalName)
         );
       }
     }
@@ -319,12 +454,12 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
   excludeTestServices: true,
 })("spec 0003: reads never write (SELECT-only role)", (it) => {
   it.effect(
-    "falsifier 3: every public and control-panel read path succeeds on empty tables, with no semester row yet",
+    "spec 0006 falsifier 9 and spec 0003 falsifier 3: every read path succeeds on empty tables",
     () => readEveryPath("empty")
   );
 
   it.effect(
-    "falsifier 3: every read path succeeds on seeded tables, with the job's semesters and an event in the current one",
+    "spec 0006 falsifier 9 and spec 0003 falsifier 3: every read path succeeds on seeded tables",
     () =>
       Effect.gen(function* seededEffect() {
         yield* seedDatabase;
@@ -404,9 +539,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
       ),
       []
     );
-    assert.deepStrictEqual(naming(/ensureScheduledSemesters/u), [
-      "server/runtime.ts",
-    ]);
+    assert.deepStrictEqual(naming(/semesterJob/u), ["server/runtime.ts"]);
     assert.deepStrictEqual(Arr.sort(naming(/runSemesterJob/u), Order.String), [
       "server.ts",
       "server/runtime.ts",

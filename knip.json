@@ -43,6 +43,9 @@
     "tools/import": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
+    "tools/docgen": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
     "tools/db-path-spike": {
       "entry": ["src/worker.ts", "alchemy.run.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts", "*.ts"]

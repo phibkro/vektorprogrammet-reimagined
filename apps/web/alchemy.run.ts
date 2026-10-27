@@ -160,6 +160,11 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
             siteKey: TURNSTILE_TEST_KEYS.siteKey,
           };
 
+    // The origin the links in the digest's e-mail point at. Only production sends real mail: base and previews
+    // capture it, so their links need no origin.
+    const siteUrl =
+      kind === "production" ? yield* Config.NonEmptyString("SITE_URL") : "";
+
     const common = {
       CMS_TOKEN: Config.Redacted("CMS_READ_TOKEN"),
       CMS_URL: reachableAt(cmsWorker),
@@ -173,6 +178,7 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
       DEPLOYMENT: deployment,
       HYPERDRIVE: database,
       PUBLIC_FILES: publicFiles,
+      SITE_URL: siteUrl,
       TURNSTILE_SECRET_KEY: turnstile.secretKey,
       TURNSTILE_SITE_KEY: turnstile.siteKey,
     };
