@@ -43,7 +43,7 @@ Preconditions:
 ## Gotchas
 
 - The sidebar is derived from the grant table, and `apps/web/test/shell.test.ts` and `teamsPanel.test.ts` compare controls with commands. A change that edits a role list in `apps/web/src` is itself the finding (AGENTS.md, Conventions).
-- Issue #15 / PR #19 introduces the rule that a principal without the page's read gets `403` on direct navigation. In particular, Mats Medlem must get `403` (not `200` with an empty list) at `/kontrollpanel/personer`. On a head containing PR #19, drive it with `scripts/page.sh /kontrollpanel/personer --as "Mats Medlem"` and require `403` with no person list. Until PR #19 is in the target head, this remains the behavior the PR introduces, not current behavior to verify as passing.
+- A principal without the page's read gets HTTP 403 on direct navigation (issue #15, fixed by PR #19), not 200 with an empty list. Drive it with scripts/page.sh /kontrollpanel/personer --as "Mats Medlem": require 403 and no person list; the same path for "Ada Admin" returns 200 with the list.
 - The `Testaktør` list has one button per person in the database, so people a journey registered appear in it too.
 - Without a cookie the instance acts as `Ada Admin`. A check run without `--as` or the cookie can pass for the wrong person.
 - `shell.spec.ts` passed on an instance where `journey.spec.ts` had not run (first run, 2026-10-27); its header says it runs after the journey. Its falsifier 4 creates a department, so a second run on the same instance collides.
