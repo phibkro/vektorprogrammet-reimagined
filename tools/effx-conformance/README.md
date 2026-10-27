@@ -20,7 +20,7 @@ The files are generated: the formatter leaves them alone (`vite.config.ts`), and
 
 ```sh
 devenv shell -- bun run description                 # the descriptions and the register of gaps; no effx, a few seconds
-EFFX_DIR=… devenv shell -- bun run description:regenerate   # the vectors and the provenance; effx, Nix, about 2.5 minutes
+EFFX_DIR=… devenv shell -- bun run description:regenerate   # the vectors and the provenance; effx, Nix, 1.5 to 2.5 minutes
 ```
 
 `EFFX_DIR` is a clean checkout of `phibkro/effx` at the commit of `effx.pin.json`, with its dependencies installed:
@@ -30,7 +30,7 @@ git clone https://github.com/phibkro/effx "$EFFX_DIR" && git -C "$EFFX_DIR" chec
 (cd "$EFFX_DIR" && bun install --frozen-lockfile --ignore-scripts)
 ```
 
-`description:regenerate` runs effx's `build` and `models check` on each description in a scratch project (pinned Alloy 6.2.0 through `nix shell "$EFFX_DIR#alloy6"`), and writes the committed files only when effx accepts every description and every assertion passes (A1 to A7, effx spec 0032); a failing run leaves them as they were. It refuses an `EFFX_DIR` whose `HEAD` is not the pin, or that has local changes. Measured on 32 threads: 2 minutes 16 seconds, 7 CPU-minutes; check the machine's headroom first. Commit the regenerated files with the declaration that changed them.
+`description:regenerate` runs effx's `build` and `models check` on each description in a scratch project (pinned Alloy 6.2.0 through `nix shell "$EFFX_DIR#alloy6"`), and writes the committed files only when effx accepts every description and every assertion passes (A1 to A7, effx spec 0032); a failing run leaves them as they were. It refuses an `EFFX_DIR` whose `HEAD` is not the pin, or that has local changes. Measured on 32 threads in two runs: 2 minutes 16 seconds and 7 CPU-minutes, then 1 minute 38 seconds and 4 CPU-minutes; check the machine's headroom first. Two runs on one commit write byte-identical files. Commit the regenerated files with the declaration that changed them.
 
 ## What the tests check (`vp run -r test`)
 
