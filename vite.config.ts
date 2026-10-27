@@ -393,6 +393,7 @@ export default defineConfig({
           "tools/import/src/emdash/pipeline.ts",
           "apps/cms/scripts/checkBundle.ts",
           "packages/db/src/aggregate/defects.ts",
+          "spikes/alchemy-domain/src/errors.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",
@@ -403,6 +404,8 @@ export default defineConfig({
         files: [
           "packages/domain/src/shared/errors.ts",
           "packages/db/src/aggregate/defects.ts",
+          "spikes/alchemy-domain/src/model/**",
+          "spikes/alchemy-domain/test/support/counter.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },

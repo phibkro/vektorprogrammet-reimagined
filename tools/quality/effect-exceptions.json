@@ -494,6 +494,7 @@
       "scope": {
         "files": [
           "packages/db/**",
+          "spikes/alchemy-domain/**",
           "apps/web/src/server/**",
           "**/test/**",
           "tools/**",

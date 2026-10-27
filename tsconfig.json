@@ -281,6 +281,29 @@
           },
           {
             "include": [
+              "spikes/alchemy-domain/src/**/*.ts",
+              "spikes/alchemy-domain/src/**/*.tsx",
+              "../../spikes/alchemy-domain/src/**/*.ts",
+              "../../spikes/alchemy-domain/src/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg"
+              ]
+            }
+          },
+          {
+            "include": [
               "apps/web/src/server/**/*.ts",
               "apps/web/src/server/**/*.tsx",
               "../../apps/web/src/server/**/*.ts",
