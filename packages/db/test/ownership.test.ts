@@ -27,6 +27,13 @@ const closure = (
     tables: changes.tables ?? tablesOf(schema),
   });
 
+/**
+ * What a change adds to the problems of the real declaration. A negative control reads this, so it keeps failing for
+ * its own reason when the schema itself has an undeclared table (the first test reports that one).
+ */
+const reported = (changes: Parameters<typeof closure>[0]) =>
+  Arr.difference(closure(changes), closure());
+
 /** A table that a later spec might add: it refers to a person, and nothing declares who owns it. */
 const loose = pgTable("loose", {
   personId: integer("person_id").references(() => schema.person.id),
@@ -49,19 +56,19 @@ describe("spec 0006b falsifier 5: ownership is closed over the schema", () => {
   });
 
   it("negative control: a new table with a foreign key to person and no declaration is reported", () => {
-    assert.deepStrictEqual(closure({ tables: withLoose }), [
+    assert.deepStrictEqual(reported({ tables: withLoose }), [
       "`loose` refers to person and is neither owned by Person nor declared NotOwned",
     ]);
   });
 
   it("negative control: declaring the new table NotOwned without a reason is reported, and with one it is closed", () => {
     assert.deepStrictEqual(
-      closure({ notOwned: { ...NotOwned, loose: " " }, tables: withLoose }),
+      reported({ notOwned: { ...NotOwned, loose: " " }, tables: withLoose }),
       ["NotOwned `loose` gives no reason"]
     );
 
     assert.deepStrictEqual(
-      closure({
+      reported({
         notOwned: { ...NotOwned, loose: "a test table" },
         tables: withLoose,
       }),
@@ -79,19 +86,19 @@ describe("spec 0006b falsifier 5: ownership is closed over the schema", () => {
       },
     ];
 
-    assert.deepStrictEqual(closure({ ownership: wrongOwner }), [
+    assert.deepStrictEqual(reported({ ownership: wrongOwner }), [
       "Person owns `membership` by `positionId`, which is not a foreign key to person",
     ]);
   });
 
   it("negative control: a NotOwned entry for a table that refers to no root, or that a root owns, is reported", () => {
     assert.deepStrictEqual(
-      closure({ notOwned: { ...NotOwned, department: "not about a person" } }),
+      reported({ notOwned: { ...NotOwned, department: "not about a person" } }),
       ["NotOwned `department` is no table that refers to a root"]
     );
 
     assert.deepStrictEqual(
-      closure({ notOwned: { ...NotOwned, membership: "owned already" } }),
+      reported({ notOwned: { ...NotOwned, membership: "owned already" } }),
       ["`membership` is both owned and NotOwned"]
     );
   });
