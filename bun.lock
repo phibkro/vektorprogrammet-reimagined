@@ -219,6 +219,13 @@
         "vite-plus": "catalog:",
       },
     },
+    "tools/oxlint": {
+      "name": "@vektorprogrammet/oxlint",
+      "version": "0.0.0",
+      "devDependencies": {
+        "vite-plus": "catalog:",
+      },
+    },
     "tools/quality": {
       "name": "@vektorprogrammet/quality",
       "version": "0.0.0",
@@ -1525,6 +1532,8 @@
     "@vektorprogrammet/domain": ["@vektorprogrammet/domain@workspace:packages/domain"],
 
     "@vektorprogrammet/import": ["@vektorprogrammet/import@workspace:tools/import"],
+
+    "@vektorprogrammet/oxlint": ["@vektorprogrammet/oxlint@workspace:tools/oxlint"],
 
     "@vektorprogrammet/quality": ["@vektorprogrammet/quality@workspace:tools/quality"],
 
