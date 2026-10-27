@@ -55,13 +55,14 @@ jobs:
         # step, instead of holding the job for the 6-hour default.
         timeout-minutes: 15
         run: devenv shell -- bun run e2e
-      # These traces contain only the disposable stack's test data and links. Retain them briefly for diagnosis.
-      - name: Upload personal-data browser failure evidence
+      # Playwright keeps a trace and a screenshot only for a failing test (e2e/playwright.config.ts). They contain only
+      # the disposable stack's test data and links. Retain them briefly for diagnosis (issues #39, #40).
+      - name: Upload browser failure evidence
         if: ${{ failure() && steps.browser.outcome == 'failure' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: personal-data-browser-failure
-          path: apps/web/test-results/personalData-*/
+          name: browser-failure
+          path: apps/web/test-results/
           if-no-files-found: warn
           retention-days: 7
       - name: Run the CMS bundle in workerd
