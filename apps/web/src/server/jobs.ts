@@ -192,7 +192,7 @@ export interface TickOptions {
   readonly at: DateTime.Utc;
   /**
    * The cron that fired: only the jobs that declare it run. Empty or absent runs every job it is given (the Worker never
-   * passes none: it names the tick's cron for a local trigger, `runRetention` gives one job).
+   * passes none: it names the tick's cron for a local trigger).
    */
   readonly cron?: string | undefined;
   /** Runs only these jobs (an explicit invocation against fake data). */

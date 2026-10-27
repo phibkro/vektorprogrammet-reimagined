@@ -88,7 +88,7 @@ import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
 import type { RequestError } from "./errors";
 import { r2FileStoreLayer } from "./fileStore";
-import { retentionRunner, runners } from "./jobRunners";
+import { runners } from "./jobRunners";
 import type { TickServices } from "./jobRunners";
 import { dispatchTick } from "./jobs";
 import { withOutbox } from "./outboxSweep";
@@ -172,7 +172,9 @@ export type RequestServices =
   | ContactRateLimiter
   | CmsClient;
 
-const databaseLayer = (env: WorkerEnv): Layer.Layer<DatabaseServices> =>
+const databaseLayer = (
+  env: Pick<TickEnv, "HYPERDRIVE">
+): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
     maxConnections: MAX_CONNECTIONS_PER_REQUEST,
     url: Redacted.make(env.HYPERDRIVE.connectionString),
@@ -316,7 +318,7 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
  * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one.
  */
 const deliveryLayer = (
-  env: WorkerEnv,
+  env: TickEnv,
   database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Layer.Layer<
   | AccountDelivery
@@ -422,10 +424,20 @@ export const runSignInPerson = (
   );
 
 /**
- * What a scheduled job reads of the Worker's bindings: the deployment, the site's origin and the database's connection
- * string. A test runs a job without a Cloudflare binding.
+ * What a scheduled tick reads of the Worker's bindings: the deployment, the site's origin, the database's connection
+ * string, the Better Auth secret, the senders' production bindings and the Workspace mode. A test runs the tick without a
+ * Cloudflare binding (`WorkerEnv` satisfies it).
  */
-export type RetentionEnv = Pick<WorkerEnv, "DEPLOYMENT" | "SITE_URL"> & {
+export type TickEnv = Pick<
+  WorkerEnv,
+  | "BETTER_AUTH_SECRET"
+  | "DEPLOYMENT"
+  | "MAIL_FROM"
+  | "SEND_EMAIL"
+  | "SITE_URL"
+  | "SLACK_WEBHOOK_URL"
+  | "WORKSPACE_MODE"
+> & {
   readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
 };
 
@@ -434,7 +446,7 @@ export type RetentionEnv = Pick<WorkerEnv, "DEPLOYMENT" | "SITE_URL"> & {
  * rows, in the mode that `retentionModeFor` decides from the deployment and the approval of the periods (spec 0007b
  * R4). The mode is fixed here, so no job chooses it.
  */
-const jobDatabaseLayer = (env: RetentionEnv): Layer.Layer<DatabaseServices> =>
+const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
       JobDatabaseLive({
@@ -445,19 +457,11 @@ const jobDatabaseLayer = (env: RetentionEnv): Layer.Layer<DatabaseServices> =>
     )
   );
 
-/** The Layer of the retention job alone: the transaction runner and the site's origin over the job database. */
-const retentionJobLayer = (
-  env: RetentionEnv
-): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
-  Layer.mergeAll(transactorLayer, Layer.succeed(SiteOrigin)(env.SITE_URL)).pipe(
-    Layer.provideMerge(jobDatabaseLayer(env))
-  );
-
 /**
  * The Layer of one scheduled tick (spec 0008): the delivery services, which hold the job database, the senders and the
  * Workspace writer, the transaction runner, and the Workspace directory and mode by deployment.
  */
-const tickLayer = (env: WorkerEnv): Layer.Layer<TickServices | Transactor> =>
+const tickLayer = (env: TickEnv): Layer.Layer<TickServices | Transactor> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) => {
       const workspace = workspaceConfigFromEnv(deployment, env);
@@ -480,7 +484,7 @@ const tickLayer = (env: WorkerEnv): Layer.Layer<TickServices | Transactor> =>
  * recorded in `job_run` and left for a later tick.
  */
 export const runTick = (
-  env: WorkerEnv,
+  env: TickEnv,
   controller: { readonly scheduledTime: number; readonly cron: string },
   only?: readonly SystemJob[]
 ): Promise<void> =>
@@ -491,24 +495,6 @@ export const runTick = (
       cron: controller.cron === "" ? JobRegistry.TICK_CRON : controller.cron,
       only,
     })
-  );
-
-/**
- * The nightly retention run of spec 0007b, through the scheduler: the job's own declaration and runner, over the
- * Layer of that job alone (a test, and nothing else, runs it without the Worker's other bindings). The deployment and
- * the approval of the periods decide what the run does (`retentionModeFor`): in production, while a period is a
- * proposal, it only counts and audits what it would change.
- */
-export const runRetention = (env: RetentionEnv): Promise<void> =>
-  runScheduled(
-    retentionJobLayer(env),
-    Effect.flatMap(DateTime.now, (at) =>
-      dispatchTick(
-        [JobRegistry.retention],
-        { retention: retentionRunner },
-        { at }
-      )
-    )
   );
 
 /**

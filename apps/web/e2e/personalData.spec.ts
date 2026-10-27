@@ -378,7 +378,7 @@ test("the nightly retention cron anonymises an expired person, and its audit row
 
   // The Worker's own `scheduled` handler, with the retention cron: the dispatch on `controller.cron` is what runs. This
   // stack is a local deployment, which applies the run (`retention.ran`); production only counts while a period is a
-  // proposal, which `apps/web/test/retentionJob.postgres.test.ts` runs through the same job in each deployment.
+  // proposal, which `apps/web/test/retentionJob.postgres.test.ts` runs through `runTick` with this cron in each deployment.
   const ran = await request.get(
     `${originOf()}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent(RETENTION_CRON)}`
   );

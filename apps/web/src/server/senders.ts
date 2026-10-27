@@ -83,7 +83,7 @@ export interface SenderConfig {
 
 export const senderConfigFromEnv = (
   deployment: Deployment,
-  env: WorkerEnv
+  env: Pick<WorkerEnv, "MAIL_FROM" | "SEND_EMAIL" | "SLACK_WEBHOOK_URL">
 ): SenderConfig => ({
   deployment,
   mailFrom: env.MAIL_FROM,
