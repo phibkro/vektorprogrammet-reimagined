@@ -39,7 +39,7 @@
       ],
       "owner": "tools/docgen",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -65,7 +65,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1",
         "@playwright/test": "1.63.0",
         "typescript": "7.0.2"
@@ -74,25 +74,6 @@
     }
   ],
   "typeBridges": [
-    {
-      "id": "EX-0002",
-      "scope": {
-        "files": ["packages/db/src/drizzleSqlErrorCompat.d.ts"]
-      },
-      "reason": "Pinned Drizzle ORM declarations import a missing Effect 4.0.5 SQL error module path, erasing query error types into any/unknown.",
-      "nativeAlternativesExamined": [
-        "Effect 4.0.5 exports the matching SqlError module at effect/sql/SqlError, not effect/unstable/sql/SqlError.",
-        "Editing node_modules is not reproducible and changing Drizzle's declaration sources is outside the application package.",
-        "Unpinning Drizzle would violate the frozen dependency pin; the ambient re-export preserves the exact upstream types without runtime code."
-      ],
-      "owner": "packages/db",
-      "versions": {
-        "drizzle-orm": "1.0.0-rc.5-5935859",
-        "effect": "4.0.5",
-        "typescript": "7.0.2"
-      },
-      "retirementTrigger": "Retire the bridge when an approved Drizzle release imports effect/sql/SqlError instead, then verify the package typechecks and the runtime tests pass without the alias."
-    },
     {
       "id": "EX-0015",
       "rules": ["FX002", "FX012"],
@@ -111,7 +92,7 @@
       ],
       "owner": "packages/cms-client",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "oxc-parser": "0.153.0"
       },
       "retirementTrigger": "Retire when the upstream generator emits finite schemas directly or Effect provides a suitable TypeScript parser."
@@ -132,7 +113,7 @@
         ]
       },
       "reason": "Platform services lack stable markings.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -142,7 +123,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -167,7 +148,7 @@
         ]
       },
       "reason": "Process roots and test platform services.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -177,7 +158,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -195,7 +176,7 @@
         ]
       },
       "reason": "Test infrastructure.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -205,7 +186,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -223,7 +204,7 @@
         ]
       },
       "reason": "Command definitions and in-process client (ADR 0006).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -233,7 +214,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -255,7 +236,7 @@
         "modules": ["effect/sql", "@effect/sql-pg"]
       },
       "reason": "Database path from spec 0000.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -265,7 +246,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -278,7 +259,7 @@
         "modules": ["@effect/sql-mysql2"]
       },
       "reason": "Legacy import.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -288,7 +269,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -316,7 +297,7 @@
         ]
       },
       "reason": "Outbound HTTP for the CMS and Turnstile.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -326,7 +307,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -345,7 +326,7 @@
         "modules": ["effect/process", "effect/cli"]
       },
       "reason": "Build and process tools.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -355,7 +336,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -371,7 +352,7 @@
         "modules": ["effect/reactivity/Reactivity"]
       },
       "reason": "Derived reactivity keys (ADR 0009).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -381,7 +362,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
@@ -394,7 +375,7 @@
         "modules": ["effect/http-api/OpenApi"]
       },
       "reason": "CMS client generation from EmDash OpenAPI (spec 0005).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -404,7 +385,7 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.5",
+        "effect": "4.0.6",
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."

@@ -3,8 +3,8 @@
  *
  * The constraints do the work that a read-then-write would race on (ADR 0007, no advisory locks):
  * - one e-mail is one person (`person_email_unique`), a team name is unique in its department,
- * - a person's memberships in one team never overlap (`membership_no_overlap`, an exclusion constraint), and
- *   `start ≤ end` is a check,
+ * - a person's memberships in one team never overlap (`membership_no_overlap`, an exclusion constraint; the writes
+ *   that can violate it take the person's row lock first, spec 0006 R6), and `start ≤ end` is a check,
  * - a transition is a conditional update: it names the state the caller read, and a row that is no longer in that
  *   state matches nothing, which is a `Conflict`.
  * The state of a membership is calculated, never stored: the ordinals below are generated columns of the term.
@@ -422,6 +422,22 @@ export const MembershipRepositoryLive = Layer.effect(
     const insert = Effect.fn("MembershipRepository.insert")(function* insert(
       draft: Omit<Membership, "id">
     ) {
+      /*
+       * The person's row lock (`FOR NO KEY UPDATE`, which no foreign-key check conflicts with) comes before the
+       * write. PostgreSQL checks an exclusion constraint after it has written the entry, so two overlapping writes
+       * of one person that start together each wait for the other's transaction, and one is aborted with
+       * `deadlock_detected` (40P01) instead of `23P01`. With the lock the second write waits before it writes
+       * anything, then finds the first committed (refused by the constraint) or rolled back (succeeds). Every write
+       * that can raise `membership_no_overlap` takes this lock first, so the order is the same everywhere. The
+       * constraint stays the rule; the lock only orders its checks.
+       */
+      yield* db
+        .select({ id: person.id })
+        .from(person)
+        .where(eq(person.id, draft.personId))
+        .for("no key update")
+        .pipe(Effect.orDie);
+
       const rows = yield* db
         .insert(membership)
         .values({
@@ -456,6 +472,15 @@ export const MembershipRepositoryLive = Layer.effect(
         readonly activeIn: Semester;
       }) {
         const current = semesterOrdinal(change.activeIn);
+
+        // The person's lock first, as in `insert`: an extension can overlap a membership that is being inserted.
+        yield* db
+          .select({ id: person.id })
+          .from(person)
+          .innerJoin(membership, eq(membership.personId, person.id))
+          .where(eq(membership.id, change.id))
+          .for("no key update", { of: person })
+          .pipe(Effect.orDie);
 
         const rows = yield* db
           .update(membership)

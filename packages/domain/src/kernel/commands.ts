@@ -75,7 +75,7 @@ export const inProcess =
     use: (client: RpcClient.RpcClient<Rpcs>) => Effect.Effect<A, E, R>
   ) =>
     Effect.gen(function* inProcessClient() {
-      // Effect 4.0.5 RpcTest.makeClient uses the same no-serialization wiring.
+      // Effect 4.0.6 RpcTest.makeClient uses the same no-serialization wiring.
       const link: RpcLink<Rpcs> = {};
 
       const server = yield* RpcServer.makeNoSerialization(group, {

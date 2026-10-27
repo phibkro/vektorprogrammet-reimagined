@@ -23,7 +23,6 @@
     "alchemy.run.ts",
     "drizzle.config.ts",
     "vite.config.ts",
-    "../../apps/web/worker.config.ts",
-    "../../packages/db/src/drizzleSqlErrorCompat.d.ts"
+    "../../apps/web/worker.config.ts"
   ]
 }

@@ -1,100 +1,627 @@
 {
-  "version": "8",
+  "type": "base",
+  "version": "9",
   "dialect": "postgres",
   "id": "b010c012-dd3c-4d62-b0b9-6b8586381fba",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": ["enum", "public", "outbox_status"],
+      "writes": [
+        "s|enum|public.outbox_status",
+        "n|enum|public.outbox_status",
+        "e|enum|public.outbox_status",
+        "n|type|public.outbox_status"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": ["enum", "public", "semester_term"],
+      "writes": [
+        "s|enum|public.semester_term",
+        "n|enum|public.semester_term",
+        "e|enum|public.semester_term",
+        "n|type|public.semester_term"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": ["enum", "public", "sponsor_size"],
+      "writes": [
+        "s|enum|public.sponsor_size",
+        "n|enum|public.sponsor_size",
+        "e|enum|public.sponsor_size",
+        "n|type|public.sponsor_size"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "admission_period"],
+      "writes": [
+        "s|tbl|public.admission_period",
+        "n|tbl|public.admission_period",
+        "e|tbl|public.admission_period",
+        "n|rel|public.admission_period",
+        "n|type|public.admission_period",
+        "n|rel|public.admission_period_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "article"],
+      "writes": [
+        "s|tbl|public.article",
+        "n|tbl|public.article",
+        "e|tbl|public.article",
+        "n|rel|public.article",
+        "n|type|public.article",
+        "n|rel|public.article_pkey",
+        "n|rel|public.article_slug_unique"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "article_department"],
+      "writes": [
+        "s|tbl|public.article_department",
+        "n|tbl|public.article_department",
+        "e|tbl|public.article_department",
+        "n|rel|public.article_department",
+        "n|type|public.article_department",
+        "n|rel|public.article_department_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": [
+        "s|tbl|public.audit_log",
+        "n|tbl|public.audit_log",
+        "e|tbl|public.audit_log",
+        "n|rel|public.audit_log",
+        "n|type|public.audit_log",
+        "n|rel|public.audit_log_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "department"],
+      "writes": [
+        "s|tbl|public.department",
+        "n|tbl|public.department",
+        "e|tbl|public.department",
+        "n|rel|public.department",
+        "n|type|public.department",
+        "n|rel|public.department_pkey",
+        "n|rel|public.department_city_unique"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "field_of_study"],
+      "writes": [
+        "s|tbl|public.field_of_study",
+        "n|tbl|public.field_of_study",
+        "e|tbl|public.field_of_study",
+        "n|rel|public.field_of_study",
+        "n|type|public.field_of_study",
+        "n|rel|public.field_of_study_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "outbox"],
+      "writes": [
+        "s|tbl|public.outbox",
+        "n|tbl|public.outbox",
+        "e|tbl|public.outbox",
+        "n|rel|public.outbox",
+        "n|type|public.outbox",
+        "n|rel|public.outbox_pkey"
+      ],
+      "reads": ["n|sch|public", "n|enum|public.outbox_status"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "public_file"],
+      "writes": [
+        "s|tbl|public.public_file",
+        "n|tbl|public.public_file",
+        "e|tbl|public.public_file",
+        "n|rel|public.public_file",
+        "n|type|public.public_file",
+        "n|rel|public.public_file_pkey",
+        "n|rel|public.public_file_legacy_path_unique"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "semester"],
+      "writes": [
+        "s|tbl|public.semester",
+        "n|tbl|public.semester",
+        "e|tbl|public.semester",
+        "n|rel|public.semester",
+        "n|type|public.semester",
+        "n|rel|public.semester_pkey",
+        "n|rel|public.semester_term_year_unique"
+      ],
+      "reads": ["n|sch|public", "n|enum|public.semester_term"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "social_event"],
+      "writes": [
+        "s|tbl|public.social_event",
+        "n|tbl|public.social_event",
+        "e|tbl|public.social_event",
+        "n|rel|public.social_event",
+        "n|type|public.social_event",
+        "n|rel|public.social_event_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "sponsor"],
+      "writes": [
+        "s|tbl|public.sponsor",
+        "n|tbl|public.sponsor",
+        "e|tbl|public.sponsor",
+        "n|rel|public.sponsor",
+        "n|type|public.sponsor",
+        "n|rel|public.sponsor_pkey"
+      ],
+      "reads": ["n|sch|public", "n|enum|public.sponsor_size"]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "static_content"],
+      "writes": [
+        "s|tbl|public.static_content",
+        "n|tbl|public.static_content",
+        "e|tbl|public.static_content",
+        "n|rel|public.static_content",
+        "n|type|public.static_content",
+        "n|rel|public.static_content_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "admission_period",
+        "admission_period_department_idx"
+      ],
+      "writes": [
+        "s|idx|public.admission_period_department_idx",
+        "n|idx|public.admission_period_department_idx",
+        "e|idx|public.admission_period_department_idx",
+        "n|rel|public.admission_period_department_idx"
+      ],
+      "reads": [
+        "n|tbl|public.admission_period",
+        "n|sch|public",
+        "n|col|public.admission_period.department_id",
+        "n|col|public.admission_period.semester_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "article_department",
+        "article_department_department_idx"
+      ],
+      "writes": [
+        "s|idx|public.article_department_department_idx",
+        "n|idx|public.article_department_department_idx",
+        "e|idx|public.article_department_department_idx",
+        "n|rel|public.article_department_department_idx"
+      ],
+      "reads": [
+        "n|tbl|public.article_department",
+        "n|sch|public",
+        "n|col|public.article_department.department_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "audit_log",
+        "audit_log_entity_idx"
+      ],
+      "writes": [
+        "s|idx|public.audit_log_entity_idx",
+        "n|idx|public.audit_log_entity_idx",
+        "e|idx|public.audit_log_entity_idx",
+        "n|rel|public.audit_log_entity_idx"
+      ],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.entity",
+        "n|col|public.audit_log.entity_key"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "field_of_study",
+        "field_of_study_department_idx"
+      ],
+      "writes": [
+        "s|idx|public.field_of_study_department_idx",
+        "n|idx|public.field_of_study_department_idx",
+        "e|idx|public.field_of_study_department_idx",
+        "n|rel|public.field_of_study_department_idx"
+      ],
+      "reads": [
+        "n|tbl|public.field_of_study",
+        "n|sch|public",
+        "n|col|public.field_of_study.department_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": ["index", "public", "outbox", "outbox_due_idx"],
+      "writes": [
+        "s|idx|public.outbox_due_idx",
+        "n|idx|public.outbox_due_idx",
+        "e|idx|public.outbox_due_idx",
+        "n|rel|public.outbox_due_idx"
+      ],
+      "reads": [
+        "n|tbl|public.outbox",
+        "n|sch|public",
+        "n|col|public.outbox.status",
+        "n|col|public.outbox.next_attempt_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "social_event",
+        "social_event_department_semester_idx"
+      ],
+      "writes": [
+        "s|idx|public.social_event_department_semester_idx",
+        "n|idx|public.social_event_department_semester_idx",
+        "e|idx|public.social_event_department_semester_idx",
+        "n|rel|public.social_event_department_semester_idx"
+      ],
+      "reads": [
+        "n|tbl|public.social_event",
+        "n|sch|public",
+        "n|col|public.social_event.department_id",
+        "n|col|public.social_event.semester_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "admission_period"],
+      "writes": [
+        "s|fk|public.admission_period.admission_period_department_id_department_id_fkey",
+        "n|fk|public.admission_period.admission_period_department_id_department_id_fkey",
+        "e|fk|public.admission_period.admission_period_department_id_department_id_fkey",
+        "n|con|public.admission_period.admission_period_department_id_department_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.admission_period",
+        "n|sch|public",
+        "n|tbl|public.department",
+        "n|sch|public",
+        "n|col|public.admission_period.department_id",
+        "n|col|public.department.id",
+        "e|uniqueness|public.department.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "admission_period"],
+      "writes": [
+        "s|fk|public.admission_period.admission_period_semester_id_semester_id_fkey",
+        "n|fk|public.admission_period.admission_period_semester_id_semester_id_fkey",
+        "e|fk|public.admission_period.admission_period_semester_id_semester_id_fkey",
+        "n|con|public.admission_period.admission_period_semester_id_semester_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.admission_period",
+        "n|sch|public",
+        "n|tbl|public.semester",
+        "n|sch|public",
+        "n|col|public.admission_period.semester_id",
+        "n|col|public.semester.id",
+        "e|uniqueness|public.semester.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "article"],
+      "writes": [
+        "s|fk|public.article.article_image_small_key_public_file_key_fkey",
+        "n|fk|public.article.article_image_small_key_public_file_key_fkey",
+        "e|fk|public.article.article_image_small_key_public_file_key_fkey",
+        "n|con|public.article.article_image_small_key_public_file_key_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.article",
+        "n|sch|public",
+        "n|tbl|public.public_file",
+        "n|sch|public",
+        "n|col|public.article.image_small_key",
+        "n|col|public.public_file.key",
+        "e|uniqueness|public.public_file.key"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "article"],
+      "writes": [
+        "s|fk|public.article.article_image_large_key_public_file_key_fkey",
+        "n|fk|public.article.article_image_large_key_public_file_key_fkey",
+        "e|fk|public.article.article_image_large_key_public_file_key_fkey",
+        "n|con|public.article.article_image_large_key_public_file_key_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.article",
+        "n|sch|public",
+        "n|tbl|public.public_file",
+        "n|sch|public",
+        "n|col|public.article.image_large_key",
+        "n|col|public.public_file.key",
+        "e|uniqueness|public.public_file.key"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "article_department"],
+      "writes": [
+        "s|fk|public.article_department.article_department_article_id_article_id_fkey",
+        "n|fk|public.article_department.article_department_article_id_article_id_fkey",
+        "e|fk|public.article_department.article_department_article_id_article_id_fkey",
+        "n|con|public.article_department.article_department_article_id_article_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.article_department",
+        "n|sch|public",
+        "n|tbl|public.article",
+        "n|sch|public",
+        "n|col|public.article_department.article_id",
+        "n|col|public.article.id",
+        "e|uniqueness|public.article.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "article_department"],
+      "writes": [
+        "s|fk|public.article_department.article_department_department_id_department_id_fkey",
+        "n|fk|public.article_department.article_department_department_id_department_id_fkey",
+        "e|fk|public.article_department.article_department_department_id_department_id_fkey",
+        "n|con|public.article_department.article_department_department_id_department_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.article_department",
+        "n|sch|public",
+        "n|tbl|public.department",
+        "n|sch|public",
+        "n|col|public.article_department.department_id",
+        "n|col|public.department.id",
+        "e|uniqueness|public.department.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "department"],
+      "writes": [
+        "s|fk|public.department.department_logo_key_public_file_key_fkey",
+        "n|fk|public.department.department_logo_key_public_file_key_fkey",
+        "e|fk|public.department.department_logo_key_public_file_key_fkey",
+        "n|con|public.department.department_logo_key_public_file_key_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.department",
+        "n|sch|public",
+        "n|tbl|public.public_file",
+        "n|sch|public",
+        "n|col|public.department.logo_key",
+        "n|col|public.public_file.key",
+        "e|uniqueness|public.public_file.key"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "field_of_study"],
+      "writes": [
+        "s|fk|public.field_of_study.field_of_study_department_id_department_id_fkey",
+        "n|fk|public.field_of_study.field_of_study_department_id_department_id_fkey",
+        "e|fk|public.field_of_study.field_of_study_department_id_department_id_fkey",
+        "n|con|public.field_of_study.field_of_study_department_id_department_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.field_of_study",
+        "n|sch|public",
+        "n|tbl|public.department",
+        "n|sch|public",
+        "n|col|public.field_of_study.department_id",
+        "n|col|public.department.id",
+        "e|uniqueness|public.department.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "social_event"],
+      "writes": [
+        "s|fk|public.social_event.social_event_department_id_department_id_fkey",
+        "n|fk|public.social_event.social_event_department_id_department_id_fkey",
+        "e|fk|public.social_event.social_event_department_id_department_id_fkey",
+        "n|con|public.social_event.social_event_department_id_department_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.social_event",
+        "n|sch|public",
+        "n|tbl|public.department",
+        "n|sch|public",
+        "n|col|public.social_event.department_id",
+        "n|col|public.department.id",
+        "e|uniqueness|public.department.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "social_event"],
+      "writes": [
+        "s|fk|public.social_event.social_event_semester_id_semester_id_fkey",
+        "n|fk|public.social_event.social_event_semester_id_semester_id_fkey",
+        "e|fk|public.social_event.social_event_semester_id_semester_id_fkey",
+        "n|con|public.social_event.social_event_semester_id_semester_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.social_event",
+        "n|sch|public",
+        "n|tbl|public.semester",
+        "n|sch|public",
+        "n|col|public.social_event.semester_id",
+        "n|col|public.semester.id",
+        "e|uniqueness|public.semester.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "sponsor"],
+      "writes": [
+        "s|fk|public.sponsor.sponsor_logo_key_public_file_key_fkey",
+        "n|fk|public.sponsor.sponsor_logo_key_public_file_key_fkey",
+        "e|fk|public.sponsor.sponsor_logo_key_public_file_key_fkey",
+        "n|con|public.sponsor.sponsor_logo_key_public_file_key_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.sponsor",
+        "n|sch|public",
+        "n|tbl|public.public_file",
+        "n|sch|public",
+        "n|col|public.sponsor.logo_key",
+        "n|col|public.public_file.key",
+        "e|uniqueness|public.public_file.key"
+      ]
+    }
+  ],
   "ddl": [
     {
-      "values": ["pending", "delivered", "dead"],
-      "name": "outbox_status",
-      "entityType": "enums",
-      "schema": "public"
-    },
-    {
-      "values": ["VAR", "HOST"],
-      "name": "semester_term",
-      "entityType": "enums",
-      "schema": "public"
-    },
-    {
-      "values": ["small", "medium", "large"],
-      "name": "sponsor_size",
-      "entityType": "enums",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "admission_period",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "article",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "article_department",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "audit_log",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "department",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "field_of_study",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "outbox",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "public_file",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "semester",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "social_event",
-      "entityType": "tables",
-      "schema": "public"
+      "isRlsEnabled": false,
+      "entityType": "tables"
     },
     {
-      "isRlsEnabled": false,
+      "schema": "public",
       "name": "sponsor",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
       "isRlsEnabled": false,
-      "name": "static_content",
-      "entityType": "tables",
-      "schema": "public"
+      "entityType": "tables"
     },
     {
+      "schema": "public",
+      "name": "static_content",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "outbox_status",
+      "values": ["pending", "delivered", "dead"],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "name": "semester_term",
+      "values": ["VAR", "HOST"],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "name": "sponsor_size",
+      "values": ["small", "medium", "large"],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "table": "admission_period",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -111,25 +638,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "admission_period"
+      "entityType": "columns"
     },
     {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "admission_period",
       "name": "department_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "admission_period"
-    },
-    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -137,25 +651,25 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "admission_period",
       "name": "semester_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "admission_period"
-    },
-    {
-      "type": "timestamp with time zone",
+      "type": "integer",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "admission_period",
       "name": "starts_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "admission_period"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -163,12 +677,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "ends_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "admission_period"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "admission_period",
+      "name": "ends_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "article",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -185,12 +712,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "title",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -198,12 +725,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "title",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "slug",
       "type": "varchar(255)",
       "typeSchema": null,
       "notNull": true,
@@ -211,25 +738,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "slug",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "article",
       "name": "body",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -237,12 +751,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "article",
       "name": "image_small_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -250,25 +764,25 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "article",
       "name": "image_large_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
-    },
-    {
-      "type": "boolean",
+      "type": "text",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
-      "default": "false",
+      "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "article",
       "name": "sticky",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
-    },
-    {
       "type": "boolean",
       "typeSchema": null,
       "notNull": true,
@@ -276,12 +790,25 @@
       "default": "false",
       "generated": null,
       "identity": null,
-      "name": "published",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "published",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "article",
+      "name": "author_id",
       "type": "integer",
       "typeSchema": null,
       "notNull": false,
@@ -289,12 +816,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "author_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -302,25 +829,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article"
+      "entityType": "columns"
     },
     {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "article_department",
       "name": "article_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article_department"
-    },
-    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -328,12 +842,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "department_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "article_department"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "article_department",
+      "name": "department_id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -350,12 +877,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "audit_log"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "action",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -363,12 +890,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "action",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "audit_log"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "actor_id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -376,25 +903,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "actor_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "audit_log"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "audit_log",
       "name": "entity",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "audit_log"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -402,12 +916,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "entity_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "audit_log"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "entity_key",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -415,12 +942,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "audit_log"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "department",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -437,25 +964,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "department",
       "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -463,12 +977,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "department",
       "name": "short_name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -476,12 +990,12 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "department",
       "name": "email",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -489,12 +1003,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "city",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "department",
+      "name": "city",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "department",
+      "name": "address",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -502,12 +1029,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "address",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "department",
+      "name": "active",
       "type": "boolean",
       "typeSchema": null,
       "notNull": true,
@@ -515,25 +1042,12 @@
       "default": "true",
       "generated": null,
       "identity": null,
-      "name": "active",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "department",
       "name": "slack_channel",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -541,25 +1055,25 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "department",
       "name": "logo_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
-    },
-    {
-      "type": "double precision",
+      "type": "text",
       "typeSchema": null,
       "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "department",
       "name": "latitude",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
-    },
-    {
       "type": "double precision",
       "typeSchema": null,
       "notNull": false,
@@ -567,12 +1081,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "longitude",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "department"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "department",
+      "name": "longitude",
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "field_of_study",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -589,12 +1116,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "field_of_study"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "field_of_study",
+      "name": "department_id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -602,25 +1129,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "department_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "field_of_study"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "field_of_study",
       "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "field_of_study"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -628,12 +1142,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "short_name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "field_of_study"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "field_of_study",
+      "name": "short_name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -650,12 +1177,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "kind",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -663,12 +1190,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "kind",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "payload",
       "type": "jsonb",
       "typeSchema": null,
       "notNull": true,
@@ -676,12 +1203,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "payload",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "status",
       "type": "outbox_status",
       "typeSchema": "public",
       "notNull": true,
@@ -689,12 +1216,12 @@
       "default": "'pending'",
       "generated": null,
       "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "attempts",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -702,12 +1229,12 @@
       "default": "0",
       "generated": null,
       "identity": null,
-      "name": "attempts",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "next_attempt_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -715,12 +1242,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "next_attempt_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "claim_token",
       "type": "uuid",
       "typeSchema": null,
       "notNull": false,
@@ -728,38 +1255,38 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "claim_token",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "outbox",
       "name": "claimed_until",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
-    },
-    {
-      "type": "text",
+      "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
       "name": "last_error",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "delivered_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -767,12 +1294,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "delivered_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "created_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -780,12 +1307,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "key",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -793,12 +1320,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "name",
       "type": "varchar(255)",
       "typeSchema": null,
       "notNull": true,
@@ -806,38 +1333,38 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "public_file",
       "name": "content_type",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
-    },
-    {
-      "type": "integer",
+      "type": "text",
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "public_file",
       "name": "size",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "sha256",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -845,12 +1372,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "sha256",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "uploaded_by",
       "type": "integer",
       "typeSchema": null,
       "notNull": false,
@@ -858,12 +1385,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "uploaded_by",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "legacy_path",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -871,12 +1398,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "legacy_path",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "uploaded_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -884,12 +1411,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "uploaded_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "deleted_at",
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": false,
@@ -897,12 +1424,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "deleted_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "semester",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -919,12 +1446,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "semester"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "semester",
+      "name": "term",
       "type": "semester_term",
       "typeSchema": "public",
       "notNull": true,
@@ -932,12 +1459,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "term",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "semester"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "semester",
+      "name": "year",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -945,12 +1472,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "year",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "semester"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -967,12 +1494,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "title",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -980,12 +1507,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "title",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "description",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -993,25 +1520,12 @@
       "default": "''",
       "generated": null,
       "identity": null,
-      "name": "description",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "columns"
     },
     {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "social_event",
       "name": "starts_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -1019,12 +1533,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "ends_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "ends_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "social_event",
+      "name": "link",
       "type": "varchar(250)",
       "typeSchema": null,
       "notNull": false,
@@ -1032,25 +1559,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "link",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "columns"
     },
     {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "social_event",
       "name": "department_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
-    },
-    {
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -1058,12 +1572,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "semester_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "semester_id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "sponsor",
+      "name": "id",
       "type": "integer",
       "typeSchema": null,
       "notNull": true,
@@ -1080,25 +1607,12 @@
         "cache": 1,
         "cycle": false
       },
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "sponsor"
+      "entityType": "columns"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
+      "schema": "public",
+      "table": "sponsor",
       "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "sponsor"
-    },
-    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -1106,12 +1620,25 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "url",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "sponsor"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "sponsor",
+      "name": "url",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "sponsor",
+      "name": "size",
       "type": "sponsor_size",
       "typeSchema": "public",
       "notNull": true,
@@ -1119,12 +1646,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "size",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "sponsor"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "sponsor",
+      "name": "logo_key",
       "type": "text",
       "typeSchema": null,
       "notNull": false,
@@ -1132,12 +1659,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "logo_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "sponsor"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "static_content",
+      "name": "key",
       "type": "varchar(50)",
       "typeSchema": null,
       "notNull": true,
@@ -1145,12 +1672,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "static_content"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "static_content",
+      "name": "html",
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -1158,12 +1685,12 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "html",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "static_content"
+      "entityType": "columns"
     },
     {
+      "schema": "public",
+      "table": "admission_period",
+      "name": "admission_period_department_idx",
       "nameExplicit": true,
       "columns": [
         {
@@ -1186,12 +1713,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "admission_period_department_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "admission_period"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "article_department",
+      "name": "article_department_department_idx",
       "nameExplicit": true,
       "columns": [
         {
@@ -1207,12 +1734,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "article_department_department_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "article_department"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "audit_log_entity_idx",
       "nameExplicit": true,
       "columns": [
         {
@@ -1235,12 +1762,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "audit_log_entity_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "audit_log"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "field_of_study",
+      "name": "field_of_study_department_idx",
       "nameExplicit": true,
       "columns": [
         {
@@ -1256,12 +1783,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "field_of_study_department_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "field_of_study"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "outbox",
+      "name": "outbox_due_idx",
       "nameExplicit": true,
       "columns": [
         {
@@ -1284,12 +1811,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "outbox_due_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "outbox"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_department_semester_idx",
       "nameExplicit": true,
       "columns": [
         {
@@ -1312,12 +1839,12 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "social_event_department_semester_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "indexes"
     },
     {
+      "schema": "public",
+      "table": "admission_period",
+      "name": "admission_period_department_id_department_id_fkey",
       "nameExplicit": false,
       "columns": ["department_id"],
       "schemaTo": "public",
@@ -1325,12 +1852,12 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "admission_period_department_id_department_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "admission_period"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "admission_period",
+      "name": "admission_period_semester_id_semester_id_fkey",
       "nameExplicit": false,
       "columns": ["semester_id"],
       "schemaTo": "public",
@@ -1338,12 +1865,12 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "admission_period_semester_id_semester_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "admission_period"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "article_image_small_key_public_file_key_fkey",
       "nameExplicit": false,
       "columns": ["image_small_key"],
       "schemaTo": "public",
@@ -1351,12 +1878,12 @@
       "columnsTo": ["key"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "article_image_small_key_public_file_key_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "article"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "article_image_large_key_public_file_key_fkey",
       "nameExplicit": false,
       "columns": ["image_large_key"],
       "schemaTo": "public",
@@ -1364,12 +1891,12 @@
       "columnsTo": ["key"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "article_image_large_key_public_file_key_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "article"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "article_department",
+      "name": "article_department_article_id_article_id_fkey",
       "nameExplicit": false,
       "columns": ["article_id"],
       "schemaTo": "public",
@@ -1377,12 +1904,12 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "article_department_article_id_article_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "article_department"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "article_department",
+      "name": "article_department_department_id_department_id_fkey",
       "nameExplicit": false,
       "columns": ["department_id"],
       "schemaTo": "public",
@@ -1390,12 +1917,12 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "article_department_department_id_department_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "article_department"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "department",
+      "name": "department_logo_key_public_file_key_fkey",
       "nameExplicit": false,
       "columns": ["logo_key"],
       "schemaTo": "public",
@@ -1403,25 +1930,12 @@
       "columnsTo": ["key"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "department_logo_key_public_file_key_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "department"
+      "entityType": "fks"
     },
     {
-      "nameExplicit": false,
-      "columns": ["department_id"],
-      "schemaTo": "public",
-      "tableTo": "department",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "schema": "public",
+      "table": "field_of_study",
       "name": "field_of_study_department_id_department_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "field_of_study"
-    },
-    {
       "nameExplicit": false,
       "columns": ["department_id"],
       "schemaTo": "public",
@@ -1429,12 +1943,25 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "social_event_department_id_department_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_department_id_department_id_fkey",
+      "nameExplicit": false,
+      "columns": ["department_id"],
+      "schemaTo": "public",
+      "tableTo": "department",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_semester_id_semester_id_fkey",
       "nameExplicit": false,
       "columns": ["semester_id"],
       "schemaTo": "public",
@@ -1442,12 +1969,12 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "social_event_semester_id_semester_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "sponsor",
+      "name": "sponsor_logo_key_public_file_key_fkey",
       "nameExplicit": false,
       "columns": ["logo_key"],
       "schemaTo": "public",
@@ -1455,339 +1982,335 @@
       "columnsTo": ["key"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "sponsor_logo_key_public_file_key_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "sponsor"
+      "entityType": "fks"
     },
     {
+      "schema": "public",
+      "table": "article_department",
+      "name": "article_department_pkey",
       "columns": ["article_id", "department_id"],
       "nameExplicit": false,
-      "name": "article_department_pkey",
-      "entityType": "pks",
-      "schema": "public",
-      "table": "article_department"
+      "entityType": "pks"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "admission_period_pkey",
       "schema": "public",
       "table": "admission_period",
+      "name": "admission_period_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "article_pkey",
       "schema": "public",
       "table": "article",
+      "name": "article_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "audit_log_pkey",
       "schema": "public",
       "table": "audit_log",
+      "name": "audit_log_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "department_pkey",
       "schema": "public",
       "table": "department",
+      "name": "department_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "field_of_study_pkey",
       "schema": "public",
       "table": "field_of_study",
+      "name": "field_of_study_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "outbox_pkey",
       "schema": "public",
       "table": "outbox",
+      "name": "outbox_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
       "entityType": "pks"
     },
     {
-      "columns": ["key"],
-      "nameExplicit": false,
-      "name": "public_file_pkey",
       "schema": "public",
       "table": "public_file",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "semester_pkey",
-      "schema": "public",
-      "table": "semester",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "social_event_pkey",
-      "schema": "public",
-      "table": "social_event",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "sponsor_pkey",
-      "schema": "public",
-      "table": "sponsor",
-      "entityType": "pks"
-    },
-    {
+      "name": "public_file_pkey",
       "columns": ["key"],
       "nameExplicit": false,
-      "name": "static_content_pkey",
-      "schema": "public",
-      "table": "static_content",
       "entityType": "pks"
     },
     {
+      "schema": "public",
+      "table": "semester",
+      "name": "semester_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "sponsor",
+      "name": "sponsor_pkey",
+      "columns": ["id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "static_content",
+      "name": "static_content_pkey",
+      "columns": ["key"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "article",
+      "name": "article_slug_unique",
       "nameExplicit": true,
       "columns": ["slug"],
       "nullsNotDistinct": false,
-      "name": "article_slug_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "article"
+      "entityType": "uniques"
     },
     {
+      "schema": "public",
+      "table": "department",
+      "name": "department_city_unique",
       "nameExplicit": true,
       "columns": ["city"],
       "nullsNotDistinct": false,
-      "name": "department_city_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "department"
+      "entityType": "uniques"
     },
     {
+      "schema": "public",
+      "table": "public_file",
+      "name": "public_file_legacy_path_unique",
       "nameExplicit": true,
       "columns": ["legacy_path"],
       "nullsNotDistinct": false,
-      "name": "public_file_legacy_path_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "public_file"
+      "entityType": "uniques"
     },
     {
+      "schema": "public",
+      "table": "semester",
+      "name": "semester_term_year_unique",
       "nameExplicit": true,
       "columns": ["term", "year"],
       "nullsNotDistinct": false,
-      "name": "semester_term_year_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "semester"
+      "entityType": "uniques"
     },
     {
-      "value": "\"ends_at\" > \"starts_at\"",
+      "schema": "public",
+      "table": "admission_period",
       "name": "admission_period_window",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "admission_period"
-    },
-    {
-      "value": "\"slug\" ~ '^[a-z0-9-]+$'",
-      "name": "article_slug_format",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "article"
-    },
-    {
-      "value": "length(\"title\") > 0",
-      "name": "article_title",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "article"
-    },
-    {
-      "value": "\"action\" in ('department.created', 'department.updated', 'semester.created', 'fieldOfStudy.created', 'fieldOfStudy.updated', 'staticContent.updated', 'article.createdDraft', 'article.createdPublished', 'article.published', 'article.unpublished', 'sponsor.created', 'socialEvent.created', 'publicFile.registered')",
-      "name": "audit_log_action",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "audit_log"
-    },
-    {
-      "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'StaticContent', 'Sponsor', 'SocialEvent', 'PublicFile')",
-      "name": "audit_log_entity",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "audit_log"
-    },
-    {
-      "value": "\"actor_id\" > 0",
-      "name": "audit_log_actor",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "audit_log"
-    },
-    {
-      "value": "length(\"name\") > 0",
-      "name": "department_name",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "department"
-    },
-    {
-      "value": "length(\"short_name\") > 0",
-      "name": "department_short_name",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "department"
-    },
-    {
-      "value": "length(\"city\") > 0",
-      "name": "department_city",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "department"
-    },
-    {
-      "value": "length(\"name\") > 0",
-      "name": "field_of_study_name",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "field_of_study"
-    },
-    {
-      "value": "length(\"short_name\") > 0",
-      "name": "field_of_study_short_name",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "field_of_study"
-    },
-    {
-      "value": "\"kind\" in ('Email', 'SlackPost')",
-      "name": "outbox_kind",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "outbox"
-    },
-    {
-      "value": "\"payload\" ->> '_tag' = \"kind\"",
-      "name": "outbox_payload_kind",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "outbox"
-    },
-    {
-      "value": "\"attempts\" >= 0",
-      "name": "outbox_attempts",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "outbox"
-    },
-    {
-      "value": "(\"claim_token\" is null) = (\"claimed_until\" is null)",
-      "name": "outbox_claim",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "outbox"
-    },
-    {
-      "value": "(\"status\" = 'delivered') = (\"delivered_at\" is not null)",
-      "name": "outbox_delivered",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "outbox"
-    },
-    {
-      "value": "\"key\" ~ '^[0-9a-f]{64}\\.(jpg|png|webp|gif|pdf|bin)$'",
-      "name": "public_file_key_format",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "public_file"
-    },
-    {
-      "value": "left(\"key\", 64) = \"sha256\"",
-      "name": "public_file_key_hash",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "public_file"
-    },
-    {
-      "value": "\"content_type\" in ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/octet-stream')",
-      "name": "public_file_content_type",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "public_file"
-    },
-    {
-      "value": "\"size\" >= 0",
-      "name": "public_file_size",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "public_file"
-    },
-    {
-      "value": "length(\"name\") > 0",
-      "name": "public_file_name",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "public_file"
-    },
-    {
-      "value": "\"year\" between 1900 and 9999",
-      "name": "semester_year",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "semester"
-    },
-    {
       "value": "\"ends_at\" > \"starts_at\"",
-      "name": "social_event_window",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "checks"
     },
     {
+      "schema": "public",
+      "table": "article",
+      "name": "article_slug_format",
+      "value": "\"slug\" ~ '^[a-z0-9-]+$'",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "article",
+      "name": "article_title",
       "value": "length(\"title\") > 0",
-      "name": "social_event_title",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "social_event"
+      "entityType": "checks"
     },
     {
-      "value": "length(\"description\") <= 5000",
-      "name": "social_event_description",
-      "entityType": "checks",
       "schema": "public",
-      "table": "social_event"
+      "table": "audit_log",
+      "name": "audit_log_action",
+      "value": "\"action\" in ('department.created', 'department.updated', 'semester.created', 'fieldOfStudy.created', 'fieldOfStudy.updated', 'staticContent.updated', 'article.createdDraft', 'article.createdPublished', 'article.published', 'article.unpublished', 'sponsor.created', 'socialEvent.created', 'publicFile.registered')",
+      "entityType": "checks"
     },
     {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "audit_log_entity",
+      "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'StaticContent', 'Sponsor', 'SocialEvent', 'PublicFile')",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "audit_log",
+      "name": "audit_log_actor",
+      "value": "\"actor_id\" > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "department",
+      "name": "department_name",
       "value": "length(\"name\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "department",
+      "name": "department_short_name",
+      "value": "length(\"short_name\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "department",
+      "name": "department_city",
+      "value": "length(\"city\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "field_of_study",
+      "name": "field_of_study_name",
+      "value": "length(\"name\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "field_of_study",
+      "name": "field_of_study_short_name",
+      "value": "length(\"short_name\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
+      "name": "outbox_kind",
+      "value": "\"kind\" in ('Email', 'SlackPost')",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
+      "name": "outbox_payload_kind",
+      "value": "\"payload\" ->> '_tag' = \"kind\"",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
+      "name": "outbox_attempts",
+      "value": "\"attempts\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
+      "name": "outbox_claim",
+      "value": "(\"claim_token\" is null) = (\"claimed_until\" is null)",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "outbox",
+      "name": "outbox_delivered",
+      "value": "(\"status\" = 'delivered') = (\"delivered_at\" is not null)",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "public_file",
+      "name": "public_file_key_format",
+      "value": "\"key\" ~ '^[0-9a-f]{64}\\.(jpg|png|webp|gif|pdf|bin)$'",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "public_file",
+      "name": "public_file_key_hash",
+      "value": "left(\"key\", 64) = \"sha256\"",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "public_file",
+      "name": "public_file_content_type",
+      "value": "\"content_type\" in ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/octet-stream')",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "public_file",
+      "name": "public_file_size",
+      "value": "\"size\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "public_file",
+      "name": "public_file_name",
+      "value": "length(\"name\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "semester",
+      "name": "semester_year",
+      "value": "\"year\" between 1900 and 9999",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_window",
+      "value": "\"ends_at\" > \"starts_at\"",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_title",
+      "value": "length(\"title\") > 0",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "social_event",
+      "name": "social_event_description",
+      "value": "length(\"description\") <= 5000",
+      "entityType": "checks"
+    },
+    {
+      "schema": "public",
+      "table": "sponsor",
       "name": "sponsor_name",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "sponsor"
+      "value": "length(\"name\") > 0",
+      "entityType": "checks"
     },
     {
-      "value": "\"url\" ~ '^https?://'",
+      "schema": "public",
+      "table": "sponsor",
       "name": "sponsor_url",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "sponsor"
+      "value": "\"url\" ~ '^https?://'",
+      "entityType": "checks"
     },
     {
-      "value": "length(\"key\") > 0",
-      "name": "static_content_key",
-      "entityType": "checks",
       "schema": "public",
-      "table": "static_content"
+      "table": "static_content",
+      "name": "static_content_key",
+      "value": "length(\"key\") > 0",
+      "entityType": "checks"
     }
-  ],
-  "renames": []
+  ]
 }
