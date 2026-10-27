@@ -5,7 +5,9 @@
  *
  * A state is either stored (applied as `UPDATE … SET state = to WHERE id = $1 AND state = from`, ADR 0007) or
  * calculated from other facts, such as a membership's term and the current semester. The table does not care: it
- * answers which command may start from which state, and the caller reads the state its own way.
+ * answers which command may start from which state, and the caller reads the state its own way. The changes that time
+ * makes to a calculated state are declared as well (`calculated`), each with a guard over the context, so that a
+ * formal model can fire them (effx spec 0032 R1) and the table can be checked against the calculation.
  *
  * `make` takes the domain's `RpcGroup`, so a transition that names a command outside it is a compile error, as is
  * a transition to a state outside the union.
