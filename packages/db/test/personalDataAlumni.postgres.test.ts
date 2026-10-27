@@ -368,7 +368,7 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
     );
 
     it.effect(
-      "the code of the e-mail answers the same boxes through the same path, can be used again within its 60 days, and opens nothing else",
+      "the code of the e-mail answers the same boxes through the same path, can be used again within its lifetime, and opens nothing else",
       () =>
         Effect.gen(function* byCode() {
           yield* at(NOW);

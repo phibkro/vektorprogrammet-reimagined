@@ -13,11 +13,12 @@ import {
   Catalog,
   ContactForm,
   Periods,
+  codePolicy,
   durationWords,
   privacyNotice,
   privacyText,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Order, Schema } from "effect";
+import { Array as Arr, Duration, Effect, Order, Schema } from "effect";
 
 import { ANONYMOUS_CHOICE } from "../src/lib/testActor.ts";
 import { RETENTION_CRON } from "../worker.config.ts";
@@ -230,7 +231,10 @@ test("the link of the alumni e-mail answers without signing in, answers again, a
   )?.[0];
 
   expect(link).toBeDefined();
-  expect(mail?.text).toContain("60 dager");
+  // The mail's own sentence: the declared lifetime of the code, in days (a number written here would outlive a change).
+  expect(mail?.text).toContain(
+    `${Duration.toDays(Duration.seconds(codePolicy.alumniConsent.lifetimeSeconds))} dager`
+  );
 
   const visitor = await visitorPage(browser);
   await openPage(visitor, link ?? "");
