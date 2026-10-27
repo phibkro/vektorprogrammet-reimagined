@@ -1,6 +1,6 @@
 # Vektorprogrammet
 
-Vektorprogrammet is a volunteer organisation. It sends university students into lower secondary schools as assistants in mathematics classes. This glossary gives one name to each concept, with its Norwegian name. The documents in `docs/system/` and the code use these names.
+Vektorprogrammet is a volunteer organisation. It sends university students into lower secondary schools as assistants in mathematics classes. This glossary gives one name to each concept, with its Norwegian word. The documents in `docs/system/` and the code use these names.
 
 ## Organisation
 
@@ -12,31 +12,47 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Team function**: The kind of work a team does: board, economy, IT, recruitment, placement or other. The function decides what members of the team can do in the system. _Avoid_: role, team type
 
+**Unit** (enhet): An organisational grouping of persons: Vektorprogrammet, a department, a team, the board, a school or a sponsor. Units form a tree with Vektorprogrammet as the root.
+
+**Role kind** (rolletype): A role declared in code for a unit kind. Its privileges come from the grant table.
+
+**Label** (etikett): Display text on a role assignment, such as “Nestleder” or “Kasserer”. A label never gives permission.
+
+**Decision** (vedtak): A recorded decision by a unit. A passed decision authorises its command and is its audit record.
+
+**Decision rule** (vedtaksregel): The declaration of who may propose, who may decide, how it passes, and what happens at its deadline.
+
+**Link** (lenke): A single-use credential for a purpose. Any person status may present it; it is not a role.
+
+**Renewal plan** (fornyelsesplan): The approved interval, latest end date and on/off setting for automatic extensions of a role assignment. The same unit decision or Admin grant approves the plan and assignment; its cap comes from the role-kind declaration.
+
 **Semester** (semester): A half-year: spring (vår, January to July) or autumn (høst, August to December). Every workflow in the system belongs to one semester. _Avoid_: term (used for something else below)
 
 ## People
 
 **Person**: One human known to Vektorprogrammet: an applicant, an assistant, a team member, or a former one. One person has one record, even when they leave and come back. _Avoid_: user, member, account (an account is how a person logs in)
 
-**Principal**: A person, a system job, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
+**Principal**: A person, a system job, the separate emergency principal, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
 
-**Engagement**: A period in which a person does work for Vektorprogrammet. An engagement is a placement or a membership. _Avoid_: involvement, participation
+**Engagement**: A period in which a person works for Vektorprogrammet: a placement or a current role assignment in an internal unit (Department or Team). A School or Sponsor contact assignment is not an engagement. _Avoid_: involvement, participation
 
 **Assistant** (vektorassistent): A person with a placement in the current semester. _Avoid_: volunteer (too wide), helper
 
-**Membership** (teammedlemskap): A person's place in a team, with a position and a term. _Avoid_: role, team assignment
+**Role assignment**: A person's place in one unit: a role kind held for a term, with an optional display label and renewal plan. A contact on an external unit is not membership in Vektorprogrammet. _Avoid_: role (when you mean role kind)
 
-**Term** (periode): The semesters a membership covers, from its start semester to its end semester. Every membership has an end semester. _Avoid_: tenure, duration
+**Membership** (teammedlemskap): A person's role assignment in a team, with a role kind, a label and a term. _Avoid_: role (for the role kind), team assignment
 
-**Team leader** (teamleder): A person whose membership is marked as leader of the team. _Avoid_: head, admin
+**Term** (periode): The period a role assignment covers. A membership term runs from its start semester to its end semester. Every membership has an end semester. _Avoid_: tenure, duration
 
-**Admin**: A person with an active place on the admin list. An admin can do every action available to a person, but not a system job. _Avoid_: superuser, administrator role
+**Team leader** (teamleder): A person with the `leader` role kind in a team. _Avoid_: head, admin
 
-**Alumnus** (tidligere medlem): A person with no current engagement who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
+**Admin**: A person with the `admin` role kind on the Vektorprogrammet unit. An admin can do every action available to a person, but not a system job. _Avoid_: superuser, administrator role
+
+**Alumnus** (tidligere medlem): A person with no current engagement in an internal unit who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
 
 ## Acting in the system
 
-**Principal** (aktør): The party that is accountable for an action: a person, a named system job, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
+**Principal** (aktør): The party that is accountable for an action: a person, a named system job, the separate `Emergency` principal, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
 
 **System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. _Avoid_: root, service account, bot
 
