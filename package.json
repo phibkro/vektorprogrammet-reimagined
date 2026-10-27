@@ -39,8 +39,8 @@
     "vite-plus": "catalog:"
   },
   "overrides": {
-    "@effect/sql-d1": "catalog:",
-    "@effect/sql-sqlite-do": "catalog:",
+    "@effect/sql-d1": "4.0.6",
+    "@effect/sql-sqlite-do": "4.0.6",
     "vite": "catalog:"
   },
   "devEngines": {
@@ -61,8 +61,6 @@
     "effect": "4.0.6",
     "@effect/sql-pg": "4.0.6",
     "@effect/sql-pglite": "4.0.6",
-    "@effect/sql-d1": "4.0.6",
-    "@effect/sql-sqlite-do": "4.0.6",
     "@effect/sql-mysql2": "4.0.6",
     "@effect/platform-node": "4.0.6",
     "@effect/vitest": "4.0.6",
