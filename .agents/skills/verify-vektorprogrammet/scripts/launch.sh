@@ -91,4 +91,5 @@ echo "run directory: $RUN_DIR (evidence goes here and survives cleanup)"
 exec > >(tee -a "$RUN_DIR/serve.log") 2>&1
 cd "$TREE"
 export VERIFY_RUN_DIR="$RUN_DIR"
-exec devenv shell -- bash -c 'cd apps/web && exec bun e2e/serve.ts'
+mkdir -p "$RUN_DIR/tmp"
+exec devenv shell -- bash -c 'export TMPDIR="$VERIFY_RUN_DIR/tmp"; cd apps/web && exec bun e2e/serve.ts'

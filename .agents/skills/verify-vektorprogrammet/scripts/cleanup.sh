@@ -11,7 +11,6 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 if [[ -z "${VERIFY_RUN_DIR:-}" && ! -f "$POINTER" ]]; then
-  rm -rf "$TREE"/apps/web/e2e/.r2-seed-*
   echo "nothing to clean"
   exit 0
 fi
@@ -69,6 +68,7 @@ if [[ -n "${E2E_DATABASE_URL:-}" ]]; then
 fi
 
 rm -rf "$TREE"/apps/web/e2e/.r2-seed-*
+rm -rf "$RUN_DIR"/tmp/vk-r2-seed-*
 
 # 4. Overlay files, secrets, the pointer.
 if [[ -f "$RUN_DIR/overlay.list" ]]; then
