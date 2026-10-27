@@ -61,6 +61,8 @@ What a good run prints, and what each line means:
 
 Exit status: `0` all as expected, `1` the code breaks a property or a variant is not caught or a code test failed, `2` tool missing or no headroom, `3` all as expected but the coverage is stale.
 
+**In CI** (`.github/workflows/formal.yml`): every pull request runs `run.sh --touched origin/<base>`, which needs no tools and reads the coverage block above. When the diff touches a covered file, this skill, the formal profile, or adds an uncovered writer of `membership`, the job runs the full `run.sh`, and any non-zero exit, drift included, fails it. So a change to covered code merges only after the model has been confirmed against it and the sync commit moved.
+
 ## Read a result
 
 Read every result that is not `as expected`, and the passing `current-code`, with the pstack `/statechart` skill (OMP: `skill://statechart`). It turns each broken property into its shortest path in plain words, marks which paths a change fixes, and for a passing model draws how the commands move through their states. Give it a root module (`Race`, `WhatIf`, `Pair` or `Story`), the `.cfg` that `run.sh` kept in the folder it prints, and `model/labels.map.mjs`, which words every state and step in this repository's terms ("A asks for the person's row lock and has to wait for B"). Work in a scratch folder outside the repository, as `/statechart` says. The formal profile provides the TLC and Java that it needs. The full `Race` is too large to draw quickly; give `/statechart` `Story` (two commands, an empty person) or a scenario of your own: copy `model/Story.tla` and list the plans that the counterexample used (they are in its first state).

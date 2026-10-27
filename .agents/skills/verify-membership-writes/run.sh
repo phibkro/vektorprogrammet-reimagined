@@ -2,6 +2,7 @@
 # One command for the verify-membership-writes skill (read SKILL.md first).
 #
 #   devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh [--quick] [--code] [--list]
+#   .agents/skills/verify-membership-writes/run.sh --touched <base-ref>   (no tools needed; used by CI)
 #
 # It does these things, in this order:
 #   1. DRIFT: has covered code changed since the sync commit in SKILL.md, or is there a writer of `membership`
@@ -18,6 +19,10 @@
 # code test fails); 2 the tool or a file is missing, or the machine has no headroom; 3 only drift (every run was
 # as expected, but the coverage in SKILL.md is stale). Output of every TLC run is kept in $VERIFY_OUT (default: a
 # new folder under $TMPDIR), one .out and one .cfg each.
+#
+# --touched <base-ref> answers only "does the diff from <base-ref> to HEAD concern this verification?": a covered
+# file, this skill, the formal profile, or a writer of `membership` that is not in the coverage list. It prints
+# `touched` or `untouched` and exits 0, so CI runs the model exactly when the coverage block says it must.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -64,14 +69,42 @@ code_tests=(
   test/classifySqlFailure.test.ts
 )
 
-for arg in "$@"; do
-  case "$arg" in
+touched_base=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --quick) quick=1 ;;
     --code) code=1 ;;
     --list) printf '%s\n' "${matrix[@]}" | awk -F'|' '{printf "%-36s %-6s %-30s N=%s  %s -> %s\n", $1, $2, $3, $4, $5, $6}'; exit 0 ;;
-    *) echo "usage: run.sh [--quick] [--code] [--list]" >&2; exit 2 ;;
+    --touched) shift; touched_base=${1:-}; [ -n "$touched_base" ] || { echo "usage: run.sh --touched <base-ref>" >&2; exit 2; } ;;
+    *) echo "usage: run.sh [--quick] [--code] [--list] | --touched <base-ref>" >&2; exit 2 ;;
   esac
+  shift
 done
+
+coverage=$(awk '/^```coverage$/{f=1;next} /^```$/{f=0} f' "$skill")
+sync=$(printf '%s\n' "$coverage" | sed -n 's/^sync-commit: *//p' | head -n 1)
+mapfile -t covered < <(printf '%s\n' "$coverage" | grep -vE '^(sync-commit:|#|$)')
+if [ -z "$sync" ] || [ "${#covered[@]}" -eq 0 ]; then
+  echo "SKILL.md has no coverage block (sync-commit and covered paths)." >&2
+  exit 2
+fi
+membership_writers() {
+  git -C "$root" grep -lE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]' \
+    -- packages apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.md' || true
+}
+
+if [ -n "$touched_base" ]; then
+  skill_dir=${here#"$root"/}
+  changed=$(git -C "$root" diff --name-only "$touched_base"...HEAD -- "${covered[@]}" "$skill_dir" devenv.nix devenv.lock)
+  unknown=$(membership_writers | grep -vxF -f <(printf '%s\n' "${covered[@]}") | grep -v '^$' || true)
+  if [ -n "$changed" ] || [ -n "$unknown" ]; then
+    echo "touched"
+    printf '%s\n' "$changed" "$unknown" | grep -v '^$' | sed 's/^/  /' >&2
+  else
+    echo "untouched"
+  fi
+  exit 0
+fi
 
 if ! command -v tlc >/dev/null 2>&1; then
   echo "tlc is not on PATH. Run this inside the formal profile of devenv:" >&2
@@ -85,13 +118,6 @@ status=0
 drift=0
 
 # ---------------------------------------------------------------- 1. drift
-coverage=$(awk '/^```coverage$/{f=1;next} /^```$/{f=0} f' "$skill")
-sync=$(printf '%s\n' "$coverage" | sed -n 's/^sync-commit: *//p' | head -n 1)
-mapfile -t covered < <(printf '%s\n' "$coverage" | grep -vE '^(sync-commit:|#|$)')
-if [ -z "$sync" ] || [ "${#covered[@]}" -eq 0 ]; then
-  echo "SKILL.md has no coverage block (sync-commit and covered paths)." >&2
-  exit 2
-fi
 if ! git -C "$root" cat-file -e "$sync^{commit}" 2>/dev/null; then
   echo "DRIFT  the sync commit $sync is not in this repository: fetch it, or confirm the model against HEAD and move the sync commit."
   drift=1
@@ -107,8 +133,7 @@ else
   fi
 fi
 
-writers=$(git -C "$root" grep -lE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]' \
-  -- packages apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.md' || true)
+writers=$(membership_writers)
 unknown=$(printf '%s\n' "$writers" | grep -vxF -f <(printf '%s\n' "${covered[@]}") | grep -v '^$' || true)
 if [ -n "$unknown" ]; then
   echo "DRIFT  a writer of the membership table is not in the coverage list. Add its statements to model/Shapes.tla (a repository"

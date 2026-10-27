@@ -1,0 +1,42 @@
+name: Formal verification
+
+# Runs the TLA+ model of membership writes when a pull request touches what it covers. Which files that is comes from
+# the coverage block in .agents/skills/verify-membership-writes/SKILL.md (read by `run.sh --touched`), so this
+# workflow holds no second list of paths. Drift (exit 3: covered code changed since the model's sync commit) fails
+# the job: the model must be confirmed against the change before it merges.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  membership-writes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Does this pull request touch the verified code?
+        id: touched
+        shell: bash
+        run: |
+          result=$(bash .agents/skills/verify-membership-writes/run.sh --touched "origin/${GITHUB_BASE_REF}")
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          echo "membership-writes model: $result"
+      - if: steps.touched.outputs.result == 'touched'
+        uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - if: steps.touched.outputs.result == 'touched'
+        uses: cachix/cachix-action@97e5ff84d02b3b4f9936339f767e17f03c9252ed # v16
+        with:
+          name: devenv
+      - if: steps.touched.outputs.result == 'touched'
+        name: Install pinned devenv CLI
+        shell: bash
+        run: nix profile add github:cachix/devenv/b904dcb51fe48c30db250038241507f60752f222
+      - if: steps.touched.outputs.result == 'touched'
+        name: Model-check membership writes
+        shell: bash
+        run: devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh
