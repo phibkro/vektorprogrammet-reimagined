@@ -34,6 +34,7 @@ import {
 import type {
   AccountRepository,
   AdminGrantRepository,
+  AggregateLocks,
   AdmissionPeriodRepository,
   AuditLog,
   CodeRepository,
@@ -98,6 +99,7 @@ export interface RequestScope {
 /** What `DatabaseLive` provides (packages/db contract). */
 export type DatabaseServices =
   | AccountRepository
+  | AggregateLocks
   | CodeRepository
   | AdmissionPeriodRepository
   | DepartmentRepository

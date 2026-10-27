@@ -1,8 +1,9 @@
 /** Interprets account outbox intents after domain commit. */
-import { OutboxDelivery } from "@vektorprogrammet/db";
+import { OutboxDelivery, transactional } from "@vektorprogrammet/db";
 import type { ClaimedOutboxMessage, OutboxAck } from "@vektorprogrammet/db";
 import {
   AccountRepository,
+  AggregateLocks,
   CodeRepository,
   OutboxMessage,
   PersonRepository,
@@ -12,7 +13,6 @@ import {
 } from "@vektorprogrammet/domain";
 import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
-import { isSqlError } from "effect/sql/SqlError";
 
 import { Auth } from "./auth";
 import { DeliveryClaimLost } from "./deliveryClaimLost";
@@ -61,6 +61,7 @@ export const accountDeliveryLayer = Layer.effect(
     const sql = yield* SqlClient;
     const accounts = yield* AccountRepository;
     const codes = yield* CodeRepository;
+    const locks = yield* AggregateLocks;
     const people = yield* PersonRepository;
     const sender = yield* MessageSender;
     const delivery = yield* OutboxDelivery;
@@ -70,79 +71,73 @@ export const accountDeliveryLayer = Layer.effect(
 
     const issueCode = Effect.fn("AccountDelivery.issueCode")(
       function* issueCode(row: ClaimedOutboxMessage, message: CodeIntent) {
-        return yield* sql
-          .withTransaction(
-            Effect.gen(function* mintSendAndAcknowledge() {
-              yield* accounts.lockPerson(message.personId);
-              const account = yield* accounts.findForUpdate(message.personId);
+        return yield* transactional(
+          Effect.gen(function* mintSendAndAcknowledge() {
+            const locked = yield* locks
+              .lock("Person", message.personId)
+              .pipe(Effect.option);
 
-              const presentation = codeMail[message.purpose];
+            const account = Option.isSome(locked)
+              ? yield* accounts.findLocked(locked.value)
+              : Option.none();
 
-              if (
-                Option.isNone(account) ||
-                account.value.state._tag !== presentation.expectedState
-              ) {
-                return yield* delivery.markDelivered(row.id, row.claimToken);
-              }
+            const presentation = codeMail[message.purpose];
 
-              const recipient = yield* people.findById(message.personId).pipe(
-                Effect.mapError(
-                  () =>
-                    new DeliveryFailed({
-                      reason: "code recipient is unavailable",
-                    })
-                )
-              );
+            if (
+              Option.isNone(locked) ||
+              Option.isNone(account) ||
+              account.value.state._tag !== presentation.expectedState
+            ) {
+              return yield* delivery.markDelivered(row.id, row.claimToken);
+            }
 
-              const now = yield* DateTime.now;
+            const recipient = yield* people.findLocked(locked.value);
+            const now = yield* DateTime.now;
 
-              const { token, hash } = yield* mintCode().pipe(
-                Effect.provideService(Crypto.Crypto, crypto),
-                Effect.orDie
-              );
+            const { token, hash } = yield* mintCode().pipe(
+              Effect.provideService(Crypto.Crypto, crypto),
+              Effect.orDie
+            );
 
-              yield* codes.replace({
-                expiresAt: DateTime.add(now, {
-                  seconds: codePolicy[message.purpose].lifetimeSeconds,
-                }),
-                hash,
-                purpose: message.purpose,
-                subject: message.personId,
-                usedAt: null,
-              });
+            yield* codes.replace(locked.value, {
+              expiresAt: DateTime.add(now, {
+                seconds: codePolicy[message.purpose].lifetimeSeconds,
+              }),
+              hash,
+              purpose: message.purpose,
+            });
 
-              const email = OutboxMessage.cases.Email.make({
-                replyTo: null,
-                subject: presentation.subject,
-                text: `${presentation.verb}: ${origin}${presentation.path}?kode=${token}`,
-                to: recipient.email,
-              });
+            const email = OutboxMessage.cases.Email.make({
+              replyTo: null,
+              subject: presentation.subject,
+              text: `${presentation.verb}: ${origin}${presentation.path}?kode=${token}`,
+              to: recipient.email,
+            });
 
-              // Provider errors may contain request data: never persist or log them with a code.
-              yield* sender.send(email).pipe(
-                Effect.mapError(
-                  () =>
-                    new DeliveryFailed({
-                      reason: "code email delivery failed",
-                    })
-                )
-              );
-              const ack = yield* delivery.markDelivered(row.id, row.claimToken);
+            // Provider errors may contain request data: never persist or log them with a code.
+            yield* sender.send(email).pipe(
+              Effect.mapError(
+                () =>
+                  new DeliveryFailed({
+                    reason: "code email delivery failed",
+                  })
+              )
+            );
+            const ack = yield* delivery.markDelivered(row.id, row.claimToken);
 
-              if (ack === "claimLost") {
-                return yield* new DeliveryClaimLost();
-              }
+            if (ack === "claimLost") {
+              return yield* new DeliveryClaimLost();
+            }
 
-              return ack;
-            })
-          )
-          .pipe(
-            Effect.catchIf(isSqlError, (error) => Effect.die(error)),
-            Effect.catchTag("DeliveryClaimLost", () =>
-              Effect.succeed("claimLost" as const)
-            ),
-            Effect.uninterruptible
-          );
+            return ack;
+          })
+        ).pipe(
+          Effect.provideService(SqlClient, sql),
+          Effect.catchTag("DeliveryClaimLost", () =>
+            Effect.succeed("claimLost" as const)
+          ),
+          Effect.uninterruptible
+        );
       }
     );
 

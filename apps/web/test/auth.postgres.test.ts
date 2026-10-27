@@ -18,6 +18,7 @@ import {
 } from "@vektorprogrammet/db/testing/read-only-role";
 import {
   AccountEndpoints,
+  AggregateLocks,
   CodeRepository,
   CurrentPrincipal,
   PasswordHash,
@@ -601,13 +602,20 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         );
 
         const now = yield* DateTime.now;
-        yield* (yield* CodeRepository).replace({
-          expiresAt: DateTime.add(now, { hours: 24 }),
-          hash: code.hash,
-          purpose: "resetPassword",
-          subject: PersonId.make(102),
-          usedAt: null,
-        });
+        yield* transactional(
+          Effect.gen(function* storeCode() {
+            const locked = yield* (yield* AggregateLocks).lock(
+              "Person",
+              PersonId.make(102)
+            );
+
+            yield* (yield* CodeRepository).replace(locked, {
+              expiresAt: DateTime.add(now, { hours: 24 }),
+              hash: code.hash,
+              purpose: "resetPassword",
+            });
+          })
+        );
         yield* sql`update account set state = 'Deactivated' where person_id = 102`;
 
         const use = yield* Effect.exit(

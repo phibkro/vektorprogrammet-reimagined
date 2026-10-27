@@ -12,6 +12,8 @@
 import { assert, layer } from "@effect/vitest";
 import {
   AdminGrantRepository,
+  EmailAddress,
+  PersonRepository,
   SiteOrigin,
   CurrentPrincipal,
   DigestLedger,
@@ -46,8 +48,15 @@ import {
   violatedUniqueConstraint,
 } from "../src/index.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
-import { race } from "./support/race.ts";
-import { insertMembership, semester, world } from "./support/teamsWorld.ts";
+import { race, raceReport } from "./support/race.ts";
+import {
+  asPerson,
+  insertMembership,
+  lockPerson,
+  placeMembership,
+  semester,
+  world,
+} from "./support/teamsWorld.ts";
 
 const HOST_2026 = semester("HOST", 2026);
 
@@ -177,7 +186,7 @@ const freshMembership = Effect.fnUntraced(function* freshMembership(
 ) {
   const found = yield* world(tag);
 
-  const membership = yield* insertMembership(
+  const membership = yield* placeMembership(
     {
       personId: found.person.id,
       positionId: found.memberPosition,
@@ -255,18 +264,23 @@ const overlapRound = Effect.fnUntraced(function* overlapRound(
         )
       : asWrite(
           transactional(
-            Effect.flatMap(
-              insertMembership(who, { end: HOST_2026, start: HOST_2026 }),
-              (first) =>
-                MembershipRepository.use((memberships) =>
-                  memberships.setEnd({
-                    activeIn: HOST_2026,
-                    id: first.id,
-                    newEnd: VAR_2027,
-                    observedEnd: HOST_2026,
-                  })
-                )
-            )
+            Effect.gen(function* extendOverlapping() {
+              const first = yield* insertMembership(who, {
+                end: HOST_2026,
+                start: HOST_2026,
+              });
+
+              const locked = yield* lockPerson(who.personId);
+
+              return yield* MembershipRepository.use((memberships) =>
+                memberships.setEnd(locked, {
+                  activeIn: HOST_2026,
+                  id: first.id,
+                  newEnd: VAR_2027,
+                  observedEnd: HOST_2026,
+                })
+              );
+            })
           )
         );
 
@@ -307,6 +321,50 @@ const overlapRounds = Effect.fnUntraced(function* overlapRounds(
   );
 
   return Arr.flatten(problems);
+});
+
+/**
+ * One round of two revocations at once, in fresh state: each owner has one valid place, and the two places are revoked
+ * together. One succeeds and the other is told it is the last valid place, and one place is left.
+ */
+const revokeRound = Effect.fnUntraced(function* revokeRound(
+  attempt: number,
+  owners: readonly [PersonId, PersonId]
+) {
+  const grants = yield* AdminGrantRepository;
+  const db = yield* Drizzle;
+  const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
+
+  yield* db.delete(schema.adminGrant);
+
+  const place = (owner: PersonId) =>
+    asPerson(owner, (locked) =>
+      grants.create(locked, { grantedBy: null, until: LATER })
+    );
+
+  const first = yield* place(owners[0]);
+  const second = yield* place(owners[1]);
+
+  const exits = yield* race([
+    transactional(grants.revoke(first.id, cutoff)),
+    transactional(grants.revoke(second.id, cutoff)),
+  ]);
+
+  const outcomes = Arr.flatMap(exits, (exit) =>
+    Exit.isSuccess(exit) ? [exit.value] : []
+  );
+
+  assert.deepStrictEqual(
+    Arr.sort(outcomes, Order.String),
+    ["last", "revoked"],
+    raceReport(attempt, exits)
+  );
+
+  assert.strictEqual(
+    (yield* db.select().from(schema.adminGrant)).length,
+    1,
+    raceReport(attempt, exits)
+  );
 });
 
 layer(teamsDatabase, { excludeTestServices: true })(
@@ -350,7 +408,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
       );
 
       it.effect(
-        "falsifier 3, negative control: with an unconditional update instead of the conditional one, the successes no longer replay as legal transitions",
+        "falsifier 3 (spec 0006b): the person's lock alone keeps the successes legal, even when the update is unconditional (take the lock away and this fails)",
         () =>
           Effect.gen(function* effectProgram() {
             yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
@@ -363,7 +421,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
 
                 return MembershipRepository.of({
                   ...live,
-                  setEnd: ({ id, newEnd }) =>
+                  setEnd: (_locked, { id, newEnd }) =>
                     Effect.orDie(
                       Effect.andThen(
                         sql`update membership set end_term = ${newEnd.term}, end_year = ${newEnd.year} where id = ${id}`,
@@ -378,9 +436,10 @@ layer(teamsDatabase, { excludeTestServices: true })(
               Effect.provide(round(`bad${index}`), unconditional)
             );
 
-            assert.isTrue(
-              Arr.some(attempts, (outcome) => outcome.violations.length > 0),
-              "the replay finds an illegal sequence once the update is unconditional"
+            assert.deepStrictEqual(
+              Arr.map(attempts, (outcome) => outcome.violations),
+              Arr.makeBy(6, () => []),
+              "the replay finds no illegal sequence: every command decided on the row after the lock, so no write was stale"
             );
           })
       );
@@ -492,48 +551,37 @@ layer(teamsDatabase, { excludeTestServices: true })(
       );
 
       it.effect(
-        "two revocations of the last two valid admin places at once: one succeeds and the other is told it is the last",
+        `${OVERLAP_ROUNDS} rounds of two revocations of a person's last two valid admin places at once: one succeeds and the other is told it is the last`,
         () =>
           Effect.gen(function* effectProgram() {
             const { person } = yield* world("rev");
-            const grants = yield* AdminGrantRepository;
-            const db = yield* Drizzle;
-            const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
 
-            for (const _ of Arr.range(1, 8)) {
-              yield* db.delete(schema.adminGrant);
-
-              const first = yield* grants.create({
-                grantedBy: null,
-                personId: person.id,
-                until: LATER,
-              });
-
-              const second = yield* grants.create({
-                grantedBy: null,
-                personId: person.id,
-                until: LATER,
-              });
-
-              const exits = yield* race([
-                transactional(grants.revoke(first.id, cutoff)),
-                transactional(grants.revoke(second.id, cutoff)),
-              ]);
-
-              const outcomes = Arr.flatMap(exits, (exit) =>
-                Exit.isSuccess(exit) ? [exit.value] : []
-              );
-
-              assert.deepStrictEqual(Arr.sort(outcomes, Order.String), [
-                "last",
-                "revoked",
-              ]);
-              assert.strictEqual(
-                (yield* db.select().from(schema.adminGrant)).length,
-                1
-              );
+            for (const attempt of Arr.range(1, OVERLAP_ROUNDS)) {
+              yield* revokeRound(attempt, [person.id, person.id]);
             }
-          })
+          }),
+        STRESS_TIMEOUT_MS
+      );
+
+      it.effect(
+        `${OVERLAP_ROUNDS} rounds of two revocations of the last two valid admin places of two different people at once: one succeeds, the other is told it is the last, and the two never deadlock`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            const found = yield* world("rev2");
+
+            const other = yield* PersonRepository.use((people) =>
+              people.create({
+                email: EmailAddress.make("rev2.other@example.org"),
+                fieldOfStudyId: found.fieldOfStudy.id,
+                name: "Annen administrator",
+              })
+            );
+
+            for (const attempt of Arr.range(1, OVERLAP_ROUNDS)) {
+              yield* revokeRound(attempt, [found.person.id, other.id]);
+            }
+          }),
+        STRESS_TIMEOUT_MS
       );
 
       it.effect(

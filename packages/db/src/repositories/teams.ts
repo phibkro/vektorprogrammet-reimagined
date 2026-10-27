@@ -12,6 +12,7 @@
 import {
   AdminGrant,
   AdminGrantRepository,
+  AggregateLocks,
   Conflict,
   DepartmentId,
   DigestLedger,
@@ -33,7 +34,10 @@ import {
   semesterOrdinal,
 } from "@vektorprogrammet/domain";
 import type {
+  AdminGrantDraft,
   AdminGrantId,
+  Locked,
+  MembershipDraft,
   MembershipId,
   PersonDraft,
   Semester,
@@ -45,6 +49,8 @@ import { and, asc, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
 
+import { Aggregates } from "../aggregate/aggregates.ts";
+import { roots } from "../aggregate/declaration.ts";
 import { classifySqlFailure } from "../classifySqlFailure.ts";
 import {
   Drizzle,
@@ -63,6 +69,9 @@ import {
   team,
 } from "../schema.ts";
 
+/** The tables that a person owns (spec 0006b): every write to one goes through the person's lock. */
+const { owned } = roots.Person;
+
 // ---------------------------------------------------------------- people
 
 const personColumns = {
@@ -78,6 +87,7 @@ export const PersonRepositoryLive = Layer.effect(
   PersonRepository,
   Effect.gen(function* PersonRepositoryLive() {
     const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
     const decode = decodeWith(Person);
     const decodeAll = decodeWith(Schema.Array(Person));
 
@@ -126,7 +136,16 @@ export const PersonRepositoryLive = Layer.effect(
       return yield* Effect.orDie(findById(PersonId.make(created.id)));
     });
 
-    return PersonRepository.of({ create, findById, list });
+    /** The person through the lock: the token is checked, then the row is read, and nobody else can change it. */
+    const findLocked = Effect.fn("PersonRepository.findLocked")(
+      function* findLocked(locked: Locked) {
+        yield* aggregates.assertHeld(roots.Person, locked);
+
+        return yield* Effect.orDie(findById(PersonId.make(locked.id)));
+      }
+    );
+
+    return PersonRepository.of({ create, findById, findLocked, list });
   })
 );
 
@@ -318,7 +337,9 @@ export const MembershipRepositoryLive = Layer.effect(
   MembershipRepository,
   Effect.gen(function* MembershipRepositoryLive() {
     const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
     const decode = decodeWith(Membership);
+    const decodeAll = decodeWith(Schema.Array(Membership));
     const decodeViews = decodeWith(Schema.Array(MembershipView));
     const decodeActive = decodeWith(Schema.Array(ActiveMembership));
 
@@ -347,6 +368,16 @@ export const MembershipRepositoryLive = Layer.effect(
         .innerJoin(person, eq(membership.personId, person.id))
         .innerJoin(position, eq(membership.positionId, position.id));
 
+    /** The membership that a read of `id` found, or `NotFound` when no row was found. */
+    const decodeFound = Effect.fnUntraced(function* decodeFound(
+      id: MembershipId,
+      row: MembershipRow | undefined
+    ) {
+      return row === undefined
+        ? yield* new NotFound({ entity: "Membership", key: String(id) })
+        : yield* decode(termOf(row));
+    });
+
     const findById = Effect.fn("MembershipRepository.findById")(
       function* findById(id: MembershipId) {
         const [row] = yield* db
@@ -355,9 +386,27 @@ export const MembershipRepositoryLive = Layer.effect(
           .where(eq(membership.id, id))
           .pipe(Effect.orDie);
 
-        return row === undefined
-          ? yield* new NotFound({ entity: "Membership", key: String(id) })
-          : yield* decode(termOf(row));
+        return yield* decodeFound(id, row);
+      }
+    );
+
+    const findLocked = Effect.fn("MembershipRepository.findLocked")(
+      function* findLocked(locked: Locked, id: MembershipId) {
+        const [row] = yield* aggregates
+          .select(locked, owned.membership, eq(membership.id, id))
+          .pipe(Effect.orDie);
+
+        return yield* decodeFound(id, row);
+      }
+    );
+
+    const listLocked = Effect.fn("MembershipRepository.listLocked")(
+      function* listLocked(locked: Locked) {
+        const rows = yield* aggregates
+          .select(locked, owned.membership)
+          .pipe(Effect.orDie);
+
+        return yield* decodeAll(Arr.map(rows, termOf));
       }
     );
 
@@ -423,131 +472,106 @@ export const MembershipRepositoryLive = Layer.effect(
     );
 
     const insert = Effect.fn("MembershipRepository.insert")(function* insert(
-      draft: Omit<Membership, "id">
+      locked: Locked,
+      draft: Omit<MembershipDraft, "personId">
     ) {
-      /*
-       * The person's row lock (`FOR NO KEY UPDATE`, which no foreign-key check conflicts with) comes before the
-       * write. PostgreSQL checks an exclusion constraint after it has written the entry, so two overlapping writes
-       * of one person that start together each wait for the other's transaction, and one is aborted with
-       * `deadlock_detected` (40P01) instead of `23P01`. With the lock the second write waits before it writes
-       * anything, then finds the first committed (refused by the constraint) or rolled back (succeeds). Every write
-       * that can raise `membership_no_overlap` takes this lock first, so the order is the same everywhere. The
-       * constraint stays the rule; the lock only orders its checks.
-       */
-      yield* db
-        .select({ id: person.id })
-        .from(person)
-        .where(eq(person.id, draft.personId))
-        .for("no key update")
-        .pipe(Effect.orDie);
-
-      const rows = yield* db
-        .insert(membership)
-        .values({
+      const rows = yield* aggregates
+        .insert(locked, owned.membership, {
           endTerm: draft.end.term,
           endYear: draft.end.year,
           leader: draft.leader,
-          personId: draft.personId,
           positionId: draft.positionId,
           startTerm: draft.start.term,
           startYear: draft.start.year,
           teamId: draft.teamId,
         })
-        .returning(membershipColumns)
         .pipe(
-          Effect.catch((error) =>
-            classifySqlFailure(error, String(draft.personId))
-          )
+          Effect.catch((error) => classifySqlFailure(error, String(locked.id)))
         );
 
       return yield* decode(termOf(yield* single(rows)));
     });
 
     /**
-     * `UPDATE … SET end = $new WHERE id = $1 AND end = $observed AND start ≤ current AND current ≤ end`: the
-     * membership is Active in `activeIn` and still ends where the caller read it, or the update matches nothing.
+     * `UPDATE … SET end = $new WHERE id = $1 AND person = $locked AND end = $observed AND start ≤ current AND
+     * current ≤ end`: the membership is the locked person's, is Active in `activeIn` and still ends where the caller
+     * read it, or the update matches nothing.
      */
-    const setEnd = Effect.fn("MembershipRepository.setEnd")(
-      function* setEnd(change: {
+    const setEnd = Effect.fn("MembershipRepository.setEnd")(function* setEnd(
+      locked: Locked,
+      change: {
         readonly id: MembershipId;
         readonly observedEnd: Semester;
         readonly newEnd: Semester;
         readonly activeIn: Semester;
-      }) {
-        const current = semesterOrdinal(change.activeIn);
-
-        // The person's lock first, as in `insert`: an extension can overlap a membership that is being inserted.
-        yield* db
-          .select({ id: person.id })
-          .from(person)
-          .innerJoin(membership, eq(membership.personId, person.id))
-          .where(eq(membership.id, change.id))
-          .for("no key update", { of: person })
-          .pipe(Effect.orDie);
-
-        const rows = yield* db
-          .update(membership)
-          .set({ endTerm: change.newEnd.term, endYear: change.newEnd.year })
-          .where(
-            and(
-              eq(membership.id, change.id),
-              eq(membership.endOrdinal, semesterOrdinal(change.observedEnd)),
-              lte(membership.startOrdinal, current),
-              gte(membership.endOrdinal, current)
-            )
-          )
-          .returning(membershipColumns)
-          .pipe(
-            Effect.catch((error) =>
-              classifySqlFailure(error, String(change.id))
-            )
-          );
-
-        const [row] = rows;
-
-        return row === undefined
-          ? yield* lostRace(change.id)
-          : yield* decode(termOf(row));
       }
-    );
+    ) {
+      const current = semesterOrdinal(change.activeIn);
 
-    /** `DELETE … WHERE id = $1 AND term = $observed AND start > current`: only a membership that has not started. */
-    const remove = Effect.fn("MembershipRepository.remove")(
-      function* remove(removal: {
+      const rows = yield* aggregates
+        .update(locked, owned.membership, {
+          set: { endTerm: change.newEnd.term, endYear: change.newEnd.year },
+          where: and(
+            eq(membership.id, change.id),
+            eq(membership.endOrdinal, semesterOrdinal(change.observedEnd)),
+            lte(membership.startOrdinal, current),
+            gte(membership.endOrdinal, current)
+          ),
+        })
+        .pipe(
+          Effect.catch((error) => classifySqlFailure(error, String(change.id)))
+        );
+
+      const [row] = rows;
+
+      return row === undefined
+        ? yield* lostRace(change.id)
+        : yield* decode(termOf(row));
+    });
+
+    /**
+     * `DELETE … WHERE id = $1 AND person = $locked AND term = $observed AND start > current`: only a membership of the
+     * locked person that has not started.
+     */
+    const remove = Effect.fn("MembershipRepository.remove")(function* remove(
+      locked: Locked,
+      removal: {
         readonly id: MembershipId;
         readonly observed: Pick<Membership, "end" | "start">;
         readonly current: Semester;
-      }) {
-        const rows = yield* db
-          .delete(membership)
-          .where(
-            and(
-              eq(membership.id, removal.id),
-              eq(
-                membership.startOrdinal,
-                semesterOrdinal(removal.observed.start)
-              ),
-              eq(membership.endOrdinal, semesterOrdinal(removal.observed.end)),
-              gt(membership.startOrdinal, semesterOrdinal(removal.current))
-            )
-          )
-          .returning({ id: membership.id })
-          .pipe(Effect.orDie);
-
-        if (rows.length === 0) {
-          return yield* lostRace(removal.id);
-        }
-
-        return yield* Effect.void;
       }
-    );
+    ) {
+      const rows = yield* aggregates
+        .remove(
+          locked,
+          owned.membership,
+          and(
+            eq(membership.id, removal.id),
+            eq(
+              membership.startOrdinal,
+              semesterOrdinal(removal.observed.start)
+            ),
+            eq(membership.endOrdinal, semesterOrdinal(removal.observed.end)),
+            gt(membership.startOrdinal, semesterOrdinal(removal.current))
+          )
+        )
+        .pipe(Effect.orDie);
+
+      if (rows.length === 0) {
+        return yield* lostRace(removal.id);
+      }
+
+      return yield* Effect.void;
+    });
 
     return MembershipRepository.of({
       activeIn,
       findById,
+      findLocked,
       insert,
       listByPerson,
       listByTeam,
+      listLocked,
       remove,
       setEnd,
     });
@@ -570,6 +594,8 @@ export const AdminGrantRepositoryLive = Layer.effect(
   AdminGrantRepository,
   Effect.gen(function* AdminGrantRepositoryLive() {
     const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
+    const locking = yield* AggregateLocks;
     const decode = decodeWith(StoredAdminGrant);
     const decodeViews = decodeWith(Schema.Array(StoredAdminGrantView));
 
@@ -588,47 +614,62 @@ export const AdminGrantRepositoryLive = Layer.effect(
     );
 
     const create = Effect.fn("AdminGrantRepository.create")(function* create(
-      draft: Omit<AdminGrant, "id">
+      locked: Locked,
+      draft: Omit<AdminGrantDraft, "personId">
     ) {
-      const rows = yield* db
-        .insert(adminGrant)
-        .values({ ...draft, until: DateTime.toDateUtc(draft.until) })
-        .returning()
+      const rows = yield* aggregates
+        .insert(locked, owned.adminGrant, {
+          grantedBy: draft.grantedBy,
+          until: DateTime.toDateUtc(draft.until),
+        })
         .pipe(Effect.orDie);
 
       return yield* decode(yield* single(rows));
     });
 
     /**
-     * The places that end after `validAfter` are locked in id order first, so two revocations at once queue up,
-     * and the second one sees the first one's result: the last valid place is never removed.
+     * The people who hold a place that ends after `validAfter` are locked first, with the owner of the place, in id
+     * order (`lockAll`). The check reads the places of the locked people through their tokens, and nobody else can
+     * change one of those places before this transaction ends, so two revocations at once queue up and the second one
+     * sees the first one's result: the last valid place is never removed. A place that is granted after the holders
+     * were read is not counted, which can only refuse a revocation that would have been allowed.
      */
     const revoke = Effect.fn("AdminGrantRepository.revoke")(function* revoke(
       id: AdminGrantId,
       validAfter: DateTime.Utc
     ) {
       const target = yield* findById(id);
+      const cutoff = DateTime.toDateUtc(validAfter);
 
-      const valid = yield* db
-        .select({ id: adminGrant.id })
+      const holders = yield* db
+        .selectDistinct({ personId: adminGrant.personId })
         .from(adminGrant)
-        .where(gt(adminGrant.until, DateTime.toDateUtc(validAfter)))
-        .orderBy(asc(adminGrant.id))
-        .for("update")
+        .where(gt(adminGrant.until, cutoff))
+        .pipe(Effect.orDie);
+
+      const locks = yield* locking.lockAll("Person", [
+        target.personId,
+        ...Arr.map(holders, (holder) => holder.personId),
+      ]);
+
+      const places = yield* aggregates
+        .select(locks, owned.adminGrant, gt(adminGrant.until, cutoff))
         .pipe(Effect.orDie);
 
       if (
         DateTime.isGreaterThan(target.until, validAfter) &&
-        valid.length === 1 &&
-        valid[0]?.id === id
+        places.length === 1 &&
+        places[0]?.id === id
       ) {
         return "last" as const;
       }
 
-      const removed = yield* db
-        .delete(adminGrant)
-        .where(eq(adminGrant.id, id))
-        .returning({ id: adminGrant.id })
+      const removed = yield* aggregates
+        .remove(
+          yield* locking.lock("Person", target.personId),
+          owned.adminGrant,
+          eq(adminGrant.id, id)
+        )
         .pipe(Effect.orDie);
 
       return removed.length === 0

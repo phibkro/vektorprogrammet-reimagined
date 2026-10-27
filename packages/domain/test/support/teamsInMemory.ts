@@ -17,11 +17,13 @@ import {
   Predicate,
   Ref,
 } from "effect";
+import { cast } from "effect/Function";
 
 import {
   AccountRepository,
   AdminGrantId,
   AdminGrantRepository,
+  AggregateLocks,
   AlreadyExists,
   Conflict,
   DigestLedger,
@@ -49,7 +51,9 @@ import type {
   ActiveMembership,
   AdminGrant,
   AdminGrantView,
+  AggregateRoot,
   EntityName,
+  Locked,
   Membership,
   MembershipFact,
   MembershipView,
@@ -228,6 +232,8 @@ const personRepository = Layer.effect(
           return person;
         }),
       findById: (id) => findOrNotFound(tables.people, "Person", id),
+      findLocked: (locked) =>
+        Effect.orDie(findOrNotFound(tables.people, "Person", locked.id)),
       list: (departmentId) =>
         Effect.map(Ref.get(tables.people), (people) =>
           Arr.sort(
@@ -395,11 +401,18 @@ const membershipRepository = Layer.effect(
           );
         }),
       findById: (id) => findOrNotFound(tables.memberships, "Membership", id),
-      insert: (draft) =>
+      findLocked: (locked, id) =>
+        Effect.filterOrFail(
+          findOrNotFound(tables.memberships, "Membership", id),
+          (membership) => membership.personId === locked.id,
+          () => new NotFound({ entity: "Membership", key: String(id) })
+        ),
+      insert: (locked, draft) =>
         Effect.gen(function* insert() {
           const membership: Membership = {
             ...draft,
             id: MembershipId.make(yield* nextId(tables)),
+            personId: PersonId.make(locked.id),
           };
 
           if (overlapping(yield* Ref.get(tables.memberships), membership)) {
@@ -437,11 +450,16 @@ const membershipRepository = Layer.effect(
             )
           )
         ),
-      remove: ({ current, id, observed }) =>
+      listLocked: (locked) =>
+        Effect.map(Ref.get(tables.memberships), (rows) =>
+          Arr.filter(rows, (row) => row.personId === locked.id)
+        ),
+      remove: (locked, { current, id, observed }) =>
         Effect.gen(function* remove() {
           const row = Arr.findFirst(
             yield* Ref.get(tables.memberships),
-            (membership) => membership.id === id
+            (membership) =>
+              membership.id === id && membership.personId === locked.id
           );
 
           if (
@@ -459,11 +477,15 @@ const membershipRepository = Layer.effect(
 
           return yield* Effect.void;
         }),
-      setEnd: ({ activeIn, id, newEnd, observedEnd }) =>
+      setEnd: (locked, { activeIn, id, newEnd, observedEnd }) =>
         Effect.gen(function* setEnd() {
           const rows = yield* Ref.get(tables.memberships);
 
-          const row = Arr.findFirst(rows, (membership) => membership.id === id);
+          const row = Arr.findFirst(
+            rows,
+            (membership) =>
+              membership.id === id && membership.personId === locked.id
+          );
 
           if (
             Option.isNone(row) ||
@@ -497,11 +519,12 @@ const adminGrantRepository = Layer.effect(
     const tables = yield* TeamTables;
 
     return AdminGrantRepository.of({
-      create: (draft) =>
+      create: (locked, draft) =>
         Effect.gen(function* create() {
           const grant: AdminGrant = {
             ...draft,
             id: AdminGrantId.make(yield* nextId(tables)),
+            personId: PersonId.make(locked.id),
           };
 
           yield* Ref.update(tables.adminGrants, (rows) => [...rows, grant]);
@@ -557,6 +580,50 @@ const adminGrantRepository = Layer.effect(
 
           return "revoked" as const;
         }),
+    });
+  })
+);
+
+/**
+ * The locks of the fakes: a person's lock exists when the person does. Nothing waits, because nothing runs at once;
+ * the real locking is `packages/db`'s, under test in `test/aggregates.postgres.test.ts`.
+ */
+const aggregateLocks = Layer.effect(
+  AggregateLocks,
+  Effect.gen(function* aggregateLocks() {
+    const tables = yield* TeamTables;
+
+    const lockAll = Effect.fnUntraced(function* lockAll<
+      Root extends AggregateRoot,
+    >(root: Root, ids: readonly number[]) {
+      const people = yield* Ref.get(tables.people);
+
+      const missing = Arr.findFirst(
+        ids,
+        (id) => !Arr.some(people, (person) => person.id === id)
+      );
+
+      if (Option.isSome(missing)) {
+        return yield* new NotFound({
+          entity: root,
+          key: String(missing.value),
+        });
+      }
+
+      // SAFETY: the token's brand exists only in its type; the fake has just checked that the rows exist (EX-0023).
+      return Arr.map(Arr.sort(Arr.dedupe(ids), Order.Number), (id) =>
+        cast<{ id: number; root: Root }, Locked<Root>>({ id, root })
+      );
+    });
+
+    return AggregateLocks.of({
+      lock: (root, id) =>
+        Effect.flatMap(lockAll(root, [id]), ([locked]) =>
+          locked === undefined
+            ? Effect.die("lockAll returned no token")
+            : Effect.succeed(locked)
+        ),
+      lockAll,
     });
   })
 );
@@ -681,6 +748,7 @@ const accountReads = Layer.unwrap(
 
 const teamsRepositories = Layer.mergeAll(
   accountReads,
+  aggregateLocks,
   personRepository,
   teamRepository,
   positionRepository,

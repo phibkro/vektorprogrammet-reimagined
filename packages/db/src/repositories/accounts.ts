@@ -1,21 +1,26 @@
-/** Account persistence. Every state transition is conditional. */
+/**
+ * Account persistence. An account belongs to a person (spec 0006b): every write takes the person's `Locked` token, and
+ * so does every read that a decision rests on. A state change is a transition of the Account machine, applied with
+ * `UPDATE … WHERE state = ANY(from)`.
+ */
 import {
   AccountRepository,
   AccountState,
   AlreadyExists,
-  Conflict,
-  NotFound,
   Person,
   PersonId,
 } from "@vektorprogrammet/domain";
 import type {
   Account,
   EmailAddress,
+  Locked,
   PersonDraft,
 } from "@vektorprogrammet/domain";
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
 
+import { Aggregates } from "../aggregate/aggregates.ts";
+import { roots as aggregateRoots } from "../aggregate/declaration.ts";
 import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
 import { account, adminGrant, fieldOfStudy, person } from "../schema.ts";
@@ -27,6 +32,10 @@ const StoredAccount = Schema.Struct({
 
 const decodeAccount = decodeWith(StoredAccount);
 const decodePerson = decodeWith(Person);
+const decodePersonIds = decodeWith(Schema.Array(PersonId));
+
+/** The tables that a person owns: every write to one goes through the person's lock. */
+const { owned } = aggregateRoots.Person;
 
 const states = {
   Active: AccountState.cases.Active.make({}),
@@ -39,31 +48,13 @@ const accountOf = (row: typeof StoredAccount.Type): Account => ({
   state: states[row.state],
 });
 
-const changed = (personId: PersonId) =>
-  new Conflict({
-    entity: "Account",
-    key: String(personId),
-    message: "Kontoen ble endret eller kan ikke deaktiveres.",
-  });
+const CHANGED = "Kontoen ble endret eller kan ikke deaktiveres.";
 
 export const AccountRepositoryLive = Layer.effect(
   AccountRepository,
   Effect.gen(function* AccountRepositoryLive() {
     const db = yield* Drizzle;
-
-    /** The caller holds a transaction; every guarded write takes the Person aggregate lock first. */
-    const lockPerson = Effect.fn("AccountRepository.lockPerson")(
-      function* lockPerson(personId: PersonId) {
-        const rows = yield* db
-          .select({ id: person.id })
-          .from(person)
-          .where(eq(person.id, personId))
-          .for("no key update")
-          .pipe(Effect.orDie);
-
-        return rows.length === 1;
-      }
-    );
+    const aggregates = yield* Aggregates;
 
     const list = db
       .select()
@@ -89,13 +80,10 @@ export const AccountRepositoryLive = Layer.effect(
       );
     });
 
-    const findForUpdate = Effect.fn("AccountRepository.findForUpdate")(
-      function* findForUpdate(personId: PersonId) {
-        const rows = yield* db
-          .select()
-          .from(account)
-          .where(eq(account.personId, personId))
-          .for("update")
+    const findLocked = Effect.fn("AccountRepository.findLocked")(
+      function* findLocked(locked: Locked) {
+        const rows = yield* aggregates
+          .select(locked, owned.account)
           .pipe(Effect.orDie);
 
         return Option.map(
@@ -121,20 +109,34 @@ export const AccountRepositoryLive = Layer.effect(
       );
     });
 
+    const adminHolders = Effect.fn("AccountRepository.adminHolders")(
+      function* adminHolders(now: DateTime.Utc) {
+        const rows = yield* db
+          .selectDistinct({ personId: adminGrant.personId })
+          .from(adminGrant)
+          .where(gt(adminGrant.until, DateTime.toDateUtc(now)))
+          .pipe(Effect.orDie);
+
+        return yield* decodePersonIds(Arr.map(rows, (row) => row.personId));
+      }
+    );
+
     const invite = Effect.fn("AccountRepository.invite")(function* invite(
-      personId: PersonId
+      locked: Locked
     ) {
-      const rows = yield* db
-        .insert(account)
-        .values({ personId, state: "Invited" })
-        .onConflictDoNothing()
-        .returning()
+      const rows = yield* aggregates
+        .insert(
+          locked,
+          owned.account,
+          { state: "Invited" },
+          { action: "ignore" }
+        )
         .pipe(Effect.orDie);
 
       if (rows.length === 0) {
         return yield* new AlreadyExists({
           entity: "Account",
-          key: String(personId),
+          key: String(locked.id),
           message: "Personen har allerede en konto.",
         });
       }
@@ -142,108 +144,89 @@ export const AccountRepositoryLive = Layer.effect(
       return accountOf(yield* decodeAccount(rows[0]));
     });
 
-    /** Lock all current admin grants in id order before testing the invariant. */
-    const activeAdminIds = Effect.fnUntraced(function* activeAdminIds(
-      now: DateTime.Utc,
-      lock: boolean
-    ) {
-      const query = db
-        .select({ personId: adminGrant.personId })
-        .from(adminGrant)
-        .where(gt(adminGrant.until, DateTime.toDateUtc(now)))
-        .orderBy(asc(adminGrant.id));
+    const transition = Effect.fn("AccountRepository.transition")(
+      function* transition(
+        locked: Locked,
+        change: Parameters<AccountRepository["Service"]["transition"]>[1]
+      ) {
+        const row = yield* aggregates
+          .apply(change, locked, {
+            entity: "Account",
+            key: String(locked.id),
+            message: CHANGED,
+            owned: owned.account,
+          })
+          .pipe(
+            Effect.catchTag("EffectDrizzleQueryError", (error) =>
+              Effect.die(error)
+            )
+          );
 
-      const grants = yield* lock ? query.for("update") : query;
-
-      const ids = [...new Set(Arr.map(grants, (grant) => grant.personId))];
-
-      if (ids.length === 0) {
-        return [];
-      }
-
-      return yield* db
-        .select({ personId: account.personId })
-        .from(account)
-        .where(
-          and(inArray(account.personId, ids), eq(account.state, "Active"))
-        );
-    }, Effect.orDie);
-
-    const isLastActiveAdmin = Effect.fn("AccountRepository.isLastActiveAdmin")(
-      function* isLastActiveAdmin(personId: PersonId, now: DateTime.Utc) {
-        const active = yield* activeAdminIds(now, false);
-
-        return active.length === 1 && active[0]?.personId === personId;
+        return accountOf(yield* decodeAccount(row));
       }
     );
 
-    const transition = Effect.fn("AccountRepository.transition")(
-      function* transition(
-        change: Parameters<AccountRepository["Service"]["transition"]>[0]
+    /**
+     * The people among `locks` who hold an admin place that is valid at `now`, and have an Active account: both are
+     * read through the tokens, so nobody else can change them before this transaction ends. The caller locked the
+     * person and every holder in one `lockAll`, so the person is the last one exactly when no other active
+     * administrator is among the locked.
+     */
+    const isLastActiveAdmin = Effect.fn("AccountRepository.isLastActiveAdmin")(
+      function* isLastActiveAdmin(
+        locks: readonly Locked[],
+        personId: PersonId,
+        now: DateTime.Utc
       ) {
-        if (change.prohibitLastActiveAdmin) {
-          const active = yield* activeAdminIds(change.now, true);
+        const grants = yield* aggregates.select(
+          locks,
+          owned.adminGrant,
+          gt(adminGrant.until, DateTime.toDateUtc(now))
+        );
 
-          if (active.length === 1 && active[0]?.personId === change.personId) {
-            return yield* changed(change.personId);
-          }
-        }
+        const holders = Arr.dedupe(Arr.map(grants, (grant) => grant.personId));
 
-        const rows = yield* db
-          .update(account)
-          .set({ state: change.to })
-          .where(
-            and(
-              eq(account.personId, change.personId),
-              eq(account.state, change.from)
-            )
-          )
-          .returning()
-          .pipe(Effect.orDie);
+        const active = yield* aggregates.select(
+          locks,
+          owned.account,
+          and(inArray(account.personId, holders), eq(account.state, "Active"))
+        );
 
-        if (rows.length === 0) {
-          return yield* changed(change.personId);
-        }
-
-        return accountOf(yield* decodeAccount(rows[0]));
-      }
+        return active.length === 1 && active[0]?.personId === personId;
+      },
+      Effect.orDie
     );
 
     const verifyEmail = Effect.fn("AccountRepository.verifyEmail")(
-      function* verifyEmail(personId: PersonId) {
-        yield* db
-          .update(person)
-          .set({ emailVerified: true })
-          .where(eq(person.id, personId))
+      function* verifyEmail(locked: Locked) {
+        yield* aggregates
+          .updateRoot(locked, aggregateRoots.Person, { emailVerified: true })
           .pipe(
-            Effect.catch((error) => classifySqlFailure(error, String(personId)))
+            Effect.catch((error) =>
+              classifySqlFailure(error, String(locked.id))
+            )
           );
       }
     );
 
     const updateProfile = Effect.fn("AccountRepository.updateProfile")(
-      function* updateProfile(personId: PersonId, profile: PersonDraft) {
-        const current = yield* db
+      function* updateProfile(locked: Locked, profile: PersonDraft) {
+        yield* aggregates.assertHeld(aggregateRoots.Person, locked);
+
+        const [current] = yield* db
           .select({ email: person.email })
           .from(person)
-          .where(eq(person.id, personId))
+          .where(eq(person.id, locked.id))
           .pipe(Effect.orDie);
 
-        if (current.length === 0) {
-          return yield* new NotFound({
-            entity: "Person",
-            key: String(personId),
-          });
-        }
+        // A changed address is not verified until the person verifies it again.
+        const set =
+          current?.email === profile.email
+            ? profile
+            : { ...profile, emailVerified: false };
 
-        yield* db
-          .update(person)
-          .set({
-            ...profile,
-            emailVerified:
-              current[0]?.email === profile.email ? undefined : false,
-          })
-          .where(eq(person.id, personId))
+        yield* aggregates
+          .updateRoot(locked, aggregateRoots.Person, set)
           .pipe(
             Effect.catch((error) => classifySqlFailure(error, profile.email))
           );
@@ -259,7 +242,7 @@ export const AccountRepositoryLive = Layer.effect(
           })
           .from(person)
           .innerJoin(fieldOfStudy, eq(person.fieldOfStudyId, fieldOfStudy.id))
-          .where(eq(person.id, personId))
+          .where(eq(person.id, locked.id))
           .pipe(Effect.orDie);
 
         return yield* decodePerson(rows[0]);
@@ -267,13 +250,13 @@ export const AccountRepositoryLive = Layer.effect(
     );
 
     return AccountRepository.of({
+      adminHolders,
       find,
       findActiveByPrivateEmail,
-      findForUpdate,
+      findLocked,
       invite,
       isLastActiveAdmin,
       list,
-      lockPerson,
       transition,
       updateProfile,
       verifyEmail,

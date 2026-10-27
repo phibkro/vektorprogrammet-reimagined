@@ -9,6 +9,7 @@ import { noKnownValueWideningRule } from "./rules/no-known-value-widening.ts";
 import { noModuleMockingRule } from "./rules/no-module-mocking.ts";
 import { noMultiStatementUnsafeRule } from "./rules/no-multi-statement-unsafe.ts";
 import { noObjectParametersRule } from "./rules/no-object-parameters.ts";
+import { noOwnedTableWriteRule } from "./rules/no-owned-table-write.ts";
 import { noReduceAccumulatorCopyRule } from "./rules/no-reduce-accumulator-copy.ts";
 import { noReflectApplyRule } from "./rules/no-reflect-apply.ts";
 import { noReflectGetRule } from "./rules/no-reflect-get.ts";
@@ -37,6 +38,7 @@ const antiSlopPlugin = eslintCompatPlugin({
     "no-module-mocking": noModuleMockingRule,
     "no-multi-statement-unsafe": noMultiStatementUnsafeRule,
     "no-object-parameters": noObjectParametersRule,
+    "no-owned-table-write": noOwnedTableWriteRule,
     "no-reflect-apply": noReflectApplyRule,
     "no-reflect-get": noReflectGetRule,
     "no-runtime-typeof": noRuntimeTypeofRule,

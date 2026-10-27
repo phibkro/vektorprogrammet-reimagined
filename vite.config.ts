@@ -220,11 +220,12 @@ const effectConfig: EffectConfigInput = {
 
 const effectConfigResult = effect(effectConfig);
 
-// Ultracite already enables the identical 18 upstream rules, so enable only the four local additions.
+// Ultracite already enables the identical 18 upstream rules, so enable only the five local additions.
 const antiSlopRuleNames = [
   "no-dev-server",
   "no-implicit-date-time-zone",
   "no-multi-statement-unsafe",
+  "no-owned-table-write",
   "no-unkeyed-command-row",
 ];
 
@@ -390,14 +391,18 @@ export default defineConfig({
           "tools/import/src/reportFiles.ts",
           "tools/import/src/emdash/pipeline.ts",
           "apps/cms/scripts/checkBundle.ts",
+          "packages/db/src/aggregate/defects.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",
         },
       },
       {
-        // max-classes-per-file conflicts with the single closed typed-error set owned here.
-        files: ["packages/domain/src/shared/errors.ts"],
+        // max-classes-per-file conflicts with a closed typed-error set: the domain's errors, and the lock construct's four defects.
+        files: [
+          "packages/domain/src/shared/errors.ts",
+          "packages/db/src/aggregate/defects.ts",
+        ],
         rules: { "max-classes-per-file": "off" },
       },
       {
@@ -634,12 +639,22 @@ export default defineConfig({
         ],
         rules: { "no-await-in-loop": "off" },
       },
+      {
+        // Fixtures and falsifiers write owned tables directly, to set a state up or to be the hand-written control; only product code goes through the aggregate writer (spec 0006b).
+        files: ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
+        rules: { "vektor-anti-slop/no-owned-table-write": "off" },
+      },
     ],
     rules: {
       ...effectConfigResult.rules,
       ...tsgoRules,
       ...localAntiSlopRules,
       "complexity/complexity": ["error", { cognitive: 15 }],
+      // Effect's language service reads `@effect-leakable-service` from a service's JSDoc (`InTransaction`, spec 0006b).
+      "jsdoc/check-tag-names": [
+        "error",
+        { definedTags: ["effect-leakable-service"] },
+      ],
       "no-restricted-imports": [
         "error",
         { patterns: restrictedSourcePatterns },

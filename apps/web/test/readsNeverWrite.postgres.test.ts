@@ -27,6 +27,7 @@ import {
 } from "@vektorprogrammet/db/testing/read-only-role";
 import {
   AdminGrantRepository,
+  AggregateLocks,
   CurrentPrincipal,
   EmailAddress,
   FieldOfStudyId,
@@ -368,26 +369,33 @@ const seedTeams = Effect.gen(function* seedTeams() {
     start: { term: "VAR", year: 2020 },
   } as const;
 
-  yield* memberships.insert({
-    ...term,
-    leader: true,
-    personId: lise.id,
-    positionId: PositionId.make(1),
-    teamId: team.id,
-  });
-  yield* memberships.insert({
-    ...term,
-    leader: false,
-    personId: mats.id,
-    positionId: PositionId.make(2),
-    teamId: team.id,
-  });
+  yield* Transactor.use((transactor) =>
+    transactor.run(
+      Effect.gen(function* writeTeams() {
+        const locks = yield* AggregateLocks;
+        const liseLock = yield* locks.lock("Person", lise.id);
+        const matsLock = yield* locks.lock("Person", mats.id);
 
-  yield* (yield* AdminGrantRepository).create({
-    grantedBy: null,
-    personId: lise.id,
-    until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
-  });
+        yield* memberships.insert(liseLock, {
+          ...term,
+          leader: true,
+          positionId: PositionId.make(1),
+          teamId: team.id,
+        });
+        yield* memberships.insert(matsLock, {
+          ...term,
+          leader: false,
+          positionId: PositionId.make(2),
+          teamId: team.id,
+        });
+
+        yield* (yield* AdminGrantRepository).create(liseLock, {
+          grantedBy: null,
+          until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
+        });
+      })
+    )
+  );
 });
 
 /** The job's two rows, the teams, and an event in the current semester of the first department. */

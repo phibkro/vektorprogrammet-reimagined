@@ -9,6 +9,7 @@ import { TestClock } from "effect/testing";
 
 import {
   AdminGrantRepository,
+  AggregateLocks,
   AuditPrincipal,
   FieldOfStudyId,
   MembershipRepository,
@@ -647,17 +648,26 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 });
 
+/** A place on the list that is put there directly, as a fixture does: through the person's lock, like every write. */
+const placeFor = Effect.fnUntraced(function* placeFor(
+  personId: PersonId,
+  grantedBy: PersonId | null,
+  until: DateTime.Utc
+) {
+  const locked = yield* AggregateLocks.use((locks) =>
+    locks.lock("Person", personId)
+  );
+
+  return yield* AdminGrantRepository.use((grants) =>
+    grants.create(locked, { grantedBy, until })
+  );
+});
+
 /** Ada holds the first place (given outside the system), Ola a second one that Ada gave. */
 const admins = Effect.gen(function* admins() {
   const { kari, ola } = yield* world;
   const ada = yield* newPerson("Ada", TRONDHEIM_FIELD);
-  const grants = yield* AdminGrantRepository;
-
-  const first = yield* grants.create({
-    grantedBy: null,
-    personId: ada.id,
-    until: LATE,
-  });
+  const first = yield* placeFor(ada.id, null, LATE);
 
   const second = yield* asPrincipal(adminOf(ada.id))(
     TeamsEndpoints.grantAdmin({ personId: ola.id, until: ADMIN_UNTIL })
@@ -698,12 +708,10 @@ describe("falsifier 6: the admin list (RULE-113, RULE-308)", () => {
         const { ada, first, kari, ola, second } = yield* admins;
 
         // Kari held a place that has already ended: it is not a valid one and must not count.
-        const expired = yield* AdminGrantRepository.use((grants) =>
-          grants.create({
-            grantedBy: ada.id,
-            personId: kari.id,
-            until: DateTime.makeUnsafe("2026-08-31T00:00:00Z"),
-          })
+        const expired = yield* placeFor(
+          kari.id,
+          ada.id,
+          DateTime.makeUnsafe("2026-08-31T00:00:00Z")
         );
 
         const ownPlace = yield* revokeAs(adminOf(ada.id), first.id);

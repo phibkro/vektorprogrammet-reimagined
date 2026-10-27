@@ -1,8 +1,11 @@
-/** Single-use code storage: a conditional consume and a replace per purpose and subject. */
+/**
+ * Single-use code storage: a conditional consume and a replace per purpose and subject. A code belongs to its subject
+ * (spec 0006b): a write takes the subject's `Locked` token, and the subject is the token's person.
+ */
 import { Context } from "effect";
 import type { DateTime, Effect, Option } from "effect";
 
-import type { PersonId } from "../shared/ids.ts";
+import type { Locked } from "../shared/aggregate.ts";
 import type { Code, CodeHash, CodePurpose } from "./code.ts";
 
 export class CodeRepository extends Context.Service<
@@ -14,14 +17,19 @@ export class CodeRepository extends Context.Service<
       readonly purpose: CodePurpose;
       readonly now: DateTime.Utc;
     }) => Effect.Effect<Option.Option<Code>>;
-    /** Invalidate the older code for the same purpose and subject, then store only this hash. */
-    readonly replace: (code: Code) => Effect.Effect<void>;
+    /** Invalidate the older code for the same purpose and the locked person, then store only this hash. */
+    readonly replace: (
+      locked: Locked,
+      code: Pick<Code, "expiresAt" | "hash" | "purpose">
+    ) => Effect.Effect<void>;
     /** One conditional update; a missing, expired, used, wrong-purpose or wrong-subject code loses. */
-    readonly consume: (request: {
-      readonly hash: CodeHash;
-      readonly purpose: CodePurpose;
-      readonly subject: PersonId;
-      readonly now: DateTime.Utc;
-    }) => Effect.Effect<boolean>;
+    readonly consume: (
+      locked: Locked,
+      request: {
+        readonly hash: CodeHash;
+        readonly purpose: CodePurpose;
+        readonly now: DateTime.Utc;
+      }
+    ) => Effect.Effect<boolean>;
   }
 >()("@vektorprogrammet/domain/accounts/CodeRepository") {}

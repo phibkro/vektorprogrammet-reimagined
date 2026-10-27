@@ -42,6 +42,8 @@ import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "../../src/localPeople.ts";
+import { activateAccount } from "./accountsWorld.ts";
+import { asPerson } from "./teamsWorld.ts";
 
 const byId = Order.mapInput(
   Order.Number,
@@ -148,15 +150,16 @@ const join = Effect.fnUntraced(function* join(
     )
   );
 
-  yield* (yield* MembershipRepository)
-    .insert({
-      ...term,
-      leader: positionName === "Leder",
-      personId: person.id,
-      positionId: position.id,
-      teamId: team.id,
-    })
-    .pipe(Effect.catchTag("AlreadyExists", () => Effect.void));
+  yield* asPerson(person.id, (locked) =>
+    MembershipRepository.use((memberships) =>
+      memberships.insert(locked, {
+        ...term,
+        leader: positionName === "Leder",
+        positionId: position.id,
+        teamId: team.id,
+      })
+    )
+  ).pipe(Effect.catchTag("AlreadyExists", () => Effect.void));
 });
 
 /** EX-0018: seed fake Better Auth credentials outside any domain command transaction. */
@@ -179,20 +182,15 @@ const seedFakeAccounts = Effect.fnUntraced(function* seedFakeAccounts(
   for (const person of people) {
     const id = `fake-${person.id}`;
 
-    if (Option.isNone(yield* accounts.find(person.id))) {
-      yield* accounts.invite(person.id).pipe(Effect.orDie);
-      yield* accounts
-        .transition({
-          from: "Invited",
-          now: instant,
-          personId: person.id,
-          prohibitLastActiveAdmin: false,
-          to: "Active",
-        })
-        .pipe(Effect.orDie);
-    }
+    yield* asPerson(person.id, (locked) =>
+      Effect.gen(function* seedAccount() {
+        if (Option.isNone(yield* accounts.findLocked(locked))) {
+          yield* Effect.orDie(activateAccount(locked));
+        }
 
-    yield* accounts.verifyEmail(person.id).pipe(Effect.orDie);
+        yield* accounts.verifyEmail(locked).pipe(Effect.orDie);
+      })
+    );
     yield* sql`insert into auth_user (id, person_id, name, email, email_verified, created_at, updated_at)
       values (${id}, ${person.id}, ${person.name}, ${person.email}, true, ${now}, ${now}) on conflict do nothing`.pipe(
       Effect.orDie
@@ -234,11 +232,12 @@ export const seedLocal = Effect.gen(function* seedLocal() {
   const grants = yield* AdminGrantRepository;
 
   if (!Arr.some(yield* grants.list, (grant) => grant.personId === ada.id)) {
-    yield* grants.create({
-      grantedBy: null,
-      personId: ada.id,
-      until: DateTime.makeUnsafe("2099-12-31T23:59:59Z"),
-    });
+    yield* asPerson(ada.id, (locked) =>
+      grants.create(locked, {
+        grantedBy: null,
+        until: DateTime.makeUnsafe("2099-12-31T23:59:59Z"),
+      })
+    );
   }
 
   yield* join(lise, recruitment, "Leder", thisTerm);

@@ -1,14 +1,19 @@
-/** Single-use code persistence; every use is a conditional update. */
+/**
+ * Single-use code persistence. A code belongs to its subject (spec 0006b): a write takes the subject's `Locked` token,
+ * and every use is a conditional update with one winner.
+ */
 import {
   CodeHash,
   CodePurpose,
   CodeRepository,
   PersonId,
 } from "@vektorprogrammet/domain";
-import type { Code } from "@vektorprogrammet/domain";
+import type { Code, Locked } from "@vektorprogrammet/domain";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { DateTime, Effect, Layer, Schema } from "effect";
 
+import { Aggregates } from "../aggregate/aggregates.ts";
+import { roots } from "../aggregate/declaration.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
 import { code } from "../schema.ts";
 
@@ -26,6 +31,7 @@ export const CodeRepositoryLive = Layer.effect(
   CodeRepository,
   Effect.gen(function* CodeRepositoryLive() {
     const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
 
     const findUsable = Effect.fn("CodeRepository.findUsable")(
       function* findUsable(
@@ -49,45 +55,41 @@ export const CodeRepositoryLive = Layer.effect(
     );
 
     const replace = Effect.fn("CodeRepository.replace")(function* replace(
-      value: Code
+      locked: Locked,
+      value: Pick<Code, "expiresAt" | "hash" | "purpose">
     ) {
-      yield* db
-        .insert(code)
-        .values({
-          expiresAt: DateTime.toDateUtc(value.expiresAt),
-          hash: value.hash,
-          purpose: value.purpose,
-          subject: value.subject,
-          usedAt:
-            value.usedAt === null ? null : DateTime.toDateUtc(value.usedAt),
-        })
-        .onConflictDoUpdate({
-          set: {
-            expiresAt: DateTime.toDateUtc(value.expiresAt),
-            hash: value.hash,
-            usedAt: null,
-          },
-          target: [code.purpose, code.subject],
-        })
+      const expiresAt = DateTime.toDateUtc(value.expiresAt);
+
+      yield* aggregates
+        .insert(
+          locked,
+          roots.Person.owned.code,
+          { expiresAt, hash: value.hash, purpose: value.purpose, usedAt: null },
+          {
+            action: "replace",
+            set: { expiresAt, hash: value.hash, usedAt: null },
+            target: [code.purpose, code.subject],
+          }
+        )
         .pipe(Effect.orDie);
     });
 
     const consume = Effect.fn("CodeRepository.consume")(function* consume(
-      request: Parameters<CodeRepository["Service"]["consume"]>[0]
+      locked: Locked,
+      request: Parameters<CodeRepository["Service"]["consume"]>[1]
     ) {
-      const rows = yield* db
-        .update(code)
-        .set({ usedAt: DateTime.toDateUtc(request.now) })
-        .where(
-          and(
+      const now = DateTime.toDateUtc(request.now);
+
+      const rows = yield* aggregates
+        .update(locked, roots.Person.owned.code, {
+          set: { usedAt: now },
+          where: and(
             eq(code.hash, request.hash),
             eq(code.purpose, request.purpose),
-            eq(code.subject, request.subject),
             isNull(code.usedAt),
-            gt(code.expiresAt, DateTime.toDateUtc(request.now))
-          )
-        )
-        .returning({ hash: code.hash })
+            gt(code.expiresAt, now)
+          ),
+        })
         .pipe(Effect.orDie);
 
       return rows.length === 1;

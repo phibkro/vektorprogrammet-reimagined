@@ -1,5 +1,4 @@
-import type { Exit } from "effect";
-import { Deferred, Effect } from "effect";
+import { Array as Arr, Cause, Deferred, Effect, Exit } from "effect";
 
 /** Release all effects from one gate and collect their exits. */
 export const race = <A, E, R>(
@@ -20,3 +19,15 @@ export const race = <A, E, R>(
 
     return exits;
   });
+
+/** What a failed race prints: each loser's full Cause, with the SQLSTATE and the reason of a SQL defect. */
+export const raceReport = <A, E>(
+  round: number,
+  exits: readonly Exit.Exit<A, E>[]
+): string =>
+  `round ${round}:\n${Arr.join(
+    Arr.map(Arr.filter(exits, Exit.isFailure), (failure) =>
+      Cause.pretty(failure.cause)
+    ),
+    "\n\n"
+  )}`;

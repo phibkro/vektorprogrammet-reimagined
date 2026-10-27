@@ -122,7 +122,7 @@ export const AccountRpc = RpcGroup.make(
   updateProfile
 );
 
-/** Facts checked before a state change; the repository rechecks the last-admin invariant atomically. */
+/** Facts checked before a state change; the command reads them through the locks of the people involved. */
 export const AccountTransition = Schema.Struct({
   actorId: Schema.NullOr(PersonId),
   lastActiveAdmin: Schema.Boolean,
@@ -199,6 +199,10 @@ export const AccountMachine = Machine.make({
     },
   ],
 });
+
+/** One transition of the Account machine: what a repository applies to a stored account. */
+export type AccountMachineTransition =
+  (typeof AccountMachine)["transitions"][number];
 
 export const AccountDomain = declareDomain({
   commands: AccountRpc,
