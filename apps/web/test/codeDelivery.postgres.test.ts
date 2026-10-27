@@ -10,6 +10,7 @@ import {
   CodeToken,
   CurrentPrincipal,
   DepartmentId,
+  OutboxMessageId,
   PersonId,
   Principal,
   SiteOrigin,
@@ -19,7 +20,9 @@ import {
 } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
+  Cause,
   Effect,
+  Exit,
   Layer,
   Option,
   Predicate,
@@ -27,6 +30,7 @@ import {
   Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+import { TestClock } from "effect/testing";
 
 import { accountDeliveryLayer } from "../src/server/accountDelivery";
 import { authLayer } from "../src/server/auth";
@@ -124,6 +128,72 @@ const latestToken = Effect.gen(function* latestToken() {
   return CodeToken.make(found?.groups?.token ?? "");
 }).pipe(Effect.orDie);
 
+/**
+ * Makes a delivered message due again on the application's clock. The delivery compares `next_attempt_at`
+ * with `Clock` (whole milliseconds); PostgreSQL's `now()` has microseconds, so a row made due by `now()`
+ * is up to a millisecond ahead of the claim and is skipped (issue #21). `created_at` was written by the
+ * same `Clock` and is never later than the next claim.
+ */
+const requeue = Effect.fnUntraced(function* requeue(id: OutboxMessageId) {
+  const sql = yield* SqlClient;
+  yield* sql`update outbox set status = 'pending', delivered_at = null, next_attempt_at = created_at where id = ${Number(id)}`;
+});
+
+const ROUNDS = 1000;
+const LEADER = 301;
+
+const leaderPrincipal = Principal.cases.Person.make({
+  memberships: [
+    {
+      departmentId: DepartmentId.make(LEADER),
+      function: "recruitment",
+      leader: true,
+      teamId: TeamId.make(LEADER),
+    },
+  ],
+  personId: PersonId.make(LEADER),
+});
+
+const idRows = Schema.Array(Schema.Struct({ id: Schema.Finite }));
+
+/** Fresh state per round: a new Invited person and the one IssueCode message that invitation committed. */
+const invite = (personId: number) =>
+  Effect.gen(function* invitePerson() {
+    const sql = yield* SqlClient;
+    const email = `invitee${personId}@example.org`;
+    yield* sql`insert into person (id, name, email, field_of_study_id) values (${personId}, 'Invitee', ${email}, ${LEADER})`;
+    yield* transactional(
+      AccountEndpoints.invite({ personId }).pipe(
+        Effect.provideService(CurrentPrincipal, leaderPrincipal)
+      )
+    );
+
+    const [row] = yield* Schema.decodeUnknownEffect(idRows)(
+      yield* sql`select id from outbox where kind = 'IssueCode' and payload->>'personId' = ${String(personId)}`
+    );
+
+    return OutboxMessageId.make(String(row?.id));
+  }).pipe(Effect.orDie);
+
+/** Both retry tests share one leader; whichever runs first seeds it. */
+const seedLeader = Effect.gen(function* seedLeader() {
+  const sql = yield* SqlClient;
+  yield* sql`insert into department (id, city, email, name, short_name) values (${LEADER}, 'Retryby', 'retry@example.org', 'Retry', 'RET') on conflict do nothing`;
+  yield* sql`insert into field_of_study (id, department_id, name, short_name) values (${LEADER}, ${LEADER}, 'Retry', 'RET') on conflict do nothing`;
+  yield* sql`insert into person (id, name, email, field_of_study_id) values (${LEADER}, 'Leader', 'retryleader@example.org', ${LEADER}) on conflict do nothing`;
+}).pipe(Effect.orDie);
+
+/** One invite, delivery, requeue and retried delivery; both deliveries must record. */
+const retriedRound = (personId: number) =>
+  Effect.gen(function* deliverTwice() {
+    const id = yield* invite(personId);
+    const [first] = yield* deliverOutbox({ ids: [id], limit: 1 });
+    assert.strictEqual(first?.outcome, "delivered");
+    yield* requeue(id);
+    const [retry] = yield* deliverOutbox({ ids: [id], limit: 1 });
+    assert.strictEqual(retry?.outcome, "delivered");
+  });
+
 layer(live, { excludeTestServices: true })(
   "spec 0007: redacted outbox delivery",
   (it) => {
@@ -168,7 +238,8 @@ layer(live, { excludeTestServices: true })(
           assert.deepStrictEqual(leaked(yield* snapshot, token1), []);
 
           // Simulate the same message being retried after a crash; a new code replaces the old one.
-          yield* sql`update outbox set status = 'pending', delivered_at = null, next_attempt_at = now() where kind = 'IssueCode'`;
+          assert.isDefined(first);
+          yield* requeue(first.id);
           const [retry] = yield* deliverOutbox({ limit: 10 });
           assert.strictEqual(retry?.outcome, "delivered");
           const token2 = yield* latestToken;
@@ -221,6 +292,56 @@ layer(live, { excludeTestServices: true })(
               leaked(yield* snapshot, token2),
               (column) => column.field === "scan_fixture.captured_mail.content"
             )
+          );
+        })
+    );
+
+    // Spec 0007 R14. The old reset (`next_attempt_at = now()`) lost about 1 round in 100 to 1 in 250; with
+    // that reset this test failed in 7 of 8 runs of these rounds. The next test pins the cause exactly.
+    it.effect(
+      `a requeued code message is delivered again in each of ${ROUNDS} fresh rounds`,
+      () =>
+        Effect.gen(function* retryRounds() {
+          yield* seedLeader;
+
+          const exits = yield* Effect.forEach(
+            Arr.range(0, ROUNDS - 1),
+            (round) => Effect.exit(retriedRound(1000 + round))
+          );
+
+          const losers = Arr.flatMap(exits, (exit, round) =>
+            Exit.isFailure(exit)
+              ? [`round ${round}: ${Cause.pretty(exit.cause)}`]
+              : []
+          );
+
+          assert.deepStrictEqual(losers, []);
+        }),
+      { timeout: 120_000 }
+    );
+
+    it.effect(
+      "the claim does not take a row due a fraction of a millisecond after the application clock",
+      () =>
+        Effect.gen(function* subMillisecondDue() {
+          const sql = yield* SqlClient;
+          yield* seedLeader;
+          const id = yield* invite(900);
+          yield* sql`update outbox set next_attempt_at = '2027-01-15T08:00:00.0005Z'::timestamptz where id = ${Number(id)}`;
+
+          const attempts = yield* Effect.gen(function* claimAt() {
+            yield* TestClock.setTime(Date.parse("2027-01-15T08:00:00.000Z"));
+            const early = yield* deliverOutbox({ ids: [id], limit: 1 });
+            yield* TestClock.setTime(Date.parse("2027-01-15T08:00:00.001Z"));
+            const due = yield* deliverOutbox({ ids: [id], limit: 1 });
+
+            return { due, early };
+          }).pipe(Effect.provide(TestClock.layer()));
+
+          assert.deepStrictEqual(attempts.early, []);
+          assert.deepStrictEqual(
+            Arr.map(attempts.due, (row) => row.outcome),
+            ["delivered"]
           );
         })
     );

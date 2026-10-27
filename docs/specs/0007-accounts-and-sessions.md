@@ -132,3 +132,7 @@ The plaintext scan traverses text and JSON columns in every non-system database 
 ### R13 (2026-10-27): Effect and Drizzle upgrade
 
 Spec 0007 is rebased on the Effect 4.0.6 family and final Drizzle 1.0.0-rc.5. The account migration's snapshot is upgraded with `drizzle-kit up` to version 9; its SQL and the earlier migrations are unchanged. The account-specific Effect exception records are re-examined against 4.0.6. The upgrade changes no account behaviour.
+
+### R14 (2026-10-27): code delivery test requeues on the application clock (issue #21)
+
+`codeDelivery.postgres.test.ts` made a delivered message due again with PostgreSQL's `now()`. Delivery compares `next_attempt_at` with Effect's `Clock`, which reads whole milliseconds, while `now()` has microseconds. When the claim ran in the same millisecond as the update, the row was due a fraction of a millisecond after the claim's clock and `claimDue` returned no row, so the retried delivery had no outcome (`expected undefined to equal 'delivered'`, about 1 round in 100 to 250 in isolation). Delivery and the outbox repository were correct: they never read the database clock. The test now requeues with `next_attempt_at = created_at` (written by the same `Clock`). Two tests keep the cause visible: 1000 fresh invite, deliver, requeue, deliver rounds that print each loser's Cause, and a `TestClock` test that a row due 0.5 ms after the clock's millisecond is not claimed and is claimed at the next.
