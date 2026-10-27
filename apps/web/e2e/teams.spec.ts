@@ -13,6 +13,7 @@ import {
   sheetOf,
   sidebarOf,
   signInAs,
+  registerPerson,
   submitSheet,
   textOf,
 } from "./support/panel.ts";
@@ -26,13 +27,9 @@ const END = "Einar Avslutter";
 const memberRow = (page: Page, name: string) =>
   page.getByRole("row").filter({ hasText: name });
 
-/** Register a person in the imported first department. */
+/** Register a person in the imported first department, and wait until the page lists them. */
 const register = async (page: Page, name: string, email: string) => {
-  await page.getByRole("button", { name: "Registrer person" }).click();
-  await fillSheet(page, { "E-post": email, Navn: name });
-  await sheetOf(page).getByLabel("Linje").selectOption("1");
-  expect(await submitSheet(page, "Registrer")).toBe(200);
-  await expect(sheetOf(page)).toBeHidden();
+  await registerPerson(page, name, email);
   await expect(memberRow(page, name)).toBeVisible();
 };
 
