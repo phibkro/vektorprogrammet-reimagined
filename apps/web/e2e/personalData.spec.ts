@@ -28,6 +28,7 @@ import {
   sheetOf,
   signIn,
   signInAs,
+  statusOfClick,
   submitSheet,
 } from "./support/panel.ts";
 import {
@@ -43,6 +44,8 @@ import {
 
 const NORA = "nora.nybegynner@example.org";
 const EVA = "eva.ekstern@example.org";
+const ADA = "ada.admin@example.org";
+const SOFIE = "sofie.styre@example.org";
 
 /** What a downloaded file holds that these tests read: whose it is and its rows by table. */
 const ExportFile = Schema.Struct({
@@ -167,6 +170,46 @@ test("a signed-in person answers both questions on Min side and downloads their 
   expect(text).not.toMatch(/\$2[aby]\$/u);
   // One audit row for each of the two exports.
   expect(await runDatabase(auditEntryCount)).toBe(audited + 2);
+});
+
+test("an administrator's Min side answers only for themself: a person id forged into the form is refused, and nothing is written for the other person", async ({
+  page,
+}) => {
+  const origin = originOf();
+  await signIn(page, origin, ADA, LOCAL_FAKE_PASSWORD);
+  await openPage(page, `${origin}/min-side`);
+
+  const other = await runDatabase(personIdOf(SOFIE));
+  const keep = question(page, KEEP);
+  const yes = keep.getByRole("button", { exact: true, name: "Ja" });
+
+  // As a person with the browser's developer tools would: the form is the administrator's own, and the person id in it
+  // is another person's. The grant table admits an administrator for every person, so only the command can refuse it.
+  await yes
+    .locator("xpath=ancestor::form")
+    .locator('input[name="personId"]')
+    .evaluate((input: HTMLInputElement, forged: string) => {
+      input.value = forged;
+    }, String(other));
+
+  expect(await statusOfClick(page, yes)).toBe(403);
+  await expect(keep.getByRole("alert")).toContainText(
+    "Du har ikke tilgang til dette."
+  );
+  expect(await runDatabase(consentsOf(SOFIE))).toEqual([]);
+
+  // The same click in the administrator's own form is allowed: the refusal is about whose answer it is.
+  await openPage(page, `${origin}/min-side`);
+  expect(await statusOfClick(page, yes)).toBe(200);
+  await expect(keep).toContainText("Svaret ditt nå: Ja");
+
+  expect(await runDatabase(consentsOf(ADA))).toContainEqual({
+    kind: "keepDetails",
+    textVersion: 1,
+    withdrawn: false,
+  });
+
+  expect(await runDatabase(consentsOf(SOFIE))).toEqual([]);
 });
 
 test("the link of the alumni e-mail answers without signing in, answers again, and a wrong code answers nothing", async ({

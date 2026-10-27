@@ -68,6 +68,23 @@ const SAME_PERSON = "Velg to forskjellige personer.";
 const GONE =
   "En av personene finnes ikke, eller er allerede slått sammen med en annen.";
 
+/**
+ * `Self` is the only grant that spec 0007b R1 gives `setAlumniConsent` and `exportMyData`, but the kernel's one `Admin`
+ * row names every command that a person may run, at scope `all`, so the grant table alone lets an administrator answer
+ * for someone else (a current `keepDetails` makes the organisation keep the person's core longer: R3 item 27) or
+ * download someone else's whole record. A consent is the person's own statement (GDPR Art. 7(1)), and no grant row can
+ * say "only themself" for an administrator, so these two handlers refuse every principal that is not the person, as
+ * `setPhoto` does for the consent that a photo needs.
+ */
+const onlyThePerson = (
+  principal: Principal,
+  personId: PersonId,
+  command: "exportMyData" | "setAlumniConsent"
+) =>
+  personOf(principal) === personId
+    ? Effect.void
+    : Effect.fail(PersonalDataDomain.forbidden(command));
+
 /** A record already says what this answer says, for the text that is current: nothing to write. */
 const alreadyAnswered = (
   previous: StoredConsent | undefined,
@@ -261,6 +278,7 @@ export const PersonalDataHandlers = PersonalDataRpc.toLayer({
     resource: ({ personId }) => Effect.succeed({ personId }),
     run: ({ personId }, principal) =>
       Effect.gen(function* exportPersonData() {
+        yield* onlyThePerson(principal, personId, "exportMyData");
         yield* InTransaction;
         // The person must exist: an export of nobody is not an empty file.
         yield* (yield* PersonRepository).findById(personId);
@@ -403,7 +421,14 @@ export const PersonalDataHandlers = PersonalDataRpc.toLayer({
   setAlumniConsent: PersonalDataDomain.handle(setAlumniConsent, {
     resource: ({ personId }) => Effect.succeed({ personId }),
     run: ({ keepDetails, news, personId }, principal) =>
-      recordAnswers(principal, personId, { keepDetails, news }),
+      Effect.gen(function* answerForThePerson() {
+        yield* onlyThePerson(principal, personId, "setAlumniConsent");
+
+        return yield* recordAnswers(principal, personId, {
+          keepDetails,
+          news,
+        });
+      }),
   }),
   setPhoto: PersonalDataDomain.handle(setPhoto, {
     resource: ({ personId }) =>

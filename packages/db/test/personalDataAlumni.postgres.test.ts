@@ -10,6 +10,7 @@ import { assert, layer } from "@effect/vitest";
 import {
   CodeRepository,
   CurrentPrincipal,
+  Forbidden,
   PersonId,
   PersonalDataEndpoints,
   alumniConsentJob,
@@ -17,15 +18,22 @@ import {
   mintCode,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
+import type { Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Exit, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
-import { runAs, selfPrincipal } from "./support/personalDataActors.ts";
+import { failedWith } from "./support/failures.ts";
+import {
+  adminPrincipal,
+  runAs,
+  selfPrincipal,
+} from "./support/personalDataActors.ts";
 import { nothing, seedPerson } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
+import { describeExit } from "./support/race.ts";
 import { snapshot } from "./support/snapshot.ts";
 import { asPerson } from "./support/teamsWorld.ts";
 
@@ -54,6 +62,17 @@ const memberOf = (who: Seeded, start: Term, end: Term = start) =>
     (sql) =>
       sql`insert into membership (end_term, end_year, person_id, position_id, start_term, start_year, team_id)
         values (${end[0]}, ${end[1]}, ${who.personId}, ${who.positionId}, ${start[0]}, ${start[1]}, ${who.teamId})`
+  );
+
+/** `actor` answers the alumni boxes of `personId` through Min side's command, in a transaction of its own. */
+const answerFor = (
+  actor: Principal,
+  personId: number,
+  payload: { readonly keepDetails?: boolean; readonly news?: boolean }
+) =>
+  runAs(
+    actor,
+    PersonalDataEndpoints.setAlumniConsent({ personId, ...payload })
   );
 
 const issuedFor = Effect.fnUntraced(function* issuedFor() {
@@ -274,6 +293,76 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
             "consent.withdrawn",
             "consent.given",
             "consent.withdrawn",
+          ]);
+        })
+    );
+
+    it.effect(
+      "only the person answers for themselves: an administrator who posts another person's id is refused as Forbidden, whatever the answer, and nothing is written; the administrator's own answer and the person's own are allowed",
+      () =>
+        Effect.gen(function* onlyTheirOwn() {
+          yield* at(NOW);
+
+          const admin = yield* seedPerson(
+            "ownadmin",
+            { ...nothing, account: true, grant: true },
+            NOW
+          );
+
+          const alma = yield* seedPerson("ownalma", nothing, NOW);
+
+          // The grant table admits the administrator: its one `Admin` row names every command of a person, at scope `all`.
+          // Only the handler can say that a consent is the person's own, and a "yes" to `keepDetails` is the answer that
+          // makes the organisation keep the person's core longer, so each answer, a withdrawal too, is tried.
+          const before = yield* snapshot;
+
+          for (const [label, payload] of [
+            ["keepDetails yes", { keepDetails: true }],
+            ["keepDetails no", { keepDetails: false }],
+            ["news yes", { news: true }],
+            ["news no", { news: false }],
+          ] as const) {
+            const refused = yield* Effect.exit(
+              answerFor(adminPrincipal(admin.personId), alma.personId, payload)
+            );
+
+            assert.isTrue(
+              failedWith(refused, Forbidden),
+              `${label}: ${describeExit(refused)}`
+            );
+          }
+
+          // No consent row, no audit row, nothing: the refusal is before the first lock.
+          assert.deepStrictEqual(yield* snapshot, before);
+          assert.deepStrictEqual(yield* recordsOf(alma.personId), []);
+
+          // Control: the same call with one thing changed, whose answer it is. The administrator's own is allowed, and
+          // writes a record for the administrator and for nobody else.
+          const own = yield* answerFor(
+            adminPrincipal(admin.personId),
+            admin.personId,
+            { keepDetails: true }
+          );
+
+          assert.strictEqual(own.keepDetails, "yes");
+
+          assert.deepStrictEqual(yield* recordsOf(admin.personId), [
+            record("keepDetails", NOW),
+          ]);
+
+          assert.deepStrictEqual(yield* recordsOf(alma.personId), []);
+
+          // Control: the person's own answer is allowed, and its audit row says that it was given.
+          const hers = yield* answerFor(
+            selfPrincipal(alma.personId),
+            alma.personId,
+            { keepDetails: true }
+          );
+
+          assert.strictEqual(hers.keepDetails, "yes");
+
+          assert.deepStrictEqual(yield* auditActions(alma.personId), [
+            "consent.given",
           ]);
         })
     );

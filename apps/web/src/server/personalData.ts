@@ -2,11 +2,10 @@
  * The web side of personal data (spec 0007b): the form text of each command, the file that `exportMyData` makes and the
  * message that an erasure answers with. The rules, the texts and the commands are the domain's; nothing here decides.
  */
-import type { PersonalDataRpcs } from "@vektorprogrammet/domain";
 import {
   CurrentPrincipal,
-  Forbidden,
   PersonalDataEndpoints,
+  PersonalDataRpcs,
   PersonExport,
   personOf,
 } from "@vektorprogrammet/domain";
@@ -112,7 +111,7 @@ export const exportOwnFile = Effect.gen(function* exportOwnFile() {
   const personId = personOf(yield* CurrentPrincipal);
 
   if (personId === null) {
-    return yield* new Forbidden({ command: "exportMyData" });
+    return yield* PersonalDataRpcs.PersonalDataDomain.forbidden("exportMyData");
   }
 
   const exported = yield* PersonalDataEndpoints.exportMyData({ personId });

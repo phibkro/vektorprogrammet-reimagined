@@ -88,6 +88,7 @@ export const setAlumniConsent = Rpc.make("setAlumniConsent", {
   Info,
   info({
     method: ":set",
+    note: "Only the person themself can answer: an administrator's grant does not reach this command, and the handler refuses it, because a consent is the person's own statement.",
     resource: "Consent",
     summary:
       "Answer the alumni questions on Min side: keep my details for 5 years, and send me alumni news.",
@@ -119,7 +120,7 @@ export const exportMyData = Rpc.make("exportMyData", {
   Info,
   info({
     method: ":export",
-    note: "Audited. It changes no data.",
+    note: "Audited. It changes no data. Only the person themself can download it: an administrator's grant does not reach this command, and the handler refuses it.",
     resource: "Person",
     summary:
       "Download everything held about a person as JSON (GDPR Art. 15, 20).",

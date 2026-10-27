@@ -4,7 +4,7 @@
  * and the answers that the pages show.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Forbidden } from "@vektorprogrammet/domain";
+import { PersonalDataRpcs } from "@vektorprogrammet/domain";
 import { DateTime, Effect, Record as Rec } from "effect";
 
 import { success } from "../src/lib/outcome";
@@ -105,7 +105,9 @@ describe("spec 0007b: the download", () => {
         );
 
         const refused = exportResponse(
-          failureOf(new Forbidden({ command: "exportMyData" }))
+          failureOf(
+            PersonalDataRpcs.PersonalDataDomain.forbidden("exportMyData")
+          )
         );
 
         assert.strictEqual(refused.status, 403);

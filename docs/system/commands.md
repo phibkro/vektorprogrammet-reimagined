@@ -49,7 +49,7 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | `createPerson` | `create` | teams | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin |
 | `updatePerson` | `update` | accounts | Update a person's profile. | Leader(d); Self; Admin |
 | `setPhoto` | `:set` | personalData | Set a person's photo under their consent, or remove it. A photo is stored only under a current photo consent; withdrawing the consent removes it. | Self; Leader(d); Admin |
-| `exportMyData` | `:export` | personalData | Download everything held about a person as JSON (GDPR Art. 15, 20). Audited. It changes no data. | Self; Admin |
+| `exportMyData` | `:export` | personalData | Download everything held about a person as JSON (GDPR Art. 15, 20). Audited. It changes no data. Only the person themself can download it: an administrator's grant does not reach this command, and the handler refuses it. | Self; Admin |
 | `erasePerson` | `:erase` | personalData | Anonymise a person's core fields and delete their account, sessions, consents and subscriptions. The history rows stay (GDPR Art. 17). Refused, with the reason, while a legal hold applies and when it would remove the last Active admin. A second call changes nothing. | Self; Admin |
 | `mergePersons` | `:merge` | personalData | Merge two records of one person: every row of the second follows the first, and the second becomes a tombstone without personal data. Refused with a typed conflict, and nothing changes, when both records have an account or when two memberships in one team would overlap. | Admin |
 
@@ -94,7 +94,7 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
-| `setAlumniConsent` | `:set` | personalData | Answer the alumni questions on Min side: keep my details for 5 years, and send me alumni news. | Self; Admin |
+| `setAlumniConsent` | `:set` | personalData | Answer the alumni questions on Min side: keep my details for 5 years, and send me alumni news. Only the person themself can answer: an administrator's grant does not reach this command, and the handler refuses it, because a consent is the person's own statement. | Self; Admin |
 | `answerAlumniConsent` | `:answer` | personalData | Answer the alumni questions with the code from the e-mail. The code lives 60 days and can be used again, so an answer can be corrected; it never opens another command. | Holder(alumniConsent) |
 | `sendAlumniConsent` | `:send` | personalData | When a person's last engagement ends, e-mail them the two alumni questions once. One request per person and engagement end. | System(alumniConsent) |
 

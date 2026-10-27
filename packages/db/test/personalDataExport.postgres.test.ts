@@ -8,11 +8,10 @@
 import { assert, layer } from "@effect/vitest";
 import {
   Catalog,
-  CurrentPrincipal,
+  Forbidden,
   PersonId,
   PersonalDataEndpoints,
   PersonalDataStore,
-  Principal,
   excludedTables,
   exportedTables,
 } from "@vektorprogrammet/domain";
@@ -27,26 +26,32 @@ import {
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
+import { failedWith } from "./support/failures.ts";
 import { encodeJson } from "./support/json.ts";
-import { Holdings, everything, seedPerson } from "./support/personData.ts";
+import {
+  adminPrincipal,
+  countWhere,
+  runAs,
+  selfPrincipal,
+} from "./support/personalDataActors.ts";
+import {
+  Holdings,
+  everything,
+  nothing,
+  seedPerson,
+} from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
+import { describeExit } from "./support/race.ts";
+import { snapshot } from "./support/snapshot.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
 
 /** A person exports their own data: signed in, with no admin place. */
-const selfPrincipal = (personId: number) =>
-  Principal.cases.Person.make({
-    memberships: [],
-    personId: PersonId.make(personId),
-  });
-
 const exportAs = (personId: number) =>
-  transactional(
-    PersonalDataEndpoints.exportMyData({ personId }).pipe(
-      Effect.provideService(CurrentPrincipal, selfPrincipal(personId))
-    )
+  runAs(
+    selfPrincipal(personId),
+    PersonalDataEndpoints.exportMyData({ personId })
   );
 
 const exportOf = (personId: number) =>
@@ -216,6 +221,57 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const exit = yield* Effect.exit(exportAs(2_000_000));
 
           assert.isTrue(Exit.isFailure(exit));
+        })
+    );
+
+    it.effect(
+      "only the person downloads their data: an administrator who asks for another person's is refused as Forbidden and nothing is written; the person's own download and the administrator's own are allowed, and audited",
+      () =>
+        Effect.gen(function* onlyTheirOwn() {
+          const admin = yield* seedPerson(
+            "exadmin",
+            { ...nothing, account: true, grant: true },
+            NOW
+          );
+
+          const ola = yield* seedPerson("exother", everything, NOW);
+
+          // The grant table admits the administrator (its one `Admin` row names every command of a person, at scope
+          // `all`); the handler says that the file is the person's own.
+          const before = yield* snapshot;
+
+          const refused = yield* Effect.exit(
+            runAs(
+              adminPrincipal(admin.personId),
+              PersonalDataEndpoints.exportMyData({ personId: ola.personId })
+            )
+          );
+
+          assert.isTrue(failedWith(refused, Forbidden), describeExit(refused));
+
+          // Not even the audit row of a download: the refusal is before the first statement.
+          assert.deepStrictEqual(yield* snapshot, before);
+
+          // Controls: the same call for the person's own data, by the person and by the administrator.
+          assert.strictEqual(
+            (yield* exportAs(ola.personId)).personId,
+            ola.personId
+          );
+
+          const adminsOwn = yield* runAs(
+            adminPrincipal(admin.personId),
+            PersonalDataEndpoints.exportMyData({ personId: admin.personId })
+          );
+
+          assert.strictEqual(adminsOwn.personId, admin.personId);
+
+          assert.strictEqual(
+            yield* countWhere(
+              "audit_log",
+              `action = 'person.exported' and entity_key in ('${ola.personId}', '${admin.personId}')`
+            ),
+            2
+          );
         })
     );
   }

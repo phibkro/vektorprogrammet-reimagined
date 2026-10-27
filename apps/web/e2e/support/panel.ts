@@ -116,7 +116,10 @@ const isServerFunctionPost = (response: Response): boolean =>
  * Clicks `button` and returns the HTTP status of the server function that click called: the refusals in the
  * specs are asserted on the status the server sent, not only on the message the page shows.
  */
-const statusOfClick = async (page: Page, button: Locator): Promise<number> => {
+export const statusOfClick = async (
+  page: Page,
+  button: Locator
+): Promise<number> => {
   const [response] = await Promise.all([
     page.waitForResponse(isServerFunctionPost),
     button.click(),
