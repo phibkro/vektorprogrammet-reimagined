@@ -124,3 +124,7 @@ Cloudflare exposes Worker bindings at module load through `cloudflare:workers`. 
 ### R11 (2026-10-27): serialize Person account decisions
 
 In preparation for spec 0006b's aggregate lock, Account commands concerning an identified person and code delivery take a `FOR NO KEY UPDATE` lock on the Person inside their transaction before final state decisions and guarded writes. Reset requests first identify a candidate, then recheck its private address and Active state after taking the lock. Account and Code writes each have one repository module, and Account state updates remain conditional. A 100-round PostgreSQL test proves the lock is held to transaction completion; the code-use and last-admin races run 300 rounds each.
+
+### R12 (2026-10-27): scan all application schemas
+
+The plaintext scan traverses text and JSON columns in every non-system database schema, including the migration schema; only `public.captured_mail` is excluded. A negative control places a code in a same-named table in another schema and proves it is detected. PostgreSQL's system catalogs are not application tables.

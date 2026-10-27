@@ -58,7 +58,11 @@ const live = Layer.unwrap(
 ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
 
 const columns = Schema.Array(
-  Schema.Struct({ column_name: Schema.String, table_name: Schema.String })
+  Schema.Struct({
+    column_name: Schema.String,
+    table_name: Schema.String,
+    table_schema: Schema.String,
+  })
 );
 
 const values = Schema.Array(
@@ -70,24 +74,24 @@ const mail = Schema.Struct({ text: Schema.String });
 const quote = (identifier: string): string =>
   `"${identifier.replaceAll('"', '""')}"`;
 
-/** The capture mailbox alone must retain the delivered link; every other table is scanned. */
+/** Only public.captured_mail retains a link. Scan every non-system schema, including Drizzle's. */
 const snapshot = Effect.gen(function* snapshot() {
   const sql = yield* SqlClient;
 
   const fields = yield* Schema.decodeUnknownEffect(columns)(
-    yield* sql`select c.table_name, c.column_name from information_schema.columns c join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name where c.table_schema = 'public' and t.table_type = 'BASE TABLE' and c.data_type in ('text', 'character varying', 'character', 'json', 'jsonb') and c.table_name <> 'captured_mail' order by c.table_name, c.ordinal_position`
+    yield* sql`select c.table_schema, c.table_name, c.column_name from information_schema.columns c join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name where c.table_schema !~ '^pg_' and c.table_schema <> 'information_schema' and t.table_type = 'BASE TABLE' and c.data_type in ('text', 'character varying', 'character', 'json', 'jsonb') and (c.table_schema, c.table_name) <> ('public', 'captured_mail') order by c.table_schema, c.table_name, c.ordinal_position`
   );
 
   return yield* Effect.forEach(fields, (field) =>
     Effect.gen(function* readColumn() {
       const rows = yield* sql.unsafe(
-        `select ${quote(field.column_name)}::text as value from public.${quote(field.table_name)}`
+        `select ${quote(field.column_name)}::text as value from ${quote(field.table_schema)}.${quote(field.table_name)}`
       );
 
       const decoded = yield* Schema.decodeUnknownEffect(values)(rows);
 
       return {
-        field: `${field.table_name}.${field.column_name}`,
+        field: `${field.table_schema}.${field.table_name}.${field.column_name}`,
         values: Arr.flatMap(decoded, (row) =>
           row.value === null ? [] : [row.value]
         ),
@@ -128,6 +132,9 @@ layer(live, { excludeTestServices: true })(
       () =>
         Effect.gen(function* codeDeliveryScan() {
           const sql = yield* SqlClient;
+          // A same-named table in another application schema is not the capture sink.
+          yield* sql`create schema scan_fixture`;
+          yield* sql`create table scan_fixture.captured_mail (content text)`;
           yield* sql`insert into department (id, city, email, name, short_name) values (201, 'Mailby', 'mail@example.org', 'Mail', 'MAI')`;
           yield* sql`insert into field_of_study (id, department_id, name, short_name) values (201, 201, 'Mail', 'MAI')`;
           yield* sql`insert into person (id, name, email, field_of_study_id) values (201, 'Leader', 'leader@example.org', 201), (202, 'Invitee', 'invitee@example.org', 201)`;
@@ -204,7 +211,15 @@ layer(live, { excludeTestServices: true })(
           assert.isTrue(
             Arr.some(
               leaked(yield* snapshot, token2),
-              (column) => column.field === "outbox.payload"
+              (column) => column.field === "public.outbox.payload"
+            )
+          );
+          // A leak outside public, even in a table named captured_mail, is also detected.
+          yield* sql`insert into scan_fixture.captured_mail (content) values (${token2})`;
+          assert.isTrue(
+            Arr.some(
+              leaked(yield* snapshot, token2),
+              (column) => column.field === "scan_fixture.captured_mail.content"
             )
           );
         })
