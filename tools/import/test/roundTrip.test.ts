@@ -450,36 +450,66 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           assert.isFalse(yield* fs.exists(`${reportDir}/reconciliation.json`));
         })
     );
-    it.effect(
-      "spec 0007 R8: replacement refuses an account-bearing target without changing its rows",
-      () =>
-        Effect.gen(function* preserveAccounts() {
-          yield* importOnce(Option.none());
-          yield* queryTarget(
-            (sql) =>
-              sql`insert into person (name, email, field_of_study_id) select 'Fake Account', 'protected@example.org', id from field_of_study order by id limit 1`
-          );
-          yield* queryTarget(
-            (sql) =>
-              sql`insert into account (person_id, state) select id, 'Active' from person where email = 'protected@example.org'`
-          );
-          const before = yield* dumpTarget;
-          const failed = yield* Effect.flip(importOnce(Option.none()));
-          assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
 
-          if (Predicate.isTagged(failed, "TargetWriteError")) {
-            assert.strictEqual(failed.step, "protect accounts");
-          }
+    type Statement<A> = (sql: PgClient.PgClient) => Effect.Effect<A, SqlError>;
 
-          assert.strictEqual(yield* dumpTarget, before);
+    /** What a replacement must refuse to destroy, because the importer cannot restore it: how to make it, read it, drop it. */
+    const unrestorable: readonly {
+      readonly held: string;
+      readonly make: Statement<unknown>;
+      readonly read: Statement<readonly unknown[]>;
+      readonly drop: Statement<unknown>;
+    }[] = [
+      {
+        drop: (sql) =>
+          sql`delete from account where person_id in (select id from person where email = 'protected@example.org')`,
+        held: "an account",
+        make: (sql) =>
+          sql`insert into account (person_id, state) select id, 'Active' from person where email = 'protected@example.org'`,
+        read: (sql) =>
+          sql`select p.email, a.state from person p join account a on a.person_id = p.id where p.email = 'protected@example.org'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from consent where person_id in (select id from person where email = 'protected@example.org')`,
+        held: "a consent",
+        make: (sql) =>
+          sql`insert into consent (given_at, kind, person_id, text_version) select now(), 'news', id, 1 from person where email = 'protected@example.org'`,
+        read: (sql) =>
+          sql`select p.email, c.kind from person p join consent c on c.person_id = p.id where p.email = 'protected@example.org'`,
+      },
+    ];
 
-          const protectedRows = yield* queryTarget(
-            (sql) =>
-              sql`select p.email, a.state from person p join account a on a.person_id = p.id where p.email = 'protected@example.org'`
-          );
+    for (const { drop, held, make, read } of unrestorable) {
+      it.effect(
+        `spec 0007 R8 and 0007b: replacement refuses a target that holds ${held} without changing its rows`,
+        () =>
+          Effect.gen(function* preserveRecords() {
+            yield* importOnce(Option.none());
+            yield* queryTarget(
+              (sql) =>
+                sql`insert into person (name, email, field_of_study_id) select 'Fake Person', 'protected@example.org', id from field_of_study order by id limit 1`
+            );
+            yield* queryTarget(make);
+            const before = yield* dumpTarget;
+            const failed = yield* Effect.flip(importOnce(Option.none()));
+            assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
 
-          assert.strictEqual(protectedRows.length, 1);
-        })
-    );
+            if (Predicate.isTagged(failed, "TargetWriteError")) {
+              assert.strictEqual(failed.step, "protect records");
+            }
+
+            assert.strictEqual(yield* dumpTarget, before);
+            assert.strictEqual((yield* queryTarget(read)).length, 1);
+
+            // Released, so that the next case starts from a target that only the import has written.
+            yield* queryTarget(drop);
+            yield* queryTarget(
+              (sql) =>
+                sql`delete from person where email = 'protected@example.org'`
+            );
+          })
+      );
+    }
   }
 );
