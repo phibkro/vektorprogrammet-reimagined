@@ -39,4 +39,8 @@ jobs:
       - if: steps.touched.outputs.result == 'touched'
         name: Model-check membership writes
         shell: bash
+        # A runner is not shared, so the headroom guard for the workstation does not apply (FORCE=1); it has 2 CPUs.
+        env:
+          FORCE: "1"
+          TLC_WORKERS: "2"
         run: devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh
