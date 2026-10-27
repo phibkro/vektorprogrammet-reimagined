@@ -12,7 +12,6 @@ import {
   CurrentPrincipal,
   DepartmentRepository,
   EVENT_BADGE_LABEL,
-  Organisation,
   OrganisationEndpoints,
   SemesterOrder,
   SocialEventRepository,
@@ -203,7 +202,6 @@ const byDepartmentName = Order.mapInput(
 
 /** C2 the current semester (RULE-033, answered by the calendar, no row needed) and who is acting. */
 export const dashboardView = Effect.gen(function* dashboardView() {
-  yield* Organisation.OrganisationDomain.requireGrant("openControlPanel", {});
   const principal = yield* CurrentPrincipal;
 
   return {
@@ -234,7 +232,6 @@ export const departmentsView = Effect.gen(function* departmentsView() {
  * yet, `current.stored` is false and the page says so.
  */
 export const semestersView = Effect.gen(function* semestersView() {
-  yield* Organisation.OrganisationDomain.requireGrant("openControlPanel", {});
   const current = yield* currentSemester;
   const semesters = yield* listSemestersNewestFirst;
 

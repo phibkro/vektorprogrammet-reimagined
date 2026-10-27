@@ -1,52 +1,29 @@
 /**
- * What the control-panel shell shows a principal, derived from the one grant table: the domain's `canAnywhere`,
- * which reads the same rows as every command's `authorize`. Each section lists the commands and reads its page
- * exercises, and the sidebar offers the section to a principal who holds one of them for some department it
- * belongs to, or for everything. There is no second who-may-do-what list: this module names what a page exercises,
- * never the role that holds it (ADR 0001). Hiding is presentation; the commands still refuse a forged request
- * with 403.
+ * What the control-panel shell shows a principal, derived from the one grant table through the one section
+ * declaration (`panelAccess.ts`: what each section's page exercises, asked of `canAnywhere`). The guard of every
+ * page's data reads the same declaration, so the sidebar offers a section exactly when its data is served (issue
+ * 15). There is no second who-may-do-what list: the declaration names what a page exercises, never the role that
+ * holds it (ADR 0001). Hiding is presentation; the data and the commands refuse a forged request with 403.
  */
 import {
   CurrentPrincipal,
   PersonRepository,
   PrincipalDirectory,
-  canAnywhere,
 } from "@vektorprogrammet/domain";
-import type { Command, Principal } from "@vektorprogrammet/domain";
+import type { Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Predicate } from "effect";
-import type { NonEmptyReadonlyArray } from "effect/Array";
 
 import { PANEL_SECTIONS } from "../lib/panelSections";
-import type { NavigationGroup, SectionKey } from "../lib/panelSections";
+import type { NavigationGroup } from "../lib/panelSections";
 import type { Deployment } from "./deployment";
+import { mayOpenSection } from "./panelAccess";
 
-/** The commands and reads each section's page exercises. */
-const SECTION_COMMANDS: Readonly<
-  Record<SectionKey, NonEmptyReadonlyArray<Command>>
-> = {
-  admins: ["grantAdmin", "revokeAdmin"],
-  departments: ["createDepartment", "updateDepartment"],
-  fieldsOfStudy: ["createFieldOfStudy", "renameFieldOfStudy"],
-  overview: ["openControlPanel"],
-  people: ["viewPeople", "registerPerson"],
-  semesters: ["openControlPanel"],
-  socialEvents: ["createSocialEvent"],
-  teams: ["viewTeams", "createTeam"],
-};
-
-const mayUseSection = (principal: Principal, key: SectionKey): boolean =>
-  Arr.some(SECTION_COMMANDS[key], (command) => canAnywhere(principal, command));
-
-/** The sidebar for `principal`: the sections they may use, grouped; nothing for a principal that is not a person. */
+/** The sidebar for `principal`: the sections they may open, grouped; nothing for a principal that is not a person. */
 export const navigationFor = (
   principal: Principal
 ): readonly NavigationGroup[] => {
-  if (!Predicate.isTagged(principal, "Person")) {
-    return [];
-  }
-
   const usable = Arr.filter(PANEL_SECTIONS, (section) =>
-    mayUseSection(principal, section.key)
+    mayOpenSection(principal, section.key)
   );
 
   return Arr.map(

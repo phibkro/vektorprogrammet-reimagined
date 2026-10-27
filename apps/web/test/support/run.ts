@@ -32,7 +32,7 @@ import type { MemoryTables } from "./memory";
 
 const { signal } = new AbortController();
 
-type ViewServices =
+export type ViewServices =
   | AccountRepository
   | CurrentPrincipal
   | SiteOrigin

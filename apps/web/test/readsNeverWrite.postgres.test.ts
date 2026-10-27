@@ -69,13 +69,7 @@ import { SqlClient } from "effect/sql";
 
 import { myPage, signInDestination } from "../src/server/accounts";
 import { Auth } from "../src/server/auth";
-import {
-  dashboardView,
-  departmentsView,
-  fieldsOfStudyView,
-  semestersView,
-  socialEventsView,
-} from "../src/server/panel";
+import { panelReads } from "../src/server/panelReads";
 import { resolvePrincipal } from "../src/server/principal";
 import { legacyFileLocation } from "../src/server/redirects";
 import type { DatabaseServices } from "../src/server/runtime";
@@ -93,12 +87,6 @@ import {
   schoolsPage,
   teamPage,
 } from "../src/server/site/pages";
-import {
-  adminsView,
-  peopleView,
-  teamView,
-  teamsView,
-} from "../src/server/teams";
 import { Transactor, transactorLayer } from "../src/server/transactor";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
@@ -176,8 +164,11 @@ const LEGACY_PATH = "Offentlige filer/logo.png";
 const TEAM_ID = 1;
 const LOCAL_PERSON = "Lise Leder";
 
-/** Who `openControlPanel` refuses: nobody signed in, and a person with no team and no admin place. */
+/** Who the control panel's overview, semesters, teams and events refuse: nobody signed in, and a person with no team and no admin place. */
 const NO_PANEL = ["anonymous", "person without team"];
+
+/** Who the departments, the fields of study and the people also refuse: a plain team member holds none of their commands or reads. */
+const NO_MANAGEMENT = [...NO_PANEL, "team member"];
 
 /** Who `grantAdmin` refuses: everyone but an administrator. */
 const NOT_ADMIN = [
@@ -226,22 +217,34 @@ const READ_PATHS: readonly ReadPath[] = [
     empty: "NotFound",
   }),
   readPath("panel.functions getShell", shellView("local")),
-  readPath("panel.functions getDashboard", dashboardView, {
+  readPath("panel.functions getDashboard", panelReads.getDashboard, {
     refusedTo: NO_PANEL,
   }),
-  readPath("panel.functions getDepartments", departmentsView),
-  readPath("panel.functions getSemesters", semestersView, {
+  readPath("panel.functions getDepartments", panelReads.getDepartments, {
+    refusedTo: NO_MANAGEMENT,
+  }),
+  readPath("panel.functions getSemesters", panelReads.getSemesters, {
     refusedTo: NO_PANEL,
   }),
-  readPath("panel.functions getFieldsOfStudy", fieldsOfStudyView),
-  readPath("panel.functions getSocialEvents", socialEventsView),
-  readPath("panel.functions getTeams", teamsView),
-  readPath("panel.functions getTeam", teamView(TEAM_ID), {
+  readPath("panel.functions getFieldsOfStudy", panelReads.getFieldsOfStudy, {
+    refusedTo: NO_MANAGEMENT,
+  }),
+  readPath("panel.functions getSocialEvents", panelReads.getSocialEvents, {
+    refusedTo: NO_PANEL,
+  }),
+  readPath("panel.functions getTeams", panelReads.getTeams, {
+    refusedTo: NO_PANEL,
+  }),
+  readPath("panel.functions getTeam", panelReads.getTeam(TEAM_ID), {
     empty: "NotFound",
     refusedTo: NO_PANEL,
   }),
-  readPath("panel.functions getPeople", peopleView),
-  readPath("panel.functions getAdmins", adminsView, { refusedTo: NOT_ADMIN }),
+  readPath("panel.functions getPeople", panelReads.getPeople, {
+    refusedTo: NO_MANAGEMENT,
+  }),
+  readPath("panel.functions getAdmins", panelReads.getAdmins, {
+    refusedTo: NOT_ADMIN,
+  }),
   readPath("account.functions getSignInDestination", signInDestination),
   readPath(
     "account.functions getMyPage (signed in)",
@@ -460,15 +463,13 @@ const assertVerdict = (
   );
 };
 
-/** What `path` answers `principalName` in `phase`: its own refusal where it would otherwise answer. */
+/** What `path` answers `principalName` in `phase`: its own refusal, which comes before any row is read, or else its answer. */
 const expectedFor = (
   path: ReadPath,
   phase: "empty" | "seeded",
   principalName: string
 ): Expected =>
-  path[phase] === "ok" && path.refusedTo.includes(principalName)
-    ? "Forbidden"
-    : path[phase];
+  path.refusedTo.includes(principalName) ? "Forbidden" : path[phase];
 
 const readEveryPath = (phase: "empty" | "seeded") =>
   Effect.gen(function* readEveryPathIn() {

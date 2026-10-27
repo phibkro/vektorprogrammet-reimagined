@@ -372,9 +372,8 @@ export const peopleView = Effect.gen(function* peopleView() {
 
 // ---------------------------------------------------------------- the admin list
 
-/** The admin list, for a principal that may change it; anyone else is `Forbidden`. */
+/** The admin list. Whoever may not change it is refused before this runs (`panelReads.getAdmins`, section `admins`). */
 export const adminsView = Effect.gen(function* adminsView() {
-  yield* Teams.TeamsDomain.requireGrant("grantAdmin", {});
   const principal = yield* CurrentPrincipal;
   const now = yield* DateTime.now;
   const grants = yield* (yield* AdminGrantRepository).list;

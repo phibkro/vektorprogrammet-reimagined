@@ -13,7 +13,8 @@ import { TEST_ACTOR_COOKIE } from "../../src/lib/testActor.ts";
 /** The seeded people the organisation and shell journeys use. */
 export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "@vektorprogrammet/db";
 
-export const [, TEST_LEADER] = LOCAL_PEOPLE;
+/** The leader, and a plain member of the same team: the member holds no `viewPeople`. */
+export const [, TEST_LEADER, TEST_MEMBER] = LOCAL_PEOPLE;
 
 /** Select a local person for every page of localhost the context opens. */
 export const signInAs = async (context: BrowserContext, person: string) => {
