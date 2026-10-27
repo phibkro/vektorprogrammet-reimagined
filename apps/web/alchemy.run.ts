@@ -35,6 +35,7 @@ import {
   RETENTION_CRON,
   TURNSTILE_TEST_KEYS,
   WORKER_MAIN,
+  WORKER_PLACEMENT,
   cmsMediaBucket,
   emdashOrigin,
   neonOrigin,
@@ -72,12 +73,13 @@ const reachableAt = (worker: {
 
 /**
  * Where a Worker lives: a Preview belongs to its base stage's Worker script, and the script-level settings
- * (crons) stay on that parent.
+ * (crons and placement) stay on that parent. Cloudflare applies a script's placement to its Previews, and
+ * Alchemy's Preview upload carries no placement of its own (spec 0000c).
  */
 const placementOf = (id: "Web" | "Cms", stage: string, crons: string[]) =>
   Effect.gen(function* placeWorker() {
     if (stageKind(stage) !== "preview") {
-      return { crons };
+      return { crons, placement: WORKER_PLACEMENT };
     }
 
     const github = yield* GitHub.GitHubEnv;
