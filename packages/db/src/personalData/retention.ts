@@ -3,6 +3,10 @@
  * the same rules and run the same `apply`; they differ in which rows they select. The nightly run selects the rows
  * whose period is over at `now`. An erasure selects every row of the person, in the tables that declare `Expire`.
  *
+ * The nightly run also exists as a report (`personalDataRetentionReport`): the same selections through the same traversal,
+ * counted and not changed, with no lock and no writer to change a row through. Which of the two a deployment gets is
+ * decided in `apps/web` (spec 0007b R4).
+ *
  * A rule runs per person, under the person's lock, when it writes a table that the Person root owns or reads the
  * person's last activity: the lock keeps another command from giving the person a new membership between the decision
  * and the write. The statements of a chunk of people are written through `Aggregates` and the chunk's tokens, in
@@ -90,6 +94,145 @@ const notAnonymised = (rule: RetentionRule): SQL | undefined =>
     ? sql`${col(rule.table, rule.marker)} is null`
     : undefined;
 
+/** The rules of a run, by where each runs: per person under the person's lock, or in bulk. */
+const partition = (rules: readonly RetentionRule[]) => ({
+  inBulk: Arr.filter(rules, (rule) => !runsPerPerson(rule)),
+  perPerson: Arr.sort(Arr.filter(rules, runsPerPerson), order),
+});
+
+/** The rows of a rule that have expired at `now` and are not anonymised yet. */
+const dueAt = (rule: RetentionRule, now: DateTime.Utc): SQL =>
+  allOf(expiredAt(rule, now), notAnonymised(rule));
+
+/**
+ * The rows of a per-person rule that a nightly run changes for these people: due at `now`, and theirs. The run that
+ * changes them and the run that counts them select with this one expression.
+ */
+const dueForPeople = (
+  rule: RetentionRule,
+  key: NonNullable<RetentionRule["key"]>,
+  now: DateTime.Utc,
+  ids: readonly number[]
+): SQL =>
+  allOf(dueAt(rule, now), aboutPeople(rule.table, key, { addresses: [], ids }));
+
+/** How many rows `where` selects in the rule's table: a read, and the whole of what a report does to a rule. */
+const countRows = (
+  db: Drizzle["Service"],
+  rule: RetentionRule,
+  where: SQL
+): Effect.Effect<number> =>
+  db
+    .execute<{ n: number }>(
+      sql`select count(*)::int as n from ${identifier(rule.table)} where ${where}`,
+      "objects"
+    )
+    .pipe(
+      Effect.map(([row]) => row?.n ?? 0),
+      Effect.orDie
+    );
+
+/** The people who have a row that has expired, in ascending id order. A tombstone has none: its rows moved. */
+const candidates = (
+  db: Drizzle["Service"],
+  perPerson: readonly RetentionRule[],
+  now: DateTime.Utc
+): Effect.Effect<readonly number[]> =>
+  Arr.isReadonlyArrayNonEmpty(perPerson)
+    ? db
+        .execute<{ id: number }>(
+          sql`select distinct id from (${sql.join(
+            Arr.flatMap(perPerson, (rule) =>
+              rule.key === null
+                ? []
+                : [
+                    sql`select ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${dueAt(rule, now)}`,
+                  ]
+            ),
+            sql` union `
+          )}) as candidate where id in (select id from person where merged_into is null) order by id`,
+          "objects"
+        )
+        .pipe(
+          Effect.map((found) => Arr.map(found, ({ id }) => id)),
+          Effect.orDie
+        )
+    : Effect.succeed([]);
+
+/** What a nightly run does with the rows that its rules select: change them through the people's locks, or count them. */
+interface Run {
+  /** The people of a chunk that the run goes on with, and the tokens that it changes their rows through (none, if it changes nothing). */
+  readonly people: (
+    ids: readonly number[]
+  ) => Effect.Effect<
+    { readonly ids: readonly number[]; readonly tokens: Tokens },
+    never,
+    InTransaction
+  >;
+  /** A per-person rule over the rows that `where` selects: how many rows. */
+  readonly rows: (
+    rule: RetentionRule,
+    where: SQL,
+    tokens: Tokens,
+    now: DateTime.Utc
+  ) => Effect.Effect<number>;
+  /** A bulk rule over every row that has expired at `now`: how many rows. */
+  readonly bulk: (
+    rule: RetentionRule,
+    now: DateTime.Utc
+  ) => Effect.Effect<number>;
+}
+
+/**
+ * The nightly run over `rules`: who has an expired row, then each chunk of them through `run.people` and every per-person
+ * rule in order, then the bulk rules. The selections are the same whatever `run` does with them, so a run that counts
+ * says how many rows a run that changes would have changed.
+ */
+const nightly = (
+  db: Drizzle["Service"],
+  rules: readonly RetentionRule[],
+  run: Run
+) => {
+  const { inBulk, perPerson } = partition(rules);
+
+  /** The rules, in order, for one chunk of people. */
+  const forPeople = Effect.fnUntraced(function* forPeople(
+    chunk: readonly number[],
+    now: DateTime.Utc
+  ) {
+    const { ids, tokens } = yield* run.people(chunk);
+    const nothing: Written = [];
+
+    if (!Arr.isReadonlyArrayNonEmpty(ids)) {
+      return nothing;
+    }
+
+    return yield* Effect.forEach(perPerson, (rule) =>
+      Effect.map(
+        rule.key === null
+          ? Effect.succeed(0)
+          : run.rows(rule, dueForPeople(rule, rule.key, now, ids), tokens, now),
+        (rows) => [rule.table, rows] as const
+      )
+    );
+  });
+
+  return Effect.fn("RetentionRun.run")(function* nightlyRun(now: DateTime.Utc) {
+    const people = yield* candidates(db, perPerson, now);
+
+    const perChunk = yield* Effect.forEach(
+      Arr.chunksOf(people, PERSON_CHUNK),
+      (ids) => forPeople(ids, now)
+    );
+
+    const swept = yield* Effect.forEach(inBulk, (rule) =>
+      Effect.map(run.bulk(rule, now), (rows) => [rule.table, rows] as const)
+    );
+
+    return tally(nothingChanged(rules), [...Arr.flatten(perChunk), ...swept]);
+  });
+};
+
 /**
  * The retention and the erasure of the catalog. `rules` are the rules that a run applies: all of the catalog's, unless a
  * test builds a store that leaves one out, to show that the table-driven test then fails.
@@ -103,8 +246,6 @@ export const personalDataRetention = (
   rules: readonly RetentionRule[] = retentionRules(catalog)
 ) => {
   const { aggregates, db, locks } = services;
-  const perPerson = Arr.sort(Arr.filter(rules, runsPerPerson), order);
-  const inBulk = Arr.filter(rules, (rule) => !runsPerPerson(rule));
 
   /** The rules that erasure runs: the tables whose person relation declares `Expire`. */
   const erasing = Arr.sort(
@@ -206,34 +347,11 @@ export const personalDataRetention = (
     now: DateTime.Utc
   ): Effect.Effect<number> =>
     Effect.gen(function* sweepChunk() {
-      const chunk = sql`ctid = any(array(select ctid from ${identifier(rule.table)} where ${allOf(expiredAt(rule, now), notAnonymised(rule))} limit ${BULK_CHUNK}))`;
+      const chunk = sql`ctid = any(array(select ctid from ${identifier(rule.table)} where ${dueAt(rule, now)} limit ${BULK_CHUNK}))`;
       const rows = yield* apply(rule, chunk, [], now);
 
       return rows < BULK_CHUNK ? rows : rows + (yield* sweep(rule, now));
     });
-
-  /** The people who have a row that has expired, in ascending id order. A tombstone has none: its rows moved. */
-  const candidates = (now: DateTime.Utc): Effect.Effect<readonly number[]> =>
-    Arr.isReadonlyArrayNonEmpty(perPerson)
-      ? db
-          .execute<{ id: number }>(
-            sql`select distinct id from (${sql.join(
-              Arr.flatMap(perPerson, (rule) =>
-                rule.key === null
-                  ? []
-                  : [
-                      sql`select ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${allOf(expiredAt(rule, now), notAnonymised(rule))}`,
-                    ]
-              ),
-              sql` union `
-            )}) as candidate where id in (select id from person where merged_into is null) order by id`,
-            "objects"
-          )
-          .pipe(
-            Effect.map((found) => Arr.map(found, ({ id }) => id)),
-            Effect.orDie
-          )
-      : Effect.succeed([]);
 
   /** Locks the people that still exist: a person who was merged since they were found has no lock to take. */
   const lockLive = (
@@ -247,56 +365,15 @@ export const personalDataRetention = (
         )
       );
 
-  /** The rules, in order, for one chunk of people under their locks. */
-  const forPeople = Effect.fnUntraced(function* forPeople(
-    ids: readonly number[],
-    now: DateTime.Utc
-  ) {
-    const tokens = yield* lockLive(ids);
-    const nothing: Written = [];
-
-    if (!Arr.isReadonlyArrayNonEmpty(tokens)) {
-      return nothing;
-    }
-
-    return yield* Effect.forEach(perPerson, (rule) =>
-      Effect.map(
-        rule.key === null
-          ? Effect.succeed(0)
-          : apply(
-              rule,
-              allOf(
-                expiredAt(rule, now),
-                aboutPeople(rule.table, rule.key, {
-                  addresses: [],
-                  ids: Arr.map(tokens, ({ id }) => id),
-                }),
-                notAnonymised(rule)
-              ),
-              tokens,
-              now
-            ),
-        (rows) => [rule.table, rows] as const
-      )
-    );
-  });
-
   /** The nightly run: every rule at `now`, per person under their lock, then the bulk statements. */
-  const expire = Effect.fn("PersonalDataStore.expire")(function* expire(
-    now: DateTime.Utc
-  ) {
-    const people = yield* candidates(now);
-
-    const perChunk = yield* Effect.forEach(
-      Arr.chunksOf(people, PERSON_CHUNK),
-      (ids) => forPeople(ids, now)
-    );
-
-    const swept = yield* Effect.forEach(inBulk, (rule) =>
-      Effect.map(sweep(rule, now), (rows) => [rule.table, rows] as const)
-    );
-
-    return tally(nothingChanged(rules), [...Arr.flatten(perChunk), ...swept]);
+  const expire = nightly(db, rules, {
+    bulk: sweep,
+    people: (ids) =>
+      Effect.map(lockLive(ids), (tokens) => ({
+        ids: Arr.map(tokens, ({ id }) => id),
+        tokens,
+      })),
+    rows: apply,
   });
 
   /** The addresses the person is known by, read before an erasure changes them. */
@@ -367,3 +444,19 @@ export const personalDataRetention = (
 
   return { anonymisePerson, erase, expire };
 };
+
+/**
+ * The nightly run as a report: the selections of `personalDataRetention`, counted and not changed. It takes the database
+ * and nothing else, so it has no lock and no aggregate writer to change a row through, and its statements are
+ * `count(*)` and the read that finds the people (spec 0007b R4). A test runs it as a role that can only read.
+ */
+export const personalDataRetentionReport = (
+  db: Drizzle["Service"],
+  rules: readonly RetentionRule[] = retentionRules(catalog)
+) => ({
+  expire: nightly(db, rules, {
+    bulk: (rule, now) => countRows(db, rule, dueAt(rule, now)),
+    people: (ids) => Effect.succeed({ ids, tokens: [] }),
+    rows: (rule, where) => countRows(db, rule, where),
+  }),
+});

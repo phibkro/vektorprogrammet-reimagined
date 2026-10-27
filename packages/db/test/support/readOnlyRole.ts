@@ -10,7 +10,8 @@
  * The role is cluster-wide, so release drops what it owns and then the role itself, before the database is
  * dropped. It needs a `TEST_DATABASE_ADMIN_URL` role that may create roles (devenv's is a superuser).
  */
-import { Context, Effect, Layer, Random, Redacted } from "effect";
+import { assert } from "@effect/vitest";
+import { Cause, Context, Effect, Exit, Layer, Random, Redacted } from "effect";
 
 import { TestDatabaseUrl, withClient } from "./disposableDatabase.ts";
 
@@ -63,3 +64,12 @@ export const readOnlyRole = Layer.effect(
     return Redacted.make(url.toString());
   }).pipe(Effect.orDie)
 );
+
+/** Asserts that `exit` is the refusal of a write by the role: a failure whose cause says `permission denied`. */
+export const assertPermissionDenied = (exit: Exit.Exit<unknown, unknown>) => {
+  assert.isTrue(Exit.isFailure(exit));
+
+  if (Exit.isFailure(exit)) {
+    assert.include(Cause.pretty(exit.cause), "permission denied");
+  }
+};

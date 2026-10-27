@@ -1,6 +1,7 @@
 /**
  * The Layers of the personal data domain (spec 0007b): the consent records, the alumni requests, the legal holds and
- * the store that interprets the catalog (the export, the erasure, the nightly run and the merge). The records and the
+ * the store that interprets the catalog (the export, the erasure and the merge) and the nightly run in its two forms: one
+ * that changes rows and one that only counts. The records and the
  * requests are tables that the Person root owns, so every write takes the person's token and goes through `Aggregates`.
  */
 import {
@@ -12,10 +13,16 @@ import {
   PersonId,
   PersonalDataStore,
   Periods,
+  RetentionRun,
 } from "@vektorprogrammet/domain";
-import type { FileKey, Locked, StoredConsent } from "@vektorprogrammet/domain";
+import type {
+  FileKey,
+  Locked,
+  RetentionMode,
+  StoredConsent,
+} from "@vektorprogrammet/domain";
 import { eq, sql } from "drizzle-orm";
-import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
+import { Array as Arr, DateTime, Effect, Layer, Match, Schema } from "effect";
 
 import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
@@ -23,7 +30,10 @@ import { Drizzle, decodeWith, single } from "../internal/drizzle.ts";
 import { personalDataExport } from "../personalData/export.ts";
 import { personalDataMerge } from "../personalData/merge.ts";
 import { photosOf, releasePhotos } from "../personalData/photos.ts";
-import { personalDataRetention } from "../personalData/retention.ts";
+import {
+  personalDataRetention,
+  personalDataRetentionReport,
+} from "../personalData/retention.ts";
 import { addDuration } from "../personalData/sql.ts";
 import { consent, person } from "../schema.ts";
 
@@ -216,10 +226,56 @@ export const PersonalDataStoreLive = Layer.effect(
 
     return PersonalDataStore.of({
       erase: retention.erase,
-      expire: retention.expire,
       exportOf: personalDataExport(db),
       merge,
       setPhoto,
     });
   })
 );
+
+/**
+ * The nightly run that deletes and anonymises (mode `Apply`). It is the one layer that gives the run its locks and its
+ * writer. It is not exported: `retentionRunLayer` hands it out, and only for a mode that applies (spec 0007b R4).
+ */
+const RetentionRunApplyLive = Layer.effect(
+  RetentionRun,
+  Effect.gen(function* RetentionRunApplyLive() {
+    const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
+    const locks = yield* AggregateLocks;
+    const { expire } = personalDataRetention({ aggregates, db, locks });
+
+    return RetentionRun.of({
+      run: (now) =>
+        Effect.map(expire(now), (counts) => ({
+          counts,
+          mode: "Apply" as const,
+        })),
+    });
+  })
+);
+
+/** The nightly run that only counts (mode `ReportOnly`). It needs the database and nothing else. */
+export const RetentionRunReportLive = Layer.effect(
+  RetentionRun,
+  Effect.gen(function* RetentionRunReportLive() {
+    const db = yield* Drizzle;
+    const { expire } = personalDataRetentionReport(db);
+
+    return RetentionRun.of({
+      run: (now) =>
+        Effect.map(expire(now), (counts) => ({
+          counts,
+          mode: "ReportOnly" as const,
+        })),
+    });
+  })
+);
+
+/** The layer of a mode. A mode that is added has no layer until this says which. */
+export const retentionRunLayer = (mode: RetentionMode) =>
+  Match.value(mode).pipe(
+    Match.when("Apply", () => RetentionRunApplyLive),
+    Match.when("ReportOnly", () => RetentionRunReportLive),
+    Match.exhaustive
+  );

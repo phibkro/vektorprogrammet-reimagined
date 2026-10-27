@@ -17,6 +17,7 @@ import type { Rpc } from "effect/rpc";
 import { codeResource, personOf, runWithCode } from "../accounts/principal.ts";
 import { AccountRepository } from "../accounts/services.ts";
 import { recordAudit } from "../audit/auditLog.ts";
+import type { AuditAction } from "../audit/auditLog.ts";
 import { PublicFileRepository } from "../files/services.ts";
 import * as Commands from "../kernel/commands.ts";
 import type { Principal } from "../kernel/principal.ts";
@@ -54,7 +55,9 @@ import {
   ConsentRepository,
   LegalHolds,
   PersonalDataStore,
+  RetentionRun,
 } from "./services.ts";
+import type { RetentionMode } from "./services.ts";
 import { consentTexts } from "./texts.ts";
 
 const LAST_ADMIN =
@@ -67,6 +70,15 @@ const SAME_PERSON = "Velg to forskjellige personer.";
 
 const GONE =
   "En av personene finnes ikke, eller er allerede slått sammen med en annen.";
+
+/**
+ * How the audit log names a retention run, by what it did. A run that only counted never says that it ran: its counts
+ * are rows that it would have changed (spec 0007b R4). A record over the modes, so a new mode needs its action.
+ */
+const AUDITED_AS: Readonly<Record<RetentionMode, AuditAction>> = {
+  Apply: "retention.ran",
+  ReportOnly: "retention.reported",
+};
 
 /**
  * `Self` is the only grant that spec 0007b R1 gives `setAlumniConsent` and `exportMyData`, but the kernel's one `Admin`
@@ -343,17 +355,17 @@ export const PersonalDataHandlers = PersonalDataRpc.toLayer({
       Effect.gen(function* runRetentionJob() {
         yield* InTransaction;
         const now = yield* DateTime.now;
-        const counts = yield* (yield* PersonalDataStore).expire(now);
+        const outcome = yield* (yield* RetentionRun).run(now);
 
         yield* recordAudit(
           principal,
-          "retention.ran",
+          AUDITED_AS[outcome.mode],
           "Retention",
           DateTime.formatIso(now),
-          counts
+          outcome.counts
         );
 
-        return { counts };
+        return outcome;
       }),
   }),
   sendAlumniConsent: PersonalDataDomain.handle(sendAlumniConsent, {

@@ -8,12 +8,8 @@
 import { assert, layer } from "@effect/vitest";
 import {
   Counts,
-  CurrentPrincipal,
   PersonalDataDeclaration,
-  PersonalDataStore,
   afterDuration,
-  retentionJob,
-  systemPrincipal,
 } from "@vektorprogrammet/domain";
 import { eq } from "drizzle-orm";
 import {
@@ -28,11 +24,12 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { schema, transactional } from "../src/index.ts";
-import { Drizzle, postgresDatabase } from "./support/database.ts";
+import { Drizzle, postgresJobDatabase } from "./support/database.ts";
 import { encodeJson } from "./support/json.ts";
 import { countWhere } from "./support/personalDataActors.ts";
 import { meetsHeldLock, race, raceReport } from "./support/race.ts";
 import { HOST_2020_ENDS } from "./support/retentionBuilders.ts";
+import { at, nightlyCounts, runRetention } from "./support/retentionRun.ts";
 import { lockPerson, world } from "./support/teamsWorld.ts";
 
 const { years } = PersonalDataDeclaration;
@@ -41,18 +38,6 @@ const T0 = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
 
 const secondsFrom = (instant: DateTime.Utc, seconds: number) =>
   DateTime.add(instant, { seconds });
-
-/** The retention job as the Worker's cron runs it: in a transaction, as `System("retention")`. */
-const runRetention = transactional(
-  Effect.provideService(
-    retentionJob,
-    CurrentPrincipal,
-    systemPrincipal("retention")
-  )
-);
-
-const at = (instant: DateTime.Utc) =>
-  TestClock.setTime(DateTime.toEpochMillis(instant));
 
 const peopleState = Effect.fnUntraced(function* peopleState(
   ids: readonly number[]
@@ -68,7 +53,7 @@ const peopleState = Effect.fnUntraced(function* peopleState(
     from person where id in ${sql.in(ids)} order by id`;
 });
 
-layer(postgresDatabase(), { excludeTestServices: true })(
+layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
   "spec 0007b falsifier 2: the person core, the history and the audit row",
   (outer) => {
     outer.layer(TestClock.layer())((it) => {
@@ -248,79 +233,74 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 const RUNS = 20;
 const ROUNDS = 50;
 
-layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
-  "spec 0007b falsifier 2: concurrent runs",
-  (it) => {
-    it.effect(
-      `${RUNS} concurrent runs end in the state that one run leaves, and none of them fails, in each of ${ROUNDS} rounds of fresh state`,
-      () =>
-        Effect.gen(function* concurrentRuns() {
-          const sql = yield* SqlClient;
-          const now = afterDuration(T0, years(3));
+layer(postgresJobDatabase("Apply", { maxConnections: 30 }), {
+  excludeTestServices: true,
+})("spec 0007b falsifier 2: concurrent runs", (it) => {
+  it.effect(
+    `${RUNS} concurrent runs end in the state that one run leaves, and none of them fails, in each of ${ROUNDS} rounds of fresh state`,
+    () =>
+      Effect.gen(function* concurrentRuns() {
+        const sql = yield* SqlClient;
+        const now = afterDuration(T0, years(3));
 
-          const run = transactional(
-            PersonalDataStore.use((store) => store.expire(now))
+        const run = transactional(nightlyCounts(now));
+
+        for (const round of Arr.range(1, ROUNDS)) {
+          // Six people who were last active before T0: expired at `now`. Four more created after `now - 1 year`: not.
+          const expired = yield* Effect.forEach(Arr.range(1, 6), (n) =>
+            world(`old${round}x${n}`)
           );
 
-          for (const round of Arr.range(1, ROUNDS)) {
-            // Six people who were last active before T0: expired at `now`. Four more created after `now - 1 year`: not.
-            const expired = yield* Effect.forEach(Arr.range(1, 6), (n) =>
-              world(`old${round}x${n}`)
-            );
-
-            const current = yield* Effect.forEach(Arr.range(1, 4), (n) =>
-              world(`new${round}x${n}`)
-            );
-
-            yield* sql`update person set created_at = ${DateTime.toDateUtc(T0)} where id in ${sql.in(Arr.map(expired, ({ person }) => person.id))}`;
-            yield* sql`update person set created_at = ${DateTime.toDateUtc(secondsFrom(now, -86_400))} where id in ${sql.in(Arr.map(current, ({ person }) => person.id))}`;
-
-            const exits = yield* race(Arr.makeBy(RUNS, () => run));
-            const report = raceReport(round, exits);
-
-            assert.isTrue(Arr.every(exits, Exit.isSuccess), report);
-
-            const state = yield* peopleState(
-              Arr.map([...expired, ...current], ({ person }) => person.id)
-            );
-
-            assert.deepStrictEqual(
-              Arr.map(state, (row) => row.anonymised),
-              [...Arr.makeBy(6, () => true), ...Arr.makeBy(4, () => false)],
-              report
-            );
-
-            // A run after the race has nothing left to do: the race left the state that one run leaves.
-            const after = yield* run;
-
-            assert.isTrue(
-              Arr.every(Rec.values(after), (n) => n === 0),
-              `round ${round}: a run after the race still had work to do`
-            );
-          }
-        }),
-      // Each round is twenty runs that each sweep every table, so it costs about two tenths of a second on a quiet
-      // machine; fifty rounds are ten seconds, and a loaded machine takes several times that.
-      { timeout: 280_000 }
-    );
-
-    it.effect(
-      "negative control: a run that dies fails the round, and the report names the round and holds the Cause",
-      () =>
-        Effect.gen(function* aRunDies() {
-          const run = transactional(
-            PersonalDataStore.use((store) => store.expire(T0))
+          const current = yield* Effect.forEach(Arr.range(1, 4), (n) =>
+            world(`new${round}x${n}`)
           );
 
-          const exits = yield* race([run, Effect.die("a defect named boom")]);
+          yield* sql`update person set created_at = ${DateTime.toDateUtc(T0)} where id in ${sql.in(Arr.map(expired, ({ person }) => person.id))}`;
+          yield* sql`update person set created_at = ${DateTime.toDateUtc(secondsFrom(now, -86_400))} where id in ${sql.in(Arr.map(current, ({ person }) => person.id))}`;
 
-          assert.isFalse(Arr.every(exits, Exit.isSuccess));
-          assert.include(raceReport(7, exits), "round 7");
-          assert.include(raceReport(7, exits), "a defect named boom");
-        })
-    );
-  }
-);
+          const exits = yield* race(Arr.makeBy(RUNS, () => run));
+          const report = raceReport(round, exits);
+
+          assert.isTrue(Arr.every(exits, Exit.isSuccess), report);
+
+          const state = yield* peopleState(
+            Arr.map([...expired, ...current], ({ person }) => person.id)
+          );
+
+          assert.deepStrictEqual(
+            Arr.map(state, (row) => row.anonymised),
+            [...Arr.makeBy(6, () => true), ...Arr.makeBy(4, () => false)],
+            report
+          );
+
+          // A run after the race has nothing left to do: the race left the state that one run leaves.
+          const after = yield* run;
+
+          assert.isTrue(
+            Arr.every(Rec.values(after), (n) => n === 0),
+            `round ${round}: a run after the race still had work to do`
+          );
+        }
+      }),
+    // Each round is twenty runs that each sweep every table, so it costs about two tenths of a second on a quiet
+    // machine; fifty rounds are ten seconds, and a loaded machine takes several times that.
+    { timeout: 280_000 }
+  );
+
+  it.effect(
+    "negative control: a run that dies fails the round, and the report names the round and holds the Cause",
+    () =>
+      Effect.gen(function* aRunDies() {
+        const run = transactional(nightlyCounts(T0));
+
+        const exits = yield* race([run, Effect.die("a defect named boom")]);
+
+        assert.isFalse(Arr.every(exits, Exit.isSuccess));
+        assert.include(raceReport(7, exits), "round 7");
+        assert.include(raceReport(7, exits), "a defect named boom");
+      })
+  );
+});
 
 /** What a command writes: a membership that ends far ahead, which makes the person active again. */
 const newMembership = (who: {
@@ -336,7 +316,7 @@ const newMembership = (who: {
       values ('HOST', 2099, ${who.personId}, ${who.positionId}, 'HOST', 2099, ${who.teamId})`
   );
 
-layer(postgresDatabase(), { excludeTestServices: true })(
+layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
   "spec 0007b: a run waits for the lock of a person that a command is changing",
   (it) => {
     /** A person whose last activity ended a year before `now`, and the instant of the run. */
@@ -366,9 +346,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const outcome = yield* meetsHeldLock(
             Effect.andThen(lockPerson(person.personId), newMembership(person)),
             "%for no key update%",
-            transactional(
-              PersonalDataStore.use((store) => store.expire(person.now))
-            )
+            transactional(nightlyCounts(person.now))
           );
 
           assert.strictEqual(
@@ -402,9 +380,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const outcome = yield* meetsHeldLock(
             newMembership(person),
             "%for no key update%",
-            transactional(
-              PersonalDataStore.use((store) => store.expire(person.now))
-            )
+            transactional(nightlyCounts(person.now))
           );
 
           assert.strictEqual(

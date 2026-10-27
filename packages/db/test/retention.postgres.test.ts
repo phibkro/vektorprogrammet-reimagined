@@ -10,35 +10,37 @@ import { assert, layer } from "@effect/vitest";
 import {
   AggregateLocks,
   Catalog,
-  PersonalDataStore,
-  afterDuration,
   retentionRules,
   ruleId,
 } from "@vektorprogrammet/domain";
-import type { Counts, RetentionRule } from "@vektorprogrammet/domain";
+import type {
+  Counts,
+  RetentionRule,
+  RetentionRun,
+} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
-  DateTime,
   Effect,
   Option,
   Order,
   Predicate,
   Record as Rec,
 } from "effect";
+import type { DateTime } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 
 import { Aggregates } from "../src/aggregate/aggregates.ts";
 import { transactional } from "../src/index.ts";
-import { personalDataRetention } from "../src/personalData/retention.ts";
-import { Drizzle, postgresDatabase } from "./support/database.ts";
 import {
-  FAR_AHEAD,
-  alsoChanges,
-  builders,
-  createdAt,
-} from "./support/retentionBuilders.ts";
+  personalDataRetention,
+  personalDataRetentionReport,
+} from "../src/personalData/retention.ts";
+import { Drizzle, postgresJobDatabase } from "./support/database.ts";
+import { alsoChanges, builders } from "./support/retentionBuilders.ts";
+import { checkRule } from "./support/retentionRule.ts";
+import type { Arranged } from "./support/retentionRule.ts";
+import { nightlyCounts } from "./support/retentionRun.ts";
 import { snapshot } from "./support/snapshot.ts";
-import { world } from "./support/teamsWorld.ts";
 
 const rules = retentionRules(Catalog);
 
@@ -48,15 +50,13 @@ const rolledBack = <A, E, R>(program: Effect.Effect<A, E, R>) =>
     Effect.flatMap(Effect.orDie(program), (value) => Effect.fail(value))
   ).pipe(Effect.flip);
 
-/** One run of the retention at `now`: the real store, or one that leaves rules out. */
+/** One run of the retention at `now`: the real run of the layer, or a store that leaves rules out. */
 type Run = (
   now: DateTime.Utc
-) => Effect.Effect<Counts, never, PersonalDataStore | SqlClient>;
+) => Effect.Effect<Counts, never, RetentionRun | SqlClient>;
 
 const realRun: Run = (now) =>
-  transactional(PersonalDataStore.use((store) => store.expire(now))).pipe(
-    Effect.orDie
-  );
+  transactional(nightlyCounts(now)).pipe(Effect.orDie);
 
 /** A record as one text with its keys in alphabetical order: two records agree when their texts do. */
 const canonical = (record: Readonly<Record<string, number | string>>): string =>
@@ -112,68 +112,101 @@ const expectedAtEnd = (rule: RetentionRule): Counts => {
  */
 const lifecycleProblems = (rule: RetentionRule, tag: string, run: Run) =>
   rolledBack(
-    Effect.gen(function* lifecycle() {
-      const name = ruleId(rule);
+    checkRule(
+      rule,
+      tag,
+      Effect.fnUntraced(function* lifecycle(
+        name: string,
+        { built, inside, outside }: Arranged
+      ) {
+        const before = yield* snapshot;
+        const insideCounts = yield* run(inside);
+        const afterInside = yield* snapshot;
+        const presentInside = yield* built.present;
+        const outsideCounts = yield* run(outside);
+        const presentOutside = yield* built.present;
+        const afterOutside = yield* snapshot;
+        const secondCounts = yield* run(outside);
+        const afterSecond = yield* snapshot;
 
-      const found = Arr.findFirst(
-        Rec.toEntries(builders),
-        ([id]) => id === name
-      );
+        return [
+          ...(changed(insideCounts) === nothingChanged &&
+          canonical(before) === canonical(afterInside)
+            ? []
+            : [
+                `${name}: a run one second inside the period changed ${changed(insideCounts)}`,
+              ]),
+          ...(presentInside
+            ? []
+            : [`${name}: the row was gone one second inside its period`]),
+          ...(presentOutside
+            ? [`${name}: the row is still there one second outside its period`]
+            : []),
+          ...(changed(outsideCounts) === changed(expectedAtEnd(rule))
+            ? []
+            : [
+                `${name}: the run at the end changed ${changed(outsideCounts)}, expected ${changed(expectedAtEnd(rule))}`,
+              ]),
+          ...(changed(secondCounts) === nothingChanged &&
+          canonical(afterOutside) === canonical(afterSecond)
+            ? []
+            : [`${name}: a second run at the same instant changed something`]),
+        ];
+      })
+    )
+  );
 
-      if (Option.isNone(found)) {
-        return [`${name} has no builder`];
-      }
+/** The report: the run that only counts, over the layer's database handle, as one `Run`. */
+const reportRun = Effect.gen(function* reportRun() {
+  const { expire } = personalDataRetentionReport(yield* Drizzle);
 
-      const [, builder] = found.value;
+  return (now: DateTime.Utc) => transactional(expire(now)).pipe(Effect.orDie);
+});
 
-      const arranged = yield* world(tag).pipe(Effect.orDie);
-      yield* createdAt(arranged.person.id, FAR_AHEAD);
+/**
+ * The problems of a report of one rule (spec 0007b R4): the run that only counts, one second inside the period and one
+ * second outside it. Empty when the report counts nothing inside it and, outside it, what a run changes (the rule's
+ * row and what goes with it), changes no row of any table, and the run that changes rows then changes exactly what the
+ * report counted. The run is rolled back.
+ */
+const reportProblems = (rule: RetentionRule, tag: string, report: Run) =>
+  rolledBack(
+    checkRule(
+      rule,
+      tag,
+      Effect.fnUntraced(function* reported(
+        name: string,
+        { built, inside, outside }: Arranged
+      ) {
+        const before = yield* snapshot;
+        const insideCounts = yield* report(inside);
+        const outsideCounts = yield* report(outside);
+        const afterReports = yield* snapshot;
+        const present = yield* built.present;
+        const applied = yield* realRun(outside);
 
-      const built = yield* builder({
-        personId: arranged.person.id,
-        positionId: arranged.memberPosition,
-        tag,
-        teamId: arranged.team.id,
-      });
-
-      const expiry = afterDuration(built.start, rule.retention.period.duration);
-      const inside = DateTime.subtract(expiry, { seconds: 1 });
-      const outside = DateTime.add(expiry, { seconds: 1 });
-
-      const before = yield* snapshot;
-      const insideCounts = yield* run(inside);
-      const afterInside = yield* snapshot;
-      const presentInside = yield* built.present;
-      const outsideCounts = yield* run(outside);
-      const presentOutside = yield* built.present;
-      const afterOutside = yield* snapshot;
-      const secondCounts = yield* run(outside);
-      const afterSecond = yield* snapshot;
-
-      return [
-        ...(changed(insideCounts) === nothingChanged &&
-        canonical(before) === canonical(afterInside)
-          ? []
-          : [
-              `${name}: a run one second inside the period changed ${changed(insideCounts)}`,
-            ]),
-        ...(presentInside
-          ? []
-          : [`${name}: the row was gone one second inside its period`]),
-        ...(presentOutside
-          ? [`${name}: the row is still there one second outside its period`]
-          : []),
-        ...(changed(outsideCounts) === changed(expectedAtEnd(rule))
-          ? []
-          : [
-              `${name}: the run at the end changed ${changed(outsideCounts)}, expected ${changed(expectedAtEnd(rule))}`,
-            ]),
-        ...(changed(secondCounts) === nothingChanged &&
-        canonical(afterOutside) === canonical(afterSecond)
-          ? []
-          : [`${name}: a second run at the same instant changed something`]),
-      ];
-    })
+        return [
+          ...(changed(insideCounts) === nothingChanged
+            ? []
+            : [
+                `${name}: a report one second inside the period counted ${changed(insideCounts)}`,
+              ]),
+          ...(changed(outsideCounts) === changed(expectedAtEnd(rule))
+            ? []
+            : [
+                `${name}: the report at the end counted ${changed(outsideCounts)}, expected ${changed(expectedAtEnd(rule))}`,
+              ]),
+          ...(canonical(before) === canonical(afterReports) && present
+            ? []
+            : [`${name}: a report changed something`]),
+          ...(changed(applied) === changed(outsideCounts)
+            ? []
+            : [
+                `${name}: the run that changes rows changed ${changed(applied)}, the report had counted ${changed(outsideCounts)}`,
+              ]),
+        ];
+      })
+    )
   );
 
 /** The rules that a store leaves out when it skips `rule`: the rule, and the rules of its parent table, whose cascade would hide the skip. */
@@ -198,7 +231,7 @@ const skippingRun = Effect.fnUntraced(function* skippingRun(
     transactional(store.expire(now)).pipe(Effect.orDie);
 });
 
-layer(postgresDatabase(), { excludeTestServices: true })(
+layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
   "spec 0007b falsifier 2: retention, table-driven over the declared rules",
   (it) => {
     it.effect(
@@ -243,6 +276,43 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                 problem.includes("is still there one second outside")
               ),
               `skipping ${ruleId(rule)} went unnoticed: ${Arr.join(problems, "; ")}`
+            );
+          })
+      );
+    }
+
+    // The report (spec 0007b R4): the same selections, counted. For every rule it counts nothing one second inside the
+    // period and what a run changes one second outside it, changes no row of any table, and the run that changes rows
+    // then changes exactly what it counted.
+    for (const [index, rule] of rules.entries()) {
+      it.effect(
+        `${ruleId(rule)}: a report counts what the run changes, changes nothing, and the run that changes rows then changes exactly that`,
+        () =>
+          Effect.gen(function* oneReport() {
+            assert.deepStrictEqual(
+              yield* reportProblems(rule, `report${index}`, yield* reportRun),
+              []
+            );
+          })
+      );
+    }
+
+    for (const [index, rule] of rules.entries()) {
+      it.effect(
+        `negative control: a "report" that changes rows fails its check for ${ruleId(rule)}`,
+        () =>
+          Effect.gen(function* changesRows() {
+            const problems = yield* reportProblems(
+              rule,
+              `reportctl${index}`,
+              realRun
+            );
+
+            assert.isTrue(
+              Arr.some(problems, (problem) =>
+                problem.includes("a report changed something")
+              ),
+              `a report that changes ${ruleId(rule)} went unnoticed: ${Arr.join(problems, "; ")}`
             );
           })
       );

@@ -22,7 +22,7 @@ import { FileKey, PersonId } from "../shared/ids.ts";
 import { ConsentSummary } from "./consents.ts";
 import { durationWords, lifetimeWords } from "./duration.ts";
 import { Periods } from "./periods.ts";
-import { Counts, PersonExport } from "./services.ts";
+import { Counts, PersonExport, RetentionOutcome } from "./services.ts";
 
 const ANSWER_ONE_BOX = "Svar på minst ett av spørsmålene.";
 
@@ -161,13 +161,13 @@ export const mergePersons = Rpc.make("mergePersons", {
 
 export const runRetention = Rpc.make("runRetention", {
   error: DomainErrorSchema,
-  success: Schema.Struct({ counts: Counts }),
+  success: RetentionOutcome,
 }).annotate(
   Info,
   info({
     job: "retention",
     method: ":run",
-    note: "The audit row holds integer counts per table, never a value.",
+    note: "The audit row holds integer counts per table, never a value. A production run only counts what it would change (audited as `retention.reported`) while any period that it applies is still a proposal; local and preview runs change it (`retention.ran`).",
     resource: "Retention",
     summary:
       "Each night, delete or anonymise what has reached the end of its declared period.",

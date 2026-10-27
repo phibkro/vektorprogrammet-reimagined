@@ -18,6 +18,22 @@ export const Counts = Schema.Record(Schema.String, Schema.Int);
 
 export type Counts = typeof Counts.Type;
 
+/**
+ * What a nightly retention run does (spec 0007b R4). `Apply` deletes and anonymises what has expired. `ReportOnly`
+ * changes nothing and counts what `Apply` would have changed.
+ */
+export const RetentionMode = Schema.Literals(["Apply", "ReportOnly"]);
+
+export type RetentionMode = typeof RetentionMode.Type;
+
+/** What a run did and in which mode: rows changed (`Apply`), or rows that would have been changed (`ReportOnly`). */
+export const RetentionOutcome = Schema.Struct({
+  counts: Counts,
+  mode: RetentionMode,
+});
+
+export type RetentionOutcome = typeof RetentionOutcome.Type;
+
 /** Everything held about one person, as JSON: the rows of each table that names them, by table. */
 export const PersonExport = Schema.Struct({
   exportedAt: Schema.DateTimeUtc,
@@ -112,13 +128,6 @@ export class PersonalDataStore extends Context.Service<
       locked: Locked<"Person">
     ) => Effect.Effect<Counts, never, InTransaction>;
     /**
-     * The nightly run: every rule of the catalog at `now`. It reads who has an expired row, locks them all in ascending
-     * order, and writes through the tokens; rows that no one owns are conditional bulk statements.
-     */
-    readonly expire: (
-      now: DateTime.Utc
-    ) => Effect.Effect<Counts, never, InTransaction>;
-    /**
      * Moves every row of `from` to `into`, by the merge rules of the catalog, and makes `from` a tombstone. Both are
      * locked, and so is the admin list. A person that has a row where only one may, or a moved row that a constraint
      * refuses, is a `Conflict` and nothing changes.
@@ -134,3 +143,22 @@ export class PersonalDataStore extends Context.Service<
     ) => Effect.Effect<void, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/personalData/PersonalDataStore") {}
+
+/**
+ * The nightly retention run, apart from the store: the one place that deletes or anonymises by the clock. Its layer
+ * fixes the mode, so a program that runs it cannot choose one (spec 0007b R4): `apps/web` provides it to the cron job
+ * only, and decides the mode from the deployment and from the approval of the periods that the run applies.
+ */
+export class RetentionRun extends Context.Service<
+  RetentionRun,
+  {
+    /**
+     * Every rule of the catalog at `now`. In `Apply` it reads who has an expired row, locks them all in ascending
+     * order, writes through the tokens, and runs the rows that no one owns as conditional bulk statements. In
+     * `ReportOnly` it makes the same selections as counts: it takes no lock and writes nothing.
+     */
+    readonly run: (
+      now: DateTime.Utc
+    ) => Effect.Effect<RetentionOutcome, never, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/personalData/RetentionRun") {}

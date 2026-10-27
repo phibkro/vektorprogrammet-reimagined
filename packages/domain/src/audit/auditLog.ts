@@ -43,6 +43,7 @@ export const AuditAction = Schema.Literals([
   "person.photoRemoved",
   "alumni.requested",
   "retention.ran",
+  "retention.reported",
 ]);
 
 export type AuditAction = typeof AuditAction.Type;

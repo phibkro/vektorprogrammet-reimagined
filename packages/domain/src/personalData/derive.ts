@@ -138,21 +138,28 @@ const afterWords = (
     : `${span} after ${event}`;
 };
 
+/** The periods that a retention applies: its own, and the longer one that a consent gives. */
+const periodsOf = (retention: Retention) => [
+  retention.period,
+  ...(retention.longerWhile === undefined
+    ? []
+    : [retention.longerWhile.period]),
+];
+
+/**
+ * Whether a retention rests on a proposal: a period that it applies is not decided yet. The notice, the record of
+ * processing and the nightly run's gate (spec 0007b R4) all ask this one question.
+ */
+export const retentionIsProposed = (retention: Retention): boolean =>
+  Arr.some(periodsOf(retention), ({ approval }) => approval === "proposed");
+
 const approvalNotes = (retention: Retention, language: Language) =>
   Arr.dedupe(
-    Arr.flatMap(
-      [
-        retention.period,
-        ...(retention.longerWhile === undefined
-          ? []
-          : [retention.longerWhile.period]),
-      ],
-      ({ approval }) => {
-        const note = approvalWords[approval]?.[language];
+    Arr.flatMap(periodsOf(retention), ({ approval }) => {
+      const note = approvalWords[approval]?.[language];
 
-        return note === undefined ? [] : [note];
-      }
-    )
+      return note === undefined ? [] : [note];
+    })
   );
 
 const longerWords = (
