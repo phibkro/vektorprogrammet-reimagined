@@ -17,11 +17,19 @@ import { TestClock } from "effect/testing";
 
 import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
+import { mergeAs } from "./support/personalDataActors.ts";
+import { nothing, seedPerson } from "./support/personData.ts";
 import { race } from "./support/race.ts";
-import { placeMembership, semester, world } from "./support/teamsWorld.ts";
+import {
+  placeMembership,
+  semester,
+  twoPeople,
+  world,
+} from "./support/teamsWorld.ts";
 import { countsFor } from "./support/welcomeCounts.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
+const LATER = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
 
 const ADMIN = Principal.cases.Person.make({
   adminUntil: DateTime.makeUnsafe("2099-12-31T23:59:59Z"),
@@ -158,6 +166,100 @@ layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
           assert.deepStrictEqual(yield* countsFor(person), [1, 0, 0]);
           yield* transactional(create(person, team, planned));
           assert.deepStrictEqual(yield* countsFor(person), [1, 0, 1]);
+        })
+    );
+
+    clocked.effect(
+      "cancel, merge, then a new first membership for the survivor welcomes them once: the merged record's claim is kept",
+      () =>
+        Effect.gen(function* cancelMergeCreate() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(LATER));
+
+          const admin = yield* seedPerson(
+            "welcome-merge-admin",
+            { ...nothing, account: true, grant: true },
+            LATER
+          );
+
+          const { fieldOfStudy, team, memberPosition } =
+            yield* world("welcome-merge");
+
+          const [merged, survivor] = yield* twoPeople(
+            fieldOfStudy.id,
+            "welcome-merge"
+          );
+
+          const planned = semester("HOST", 2027);
+
+          const existing = yield* placeMembership(
+            {
+              personId: merged.id,
+              positionId: memberPosition,
+              teamId: team.id,
+            },
+            { end: planned, start: planned }
+          );
+
+          yield* transactional(
+            TeamsEndpoints.deleteMembership({ id: existing.id }).pipe(
+              Effect.provideService(CurrentPrincipal, ADMIN)
+            )
+          );
+          assert.deepStrictEqual(yield* countsFor(merged), [1, 0, 0]);
+          assert.deepStrictEqual(yield* countsFor(survivor), [0, 0, 0]);
+
+          yield* mergeAs(admin.personId, survivor.id, merged.id);
+          assert.deepStrictEqual(yield* countsFor(merged), [0, 0, 0]);
+          assert.deepStrictEqual(yield* countsFor(survivor), [1, 0, 0]);
+
+          yield* transactional(create(survivor, team, planned));
+          assert.deepStrictEqual(yield* countsFor(survivor), [1, 0, 1]);
+        })
+    );
+
+    clocked.effect(
+      "a merge of two records that both hold a claim leaves the survivor one claim and queues nothing",
+      () =>
+        Effect.gen(function* bothClaims() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(LATER));
+
+          const admin = yield* seedPerson(
+            "welcome-both-admin",
+            { ...nothing, account: true, grant: true },
+            LATER
+          );
+
+          const { fieldOfStudy, team, memberPosition } =
+            yield* world("welcome-both");
+
+          const [merged, survivor] = yield* twoPeople(
+            fieldOfStudy.id,
+            "welcome-both"
+          );
+
+          const planned = semester("HOST", 2027);
+
+          const existing = yield* placeMembership(
+            {
+              personId: merged.id,
+              positionId: memberPosition,
+              teamId: team.id,
+            },
+            { end: planned, start: planned }
+          );
+
+          yield* transactional(
+            TeamsEndpoints.deleteMembership({ id: existing.id }).pipe(
+              Effect.provideService(CurrentPrincipal, ADMIN)
+            )
+          );
+          yield* transactional(create(survivor, team, planned));
+          assert.deepStrictEqual(yield* countsFor(merged), [1, 0, 0]);
+          assert.deepStrictEqual(yield* countsFor(survivor), [1, 2, 1]);
+
+          yield* mergeAs(admin.personId, survivor.id, merged.id);
+          assert.deepStrictEqual(yield* countsFor(merged), [0, 0, 0]);
+          assert.deepStrictEqual(yield* countsFor(survivor), [1, 2, 1]);
         })
     );
 

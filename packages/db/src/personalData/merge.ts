@@ -74,6 +74,10 @@ const collidesWith = (
     sql` and `
   )})`;
 
+/** Every row of `table`, when the survivor has a row of their own. */
+const survivorHasRow = (table: string, column: string, survivor: number): SQL =>
+  sql`exists (select 1 from ${identifier(table)} as ${identifier("other")} where ${col("other", column)} = ${survivor})`;
+
 /** A row of `table` for which `other` has a row of the same `by` that was decided after it. */
 const supersededBy = (
   table: string,
@@ -215,6 +219,21 @@ export const personalDataMerge = (services: {
     MergeRule.match(rule, {
       Drop: () => deleteRows(table, column, from),
       Follow: () => moveRows(table, column, into, from, MERGE_REFUSED),
+      Inherit: () =>
+        Effect.gen(function* inheritOnce() {
+          // One row per person: the merged person's row goes when the survivor has one, and moves when not.
+          const covered = yield* deleteRows(
+            table,
+            column,
+            from,
+            survivorHasRow(table, column, into.id)
+          );
+
+          return (
+            covered +
+            (yield* moveRows(table, column, into, from, MERGE_REFUSED))
+          );
+        }),
       Move: ({ collisions, refusal }) =>
         Effect.gen(function* moveWithCollisions() {
           const dropped = Arr.isReadonlyArrayNonEmpty(collisions)

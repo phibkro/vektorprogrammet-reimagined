@@ -213,8 +213,9 @@ const position = table({
 
 /**
  * The claim of the first-membership welcome (spec 0008): one row per person, made in the transaction that creates the
- * person's first membership, so the welcome goes once. A merge drops the merged record's row: the survivor takes over the
- * memberships, so it has a history and is not welcomed again.
+ * person's first membership, so the welcome goes once. A merge keeps one claim for the survivor: the survivor's own, or
+ * else the merged record's. The merged record may hold the only claim left (its one planned membership was cancelled),
+ * and a survivor without it would be welcomed a second time.
  */
 const welcomeLedger = table({
   columns: columns(
@@ -226,7 +227,7 @@ const welcomeLedger = table({
     }),
     ["person_id", "recorded_at"]
   ),
-  person: ofPerson("person_id", Rules.Drop),
+  person: ofPerson("person_id", Rules.Inherit),
 });
 
 export const TeamsTables = {
