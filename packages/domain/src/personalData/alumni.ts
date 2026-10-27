@@ -48,8 +48,9 @@ export const leftAt = (
 };
 
 /**
- * Whether an e-mail is still worth sending: the person's core is anonymised one year after the engagement ended, so a
- * request after that would go to someone about to be anonymised (and `keepDetails` could not change that in time).
+ * Whether an e-mail is still worth sending: the person's core is anonymised `Periods.personCore` after the engagement
+ * ended, so a request after that would go to someone about to be anonymised (and `keepDetails` could not change that
+ * in time).
  */
 export const stillAsked = (
   leftAtInstant: DateTime.Utc,

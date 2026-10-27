@@ -14,6 +14,7 @@ import {
   relation,
   table,
 } from "../personalData/declaration.ts";
+import { durationWords } from "../personalData/duration.ts";
 import { Periods } from "../personalData/periods.ts";
 import { afterColumn } from "../personalData/retentions.ts";
 
@@ -49,7 +50,7 @@ const auditLog = table({
   },
   person: relation({
     erase: erased.kept(
-      "Ids and action names, never values, kept three years so that the organisation can account for its own use of the data"
+      `Ids and action names, never values, kept ${durationWords(Periods.auditRows.duration, "en")} so that the organisation can account for its own use of the data`
     ),
     export: exported.rows(),
     key: keyed.direct("person_id"),

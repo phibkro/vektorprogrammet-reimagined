@@ -18,6 +18,7 @@ import {
   table,
   Rules,
 } from "../personalData/declaration.ts";
+import { durationWords } from "../personalData/duration.ts";
 import { Periods } from "../personalData/periods.ts";
 import { afterColumn, withThePersonCore } from "../personalData/retentions.ts";
 
@@ -26,7 +27,7 @@ const NOT_ABOUT_A_PERSON =
 
 const SURROGATE = "A surrogate key; it names no one on its own";
 
-/** Who was a member or assistant, where and when: ten years after the term ends. */
+/** Who was a member or assistant, where and when: for the period of `Periods.engagementHistory` after the term ends. */
 const engagementHistory: Retention = Retention.make({
   period: Periods.engagementHistory,
   trigger: starts.semesterEnd("end_term", "end_year"),
@@ -122,7 +123,7 @@ const membership = table({
   },
   person: relation({
     erase: erased.kept(
-      "The history of who was a member or assistant, where and when. The association may keep it without consent, as an employer keeps who was employed in which period (INFORMATION_MODEL §11.1), for ten years"
+      `The history of who was a member or assistant, where and when. The association may keep it without consent, as an employer keeps who was employed in which period (INFORMATION_MODEL §11.1), for ${durationWords(Periods.engagementHistory.duration, "en")}`
     ),
     export: exported.rows(),
     key: keyed.direct("person_id"),
@@ -153,7 +154,7 @@ const adminGrant = table({
   },
   person: relation({
     erase: erased.kept(
-      "The record of who held a place on the admin list and who gave it, kept three years after the place ends"
+      `The record of who held a place on the admin list and who gave it, kept ${durationWords(Periods.adminPlaceAfterEnd.duration, "en")} after the place ends`
     ),
     export: exported.rows(),
     key: keyed.direct("person_id"),

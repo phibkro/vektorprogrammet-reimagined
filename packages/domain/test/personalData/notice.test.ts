@@ -1,8 +1,8 @@
 /**
  * Spec 0007b falsifier 1, the generated half: the privacy notice of a form and the record of processing are plain
  * values derived from the declarations. The notice lists exactly the personal fields of its form and the retention of the
- * column that holds each; the record lists every personal column once. A text that states a period (the consent, the
- * purpose of the alumni question) states the declared one, so changing a period in `periods.ts` without its text fails.
+ * column that holds each; the record lists every personal column once. A text that states a period states the declared
+ * one: `periodsInText.test.ts` moves every period and checks that every declared string follows.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
@@ -10,17 +10,12 @@ import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
 import {
   Catalog,
   ContactForm,
-  consentTexts,
-  durationWords,
   personalColumns,
   privacyNotice,
   privacyText,
-  purposes,
   recordOfProcessing,
   retentionWordsBoth,
 } from "../../src/index.ts";
-import { years } from "../../src/personalData/declaration.ts";
-import { Periods } from "../../src/personalData/periods.ts";
 
 describe("spec 0007b falsifier 1: the privacy notice", () => {
   const notice = privacyNotice(ContactForm, Catalog);
@@ -136,32 +131,5 @@ describe("spec 0007b falsifier 1: the record of processing", () => {
       Option.map(outbox, (row) => row.approval),
       Option.some("proposed")
     );
-  });
-});
-
-describe("spec 0007b: a text that states a period states the declared one", () => {
-  const keepDetails = Periods.personCoreWithKeepDetails.duration;
-
-  for (const language of ["en", "no"] as const) {
-    it(`the keepDetails consent and the alumni purpose say ${durationWords(keepDetails, language)} (${language})`, () => {
-      assert.include(
-        consentTexts.keepDetails[language],
-        durationWords(keepDetails, language)
-      );
-
-      assert.include(
-        purposes.alumni[language],
-        durationWords(keepDetails, language)
-      );
-    });
-  }
-
-  it("negative control: a period that is not the declared one is not in the text", () => {
-    assert.notInclude(
-      consentTexts.keepDetails.en,
-      durationWords(years(6), "en")
-    );
-
-    assert.notInclude(purposes.alumni.no, durationWords(years(6), "no"));
   });
 });

@@ -7,8 +7,9 @@ import type { Words } from "./declaration.ts";
 import { Periods } from "./periods.ts";
 
 /**
- * "With the person core": one year after the person's last activity ends, five while a `keepDetails` consent is
- * current (§11.9 decision 1). The person's own row, and every row that lives and dies with it, declares this.
+ * "With the person core": `Periods.personCore` after the person's last activity ends, `Periods.personCoreWithKeepDetails`
+ * while a `keepDetails` consent is current (§11.9 decision 1). The person's own row, and every row that lives and dies
+ * with it, declares this.
  */
 export const withThePersonCore: Retention = Retention.make({
   longerWhile: {

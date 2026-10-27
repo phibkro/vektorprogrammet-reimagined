@@ -3,6 +3,11 @@
  * fixed paragraphs, in Norwegian (what a person reads) and English (the system documentation). The consent texts and the
  * notice are **proposed, awaiting operator approval** (spec 0007b R1 item 14): the privacy owner approves them before
  * go-live, and approving is a one-line change of `approval`. This is not legal advice (`INFORMATION_MODEL.md` §11).
+ *
+ * A period that a text states is built from `Periods` (`durationWords`), with one exception: a consent text. It is what
+ * a person agrees to, and a record names its version, so its words must not change under a period without a new version
+ * (retention reads a withdrawal, not the version a consent names). A consent text is written out, and
+ * `test/personalData/periodsInText.test.ts` fails when a period it states is not the declared one (spec 0007b R3 item 28).
  */
 import type {
   Approval,
@@ -11,6 +16,8 @@ import type {
   Purpose,
   Words,
 } from "./declaration.ts";
+import { durationWords } from "./duration.ts";
+import { Periods } from "./periods.ts";
 
 export type { Words } from "./declaration.ts";
 
@@ -20,8 +27,8 @@ export const purposes: Readonly<Record<Purpose, Words>> = {
     no: "Vise hvem som gjorde hva og når, slik at organisasjonen kan gjøre rede for sin egen bruk av opplysningene",
   },
   alumni: {
-    en: "Ask a person who leaves whether their details may be kept for 5 years and whether to send alumni news",
-    no: "Spørre den som slutter om vi kan beholde opplysningene i 5 år og sende nyheter til tidligere medlemmer",
+    en: `Ask a person who leaves whether their details may be kept for ${durationWords(Periods.personCoreWithKeepDetails.duration, "en")} and whether to send alumni news`,
+    no: `Spørre den som slutter om vi kan beholde opplysningene i ${durationWords(Periods.personCoreWithKeepDetails.duration, "no")} og sende nyheter til tidligere medlemmer`,
   },
   consents: {
     en: "Record what a person agreed to, which text they saw and when (Art. 7(1))",

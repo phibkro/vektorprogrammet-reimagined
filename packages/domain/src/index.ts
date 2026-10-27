@@ -180,6 +180,8 @@ export * from "./personalData/consents.ts";
 
 export * from "./personalData/derive.ts";
 
+export * from "./personalData/duration.ts";
+
 export * from "./personalData/forms.ts";
 
 export * from "./personalData/notice.ts";

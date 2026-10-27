@@ -6,7 +6,7 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { CodeToken } from "../accounts/code.ts";
+import { CodeToken, codePolicy } from "../accounts/code.ts";
 import {
   Info,
   grant,
@@ -20,6 +20,8 @@ import {
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { FileKey, PersonId } from "../shared/ids.ts";
 import { ConsentSummary } from "./consents.ts";
+import { durationWords, lifetimeWords } from "./duration.ts";
+import { Periods } from "./periods.ts";
 import { Counts, PersonExport } from "./services.ts";
 
 const ANSWER_ONE_BOX = "Svar på minst ett av spørsmålene.";
@@ -90,8 +92,7 @@ export const setAlumniConsent = Rpc.make("setAlumniConsent", {
     method: ":set",
     note: "Only the person themself can answer: an administrator's grant does not reach this command, and the handler refuses it, because a consent is the person's own statement.",
     resource: "Consent",
-    summary:
-      "Answer the alumni questions on Min side: keep my details for 5 years, and send me alumni news.",
+    summary: `Answer the alumni questions on Min side: keep my details for ${durationWords(Periods.personCoreWithKeepDetails.duration, "en")}, and send me alumni news.`,
   })
 );
 
@@ -106,7 +107,7 @@ export const answerAlumniConsent = Rpc.make("answerAlumniConsent", {
   info({
     credential: "alumniConsent",
     method: ":answer",
-    note: "The code lives 60 days and can be used again, so an answer can be corrected; it never opens another command.",
+    note: `The code lives ${lifetimeWords(codePolicy.alumniConsent.lifetimeSeconds, "en")} and can be used again, so an answer can be corrected; it never opens another command.`,
     resource: "Consent",
     summary: "Answer the alumni questions with the code from the e-mail.",
   })

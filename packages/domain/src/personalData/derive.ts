@@ -6,7 +6,7 @@
 import { Array as Arr, Order, Predicate, Record as Rec } from "effect";
 
 import type { CatalogOf } from "./catalog.ts";
-import { Duration, MergeRule, OnExpiry, Trigger } from "./declaration.ts";
+import { MergeRule, OnExpiry, Trigger } from "./declaration.ts";
 import type {
   Anonymised,
   PersonKey,
@@ -15,10 +15,10 @@ import type {
   TableDeclaration,
   Words,
 } from "./declaration.ts";
+import { durationWords } from "./duration.ts";
+import type { Language } from "./duration.ts";
 import type { FormDeclaration } from "./forms.ts";
 import { approvalWords, consentNames } from "./texts.ts";
-
-export type Language = "en" | "no";
 
 // ------------------------------------------------------------------ the columns
 
@@ -103,25 +103,6 @@ export const retentionRules = (catalog: CatalogOf): readonly RetentionRule[] =>
 
 // ------------------------------------------------------------------ words
 
-const plural = (count: number, one: string, many: string): string =>
-  count === 1 ? one : many;
-
-export const durationWords = (duration: Duration, language: Language): string =>
-  Duration.match(duration, {
-    Days: ({ count }) =>
-      language === "no"
-        ? `${count} ${plural(count, "dag", "dager")}`
-        : `${count} ${plural(count, "day", "days")}`,
-    Months: ({ count }) =>
-      language === "no"
-        ? `${count} ${plural(count, "måned", "måneder")}`
-        : `${count} ${plural(count, "month", "months")}`,
-    Years: ({ count }) =>
-      language === "no"
-        ? `${count} år`
-        : `${count} ${plural(count, "year", "years")}`,
-  });
-
 export const triggerWords = (trigger: Trigger, language: Language): string =>
   Trigger.match(trigger, {
     Column: ({ event }) => event[language],
@@ -139,7 +120,7 @@ export const triggerWords = (trigger: Trigger, language: Language): string =>
       language === "no" ? "semesteret er slutt" : "the term ends",
   });
 
-/** "30 days after the message was queued", or "when the session expires" for a period of nothing. */
+/** "N days after the message was queued", or "when the session expires" for a period of nothing. */
 const afterWords = (
   retention: Pick<Retention, "period" | "trigger">,
   language: Language
