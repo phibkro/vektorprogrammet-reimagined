@@ -5,6 +5,8 @@
  * schema, not Drizzle migrations. Nothing here touches a table that `packages/db` owns. The relational tables
  * (`membership`, `admin_grant`, `account`, `person`) stay as they are; the event-sourced aggregates project
  * into them inside the transaction that commits their events (`projections.ts`).
+ * The spike keeps names, email and phone only in `alchemy_person_profile`; the id-only `PersonErased` projection deletes
+ * that profile row in the same transaction. Membership and administrator history remain pseudonymous.
  *
  * Guarantees the shape gives (the contract of `AggregateStore.send`):
  * - one row per aggregate instance (`alchemy_aggregate`): `send` locks it (`FOR NO KEY UPDATE`), so one instance
@@ -92,6 +94,12 @@ const statements: readonly string[] = [
      due_ms double precision not null,
      fired_at timestamptz,
      primary key (aggregate, id, command_id)
+   )`,
+  `create table if not exists alchemy_person_profile (
+     person_id integer primary key,
+     name text not null,
+     email text not null,
+     phone text not null
    )`,
 ];
 

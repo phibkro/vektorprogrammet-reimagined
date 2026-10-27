@@ -8,16 +8,19 @@ import {
   AdminRowsLive,
   MembershipRows,
   MembershipRowsLive,
+  PersonProfileRows,
+  PersonProfileRowsLive,
 } from "./projections.ts";
 
 /** The SQL projections are hosted by the custom PostgreSQL platform. */
 export class StaffingModel extends Domain.Model("StaffingModel", {
   aggregates: [Person, AdminList],
-  projections: [MembershipRows, AdminRows],
+  projections: [MembershipRows, PersonProfileRows, AdminRows],
 }) {}
 
 export const staffingProjections = Layer.mergeAll(
   MembershipRowsLive,
+  PersonProfileRowsLive,
   AdminRowsLive
 );
 

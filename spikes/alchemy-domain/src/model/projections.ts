@@ -27,6 +27,7 @@ import {
   MembershipEndedEarly,
   MembershipExtended,
   Person,
+  PersonErased,
 } from "./person.ts";
 
 /** A `Person` instance's id is the person row's id as text. */
@@ -71,6 +72,30 @@ export const MembershipRowsLive = MembershipRows.toLayer(
             MembershipExtended: (extended) =>
               sql`update membership set end_term = ${extended.end.term}, end_year = ${extended.end.year}
                   where id = ${extended.id}`,
+          })
+        );
+      }
+    }, Effect.orDie);
+  })
+);
+
+/** The only personal-field projection: it is keyed by Person id and erased when the id-only event commits. */
+export class PersonProfileRows extends Domain.Projection("PersonProfileRows", {
+  from: [Person],
+  key: Person,
+  on: [PersonErased],
+}) {}
+
+export const PersonProfileRowsLive = PersonProfileRows.toLayer(
+  Effect.gen(function* personProfileRowsLive() {
+    const sql = yield* SqlClient;
+
+    return Effect.fnUntraced(function* eraseProfileRows(batch) {
+      for (const { event } of batch) {
+        yield* Match.value(event).pipe(
+          Match.tagsExhaustive({
+            PersonErased: ({ personId }) =>
+              sql`delete from alchemy_person_profile where person_id = ${personId}`,
           })
         );
       }

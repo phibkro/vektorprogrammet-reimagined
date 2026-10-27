@@ -7,8 +7,8 @@
  * start from which state, the term arithmetic is `teams/term.ts`, and a membership never overlaps another of the same
  * person in the same team (`membership_no_overlap` in the database, decided here on the state).
  *
- * Events carry ids and terms, never a name, an e-mail address or any other personal value: the personal data of a
- * person stays in the `person` row, which an erasure can overwrite (`erasure.ts`).
+ * Events carry identifiers and membership history, not names, email or phone. The deletable profile projection stores
+ * those fields separately; PersonErased removes it while the id and history remain pseudonymous data.
  */
 import * as Domain from "@alchemy.run/domain";
 import type { DecideContext } from "@alchemy.run/domain/Aggregate";
@@ -16,6 +16,7 @@ import {
   MEMBERSHIP_OVERLAPS,
   Machine,
   MembershipId,
+  PersonId,
   PositionId,
   Semester,
   TeamId,
@@ -86,6 +87,10 @@ export class MembershipCancelled extends Domain.Event("MembershipCancelled", {
   id: MembershipId,
 }) {}
 
+export class PersonErased extends Domain.Event("PersonErased", {
+  personId: PersonId,
+}) {}
+
 // ---------------------------------------------------------------------------------------------- commands
 //
 // A command is named as the kernel names it (`createMembership`, not `CreateMembership`), so that the tag is the key of
@@ -136,6 +141,14 @@ export class DeleteMembership extends Domain.Command("deleteMembership", {
   events: [MembershipCancelled],
   input: { membershipId: MembershipId },
   middleware: [GrantGuard],
+  rejects: refusals,
+  target: PersonKey,
+}) {}
+
+/** Internal maintenance-only command; it is not exposed through an RPC or a user grant declaration. */
+export class ErasePerson extends Domain.Command("erasePerson", {
+  events: [PersonErased],
+  input: { personId: PersonId },
   rejects: refusals,
   target: PersonKey,
 }) {}
@@ -374,6 +387,21 @@ const deleteMembership = Effect.fn("Person.deleteMembership")(
   }
 );
 
+const erasePerson = Effect.fn("Person.erasePerson")(function* erasePerson(
+  _state: PersonStateValue,
+  command: ErasePerson,
+  { id }: DecideContext<PersonKeyValue>
+) {
+  if (id !== String(command.personId)) {
+    return yield* new NotFound({
+      entity: "Person",
+      key: String(command.personId),
+    });
+  }
+
+  return [new PersonErased({ personId: command.personId })];
+});
+
 // -------------------------------------------------------------------------------------------- aggregate
 
 const replaceEnd = (
@@ -392,11 +420,13 @@ export class Person extends Domain.Aggregate("Person", {
     ExtendMembership,
     EndEarlyMembership,
     DeleteMembership,
+    ErasePerson,
   ],
   decide: {
     createMembership,
     deleteMembership,
     endEarlyMembership,
+    erasePerson,
     extendMembership,
   },
   evolve: {
@@ -423,6 +453,7 @@ export class Person extends Domain.Aggregate("Person", {
       replaceEnd(state, event.id, event.end),
     MembershipExtended: (state, event) =>
       replaceEnd(state, event.id, event.end),
+    PersonErased: (state) => state,
   },
   id: PersonKey,
   initial: { memberships: [] },
