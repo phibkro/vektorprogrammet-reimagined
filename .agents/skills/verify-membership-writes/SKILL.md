@@ -45,6 +45,8 @@ apps/web/src/server/transactor.ts
 
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change"). The confirmation of 2026-10-27 (spec 0007b) covers the commands in `compose`: the aggregate writes now accept several locks and use `IN`, which for the one token held by these commands selects the same rows as before. The tombstone filter and the writers in the next section are outside the model.
 
+After the 0007d rebase, the model was run again with `--code`. The membership-machine additions declare metadata for effx; they do not change transitions. The added retention-report migration changes only the audit action constraint. Neither changes the modeled statements.
+
 ## Writers outside the model (spec 0007b)
 
 Two writers of `membership` came with the personal data engine, and the model has no action for either. They keep the discipline that the model checks, and they are raced by tests instead. This section is the honest limit of the confirmation below: **the model describes the commands in `compose`, and not these.**
