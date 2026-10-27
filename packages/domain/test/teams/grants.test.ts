@@ -70,16 +70,18 @@ describe("falsifier 1: authorize equals the grant table", () => {
     "falsifier 1, negative control: the table without any one row no longer agrees (so the property can fail)",
     () =>
       Effect.gen(function* rowRemoved() {
-        for (const index of Arr.range(0, GrantTable.length - 1)) {
+        for (const [index, row] of GrantTable.entries()) {
           const candidate = authorizeWith<string>(without(GrantTable, index));
 
-          const results = yield* Effect.forEach(NAMES, (name) =>
+          // Only the names that the row carries can change when it is removed, so only they are asked. Asking every name
+          // made this the slowest test of the package: it ran about 5 s alone and passed the 5 s limit under load.
+          const results = yield* Effect.forEach(row.commands, (name) =>
             agreement(GrantTable, candidate, name)
           );
 
           assert.isTrue(
             Arr.some(results, Predicate.isTagged("Falsified")),
-            `removing row ${index} (${Arr.join(GrantTable[index]?.commands ?? [], ", ")}) goes unnoticed`
+            `removing row ${index} (${Arr.join(row.commands, ", ")}) goes unnoticed`
           );
         }
       })
