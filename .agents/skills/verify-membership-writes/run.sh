@@ -119,6 +119,11 @@ if [ -n "$touched_base" ]; then
   exit 0
 fi
 
+if [ "$code" = 1 ] && [ ! -d "$root/node_modules" ]; then
+  echo "stop   node_modules is missing; run bun install in the devenv shell." >&2
+  exit 2
+fi
+
 if ! command -v tlc >/dev/null 2>&1; then
   echo "tlc is not on PATH. Run this inside the formal profile of devenv:" >&2
   echo "  devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh" >&2
@@ -247,12 +252,12 @@ done
 if [ "$code" = 1 ]; then
   echo
   echo "CODE TESTS (real repositories on PostgreSQL): ${code_tests[*]}"
-  if ! pg_isready -h 127.0.0.1 -p "${PGPORT:-54321}" >/dev/null 2>&1; then
-    echo "stop   PostgreSQL is not running: devenv up -d postgres" >&2
+  if ! (cd "$root" && devenv shell -- bash -c 'echo "PostgreSQL port: $PGPORT"; pg_isready -h 127.0.0.1 -p "$PGPORT"'); then
+    echo "stop   PostgreSQL is not running: devenv up -d" >&2
     exit 2
   fi
   started=$SECONDS
-  if (cd "$root/packages/db" && bunx vp test run "${code_tests[@]}") >"$out/code-tests.out" 2>&1; then
+  if (cd "$root" && devenv shell -- bash -c 'cd packages/db && exec bunx vp test run "$@"' -- "${code_tests[@]}") >"$out/code-tests.out" 2>&1; then
     echo "ok     $(grep -E '^ +Tests ' "$out/code-tests.out" | tr -s ' ') in $((SECONDS - started))s"
   else
     echo "FAIL   a test of the real code failed (see $out/code-tests.out). If the change that broke it is intended, the model's fact is stale: update model/Shapes.tla."

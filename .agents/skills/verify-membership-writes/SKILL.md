@@ -50,6 +50,8 @@ devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh 
 
 The `formal` profile of `devenv.nix` adds TLA+ tools 1.7.4 (TLC, with the Java 8 that nixpkgs builds them with), pinned by `devenv.lock`, with the Java heap capped; the default shell does not have them. The machine is shared: `run.sh` prints the load and stops when it is above 80% of the CPUs or under 4 GB are free (`FORCE=1` overrides). It runs one TLC at a time with 8 workers (`TLC_WORKERS`) and a 2 GB heap (`TLC_HEAP`); the largest run, three commands, took 1.6 GB resident and 20 seconds. `--code` also runs the tests of the real repositories that pin the facts that `Shapes.tla` takes from the code (needs PostgreSQL).
 
+`--code` requires `bun install` and runs its PostgreSQL tests in the default devenv shell, using this worktree's allocated port rather than the formal profile's port. It prints the port before the tests.
+
 What a good run prints, and what each line means:
 
 | Line | Means |

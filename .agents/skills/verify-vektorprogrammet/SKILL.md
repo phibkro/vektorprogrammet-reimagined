@@ -95,7 +95,7 @@ Proof standards:
 .agents/skills/verify-vektorprogrammet/scripts/cleanup.sh
 ```
 
-Stop the supervised launch first if you can (OMP: kill the named bash job), then run this; it also stops `serve.ts` itself (SIGTERM; observed exit status is 143, and its scope may not close, so cleanup checks the recorded ports and database; SIGKILL after 90 s). It touches this run’s recorded resources and removes stray `.r2-seed-*` directories from this worktree. It is safe after a failed launch and safe to run twice; the second run prints `nothing to clean`. It ends by printing the run directory and its contents: confirm the evidence is there. After a failed iteration, run it before the next try.
+Stop the supervised launch first if you can (OMP: kill the named bash job), then run this; it also stops `serve.ts` itself (SIGTERM; observed exit status is 143, and its scope may not close, so cleanup checks the recorded ports and database; SIGKILL after 90 s). It removes the run's R2 seed config from its temporary directory. It is safe after a failed launch and safe to run twice; the second run prints `nothing to clean`. It ends by printing the run directory and its contents: confirm the evidence is there. After a failed iteration, run it before the next try.
 
 ## Helpers
 
