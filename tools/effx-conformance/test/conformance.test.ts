@@ -192,6 +192,26 @@ const drift = (
     })
   );
 
+/**
+ * What differs between the generator that a provenance records and the one that the tool makes the vectors with: the
+ * first line at which the two part, empty when they are the same. The check and its negative controls both ask this.
+ */
+const generatorDrift = (
+  recorded: ProvenanceFile["generator"]
+): readonly string[] =>
+  Option.match(
+    firstDifference(
+      JSON.stringify(recorded, null, 2),
+      JSON.stringify(generator, null, 2)
+    ),
+    {
+      onNone: () => [],
+      onSome: ({ have, line, want }) => [
+        `line ${line} of the recorded generator is ${JSON.stringify(have)}, the tool's is ${JSON.stringify(want)}`,
+      ],
+    }
+  );
+
 const isViewTeams = (row: Domain.Declaration["table"][number]) =>
   Arr.contains(row.commands, "viewTeams") && Arr.some(row.subjects, isMember);
 
@@ -388,12 +408,6 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         });
         assert.strictEqual(committed.provenance.alloy.version, pin.alloy);
 
-        assert.deepStrictEqual(
-          committed.provenance.generator,
-          generator,
-          "the provenance records another way of making the vectors than this tool's: make them again"
-        );
-
         for (const [domain, entry] of Rec.toEntries(
           committed.provenance.domains
         )) {
@@ -441,26 +455,60 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
   );
 
   it.effect(
-    "falsifier 2, negative control: another way of making the vectors is not the one that the provenance records",
+    "falsifier 9: the provenance records the way that this tool makes the vectors",
     () =>
-      Effect.gen(function* control() {
+      Effect.gen(function* recorded() {
         const committed = yield* Committed;
 
+        assert.deepStrictEqual(
+          generatorDrift(committed.provenance.generator),
+          [],
+          "the provenance records another way of making the vectors than this tool's: make them again"
+        );
+      })
+  );
+
+  it.effect(
+    "falsifier 9, negative control: a provenance that records another config, command, link or file set fails the same comparison",
+    () =>
+      Effect.gen(function* control() {
+        const { generator: recorded } = (yield* Committed).provenance;
+
         const config = must(
-          generator.project["effx.config.ts"],
-          "the config of the generator"
+          recorded.project["effx.config.ts"],
+          "the config of the recorded generator"
         );
 
-        const another = {
-          ...generator,
-          project: {
-            ...generator.project,
-            "effx.config.ts": config.replace("alloy: true", "alloy: false"),
+        // the comparison is silent for the recorded generator, so what it says below is its own
+        assert.deepStrictEqual(generatorDrift(recorded), []);
+
+        const other = {
+          "another command": {
+            ...recorded,
+            commands: Arr.map(recorded.commands, (argv) =>
+              Arr.filter(argv, (part) => part !== "check")
+            ),
+          },
+          "another config": {
+            ...recorded,
+            project: {
+              ...recorded.project,
+              "effx.config.ts": config.replace("alloy: true", "alloy: false"),
+            },
+          },
+          "another link": {
+            ...recorded,
+            links: { node_modules: "<effx>/lib" },
+          },
+          "one file less": {
+            ...recorded,
+            project: Rec.remove(recorded.project, "entry.ts"),
           },
         };
 
-        assert.notStrictEqual(another.project["effx.config.ts"], config);
-        assert.notDeepEqual(committed.provenance.generator, another);
+        for (const [change, generated] of Rec.toEntries(other)) {
+          assert.lengthOf(generatorDrift(generated), 1, change);
+        }
       })
   );
 
