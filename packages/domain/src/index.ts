@@ -6,7 +6,7 @@
  * (`Teams.createTeam`, `Organisation.OrganisationDomain`): a declaration exports many names (the commands, the group,
  * the machines, the domain) and each reads best beside its domain. A command's name is unique across domains on its
  * own (`Domain.allProblems` refuses a tag that two domains declare), so the namespace is for reading and not for
- * telling two `cancel`s apart.
+ * telling two commands of one name apart.
  */
 
 // kernel (spec 0006): principals, subject sets, grants, machines, commands, domain declarations

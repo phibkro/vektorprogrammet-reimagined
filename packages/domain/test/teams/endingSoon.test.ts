@@ -73,7 +73,7 @@ describe("falsifier 7: the digest runs in the last four weeks of the semester", 
   });
 });
 
-const registerPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
+const createPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
   asPrincipal(admin)(
     TeamsEndpoints.createPerson({
       email: `${name.toLowerCase()}@example.org`,
@@ -151,7 +151,7 @@ const departments = Effect.gen(function* departments() {
     [bergen, "Per", BERGEN_FIELD, now, false],
     [osloTeam, "Olav", OSLO_FIELD, spring, true],
   ] as const) {
-    const registered = yield* registerPerson(name, field);
+    const registered = yield* createPerson(name, field);
     yield* joinTeam(team.id, registered.id, end, leader);
   }
 });

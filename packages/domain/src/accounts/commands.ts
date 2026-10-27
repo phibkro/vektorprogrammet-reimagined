@@ -190,7 +190,7 @@ export const AccountHandlers = AccountRpc.toLayer({
   activateAccount: AccountDomain.handle(activateAccount, {
     resource: () => codeResource,
     run: ({ code, password }, principal) =>
-      Effect.gen(function* activate() {
+      Effect.gen(function* activation() {
         yield* InTransaction;
         const personId = personOf(principal);
 
@@ -220,7 +220,7 @@ export const AccountHandlers = AccountRpc.toLayer({
   createAccount: AccountDomain.handle(createAccount, {
     resource: ({ personId }) => personResource(personId, "createAccount"),
     run: ({ personId }, principal) =>
-      Effect.gen(function* invite() {
+      Effect.gen(function* invitation() {
         yield* InTransaction;
         const accounts = yield* AccountRepository;
         const outbox = yield* Outbox;
@@ -241,7 +241,7 @@ export const AccountHandlers = AccountRpc.toLayer({
   deactivateAccount: AccountDomain.handle(deactivateAccount, {
     resource: ({ personId }) => Effect.succeed({ personId }),
     run: ({ personId }, principal) =>
-      Effect.gen(function* deactivate() {
+      Effect.gen(function* deactivation() {
         yield* InTransaction;
         const accounts = yield* AccountRepository;
         const now = yield* DateTime.now;
@@ -272,7 +272,7 @@ export const AccountHandlers = AccountRpc.toLayer({
   reactivateAccount: AccountDomain.handle(reactivateAccount, {
     resource: ({ personId }) => Effect.succeed({ personId }),
     run: ({ personId }, principal) =>
-      Effect.gen(function* reactivate() {
+      Effect.gen(function* reactivation() {
         yield* InTransaction;
         yield* lockAdminList;
         const { account, locked } = yield* lockAccount(personId);
