@@ -7,10 +7,10 @@
  * counted and not changed, with no lock and no writer to change a row through. Which of the two a deployment gets is
  * decided in `apps/web` (spec 0007b R4).
  *
- * A rule runs per person, under the person's lock, when it writes a table that the Person root owns or reads the
- * person's last activity: the lock keeps another command from giving the person a new membership between the decision
- * and the write. The statements of a chunk of people are written through `Aggregates` and the chunk's tokens, in
- * ascending id order. Every other rule is a conditional bulk statement, in chunks of rows.
+ * A rule runs per person, under the person's lock, when it writes a table the Person root owns, reads last activity, or
+ * deletes a child that would otherwise cascade from a parent. The lock keeps another command from changing the person
+ * between the decision and the write. Owned rows use `Aggregates` and the chunk's tokens, in ascending id order. Other
+ * rules use conditional bulk statements, in chunks of rows.
  */
 import { Catalog, retentionRules } from "@vektorprogrammet/domain";
 import type {
@@ -50,7 +50,7 @@ import {
   identifier,
   personOf,
 } from "./sql.ts";
-import { ownedBy, propertyOf, tableOf } from "./tables.ts";
+import { cascadesVia, ownedBy, propertyOf, tableOf } from "./tables.ts";
 
 const PERSON_CHUNK = 100;
 const BULK_CHUNK = 1000;
@@ -62,17 +62,40 @@ type Tokens = readonly Locked<"Person">[];
 
 type Written = readonly (readonly [string, number])[];
 
-/** What a rule reads or writes about a person decides where it runs: per person under their lock, or in bulk. */
-const runsPerPerson = (rule: RetentionRule): boolean =>
+/** A rule and the rules whose deletion cascades to its rows, derived once from declarations and schema. */
+interface PlannedRule {
+  readonly rule: RetentionRule;
+  readonly cascadeParents: readonly RetentionRule[];
+}
+
+const findCascadeParents = (
+  rule: RetentionRule,
+  rules: readonly RetentionRule[]
+) => {
+  const { key } = rule;
+
+  return Predicate.isTagged(key, "Via") && cascadesVia(rule.table, key)
+    ? Arr.filter(
+        rules,
+        (parent) => parent.table === key.parent && parent.expiry === "Delete"
+      )
+    : [];
+};
+
+/** Cascading children run before their parent under the person lock, so each deleted row is counted once. */
+const runsPerPerson = ({
+  rule,
+  cascadeParents: parents,
+}: PlannedRule): boolean =>
   rule.key !== null &&
   !Predicate.isTagged(rule.key, "Address") &&
-  (Option.isSome(ownedBy(rule.table)) ||
+  (parents.length > 0 ||
+    Option.isSome(ownedBy(rule.table)) ||
     Predicate.isTagged(rule.retention.trigger, "LastActivityEnd"));
 
 /**
- * The order of the rules for one person. The rules that read the person's last activity come first, because the rules
- * that delete a membership or an admin place (the history, kept longer) would otherwise move that date. A table that
- * reaches the person through a parent runs before the parent's table, which the rule also reads.
+ * The order of the rules for one person. Last-activity rules come before membership and admin-place deletion, so those
+ * deletes cannot move the activity date first. `partition` puts a cascading child before its parent as well.
  */
 const order = Order.combineAll<RetentionRule>([
   Order.mapInput(Order.Number, (rule) =>
@@ -94,27 +117,67 @@ const notAnonymised = (rule: RetentionRule): SQL | undefined =>
     ? sql`${col(rule.table, rule.marker)} is null`
     : undefined;
 
-/** The rules of a run, by where each runs: per person under the person's lock, or in bulk. */
-const partition = (rules: readonly RetentionRule[]) => ({
-  inBulk: Arr.filter(rules, (rule) => !runsPerPerson(rule)),
-  perPerson: Arr.sort(Arr.filter(rules, runsPerPerson), order),
-});
+/** The rules of a run, by where each runs: per person under their lock, or in bulk. */
+const partition = (rules: readonly RetentionRule[]) => {
+  const planned = Arr.map(rules, (rule): PlannedRule => ({
+    cascadeParents: findCascadeParents(rule, rules),
+    rule,
+  }));
+
+  const childFirst = Order.combine(
+    Order.mapInput(Order.Number, (item: PlannedRule) =>
+      item.cascadeParents.length > 0 ? 0 : 1
+    ),
+    Order.mapInput(order, (item: PlannedRule) => item.rule)
+  );
+
+  return {
+    inBulk: Arr.map(
+      Arr.filter(planned, (item) => !runsPerPerson(item)),
+      (item) => item.rule
+    ),
+    perPerson: Arr.sort(Arr.filter(planned, runsPerPerson), childFirst),
+  };
+};
 
 /** The rows of a rule that have expired at `now` and are not anonymised yet. */
 const dueAt = (rule: RetentionRule, now: DateTime.Utc): SQL =>
   allOf(expiredAt(rule, now), notAnonymised(rule));
+
+/** A child is also due when deleting its parent cascades to it, even if the child's own period has not ended. */
+const plannedDueAt = (
+  { rule, cascadeParents }: PlannedRule,
+  now: DateTime.Utc
+): SQL => {
+  const { key } = rule;
+
+  if (!Predicate.isTagged(key, "Via") || cascadeParents.length === 0) {
+    return dueAt(rule, now);
+  }
+
+  const throughParent = Arr.map(
+    cascadeParents,
+    (parent) =>
+      sql`${col(rule.table, key.column)} in (select ${col(key.parent, key.parentKey)} from ${identifier(key.parent)} where ${dueAt(parent, now)})`
+  );
+
+  return sql`(${sql.join([dueAt(rule, now), ...throughParent], sql` or `)})`;
+};
 
 /**
  * The rows of a per-person rule that a nightly run changes for these people: due at `now`, and theirs. The run that
  * changes them and the run that counts them select with this one expression.
  */
 const dueForPeople = (
-  rule: RetentionRule,
+  planned: PlannedRule,
   key: NonNullable<RetentionRule["key"]>,
   now: DateTime.Utc,
   ids: readonly number[]
 ): SQL =>
-  allOf(dueAt(rule, now), aboutPeople(rule.table, key, { addresses: [], ids }));
+  allOf(
+    plannedDueAt(planned, now),
+    aboutPeople(planned.rule.table, key, { addresses: [], ids })
+  );
 
 /** How many rows `where` selects in the rule's table: a read, and the whole of what a report does to a rule. */
 const countRows = (
@@ -135,20 +198,22 @@ const countRows = (
 /** The people who have a row that has expired, in ascending id order. A tombstone has none: its rows moved. */
 const candidates = (
   db: Drizzle["Service"],
-  perPerson: readonly RetentionRule[],
+  perPerson: readonly PlannedRule[],
   now: DateTime.Utc
 ): Effect.Effect<readonly number[]> =>
   Arr.isReadonlyArrayNonEmpty(perPerson)
     ? db
         .execute<{ id: number }>(
           sql`select distinct id from (${sql.join(
-            Arr.flatMap(perPerson, (rule) =>
-              rule.key === null
+            Arr.flatMap(perPerson, (planned) => {
+              const { rule } = planned;
+
+              return rule.key === null
                 ? []
                 : [
-                    sql`select ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${dueAt(rule, now)}`,
-                  ]
-            ),
+                    sql`select ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${plannedDueAt(planned, now)}`,
+                  ];
+            }),
             sql` union `
           )}) as candidate where id in (select id from person where merged_into is null) order by id`,
           "objects"
@@ -207,14 +272,21 @@ const nightly = (
       return nothing;
     }
 
-    return yield* Effect.forEach(perPerson, (rule) =>
-      Effect.map(
+    return yield* Effect.forEach(perPerson, (planned) => {
+      const { rule } = planned;
+
+      return Effect.map(
         rule.key === null
           ? Effect.succeed(0)
-          : run.rows(rule, dueForPeople(rule, rule.key, now, ids), tokens, now),
+          : run.rows(
+              rule,
+              dueForPeople(planned, rule.key, now, ids),
+              tokens,
+              now
+            ),
         (rows) => [rule.table, rows] as const
-      )
-    );
+      );
+    });
   });
 
   return Effect.fn("RetentionRun.run")(function* nightlyRun(now: DateTime.Utc) {

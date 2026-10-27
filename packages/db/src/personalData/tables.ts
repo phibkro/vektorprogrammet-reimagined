@@ -3,8 +3,9 @@
  * that the Person root owns. The engine writes a table that a person owns only through `Aggregates` and a token; this
  * is how it finds out which that is.
  */
+import type { PersonalDataDeclaration } from "@vektorprogrammet/domain";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
-import { PgTable } from "drizzle-orm/pg-core";
+import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { Array as Arr, Effect, Option, Record as Rec } from "effect";
 
 import { roots } from "../aggregate/declaration.ts";
@@ -24,6 +25,26 @@ export const tableOf = (name: string): Effect.Effect<PgTable> =>
       Effect.die(`The catalog names a table that the schema lacks: ${name}`),
     onSome: Effect.succeed,
   });
+
+/** Whether the declared one-column person relation is an ON DELETE CASCADE foreign key in the Drizzle schema. */
+export const cascadesVia = (
+  name: string,
+  key: Extract<PersonalDataDeclaration.PersonKey, { readonly _tag: "Via" }>
+): boolean =>
+  Option.exists(Rec.get(tableNamed, name), (table) =>
+    Arr.some(getTableConfig(table).foreignKeys, (foreignKey) => {
+      const reference = foreignKey.reference();
+
+      return (
+        foreignKey.onDelete === "cascade" &&
+        reference.columns.length === 1 &&
+        reference.columns[0]?.name === key.column &&
+        getTableName(reference.foreignTable) === key.parent &&
+        reference.foreignColumns.length === 1 &&
+        reference.foreignColumns[0]?.name === key.parentKey
+      );
+    })
+  );
 
 /** The handle of the table when the Person root owns it. */
 export const ownedBy = (table: string) =>
