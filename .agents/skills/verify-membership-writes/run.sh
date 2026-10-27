@@ -89,7 +89,7 @@ if [ -z "$sync" ] || [ "${#covered[@]}" -eq 0 ]; then
   exit 2
 fi
 membership_writers() {
-  git -C "$root" grep -lE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]' \
+  git -C "$root" grep -liE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]' \
     -- packages apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.md' || true
 }
 
