@@ -41,10 +41,11 @@ effx moves on its own. `bun run description:drift` makes the vectors again with 
 `test/conformance.test.ts`, spec 0007d falsifiers 1 to 4. No Nix, no JVM and no network: they read files.
 
 1. Every committed description is the export of the declarations now. The failure names the domain and the first line that differs. Negative controls: a grant row deleted, a scope changed and a state renamed in a declaration; a hand edit of a description.
-2. The digests and the pin in `provenance.json` are those of the committed files, and the way that the vectors were made (`generator`) is the one that this tool makes them in. Negative controls: one changed character, one flipped byte, another config for effx.
+2. The digests and the pin in `provenance.json` are those of the committed files. Negative controls: one changed character, one flipped byte.
 3. The kernel's `authorize` and machine tables answer every row of every vectors file as the vectors say, and the number of rows compared, of each of the three kinds (authorization, transitions, `Machine.can` per command), is the number that the file's own structure asks for. The transitions are those of commands and the changes that time makes (a calculated transition has a typed guard, which effx fires at the successor clock). Negative controls, each failing on exactly the rows it changes, and the number of them counted: a grant row removed (1,344 rows), a scope widened (9,648), a guard removed (19,584 transition rows and as many command rows), the guard of a change of time removed (17,408 rows); a table without its changes of time (no disagreement, 208,896 rows fewer than the file asks for); an empty vectors file.
 4. The register of gaps is the export's. Negative control: a subject that effx cannot state adds a gap.
 5. The drift comparison (`differences`, which `description:drift` runs) is silent for what is committed, and names the domain and the line for a changed digest, an assertion that stopped passing, a domain that effx did not make and one that is not committed.
+6. The way that the vectors were made (`generator` in `provenance.json`) is the way that this tool makes them, by one comparison (`generatorDrift`). Negative control: a provenance that records another command, config, link or file set fails the same comparison, once the comparison has been shown silent for the recorded generator; with the comparison weakened the check passes and the control fails.
 
 ## What the vectors do not cover
 
