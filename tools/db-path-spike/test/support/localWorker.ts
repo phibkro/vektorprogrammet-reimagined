@@ -111,6 +111,7 @@ const provision = (surgery: readonly string[]) =>
     const env: SpikeEnv = {
       CF_VERSION_METADATA: { id: localWorkerVersion },
       HYPERDRIVE: { connectionString: appUrl.toString() },
+      PLACEMENT_VARIANT: "local",
     };
 
     const background: Promise<unknown>[] = [];

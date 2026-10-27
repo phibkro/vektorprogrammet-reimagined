@@ -38,11 +38,23 @@ export const BcryptParams = Schema.Struct({
   which: Schema.Literals(["right", "wrong"]),
 });
 
+/** The placement experiment: how many dependent statements `/chain` runs in one transaction (the sizes of research §C). */
+export const ChainParams = Schema.Struct({
+  n: IntFromString.pipe(
+    Schema.check(
+      Schema.isInt(),
+      Schema.isGreaterThanOrEqualTo(1),
+      Schema.isLessThanOrEqualTo(17)
+    )
+  ),
+});
+
 export const routes = {
   abort: "/checks/abort",
   abortProbe: "/checks/abort-probe",
   bcrypt: "/checks/bcrypt",
   cache: "/checks/cache",
+  chain: "/chain",
   codec: "/checks/codec",
   commit: "/checks/commit",
   connect: "/checks/connect",
@@ -60,6 +72,21 @@ export const routes = {
 export const ABORT_READY_LINE = "inserted";
 
 export const Ping = Schema.Struct({ ok: Schema.Literal(true) });
+
+/**
+ * `/chain`: `n` sequential dependent `select` statements in one transaction, timed inside the Worker.
+ * `statementsMs` covers the statement loop; `dbMs` covers the transaction call, including BEGIN and COMMIT.
+ * `totalMs` covers the chain handler after parameter decoding through its result, before response encoding.
+ * The client measures end-to-end time separately. `variant` names the deployed placement arm.
+ */
+export const Chain = Schema.Struct({
+  dbMs: Schema.Finite,
+  n: Schema.Int,
+  statementsMs: Schema.Finite,
+  totalMs: Schema.Finite,
+  value: Schema.Int,
+  variant: Schema.String,
+});
 
 /** Check 1: `select 1` through the SqlClient and through Drizzle, and who answered. */
 export const Connect = Schema.Struct({

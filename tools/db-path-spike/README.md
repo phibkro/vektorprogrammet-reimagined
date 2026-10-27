@@ -30,17 +30,19 @@ Check 1 names the Worker script version it ran against. After a deploy, run `GET
 
 `tools/with-neon-env.sh` derives the Neon values from SecretSpec's `NEON_API_KEY` and runs the command that follows it. Nothing is printed or written.
 
-The spike tables come first, applied as `neondb_owner` over a direct connection, outside the Worker (`vp_app` keeps DML-only rights):
+The spike tables come first, applied as `neondb_owner` over a direct connection, outside the Worker (`vp_app` keeps DML-only rights); the migration creates only its `spike_0000` schema and tables. Before applying migrations, run `bun --bun drizzle-kit up` from `tools/db-path-spike` to bring the committed snapshots to the installed Drizzle Kit format; otherwise `db:migrate` may reject the older snapshot format.
 
 ```sh
 SECRETSPEC_REASON="apply the spike_0000 migrations" devenv shell -- secretspec run -- \
   tools/with-neon-env.sh owner bun run --cwd tools/db-path-spike db:migrate
 ```
 
-Then the Worker and the Hyperdrive config, with Alchemy v2 (stage `spike`, profile `production`); add `--yes` to run it without a terminal:
+Then deploy both placement Workers and their shared Hyperdrive config with Alchemy v2 (stage `spike`, profile `production`). Add `--yes` to run it without a terminal.
+
+When running locally with the `production` profile, set `CI=false` for the Alchemy command. An inherited `CI=true` makes Alchemy select CI environment credentials instead of the selected profile and fail with `Missing required env: CLOUDFLARE_ACCOUNT_ID`. Run Alchemy from this package directory (or use `bun run --cwd tools/db-path-spike` from the repository root).
 
 ```sh
-SECRETSPEC_REASON="deploy the vp-spike-0000 Worker" devenv shell -- secretspec run -- \
+SECRETSPEC_REASON="deploy the vp-spike-0000 Worker" CI=false devenv shell -- secretspec run -- \
   tools/with-neon-env.sh app bun run --cwd tools/db-path-spike deploy
 ```
 
@@ -49,13 +51,18 @@ SECRETSPEC_REASON="deploy the vp-spike-0000 Worker" devenv shell -- secretspec r
 | Source | `NEON_APP_PASSWORD`, from SecretSpec into the Alchemy process's environment |
 | Route | read with `Config.Redacted` and handed to the Alchemy Hyperdrive resource. Alchemy writes it into its state document inside a `{"__redacted__": …}` envelope, and the Cloudflare state store encrypts each document at rest (AES-CTR). It is in no file, argument or log. Cloudflare checks the origin on create, so a placeholder cannot stand in. |
 
-### The Cloudflare sign-in used for this deployment
+### Cloudflare sign-in history
 
-The Alchemy profile `production` needed an interactive browser sign-in (`needs-reauth`). With the operator's approval the deployment ran with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` taken from the operator's `cf` OAuth session and set only in the environment of the Alchemy process, never in an argument, a file or a log. Alchemy printed `Cloudflare: using environment variables … instead of the profile.` and left the profile untouched. To return to the normal path:
+The 2026-10-16 deployment used `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` from the operator's `cf` OAuth session in the Alchemy process environment after profile re-authentication was needed. For the 2026-10-27 placement experiment, the operator refreshed the `production` profile and Alchemy used that profile; no Cloudflare env credentials were supplied. Use `CI=false` for local profile-based Alchemy commands (see above).
+
+To refresh the profile, run this from the package directory:
 
 ```sh
-devenv shell -- bunx alchemy profile refresh --profile production --provider Cloudflare
+cd tools/db-path-spike   # the package that installs Alchemy and its @effect/platform-bun peer
+CI=false devenv shell -- bunx alchemy profile refresh --profile production --provider Cloudflare
 ```
+
+Run it from this folder. At the repository root no package installs Alchemy, so `bunx` fetches a global copy that fails with "could not load the required peer dependency @effect/platform-bun" (observed 2026-10-27).
 
 ## CPU time of check 10
 
@@ -69,14 +76,14 @@ On the Free plan a request is capped at 10 ms of CPU, so check 10 would end with
 
 ## Teardown
 
-Removes the Worker, the Hyperdrive config (Alchemy, stage `spike`) and the spike tables (schema `spike_0000` and its migration journal), and nothing else:
+Removes the default and Frankfurt placement Workers, the Hyperdrive config (Alchemy, stage `spike`) and the spike tables (schema `spike_0000` and its migration journal), and nothing else:
 
 ```sh
-SECRETSPEC_REASON="tear down the slice 0000 spike" devenv shell -- secretspec run -- \
+SECRETSPEC_REASON="tear down the slice 0000 spike" CI=false devenv shell -- secretspec run -- \
   tools/with-neon-env.sh both bun run --cwd tools/db-path-spike teardown
 ```
 
-`alchemy destroy … --dry-run` lists exactly two deletions (the Hyperdrive config and the Worker). Both steps are safe to repeat.
+`alchemy destroy … --dry-run` lists three resource deletions (two Workers and the Hyperdrive config), plus their six bindings. Both steps are safe to repeat.
 
 ## Notes
 

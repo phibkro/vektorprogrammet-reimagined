@@ -16,6 +16,7 @@ import worker from "../src/worker.ts";
 const unused = {
   CF_VERSION_METADATA: { id: "unused" },
   HYPERDRIVE: { connectionString: "postgres://unused@127.0.0.1:1/none" },
+  PLACEMENT_VARIANT: "test",
 };
 
 const noWork = { waitUntil: () => {} };

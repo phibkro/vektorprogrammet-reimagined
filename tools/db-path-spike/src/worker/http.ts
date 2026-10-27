@@ -4,9 +4,10 @@
  * defects become a JSON error body (the smoke command prints it as evidence),
  * and an interruption stays an interruption. `worker.ts` runs them.
  */
-import { Cause, Effect, Option, Record as Rec, Schema } from "effect";
+import { Cause, Clock, Effect, Option, Record as Rec, Schema } from "effect";
 
 import * as Protocol from "../protocol.ts";
+import { runChain } from "./chain.ts";
 import * as Checks from "./checks.ts";
 import { requestDatabase } from "./database.ts";
 import type { SpikeEnv } from "./database.ts";
@@ -111,6 +112,22 @@ const handlers = {
       withParams(Protocol.BcryptParams, url, ({ which }) =>
         Checks.verifyBcrypt(which)
       )
+    ),
+  [`GET ${Protocol.routes.chain}`]: (url, env) =>
+    answer(Protocol.Chain)(
+      withParams(Protocol.ChainParams, url, ({ n }) =>
+        Effect.gen(function* timedHandler() {
+          const started = yield* Clock.monotonicTimeNanos;
+          const result = yield* runChain(n);
+          const finished = yield* Clock.monotonicTimeNanos;
+
+          return {
+            ...result,
+            totalMs: Number(finished - started) / 1_000_000,
+            variant: env.PLACEMENT_VARIANT,
+          };
+        })
+      ).pipe(withDatabase(env))
     ),
   [`POST ${Protocol.routes.cache}`]: (url, env) =>
     answer(Protocol.Cache)(

@@ -20,6 +20,7 @@ export interface SpikeEnv {
   /** The deployed script version: check 1 names it, so a run is attributable to the code it ran against. */
   readonly CF_VERSION_METADATA: Pick<WorkerVersionMetadata, "id">;
   readonly HYPERDRIVE: Pick<Hyperdrive, "connectionString">;
+  readonly PLACEMENT_VARIANT: string;
 }
 
 /** Hyperdrive pools connections itself; one request needs very few (as `apps/web`). */
