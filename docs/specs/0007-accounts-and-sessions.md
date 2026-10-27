@@ -2,6 +2,8 @@
 
 **Status:** frozen when PR opens; later changes are dated entries under [Revisions](#revisions) · **Phase:** 2 · **Source:** brief §7 "Auth library and session model" (2026-10-15, refined 2026-10-16) and "Information model and personal data" (accepted 2026-10-26); `docs/system/administration.md`; INFORMATION_MODEL §9.3; ADR 0007, 0008, 0009; spec 0006 (principals, grants, kernel), spec 0006a (diagnostics policy). Split on 2026-10-27 from the draft "Accounts, sessions and personal data": the personal-data half is spec 0007b, so each spec is one journey and one pull request.
 
+> **Command names.** Spec 0007c (ADR 0010) renamed every command that this spec names, and the text below keeps the names of its day. The table of old and new names is in [spec 0007c §4](0007c-command-resources.md#4-the-rename).
+
 ## Journey
 
 1. **A team leader** opens a person of their department on the Team page and invites them. The person gets an e-mail (a capture sink outside production) with a link that works once and expires after 14 days.

@@ -2,6 +2,8 @@
 
 Status: frozen 2026-10-27. Operator decision: "try avoiding races by construction". Stacked on PR #12 (`chore/effect-4.0.6-drizzle-rc5`).
 
+> **Command names.** Spec 0007c (ADR 0010) renamed every command that this spec names, and the text below keeps the names of its day. The table of old and new names is in [spec 0007c §4](0007c-command-resources.md#4-the-rename).
+
 ## Problem
 
 Spec 0006 R6 fixed a deadlock by hand: `MembershipRepository.insert` and `setEnd` now lock the person's row before writing, so two overlapping writes of one person queue instead of deadlocking (SQLSTATE 40P01, about 0.6% of contended rounds). Two facts keep that fix fragile:
