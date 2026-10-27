@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: df8f199646dbe63bf6a00c77b969fad5575246d9
-confirmed-at: 531b94f5333fdb9b60c27b0244553c41e1830c93
+sync-digest: 92a234a0119930f0d856fb065ff3e737b109c80f
+confirmed-at: b6a57564702ebe00cc1fb491064ae44784156b1c
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
