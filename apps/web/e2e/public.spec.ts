@@ -13,7 +13,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { Array as Arr, Option, Record as Rec } from "effect";
+import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
 import {
   paragraph,
@@ -32,8 +32,34 @@ import {
   registerLegacyFile,
   runDatabase,
 } from "./support/probes.ts";
+import { PUBLIC_FILE_FIXTURE_TEXT } from "./support/publicFile.ts";
 
 test.describe.configure({ mode: "serial" });
+
+test("falsifier 5: a registered public file serves bytes and headers; an unknown key is 404", async ({
+  request,
+}) => {
+  const key = Effect.runSync(Config.String("E2E_PUBLIC_FILE_KEY"));
+  expect(key).toMatch(/^[0-9a-f]{64}\.bin$/u);
+  const response = await request.get(`/filer/${key}`);
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toBe(PUBLIC_FILE_FIXTURE_TEXT);
+
+  const headers = response.headers();
+  expect(headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+  expect(headers["content-disposition"]).toBe(
+    "attachment; filename=\"vektorprogrammet-e2e-fixture.bin\"; filename*=UTF-8''vektorprogrammet-e2e-fixture.bin"
+  );
+  // workerd omits Content-Length from this streamed Worker response.
+  expect(headers["content-security-policy"]).toBe(
+    "sandbox; default-src 'none'"
+  );
+  expect(headers["content-type"]).toBe("application/octet-stream");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+
+  const unknown = await request.get("/filer/nope");
+  expect(unknown.status()).toBe(404);
+});
 
 /** The visible heading of a page: its one `h1`. */
 const heading = (page: Page, name: string) =>

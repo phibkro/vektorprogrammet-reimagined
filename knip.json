@@ -19,6 +19,7 @@
         "alchemy.run.ts",
         "e2e/playwright.config.ts",
         "e2e/**/*.spec.ts",
+        "e2e/support/r2SeedWorker.ts",
         "test/support/*.worker.ts"
       ],
       "project": [

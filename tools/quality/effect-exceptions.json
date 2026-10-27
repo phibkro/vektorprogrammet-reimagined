@@ -145,6 +145,36 @@
         "@effect/tsgo": "0.53.1"
       },
       "retirementTrigger": "Retire when Better Auth forwards cancellation to its pg adapter and supports an equivalent cancellable transaction."
+    },
+    {
+      "id": "EX-0023",
+      "rules": [
+        "FX003",
+        "FX012",
+        "effecttsgo/async-function",
+        "typescript/promise-function-async"
+      ],
+      "scope": {
+        "files": ["apps/web/e2e/support/publicFile.ts"],
+        "directives": ["oxlint-disable-next-line"]
+      },
+      "reason": "The disposable e2e seed accesses Wrangler's local R2 binding through getPlatformProxy and the R2Bucket Promise API.",
+      "missingCapability": "Wrangler exposes no Effect client, while the configured Promise lint requires async thunks and the default Effect diagnostic rejects them.",
+      "nativeAlternativesExamined": [
+        "Effect.tryPromise and Effect.promise preserve the Promise boundary; the owned Effect scope disposes the Wrangler proxy.",
+        "Effect's callback constructor would require a custom Promise bridge and duplicate cancellation and late-result handling."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp check",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": "apps/web",
+      "versions": {
+        "effect": "4.0.6",
+        "@effect/tsgo": "0.53.1",
+        "wrangler": "4.151.0"
+      },
+      "retirementTrigger": "Remove the local Promise-boundary suppressions when Wrangler exposes an Effect API or the lint rules accept Effect Promise thunks."
     }
   ],
   "typeBridges": [

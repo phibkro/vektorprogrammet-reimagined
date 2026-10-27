@@ -11,6 +11,7 @@
     "build": "vp build",
     "test": "devenv shell -- bunx vp test",
     "e2e": "bun e2e/run.ts",
+    "e2e:serve": "bun e2e/serve.ts",
     "check": "vp check",
     "generate-routes": "tsr generate",
     "deploy": "alchemy deploy alchemy.run.ts"
@@ -64,6 +65,7 @@
     "esbuild": "catalog:",
     "miniflare": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "wrangler": "catalog:"
   }
 }
