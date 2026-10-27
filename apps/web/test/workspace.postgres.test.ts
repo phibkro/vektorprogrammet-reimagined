@@ -25,6 +25,7 @@ import type {
   WorkspaceFacts,
   WorkspaceMode,
   WorkspaceReport,
+  AuditLog,
 } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -78,6 +79,7 @@ const reset = Effect.gen(function* reset() {
 /** What the Workspace runner needs from its Layer, besides the principal and the transaction that the scheduler provides. */
 type RunnerServices =
   | AggregateLocks
+  | AuditLog
   | JobRun.JobRuns
   | Outbox
   | WorkspaceDirectory
@@ -525,7 +527,7 @@ layer(live, { excludeTestServices: true })(
       );
 
       layerTest.effect(
-        "a requested report's period carries no person id, in the request row or in the report",
+        "a requested report's period carries no person id; the audit row names who asked",
         () =>
           Effect.gen(function* periodWithoutPerson() {
             const sql = yield* SqlClient;
@@ -547,6 +549,23 @@ layer(live, { excludeTestServices: true })(
             }>`select ((select count(*) from job_run where period like ${`%${requester}%`}) + (select count(*) from workspace_report where period like ${`%${requester}%`}))::int as n`;
 
             assert.strictEqual(named[0]?.n, 0);
+
+            // Who asked is exactly one audit row of the request's transaction, keyed by the period.
+            const audited = yield* sql<{
+              readonly action: string;
+              readonly entity: string;
+              readonly entity_key: string;
+              readonly person_id: number;
+            }>`select action, entity, entity_key, person_id from audit_log where person_id = ${requester}`;
+
+            assert.deepStrictEqual(audited, [
+              {
+                action: "workspaceReport.requested",
+                entity: "WorkspaceReport",
+                entity_key: request.period,
+                person_id: requester,
+              },
+            ]);
           })
       );
 

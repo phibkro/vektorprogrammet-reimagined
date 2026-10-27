@@ -20,6 +20,7 @@ import {
   Schema,
 } from "effect";
 
+import { recordAudit } from "../audit/auditLog.ts";
 import { requestPeriod } from "../jobs/job.ts";
 import type { JobPeriod } from "../jobs/job.ts";
 import { workspaceSync } from "../jobs/registry.ts";
@@ -411,11 +412,12 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
   /**
    * An administrator asks for a dry-run: a request row, which the next tick takes. No provider is called and nothing
    * else is written. The period names the instant and a random nonce, and no person: `job_run.period` and
-   * `workspace_report.period` are declared not personal. Who asked is the audit entry of this staff write.
+   * `workspace_report.period` are declared not personal. Who asked is the audit entry `workspaceReport.requested`, in
+   * this transaction, whose entity key is the period.
    */
   createWorkspaceReport: WorkspaceDomain.handle(createWorkspaceReport, {
     resource: () => Effect.succeed({}),
-    run: () =>
+    run: (_payload, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;
         const now = yield* DateTime.now;
@@ -436,6 +438,13 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
             "a newly generated Workspace request period already exists"
           );
         }
+
+        yield* recordAudit(
+          principal,
+          "workspaceReport.requested",
+          "WorkspaceReport",
+          period
+        );
 
         return { period };
       }),
