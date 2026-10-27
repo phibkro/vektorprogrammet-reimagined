@@ -11,7 +11,7 @@ import {
   TeamRepository,
   WelcomeLedger,
 } from "@vektorprogrammet/domain";
-import type { Person, Team } from "@vektorprogrammet/domain";
+import type { Person, PositionId, Team } from "@vektorprogrammet/domain";
 import { Array as Arr, Cause, DateTime, Effect, Exit, Layer } from "effect";
 import { TestClock } from "effect/testing";
 
@@ -50,6 +50,47 @@ const create = (person: Person, team: Team, start = semester("HOST", 2026)) =>
     start,
     teamId: team.id,
   }).pipe(Effect.provideService(CurrentPrincipal, ADMIN));
+
+/** A semester that has not started: a membership planned in it is cancelled before anything happens. */
+const PLANNED = semester("HOST", 2027);
+
+/** A planned membership that is cancelled again: the person keeps their welcome claim and holds no membership. */
+const cancelledPlan = Effect.fnUntraced(function* cancelledPlan(
+  person: Person,
+  team: Team,
+  positionId: PositionId
+) {
+  const existing = yield* placeMembership(
+    { personId: person.id, positionId, teamId: team.id },
+    { end: PLANNED, start: PLANNED }
+  );
+
+  yield* transactional(
+    TeamsEndpoints.deleteMembership({ id: existing.id }).pipe(
+      Effect.provideService(CurrentPrincipal, ADMIN)
+    )
+  );
+});
+
+/**
+ * An administrator and two people of one department, the first of whom has a claim and no membership (a cancelled plan):
+ * the second survives the merge.
+ */
+const mergePair = Effect.fnUntraced(function* mergePair(tag: string) {
+  yield* TestClock.setTime(DateTime.toEpochMillis(LATER));
+
+  const admin = yield* seedPerson(
+    `${tag}-admin`,
+    { ...nothing, account: true, grant: true },
+    LATER
+  );
+
+  const { fieldOfStudy, team, memberPosition } = yield* world(tag);
+  const [merged, survivor] = yield* twoPeople(fieldOfStudy.id, tag);
+  yield* cancelledPlan(merged, team, memberPosition);
+
+  return { admin: admin.personId, merged, survivor, team };
+});
 
 layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
   it.layer(TestClock.layer())((clocked) => {
@@ -147,24 +188,9 @@ layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
           const { person, team, memberPosition } =
             yield* world("welcome-legacy");
 
-          const planned = semester("HOST", 2027);
-
-          const existing = yield* placeMembership(
-            {
-              personId: person.id,
-              positionId: memberPosition,
-              teamId: team.id,
-            },
-            { end: planned, start: planned }
-          );
-
-          yield* transactional(
-            TeamsEndpoints.deleteMembership({ id: existing.id }).pipe(
-              Effect.provideService(CurrentPrincipal, ADMIN)
-            )
-          );
+          yield* cancelledPlan(person, team, memberPosition);
           assert.deepStrictEqual(yield* countsFor(person), [1, 0, 0]);
-          yield* transactional(create(person, team, planned));
+          yield* transactional(create(person, team, PLANNED));
           assert.deepStrictEqual(yield* countsFor(person), [1, 0, 1]);
         })
     );
@@ -173,46 +199,17 @@ layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
       "cancel, merge, then a new first membership for the survivor welcomes them once: the merged record's claim is kept",
       () =>
         Effect.gen(function* cancelMergeCreate() {
-          yield* TestClock.setTime(DateTime.toEpochMillis(LATER));
+          const { admin, merged, survivor, team } =
+            yield* mergePair("welcome-merge");
 
-          const admin = yield* seedPerson(
-            "welcome-merge-admin",
-            { ...nothing, account: true, grant: true },
-            LATER
-          );
-
-          const { fieldOfStudy, team, memberPosition } =
-            yield* world("welcome-merge");
-
-          const [merged, survivor] = yield* twoPeople(
-            fieldOfStudy.id,
-            "welcome-merge"
-          );
-
-          const planned = semester("HOST", 2027);
-
-          const existing = yield* placeMembership(
-            {
-              personId: merged.id,
-              positionId: memberPosition,
-              teamId: team.id,
-            },
-            { end: planned, start: planned }
-          );
-
-          yield* transactional(
-            TeamsEndpoints.deleteMembership({ id: existing.id }).pipe(
-              Effect.provideService(CurrentPrincipal, ADMIN)
-            )
-          );
           assert.deepStrictEqual(yield* countsFor(merged), [1, 0, 0]);
           assert.deepStrictEqual(yield* countsFor(survivor), [0, 0, 0]);
 
-          yield* mergeAs(admin.personId, survivor.id, merged.id);
+          yield* mergeAs(admin, survivor.id, merged.id);
           assert.deepStrictEqual(yield* countsFor(merged), [0, 0, 0]);
           assert.deepStrictEqual(yield* countsFor(survivor), [1, 0, 0]);
 
-          yield* transactional(create(survivor, team, planned));
+          yield* transactional(create(survivor, team, PLANNED));
           assert.deepStrictEqual(yield* countsFor(survivor), [1, 0, 1]);
         })
     );
@@ -221,43 +218,14 @@ layer(live, { excludeTestServices: true })("RULE-248 on PostgreSQL", (it) => {
       "a merge of two records that both hold a claim leaves the survivor one claim and queues nothing",
       () =>
         Effect.gen(function* bothClaims() {
-          yield* TestClock.setTime(DateTime.toEpochMillis(LATER));
+          const { admin, merged, survivor, team } =
+            yield* mergePair("welcome-both");
 
-          const admin = yield* seedPerson(
-            "welcome-both-admin",
-            { ...nothing, account: true, grant: true },
-            LATER
-          );
-
-          const { fieldOfStudy, team, memberPosition } =
-            yield* world("welcome-both");
-
-          const [merged, survivor] = yield* twoPeople(
-            fieldOfStudy.id,
-            "welcome-both"
-          );
-
-          const planned = semester("HOST", 2027);
-
-          const existing = yield* placeMembership(
-            {
-              personId: merged.id,
-              positionId: memberPosition,
-              teamId: team.id,
-            },
-            { end: planned, start: planned }
-          );
-
-          yield* transactional(
-            TeamsEndpoints.deleteMembership({ id: existing.id }).pipe(
-              Effect.provideService(CurrentPrincipal, ADMIN)
-            )
-          );
-          yield* transactional(create(survivor, team, planned));
+          yield* transactional(create(survivor, team, PLANNED));
           assert.deepStrictEqual(yield* countsFor(merged), [1, 0, 0]);
           assert.deepStrictEqual(yield* countsFor(survivor), [1, 2, 1]);
 
-          yield* mergeAs(admin.personId, survivor.id, merged.id);
+          yield* mergeAs(admin, survivor.id, merged.id);
           assert.deepStrictEqual(yield* countsFor(merged), [0, 0, 0]);
           assert.deepStrictEqual(yield* countsFor(survivor), [1, 2, 1]);
         })

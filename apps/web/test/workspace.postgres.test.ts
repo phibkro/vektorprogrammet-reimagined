@@ -141,6 +141,46 @@ const runIn = (
     )
   );
 
+/** Midnight UTC on 2026-10-27, before the nightly window: only a requested report is due. */
+const EARLY = DateTime.makeUnsafe("2026-10-27T00:00:00Z");
+
+/** A world of one member and one team, and `principal`'s request for a report: a `request:` row that waits for a tick. */
+const requestAs = (principal: typeof ADMIN) =>
+  Effect.gen(function* requestedReport() {
+    yield* TestClock.setTime(DateTime.toEpochMillis(EARLY));
+    yield* reset;
+    yield* seedWorld({ members: 1, teams: 1 });
+
+    return yield* (yield* Transactor).run(
+      requestWorkspaceReport.pipe(
+        Effect.provideService(CurrentPrincipal, principal)
+      )
+    );
+  });
+
+/** The tick that takes the waiting request, in `mode` over a directory with `strays` extra members; what the writer was asked. */
+const runRequested = (mode: WorkspaceMode, strays: number) =>
+  Effect.gen(function* tickOfRequest() {
+    const directory = yield* Ref.make(worldOfStrays(strays));
+    const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
+
+    yield* dispatchTick<"workspaceSync", RunnerServices>(
+      [JobRegistry.workspaceSync],
+      { workspaceSync: workspaceSyncRunner },
+      { at: EARLY, only: ["workspaceSync"] }
+    ).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          directoryOver(directory),
+          writerOver(directory, asked),
+          Layer.succeed(WorkspaceModeSetting)(mode)
+        )
+      )
+    );
+
+    return asked;
+  });
+
 layer(live, { excludeTestServices: true })(
   "the Workspace projection on PostgreSQL",
   (it) => {
@@ -472,37 +512,8 @@ layer(live, { excludeTestServices: true })(
         "an administrator's requested dry-run never queues writes even when write mode is enabled",
         () =>
           Effect.gen(function* requestedDryRun() {
-            const early = DateTime.makeUnsafe("2026-10-27T00:00:00Z");
-            yield* TestClock.setTime(DateTime.toEpochMillis(early));
-            yield* reset;
-            yield* seedWorld({ members: 1, teams: 1 });
-
-            const transactor = yield* Transactor;
-
-            const request = yield* transactor.run(
-              requestWorkspaceReport.pipe(
-                Effect.provideService(CurrentPrincipal, ADMIN)
-              )
-            );
-
-            const directory = yield* Ref.make(worldOfStrays(1));
-            const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
-
-            const requestedTick = dispatchTick<"workspaceSync", RunnerServices>(
-              [JobRegistry.workspaceSync],
-              { workspaceSync: workspaceSyncRunner },
-              { at: early, only: ["workspaceSync"] }
-            );
-
-            yield* requestedTick.pipe(
-              Effect.provide(
-                Layer.mergeAll(
-                  directoryOver(directory),
-                  writerOver(directory, asked),
-                  Layer.succeed(WorkspaceModeSetting)("write")
-                )
-              )
-            );
+            const request = yield* requestAs(ADMIN);
+            const asked = yield* runRequested("write", 1);
 
             const report = yield* latest;
             assert.strictEqual(report.period, request.period);
@@ -517,20 +528,9 @@ layer(live, { excludeTestServices: true })(
         "a requested report's period carries no person id, in the request row or in the report",
         () =>
           Effect.gen(function* periodWithoutPerson() {
-            const early = DateTime.makeUnsafe("2026-10-27T00:00:00Z");
-            yield* TestClock.setTime(DateTime.toEpochMillis(early));
-            yield* reset;
-            yield* seedWorld({ members: 1, teams: 1 });
-
             const sql = yield* SqlClient;
-            const transactor = yield* Transactor;
             const requester = 7_354_219;
-
-            const request = yield* transactor.run(
-              requestWorkspaceReport.pipe(
-                Effect.provideService(CurrentPrincipal, adminOf(requester))
-              )
-            );
+            const request = yield* requestAs(adminOf(requester));
 
             // The instant and the nonce are all a period says: `job_run.period` and `workspace_report.period` are
             // declared not personal, so who asked is the audit entry's to say.
@@ -539,23 +539,7 @@ layer(live, { excludeTestServices: true })(
               /^request:\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
             );
 
-            const directory = yield* Ref.make(worldOfStrays(0));
-            const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
-
-            yield* dispatchTick<"workspaceSync", RunnerServices>(
-              [JobRegistry.workspaceSync],
-              { workspaceSync: workspaceSyncRunner },
-              { at: early, only: ["workspaceSync"] }
-            ).pipe(
-              Effect.provide(
-                Layer.mergeAll(
-                  directoryOver(directory),
-                  writerOver(directory, asked),
-                  Layer.succeed(WorkspaceModeSetting)("dry-run")
-                )
-              )
-            );
-
+            yield* runRequested("dry-run", 0);
             assert.strictEqual((yield* latest).period, request.period);
 
             const named = yield* sql<{
