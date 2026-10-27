@@ -1,9 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": ["tools/oxlint/anti-slop/**"],
+  "ignoreDependencies": ["@effect/language-service"],
   "workspaces": {
     "tools/quality": {
-      "entry": ["checkEffectExceptions.ts"],
+      "entry": ["checkEffectExceptions.ts", "syncEffectPolicy.ts"],
       "project": ["*.ts"]
     },
     "apps/web": {
