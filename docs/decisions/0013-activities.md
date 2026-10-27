@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Activities: planned occasions with RSVP, check-in and voting, and Slack as a client
