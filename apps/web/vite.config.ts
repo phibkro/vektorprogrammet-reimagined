@@ -1,3 +1,5 @@
+import { availableParallelism } from "node:os";
+
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -165,8 +167,13 @@ export default defineConfig(({ command }) => ({
       ],
   resolve: { tsconfigPaths: true },
   test: {
+    // Real-PostgreSQL files create a database and apply the migrations in their layer, and sign-in files hash with
+    // bcrypt at cost 12: a shared two-CPU runner needs more than Vitest's 10 s and 5 s defaults (as in packages/db).
+    hookTimeout: 60_000,
     include: ["test/**/*.test.{ts,tsx}"],
-    // Bound simultaneous file-level pools so PostgreSQL retains slots for the 20-way race tests.
-    maxWorkers: 2,
+    // At most two file-level pools, so PostgreSQL retains slots for the 20-way race tests, and never more than Vitest's
+    // own default of one fewer than the CPUs: with two files at once on a two-CPU runner, a sign-in test timed out.
+    maxWorkers: Math.min(2, Math.max(availableParallelism() - 1, 1)),
+    testTimeout: 60_000,
   },
 }));
