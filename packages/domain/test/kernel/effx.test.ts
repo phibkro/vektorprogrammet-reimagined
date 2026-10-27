@@ -4,7 +4,14 @@
  * each field's source, each gap, and a negative control that changes one declaration and shows what moves.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Option, Predicate, Schema } from "effect";
+import {
+  Array as Arr,
+  Option,
+  Order,
+  Predicate,
+  Record as Rec,
+  Schema,
+} from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
 import {
@@ -447,6 +454,21 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
       ),
       [["AdminList", "Person"]]
     );
+  });
+
+  it("every kind of gap says what closes it, and a closure by effx names the issue or the spec that tracks it", () => {
+    assert.deepStrictEqual(
+      Arr.sort(Rec.keys(Effx.closures), Order.String),
+      Arr.sort(Rec.keys(Effx.Gap.cases), Order.String)
+    );
+
+    for (const [kind, closure] of Rec.toEntries(Effx.closures)) {
+      assert.isAbove(closure.change.length, 0, kind);
+
+      if (closure.by === "effx") {
+        assert.match(closure.change, /effx (?:issue|spec) \d+/u, kind);
+      }
+    }
   });
 });
 

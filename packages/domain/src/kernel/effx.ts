@@ -180,6 +180,65 @@ export const Gap = Schema.TaggedUnion({
 
 export type Gap = typeof Gap.Type;
 
+/** Who can remove a kind of gap, and what they change. */
+export interface Closure {
+  /** The kernel's own declarations, or effx: an issue on `phibkro/effx` or a spec of its own. */
+  readonly by: "effx" | "kernel";
+  readonly change: string;
+}
+
+/**
+ * What closes each kind of gap. The type is a record over the kinds, so a kind that nobody has said how to close does
+ * not compile. This repository never edits effx: a closure by effx is an issue there, and spec 0007d says where each
+ * stands.
+ */
+export const closures: Readonly<Record<Gap["_tag"], Closure>> = {
+  AdminExpiry: {
+    by: "effx",
+    change:
+      "state that a place ends when a stored field of the place, of an order of its own, is reached by the clock (effx issue 10)",
+  },
+  AdminListUnclear: {
+    by: "kernel",
+    change:
+      "the domain declares one command that grants a place and one that revokes it, or neither",
+  },
+  MachineDropped: {
+    by: "effx",
+    change:
+      "close each reason that the gap gives: a check that effx does not know, and a command that left with its subject (effx issue 9)",
+  },
+  MissingDeclaration: {
+    by: "kernel",
+    change:
+      "the machine declares each semester that its guards read, in `fields`",
+  },
+  NoDescription: {
+    by: "effx",
+    change:
+      "close the gaps that left nothing to say: for `contact`, the `Anyone` subject (effx issue 9)",
+  },
+  NoField: {
+    by: "effx",
+    change:
+      "a field of the description for the aggregate roots, with entities and relationships (the entity slice of effx spec 0031)",
+  },
+  UndeclaredWrites: {
+    by: "kernel",
+    change:
+      "each command declares the stored fields that it writes (`writes`, effx spec 0032 §2); effx lets its model choose any value of a written field until its slice of detailed command effects",
+  },
+  UnexpressibleGuard: {
+    by: "effx",
+    change:
+      "guard operands that are ids and flags, with comparisons over them (effx issue 9)",
+  },
+  UnexpressibleSubject: {
+    by: "effx",
+    change: "an `Anonymous` subject and a credential subject (effx issue 9)",
+  },
+};
+
 /** What the kernel declares once for every domain and the description has no field for. */
 export const kernelGaps: readonly Gap[] = [
   Gap.cases.NoField.make({ field: "aggregate roots", values: AggregateRoots }),
