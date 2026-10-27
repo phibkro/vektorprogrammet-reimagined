@@ -48,7 +48,7 @@ const mint = <Name extends AggregateRoot>(
   id: number
 ): Locked<Name> =>
   // SAFETY: the token's brand exists only in its type. This is the one place that makes a token, and its callers have
-  // just locked the row or found it held (EX-0023).
+  // just locked the row or found it held (EX-0025).
   cast({ id, root: name });
 
 /** A token is used only while this transaction holds its lock, and only for the root that it is a token of. */

@@ -320,7 +320,7 @@
       "retirementTrigger": "Remove the bridge when Cloudflare publishes a module-scoped env type compatible with the app's DOM and Node type configuration."
     },
     {
-      "id": "EX-0023",
+      "id": "EX-0025",
       "rules": ["typescript/no-unsafe-type-assertion"],
       "scope": {
         "files": [

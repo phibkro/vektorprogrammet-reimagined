@@ -93,7 +93,7 @@ const diedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) =>
 
 /** A token that no lock made: what a caller would have to forge. The compiler refuses it; the registry must too. */
 const forged = (id: number, root: "AdminList" | "Person") =>
-  // SAFETY: this is the forgery under test (EX-0023).
+  // SAFETY: this is the forgery under test (EX-0025).
   cast<{ id: number; root: string }, Locked<"Person">>({ id, root });
 
 /** A decision read of the membership rows, through a token. */

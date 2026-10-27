@@ -178,6 +178,6 @@ export const declare = <
     return [entry.name, { ...root, owned }] as const;
   });
 
-  // SAFETY: each entry is the root of `Declared` that its name selects, built from the same declaration (EX-0023).
+  // SAFETY: each entry is the root of `Declared` that its name selects, built from the same declaration (EX-0025).
   return cast(Rec.fromEntries(declaredRoots));
 };

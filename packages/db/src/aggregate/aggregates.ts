@@ -93,7 +93,7 @@ const asRows = <Holder extends { readonly table: PgTable }>(
   statement: Effect.Effect<unknown, QueryFailure>
 ): Statement<Holder["table"]> =>
   // SAFETY: every statement here selects or returns all the columns of the holder's table, so each row is its select
-  // model (EX-0023).
+  // model (EX-0025).
   Effect.map(statement, (rows) => cast(rows));
 
 /** The columns of an owned table that no caller sets: the owner's, which the token gives, and a machine's state. */

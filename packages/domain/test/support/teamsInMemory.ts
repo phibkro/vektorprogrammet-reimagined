@@ -641,7 +641,7 @@ const aggregateLocks = Layer.effect(
         ...Arr.map(wanted, (id) => `${root}:${id}`),
       ]);
 
-      // SAFETY: the token's brand exists only in its type; the fake has just checked that the rows exist (EX-0023).
+      // SAFETY: the token's brand exists only in its type; the fake has just checked that the rows exist (EX-0025).
       return Arr.map(wanted, (id) =>
         cast<{ id: number; root: Root }, Locked<Root>>({ id, root })
       );
