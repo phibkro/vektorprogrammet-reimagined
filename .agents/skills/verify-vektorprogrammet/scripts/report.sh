@@ -65,7 +65,7 @@ summarise_results() { # prints one line per Playwright result file
   echo "| file | bytes | sha256 |"
   echo "| --- | --- | --- |"
   (cd "$RUN_DIR" && find . -type f ! -name secrets.env ! -name REPORT.md ! -name '.storage-*' | sort | while IFS= read -r file; do
-    echo "| \`${file#./}\` | $(stat -c %s "$file") | $(sha256sum "$file" | cut -c1-16) |"
+    echo "| \`${file#./}\` | $(stat -c %s "$file") | $(sha256sum "$file" | cut -d' ' -f1) |"
   done)
 } >"$RUN_DIR/REPORT.md"
 echo "saved: $RUN_DIR/REPORT.md"

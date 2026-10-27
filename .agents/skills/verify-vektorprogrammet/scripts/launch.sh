@@ -38,27 +38,43 @@ fi
 #     node_modules fails late (the first run after the rebase onto spec 0007 died on a missing `bcryptjs` during the
 #     seed). With nothing to change it takes a few seconds. The root `prepare` script runs too, as for any checkout.
 in_devenv bun install --frozen-lockfile
-
+run_id="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "$TREE" rev-parse --short HEAD)"
+RUN_DIR="$EVIDENCE_ROOT/$run_id"
+mkdir -p "$RUN_DIR/screenshots" "$RUN_DIR/pages" "$RUN_DIR/playwright"
+: >"$RUN_DIR/overlay.list"
+{
+  echo "VERIFY_TREE=$TREE"
+  echo "REVISION=$(git -C "$TREE" rev-parse HEAD)"
+  echo "BRANCH=$(git -C "$TREE" rev-parse --abbrev-ref HEAD)"
+  echo "STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "STARTED_SERVICES=0"
+  echo "FORCED=${VERIFY_FORCE:-0}"
+} >"$RUN_DIR/meta.env"
+git -C "$TREE" status --porcelain >"$RUN_DIR/git-status.txt"
+echo "$RUN_DIR" >"$POINTER"
+echo "run directory: $RUN_DIR (evidence goes here and survives cleanup)"
 # 3. devenv's PostgreSQL (the disposable database is created in it) and MySQL (the importer loads its fake legacy
 #    fixture into a throwaway MySQL database first). Ready means usable, not just that a port answers: PostgreSQL
 #    accepts connections and MySQL has finished its init scripts (the SELECT-only `legacy_reader` user exists).
 #    Start both together with `devenv up -d`: starting PostgreSQL alone and adding MySQL later starts MySQL without
 #    its configure task, so `legacy_reader` and `legacy` never appear and the importer fails. Hence the bounded wait.
 services_usable='pg_isready -q -d "$TEST_DATABASE_ADMIN_URL" && mysql -uroot --socket="$MYSQL_UNIX_PORT" -Nse "select 1 from mysql.user where user = '\''legacy_reader'\''" | grep -q 1'
-started_services=0
+if [[ "${VERIFY_FORCE_SERVICE_READINESS_FAILURE:-0}" == 1 ]]; then
+  services_usable=false
+fi
 if ! in_devenv bash -c "$services_usable" >/dev/null 2>&1; then
-  (cd "$TREE" && devenv up -d)
-  started_services=1
-  in_devenv bash -c "for _ in \$(seq 120); do $services_usable && exit 0; sleep 1; done; exit 1" >/dev/null \
-    || die "devenv's PostgreSQL and MySQL are not usable after 120 s (legacy_reader missing?). Run 'devenv down && devenv up -d' in $TREE and retry"
+  # Mark ownership before startup so cleanup handles a partially successful devenv up.
+  sed -i 's/^STARTED_SERVICES=.*/STARTED_SERVICES=1/' "$RUN_DIR/meta.env"
+   (cd "$TREE" && devenv up -d)
+  wait_seconds="${VERIFY_SERVICES_WAIT_SECONDS:-120}"
+  [[ "$wait_seconds" =~ ^[0-9]+$ ]] || die "VERIFY_SERVICES_WAIT_SECONDS must be a non-negative integer"
+  in_devenv bash -c "for _ in \$(seq $wait_seconds); do $services_usable && exit 0; sleep 1; done; exit 1" >/dev/null \
+    || die "devenv's PostgreSQL and MySQL are not usable after $wait_seconds s (legacy_reader missing?). Run scripts/cleanup.sh to stop services started by this launch."
 fi
 
 # 4. Overlay: a worktree older than this skill lacks the harness's keep-alive entry point. Copy it in as untracked
 #    verification scaffolding and record it; cleanup.sh removes exactly what is listed.
-run_id="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "$TREE" rev-parse --short HEAD)"
-RUN_DIR="$EVIDENCE_ROOT/$run_id"
-mkdir -p "$RUN_DIR/screenshots" "$RUN_DIR/pages" "$RUN_DIR/playwright"
-: >"$RUN_DIR/overlay.list"
+# Continue using the run directory and overlay ledger created before service startup.
 for file in apps/web/e2e/serve.ts apps/web/e2e/support/stack.ts; do
   if [[ ! -e "$TREE/$file" ]]; then
     [[ "$SKILL_TREE" != "$TREE" && -e "$SKILL_TREE/$file" ]] || die "$TREE lacks $file and the skill's own tree cannot supply it"
@@ -68,17 +84,7 @@ for file in apps/web/e2e/serve.ts apps/web/e2e/support/stack.ts; do
   fi
 done
 
-# 5. Record what this run is, then hand the process over to serve.ts.
-{
-  echo "VERIFY_TREE=$TREE"
-  echo "REVISION=$(git -C "$TREE" rev-parse HEAD)"
-  echo "BRANCH=$(git -C "$TREE" rev-parse --abbrev-ref HEAD)"
-  echo "STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "STARTED_SERVICES=$started_services"
-  echo "FORCED=${VERIFY_FORCE:-0}"
-} >"$RUN_DIR/meta.env"
-git -C "$TREE" status --porcelain >"$RUN_DIR/git-status.txt"
-echo "$RUN_DIR" >"$POINTER"
+# Run metadata and pointer already exist, including service ownership if startup was attempted.
 echo "run directory: $RUN_DIR (evidence goes here and survives cleanup)"
 
 # Everything the stack prints (vp dev, the CMS, the capture sink's "outbox message captured" lines) is evidence too.
