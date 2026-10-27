@@ -630,8 +630,9 @@ const membershipsOf = (personId: PersonId) =>
 
 /**
  * Runs `command` as an administrator while another session holds the person's row lock, and shows what `compose` in
- * `Shapes.tla` says of it: PostgreSQL shows the command waiting on a lock, it has written no membership by then, and
- * once the lock is let go it succeeds and writes.
+ * `Shapes.tla` says of it: PostgreSQL shows the command waiting on a lock, and the waiting backend has written nothing
+ * by then (no table that it holds a write lock on, and no transaction id, which its first write or row lock would give
+ * it). Once the lock is let go the command succeeds and writes a membership.
  */
 const waitsForThePersonsLock = Effect.fnUntraced(
   function* waitsForThePersonsLock<A, E, R>(
@@ -644,8 +645,7 @@ const waitsForThePersonsLock = Effect.fnUntraced(
     const meeting = yield* meetsHeldLock(
       lockPerson(who.personId),
       "%for no key update%",
-      transactional(Effect.provideService(command, CurrentPrincipal, admin)),
-      membershipsOf(who.personId)
+      transactional(Effect.provideService(command, CurrentPrincipal, admin))
     );
 
     assert.strictEqual(
@@ -656,9 +656,14 @@ const waitsForThePersonsLock = Effect.fnUntraced(
     assert.isTrue(meeting.stillRunning);
 
     assert.deepStrictEqual(
-      meeting.during,
-      before,
-      `${name} has written no membership while it waits`
+      meeting.wrote,
+      [],
+      `${name} has written to no table while it waits: it holds no write lock`
+    );
+
+    assert.isFalse(
+      meeting.hasTransactionId,
+      `${name} has no transaction id while it waits: it has written and row-locked nothing`
     );
 
     assert.isTrue(Exit.isSuccess(meeting.exit), `${name} succeeds`);

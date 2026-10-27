@@ -50,10 +50,16 @@ export const raceTwo = <A, EA, RA, B, EB, RB>(
 
 /**
  * Holds `lock` in a transaction of its own (so the lock holds until the transaction ends), starts `command`, and
- * reports whether the command was waiting on a lock whose query matches `waitingQuery` (an `ilike` pattern) before it
- * wrote anything, whether it was still running then, and how it ended once the lock was let go. A command that does not
- * take the lock does not wait, and finishes while the lock is held. `whileWaiting` runs once the command is seen
- * waiting, with the lock still held: what it returns is `during`.
+ * reports whether the command was waiting on a lock whose query matches `waitingQuery` (an `ilike` pattern), what the
+ * waiting backend had written by then, whether the command was still running, and how it ended once the lock was let go.
+ * A command that does not take the lock does not wait, and finishes while the lock is held.
+ *
+ * What the waiting backend wrote is read from PostgreSQL's catalogs, because another session cannot read it: under READ
+ * COMMITTED a row that an open transaction wrote is invisible to every other session. A write holds a `RowExclusiveLock`
+ * on its table until the transaction ends (`wrote` lists those tables), and the transaction's first write or row lock
+ * gives it a transaction id (`hasTransactionId`). A command that waits for its first lock before it writes anything
+ * shows `wrote` empty and no transaction id. `whileWaiting` runs once the command is seen waiting, with the lock still
+ * held: what it returns is `during`.
  */
 export const meetsHeldLock = Effect.fnUntraced(function* meetsHeldLock<
   A,
@@ -92,15 +98,29 @@ export const meetsHeldLock = Effect.fnUntraced(function* meetsHeldLock<
   );
 
   let waiting = 0;
+  let wrote: readonly string[] = [];
+  let hasTransactionId = false;
 
   for (const _ of Arr.range(1, 5000)) {
     const rows = yield* sql<{
-      readonly waiting: number;
-    }>`select count(*)::int as waiting from pg_stat_activity
-      where datname = current_database() and wait_event_type = 'Lock'
-      and query ilike ${waitingQuery} and pid <> pg_backend_pid()`;
+      readonly hasTransactionId: boolean;
+      readonly pid: number;
+      readonly written: string | null;
+    }>`select a.pid, a.backend_xid is not null as "hasTransactionId", c.relname as written
+      from pg_stat_activity a
+      left join pg_locks l on l.pid = a.pid and l.database = a.datid and l.locktype = 'relation'
+        and l.mode = 'RowExclusiveLock' and l.granted
+      left join pg_class c on c.oid = l.relation and c.relkind = 'r'
+      where a.datname = current_database() and a.wait_event_type = 'Lock'
+        and a.query ilike ${waitingQuery} and a.pid <> pg_backend_pid()`;
 
-    waiting = rows[0]?.waiting ?? 0;
+    waiting = Arr.dedupe(Arr.map(rows, (row) => row.pid)).length;
+
+    wrote = Arr.dedupe(
+      Arr.flatMap(rows, (row) => (row.written === null ? [] : [row.written]))
+    );
+
+    hasTransactionId = Arr.some(rows, (row) => row.hasTransactionId);
 
     if (waiting > 0 || (yield* Deferred.isDone(finished))) {
       break;
@@ -112,7 +132,14 @@ export const meetsHeldLock = Effect.fnUntraced(function* meetsHeldLock<
   yield* Deferred.succeed(release, null);
   yield* Fiber.join(holder);
 
-  return { during, exit: yield* Fiber.join(running), stillRunning, waiting };
+  return {
+    during,
+    exit: yield* Fiber.join(running),
+    hasTransactionId,
+    stillRunning,
+    waiting,
+    wrote,
+  };
 });
 
 /** Whether another connection could lock the person's row right now (`FOR NO KEY UPDATE NOWAIT`). */

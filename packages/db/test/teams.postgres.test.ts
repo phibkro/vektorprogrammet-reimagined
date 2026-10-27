@@ -514,6 +514,18 @@ layer(teamsDatabase, { excludeTestServices: true })(
               "the insert was not waiting for the person's row lock"
             );
             assert.isTrue(meeting.stillRunning);
+
+            assert.deepStrictEqual(
+              meeting.wrote,
+              [],
+              "the insert had written to a table before it waited for the lock"
+            );
+
+            assert.isFalse(
+              meeting.hasTransactionId,
+              "the insert had written or row-locked something before it waited for the lock"
+            );
+
             assert.isTrue(Exit.isSuccess(meeting.exit));
           })
       );

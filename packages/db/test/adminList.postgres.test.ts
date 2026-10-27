@@ -339,19 +339,26 @@ const meetsHeldList = <A, E, R>(command: Effect.Effect<A, E, R>) =>
     command
   );
 
-/** What a meeting with the held list showed: whether the command waited, was still running, and then succeeded. */
+/**
+ * What a meeting with the held list showed: whether the command waited, was still running, what the waiting backend had
+ * written by then (the tables it held a write lock on, and whether it held a transaction id), and whether it succeeded.
+ */
 const summarized = (
   name: string,
   meeting: {
     readonly exit: Exit.Exit<unknown, unknown>;
+    readonly hasTransactionId: boolean;
     readonly stillRunning: boolean;
     readonly waiting: number;
+    readonly wrote: readonly string[];
   }
 ) =>
   [
     name,
     meeting.waiting,
     meeting.stillRunning,
+    meeting.wrote,
+    meeting.hasTransactionId,
     Exit.isSuccess(meeting.exit) ? "succeeded" : describeExit(meeting.exit),
   ] as const;
 
@@ -505,11 +512,11 @@ layer(
         ];
 
         assert.deepStrictEqual(observed, [
-          ["deactivate", 1, true, "succeeded"],
-          ["reactivate", 1, true, "succeeded"],
-          ["grantAdmin", 1, true, "succeeded"],
-          ["revokeAdmin", 1, true, "succeeded"],
-          ["a person's lock alone", 0, false, "succeeded"],
+          ["deactivate", 1, true, [], false, "succeeded"],
+          ["reactivate", 1, true, [], false, "succeeded"],
+          ["grantAdmin", 1, true, [], false, "succeeded"],
+          ["revokeAdmin", 1, true, [], false, "succeeded"],
+          ["a person's lock alone", 0, false, [], false, "succeeded"],
         ]);
       }),
     STRESS_TIMEOUT_MS
