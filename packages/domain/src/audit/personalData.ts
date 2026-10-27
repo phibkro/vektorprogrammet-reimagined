@@ -8,10 +8,9 @@ import {
   columns,
   erased,
   exported,
-  keyed,
   notPersonal,
+  ofPerson,
   personal,
-  relation,
   table,
 } from "../personalData/declaration.ts";
 import { durationWords } from "../personalData/duration.ts";
@@ -48,14 +47,14 @@ const auditLog = table({
       "The name of a scheduled job: a row has a person or a job, never both"
     ),
   },
-  person: relation({
-    erase: erased.kept(
+  person: ofPerson(
+    "person_id",
+    Rules.Follow,
+    exported.rows(),
+    erased.kept(
       `Ids and action names, never values, kept ${durationWords(Periods.auditRows.duration, "en")} so that the organisation can account for its own use of the data`
-    ),
-    export: exported.rows(),
-    key: keyed.direct("person_id"),
-    references: { person_id: Rules.Follow },
-  }),
+    )
+  ),
 });
 
 export const AuditTables = { audit_log: auditLog } as const;

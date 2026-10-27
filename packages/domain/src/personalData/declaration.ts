@@ -336,15 +336,17 @@ export const erased = {
 
 /**
  * The relation of a table whose rows each name one person in `column`, which is nearly every table: the rows are
- * exported as they are (unless `exportRule` says otherwise), erased by expiring them, and merged by `rule`.
+ * exported as they are (unless `exportRule` says otherwise), erased by expiring them (unless `eraseRule` says
+ * otherwise), and merged by `rule`.
  */
 export const ofPerson = (
   column: string,
   rule: MergeRule,
-  exportRule: ExportRule = exported.rows()
+  exportRule: ExportRule = exported.rows(),
+  eraseRule: EraseRule = erased.expire
 ): PersonRelation =>
   relation({
-    erase: erased.expire,
+    erase: eraseRule,
     export: exportRule,
     key: keyed.direct(column),
     references: { [column]: rule },
