@@ -4,11 +4,13 @@ status: proposed
 
 # Activities: planned occasions with RSVP, check-in and voting, and Slack as a client
 
-An **Activity** is something that persons plan, that the system runs on a schedule, and that notifies its participants: a social event, a general meeting, an election, an onboarding day. An **Activity type** is declared in code. Each type switches on optional **capabilities**: **RSVP** (answers, capacity, waitlist, deadline), **Check-in** (attendance during a window, which gives a quorum) and **Voting** (ballots and a voting system, ADR 0012). The **audience** of an Activity is the persons of the internal units under the Activity's unit.
+An **Activity** is something that persons plan, that the system runs on a schedule, and that notifies its participants: a social event, a general meeting, an election, an onboarding day. An **Activity type** is declared in code. Each type switches on optional **capabilities**: **RSVP** (answers, capacity, waitlist, deadline), **Check-in** (attendance during a window, which gives a quorum) and **Voting** (ballots and a voting system, ADR 0012). The **audience** of an Activity is given by one rule over the team members under its scope unit (see Audience).
 
-An Activity is not an event in the sense of the facts that a command records (audit rows, outbox messages). A command records those as it runs. An Activity is a thing in the calendar that people attend. This ADR avoids the word "event" for it.
+An Activity is not an event in the sense of the domain and audit facts that a command records (audit rows, outbox messages). A command records those as it runs. An Activity is a thing in the calendar that people attend. This ADR avoids the word "event" for it.
 
-**Principal** (aktør) is the accountable party that holds grants: a Person or a named system principal. **Client** is the software that acts on behalf of a principal (ADR 0008). In business language an actor is a principal (ArchiMate Business Actor) and an agent is a client; the words are not synonyms in this system. The information system is a set of named system principals, not one principal.
+In ArchiMate terms ([ArchiMate 3.2 §8.3](https://pubs.opengroup.org/architecture/archimate32-doc/)), an Activity type is a **Business Interaction**: collective behaviour that the participants perform together, assigned to a Business Collaboration (the organisers and the audience; for an election, the electorate). Planning it is a Business Process of the organiser, and announcing it or reaching a deadline are Business Events that trigger the interaction. The system's scheduled jobs are Application Processes that serve it. An Activity instance (the Trondheim summer party, 2027) is runtime data, which ArchiMate does not model.
+
+**Principal** (aktør) is the accountable party that holds grants: `Anonymous`, a Person, a named system principal, a `Link(purpose)` holder or `Emergency` (ADR 0008, ADR 0011). **Client** is the software that acts on behalf of a principal (ADR 0008). In business language an actor is a principal (ArchiMate Business Actor) and an agent is a client; the words are not synonyms in this system. The information system is a set of named system principals, not one principal.
 
 Slack is where the teams already talk. Social events today are arranged by hand with Slack messages (operator input, 2026-10-27). The Slack bot is a **client**, never a principal and never a holder of grants. A person clicking RSVP or voting acts as that Person through the Slack client. The system sending invitations, reminders or ballots acts as `System(activities)` through the Slack client, with its own least-privilege grants.
 
@@ -21,17 +23,17 @@ The three levels are the same as in ADR 0012: a kind is a construct in code, a t
 | Level | Activity | Capability |
 | --- | --- | --- |
 | Kind | Activity | RSVP, Check-in, Voting |
-| Type | Social event, General meeting, Election, Onboarding day | Each type says if a capability is `required`, `optional` or `absent` |
+| Type | Social event, General meeting, Election, Onboarding day | Each type says if a capability is `required`, `optional`, `absent`, or `required when` a stated instance setting holds |
 | Instance | The Trondheim summer party, 2027 | The settings of each capability on that instance |
 
-An Activity has a unit, a title, a description, a place, a start and an end, one or more organisers, and a state. The semester follows from the start date.
+An Activity has a unit (the unit that organises it), a **scope unit** (the unit whose subtree is the audience; by default the unit itself), a title, a description, a place, a start and an end, one or more organisers, and a state. The semester follows from the start date. The scope unit is ADR 0012's concept: an Activity of the national board has the Vektorprogrammet root as its scope unit.
 
 | Type | RSVP | Check-in | Voting | Who may plan it (proposed) |
 | --- | --- | --- | --- | --- |
-| Social event | required | absent | absent | A person in the audience of the unit; an Admin |
-| General meeting | optional | required | optional (motion vote) | The leader of the unit; an Admin |
-| Election | optional | required in meeting mode | required (ADR 0012) | As ADR 0012 says: the leader of the unit; an Admin |
-| Onboarding day, course | optional | optional | absent | The leader of the unit; an Admin |
+| Social event | required | absent | absent | `UnitMember(s)` of the scope unit `s`; an Admin |
+| General meeting | optional | required | optional (motion vote) | `UnitLeader(u)` of the unit; an Admin |
+| Election | optional | `required when` mode includes meeting | required (ADR 0012) | As ADR 0012 says; an Admin |
+| Onboarding day, course | optional | optional | absent | `UnitLeader(u)` of the unit; an Admin |
 
 The last two rows are examples. Their audience is open (see Open questions).
 
@@ -51,21 +53,23 @@ Check-in has one setting, **presence**: `declared` or `scanned`. With `declared`
 
 ## Audience
 
-One rule gives the audience of every Activity, and it is the rule of ADR 0012 for electorates:
+One rule gives the audience of every Activity. It is stated in the same words as ADR 0012's electorate rule:
 
-> The audience is every person with a current role assignment of kind `member` or `leader` in an internal unit (Department or Team) in the subtree of the Activity's unit.
+> The audience is the persons with current member/leader assignments in Team units in the subtree of the scope unit.
 
-- **Example.** A social event of the Trondheim department goes to every person in a team of Trondheim. An Activity of the national board's unit (a team directly under the root) goes to the members of the whole subtree of the root, that is, everyone.
+- **Example.** A social event of the Trondheim department (scope unit Trondheim) goes to every person in a team of Trondheim. An Activity of the national board has the root as its scope unit, so it goes to the team members of every department.
 - A person counts once, however many teams they are in.
 - **Never external units.** The contacts of a School or a Sponsor are not members of Vektorprogrammet (ADR 0011). They are never in an audience.
 - **Assistants only if the type says so.** An assistant has a placement, not a team membership. No type in the table above includes assistants. Whether some types should is an open question.
 - **The audience is computed, not stored.** The system reads the role assignments when it runs a command or sends a notice. A person who joins a team later can answer. A person who leaves can no longer answer. The Voting capability is the exception: it freezes its own electorate at the cut-off (ADR 0012).
 
-The kernel gets two subject sets, in the style of ADR 0011's `TeamMember(t)`. The Activity comes from the command's resource.
+The kernel gets four subject sets, in the style of ADR 0011's `TeamMember(t)`. The Activity comes from the command's resource; the unit comes from the command's input before the Activity exists.
 
 | Subject set | Meaning |
 | --- | --- |
-| `Audience(a)` | The principal is a person in the audience of Activity `a` |
+| `UnitMember(u)` | The principal is in the audience rule's set for unit `u`: a current member/leader assignment in a Team unit in the subtree of `u` |
+| `UnitLeader(u)` | The principal holds a current `leader` assignment in unit `u` itself (a team leader for a team; for a department, a leader role that ADR 0011 gives the department) |
+| `Audience(a)` | The principal is a person in the audience of Activity `a` (`UnitMember` of its scope unit) |
 | `Organiser(a)` | The principal is a person that the Activity names as an organiser |
 
 ## Lifecycle and commands
@@ -76,22 +80,27 @@ An Activity is a machine with a transition table (ADR 0007). Whether it has happ
 | --- | --- | --- | --- |
 | `[*]` | `createActivity` | Planned | The creator is the first organiser. Not visible to the audience. |
 | Planned | `announceActivity` | Announced | Writes one notice per person in the audience to the outbox (see Messages). |
-| Planned, Announced | `cancelActivity` | Cancelled | Notifies those who answered `yes` or `maybe`. A cancelled Activity never reopens. |
+| Planned, Announced | `cancelActivity` | Cancelled | Notifies those who answered `yes` or `maybe`. A cancelled Activity never reopens. Refused for an Activity with the Voting capability once its election has left Announced (ADR 0012). |
+
+**Elections.** For an Activity of the type Election, ADR 0012's election machine owns announcing and cancelling: `createElection` creates the Activity in Announced, and `cancelActivity` runs only while the election is Announced. After that, ADR 0012's states (Voting, Counting, Certified, Seated, Void) decide, and no Activity transition can override them.
 
 | Command | Resource and method (ADR 0010) | Granted to |
 | --- | --- | --- |
 | `createActivity` | `Activity`, `create` | The type's planners (table above); `Admin` |
-| `updateActivity`, `announceActivity`, `cancelActivity` | `Activity`, `update` and custom | `Organiser(a)`; `TeamLeader(u)` of the Activity's unit `u`; `Admin` |
-| `setRsvp` | `Rsvp`, `set` | `Audience(a)`, own answer only |
-| `createCheckIn` | `CheckIn`, `create` | `Audience(a)`, own check-in; `Organiser(a)` for another person |
-| `createSlackLink`, `deleteSlackLink` | `SlackLink`, `create` and `delete` | `Self` |
+| `updateActivity` | `Activity`, `update` | `Organiser(a)`; `UnitLeader(u)` of the Activity's unit `u`; `Admin` |
+| `announceActivity`, `cancelActivity` | `Activity`, `:announce` and `:cancel` | `Organiser(a)`; `UnitLeader(u)`; `Admin` |
+| `setRsvp` | `Rsvp`, `:set` | `Audience(a)`, own answer only |
+| `createCheckIn` | `CheckIn`, `create` | `Audience(a)`, own check-in (for an election: `Elector(e)`, ADR 0012); `Organiser(a)` for another person |
+| `createSlackLink`, `deleteSlackLink` | `SlackLink`, `create` and `delete` | `Self`; `System(slackLinks)` for automatic links and their ending (see Identity) |
 | Reminders and waitlist steps | jobs | `System(activities)`, its own grants (ADR 0008) |
 
 The spec that builds this fixes the final names. A change to an Announced Activity (time, place, capacity) notifies the persons who answered `yes` or `maybe`.
 
-**Races by construction.** The capacity check and the write of a `yes` are one conditional write, so two persons cannot take the last place. The pair (Activity, person) is a unique key for an RSVP answer and for a check-in. A check-in outside the window is refused. Spec 0006b decides the lock protocol: which existing root guards each write, and whether the Activity row is that guard. Activity is not a DDD aggregate by this ADR.
+**Races by construction (spec 0006b).** The Activity row is a **declared lock root**, like `AdminList`, and it comes before every Person in the global lock order. A command that decides on capacity (`setRsvp`, a capacity change, a waitlist step) takes the Activity's lock first, reads the `yes` count and the waitlist through its token, and only then writes. When it promotes a waitlisted person, it locks the Activity and then the persons it writes, in ascending id order, with `lockAll` before the first decision read. Two persons therefore cannot take the last place. The pair (Activity, person) is a unique key for an RSVP answer and for a check-in. A check-in outside the window is refused. ADR 0011 says that a _Unit_ is not a lock root; an Activity is one. The TLA+ model of spec 0006b adds the Activity root.
 
-**Waitlist (proposed).** When the capacity is full, a `yes` is stored as `waitlisted`, in the order of the answers. When a `yes` becomes `no`, or the capacity grows, the oldest `waitlisted` person becomes `yes` in the same transaction, and the outbox gets a notice for that person. The waitlist stops at the RSVP deadline. Promotion rules are an open question.
+**Order of clicks.** The stored answer carries the time of the action that set it (Slack's `action_ts`, or the request time on the web). A command whose action time is older than the stored one changes nothing, so a quick `yes` then `no` ends as `no` even if the two commands commit in the other order.
+
+**Waitlist (proposed).** When the capacity is full, a `yes` is stored as `waitlisted`, in the order of the answers. **Any change that frees a place** (a `yes` becomes `no` or `maybe`, the capacity grows, or a person with `yes` leaves the audience and their answer stops counting) moves the oldest `waitlisted` person to `yes` in the same transaction, and the outbox gets a notice for that person. The waitlist stops at the RSVP deadline. Other promotion rules are an open question.
 
 **Jobs.** `System(activities)` is its own principal. It sends a reminder before the start to those who answered `yes` or `maybe`, and one before the RSVP deadline to those who have not answered. Each message has an idempotency key (activity, person, kind), so a repeated sweep sends nothing twice. The jobs are in the registry of spec 0008, and the generated jobs table lists them.
 
@@ -120,11 +129,15 @@ This ADR proposes an interactive Slack app. It is one more **client** in the sen
 
 ### Identity: the Slack link
 
-A **Slack link** is an explicit, recorded link between one Person and one Slack user id in the organisation's workspace. The `LinkCreated` record stores its source. A link may be provisioned automatically only when Slack's verified e-mail exactly and uniquely matches an address that belongs to exactly one person: a personal provisioned `@vektorprogrammet.no` address (spec 0008) or a verified registered address. Never use shared or role mailboxes, such as `okonomi@`. Record source as `auto: verified e-mail` or `manual: Sign in with Slack`. Anything else requires manual linking on Min side. If the matched address stops belonging to the person, the link ends, so reassignment cannot preserve the old link. The person sees and can remove the link on Min side.
+A **Slack link** is an explicit, recorded link between one Person and one Slack user id in the organisation's workspace. Each link stores its **source** (`auto: verified e-mail` or `manual: Sign in with Slack`) and, for an automatic link, the **matched address**. A link may be provisioned automatically only when Slack's confirmed e-mail exactly and uniquely matches an address that belongs to exactly one person: a personal provisioned `@vektorprogrammet.no` address (spec 0008) or a verified registered address. Never shared or role mailboxes, such as `okonomi@`. Anything else requires manual linking on Min side. The person sees and can remove the link on Min side.
+
+**Automatic linking.** `System(slackLinks)` is a job principal with its own grants (ADR 0008). It reads workspace users through the Slack Web API (`users.info` or `users.lookupByEmail`), which returns the e-mail and `is_email_confirmed` and needs the bot scope `users:read.email`. It creates a link only when `is_email_confirmed` is true and the match rule above holds. It runs when the app is installed, when a new member joins the workspace, and when a person gets a new provisioned address. It also **ends** an automatic link when its matched address stops belonging to the person (the address namespace of spec 0008 records the change), so a reassigned address cannot keep the old link.
+
+**Manual linking (Sign in with Slack).**
 
 1. For no eligible unique match, the signed-in person chooses "Link Slack" on Min side. The server starts the flow with a `state` and a `nonce`, and the `team` parameter set to the organisation's workspace.
 2. Slack returns an `id_token`. The server checks the signature, the `nonce`, and that the team id is the organisation's workspace. It reads the Slack user id.
-3. The server stores the person, Slack team id, Slack user id, creation source and time. The pair is unique in both directions. A second attempt on a linked Slack user id is refused until the first link ends.
+3. The server stores the person, Slack team id, Slack user id, the source `manual: Sign in with Slack` and the time. The pair is unique in both directions. A second attempt on a linked Slack user id is refused until the first link ends.
 
 The linking flow requests `openid` and `email` so it can use Slack's verified e-mail claim. It does not need the `profile` scope.
 
@@ -142,16 +155,16 @@ Every interaction runs the same command as the web does, with the same grant che
 | Open vote | `castVote` (ADR 0012) | Open ballots only |
 | Secret ballot | `castBallot` (ADR 0012) | Per-election `ballotChannel`: `SlackDM` or `Web`. The bot never writes the choice into a message. |
 
-**Each election sets `ballotChannel` to `SlackDM` or `Web`.** With `Web`, the message carries only a single-use `Link(purpose)` (ADR 0011) for the person and round; Slack never receives the choice. With `SlackDM`, the button press sends the ballot through Slack as a processor. In neither channel does the bot write the choice into a message: it replies only "Your vote is recorded." Slack documents interactive callbacks ([handling interactions](https://docs.slack.dev/interactivity/handling-user-interaction)). Workspace owners may export private channels and DMs on some plans or after approval; availability depends on plan and approval ([Slack export guide](https://slack.com/help/articles/201658943-Export-your-workspace-data)). The operator has not verified the workspace's plan or export access. Slack DM ballot content is processor data. ADR 0012 owns the secrecy and unlinkability guarantees for either channel.
+**Each election sets `ballotChannel` to `SlackDM` or `Web`; ADR 0012 owns this setting and the secrecy guarantees for both channels.** With `Web`, the message carries only a single-use `Link(purpose)` (ADR 0011) for the person and round; Slack never receives the choice. With `SlackDM`, the inbound interaction payload carries the chosen value and the voter's Slack user id: that is processor data held by Slack ([handling interactions](https://docs.slack.dev/interactivity/handling-user-interaction)). In neither channel does the bot write the choice into a message: it replies only "Your vote is recorded." Exports of private channels and direct messages are available only on Business+ and Enterprise plans, and there only after Workspace or Org Owners apply for them ([Slack export guide](https://slack.com/help/articles/201658943-Export-your-workspace-data)). The workspace's plan and export access are an operator check before the first `SlackDM` election (see Operator gates).
 
 **The server decides on every click.**
 
-- The server **checks the Slack request signature** with the app's signing secret on the raw body, and refuses a timestamp older than five minutes ([Slack documentation](https://docs.slack.dev/authentication/verifying-requests-from-slack)). An unsigned request does nothing.
+- The server **checks the Slack request signature** with the app's signing secret on the raw body, and refuses a request whose timestamp differs from the server's time by more than five minutes, in either direction ([Slack documentation](https://docs.slack.dev/authentication/verifying-requests-from-slack)). An unsigned request does nothing.
 - It looks up the Slack link from the Slack user id. With no link, no command runs: the reply is a private message with a link to Min side.
 - It runs the command as that Person, through the client `slack`. The grant check, the state check and the data check run again, as they do for the web. A button in an old message does not give a right that the person has lost: someone who left the team gets a refusal.
 - The audit entry names the principal, the client (Slack, with the Slack team and user ids) and the command. The same model lets a simulation drive the system (ADR 0008).
 
-**The 3-second rule.** Slack needs an HTTP 200 within 3 seconds, or the person sees an error ([Slack documentation](https://docs.slack.dev/interactivity/handling-user-interaction)). The route verifies the signature, answers 200 at once, and runs the command after that (`waitUntil` in the Worker). Then it updates the message through the `response_url` that the payload carries, which stays valid for 30 minutes. The commands are idempotent: a repeated `setRsvp` with the same answer, and a second `createCheckIn`, change nothing. So a retry from Slack, or a click that the Worker lost after the answer, is safe, and the person can click again. There is no inbound queue.
+**The 3-second rule.** Slack needs an HTTP 200 within 3 seconds, or the person sees an error ([Slack documentation](https://docs.slack.dev/interactivity/handling-user-interaction)). The route verifies the signature, answers 200 at once, and runs the command after that (`waitUntil` in the Worker). Then it updates the message through the `response_url` that the payload carries; a `response_url` accepts at most five uses within 30 minutes, so the route uses it once per click and posts any later update through the bot token. The commands are idempotent: a repeated `setRsvp` with the same answer, and a second `createCheckIn`, change nothing, and an older action never overwrites a newer one (see Order of clicks). So a retry from Slack, or a click that the Worker lost after the answer, is safe, and the person can click again. There is no inbound queue.
 
 ### Messages
 
@@ -181,7 +194,7 @@ Each field is declared in `packages/domain` with its purpose, legal basis and re
 | --- | --- | --- |
 | RSVP answer: person, Activity, answer, time | Plan places and the number of persons | 30 days after the Activity ends, then deleted. Longer only if cost sharing needs it (open question). |
 | Check-in: person, Activity, time, who recorded it | Attendance and the quorum | 30 days after the end. For an election: until the appeal window ends (ADR 0012). |
-| Slack link: person, Slack team id, Slack user id | Send messages and accept clicks | While linked. Deleted at unlink, at deactivation and at erasure. |
+| Slack link: person, Slack team id, Slack user id, source, matched address (automatic links) | Send messages and accept clicks; end the link when the address leaves the person | While linked. Deleted at unlink, at deactivation and at erasure. |
 | Calendar feed secret (if the ICS adapter is built) | Show a person their feed | Until the person renews or removes it |
 | Slack interaction in the audit log: Slack user id, command | Show who did what, through which client | With the audit log (spec 0007b) |
 | The Activity: title, time, place, organisers | Plan and show the Activity | Kept. The organisers are persons: the reference follows the retention of the audit log. |
@@ -192,9 +205,10 @@ Slack is a **processor** for the messages, and for the clicks that pass through 
 
 The system cannot do these steps. A human does them.
 
-1. A **workspace admin installs the Slack app**: the Request URL, the redirect URL, the bot scopes (the fewest that post and open direct messages; the spec lists them) and the `openid` scope for Sign in with Slack.
+1. A **workspace admin installs the Slack app**: the Request URL, the redirect URL, the bot scopes (the fewest that post and open direct messages, plus `users:read.email` for automatic linking; the spec lists them) and the `openid` and `email` scopes for Sign in with Slack.
 2. The **bot token, the signing secret, and the app's client id and secret** are Worker secrets, set with `cf`. They never enter the repository or an outbox row. The bot token replaces the legacy incoming webhook, so the system has one organisation-owned Slack credential and no personal webhook (spec 0008).
 3. The **Slack data processing agreement** (see Personal data).
+4. **Before the first `SlackDM` election**, the operator checks the workspace's plan and who can export direct messages, and records the result.
 
 ## Considered options
 
@@ -205,24 +219,25 @@ The system cannot do these steps. A human does them.
 - **Use Sign in with Slack as the sign-in of the system.** Not chosen: sign-in stays as spec 0007 has it. Slack proves an identity for the link only.
 - **One secret-ballot channel.** Rejected: each election chooses `ballotChannel`; Slack DM is allowed as a processor flow, while Web keeps the choice out of Slack. Both keep choices out of messages.
 - **One entity per kind of occasion** (social event, meeting, election). Rejected: each needs the same schedule, audience and notices three times.
-- **A queue for inbound Slack clicks.** Not chosen: the commands are idempotent, and a lost click can be clicked again.
+- **A queue for inbound Slack clicks.** Not chosen: the commands are idempotent, an older action never overwrites a newer one, and a lost click can be clicked again.
 
 ## Consequences
 
-- **Kernel.** Subject sets `Audience(a)` and `Organiser(a)` join the grant table (the Activity comes from the command's resource). `Link(purpose)` gets the purpose `ballot`. The command declaration gains `Activity`, `Rsvp`, `CheckIn` and `SlackLink` as resources (ADR 0010). The command's client can carry a narrowing set (ADR 0008).
+- **Kernel.** Subject sets `UnitMember(u)`, `UnitLeader(u)`, `Audience(a)` and `Organiser(a)` join the grant table. `Link(purpose)` gets the purpose `ballot`. `System(activities)` and `System(slackLinks)` are new system principals. The command declaration gains `Activity`, `Rsvp`, `CheckIn` and `SlackLink` as resources (ADR 0010). The command's client can carry a narrowing set (ADR 0008).
 - **Domain.** Activity types, capabilities and their bounds are `Schema` data in `packages/domain`. The audience rule is one function over role assignments. Runtime, UI, docs and tests read the declarations.
 - **Docgen.** Generated blocks list the Activity types with their capabilities, and the Slack commands with their grants.
 - **Jobs and outbox.** `System(activities)` is a new job principal in spec 0008's registry. The outbox union gains the Slack direct message and the message update.
-- **Spec 0006b.** The lock protocol for capacity and check-in. The TLA+ model follows.
+- **Spec 0006b.** The Activity row is a declared lock root, ordered before Person; capacity, waitlist and check-in decisions read through its token. The TLA+ model adds the Activity root.
 - **Spec 0007b.** The declarations of the table above, and Slack as a processor. Erasure deletes the Slack link and the RSVP and check-in rows.
-- **Other ADRs.** On acceptance, ADR 0005 gets a revision line for social events, and `docs/system/README.md` moves social events from "Google Forms and Calendar" to "this system". ADR 0012's statement "ADR 0013 will define the Activity frame" is met by this ADR. This ADR changes nothing in them until then.
+- **Other ADRs.** On acceptance, ADR 0005 gets a revision line for social events, and `docs/system/README.md` moves social events from "Google Forms and Calendar" to "this system". ADR 0012 owns `ballotChannel` and its Slack processor exposure, and its election machine owns announcing and cancelling an Election Activity; the audience and electorate rules use the same words. This ADR changes nothing in them until then.
 - **Formal checks.** The generated model adds:
   - _One answer._ A person has at most one RSVP answer and one check-in per Activity.
-  - _Capacity._ The `yes` answers never exceed the capacity. A person is `waitlisted` only while the Activity is full, and a place that frees up goes to the oldest `waitlisted` person.
+  - _Capacity._ The `yes` answers never exceed the capacity. A person is `waitlisted` only while the Activity is full, and any change that frees a place moves the oldest `waitlisted` person to `yes`.
   - _Window._ A check-in exists only inside the window, and only for a person in the audience when it was made.
   - _Audience._ Nobody outside the audience answers or checks in. An external contact is never in an audience.
-  - _Lifecycle._ No transition leaves Cancelled.
-  - _Slack._ No command runs for a Slack identity without a link. No command runs without the same grant check as the web. No outbox row, captured Slack message or Slack payload holds ballot content (a scan, like the plaintext scan of spec 0007).
+  - _Lifecycle._ No transition leaves Cancelled. An Election Activity is never cancelled after its election leaves Announced.
+  - _Slack._ No command runs for a Slack identity without a link. No command runs without the same grant check as the web. No outbound message, outbox row or captured Slack message holds ballot content (a scan, like the plaintext scan of spec 0007). Inbound `SlackDM` interaction payloads carry the choice as processor data; the scan does not cover them.
+  - _Order._ A stored answer never has an older action time than an answer it replaced.
   - _Once._ Each reminder kind is sent at most once to each person for each Activity.
 
 ## Open questions
@@ -237,5 +252,6 @@ The system cannot do these steps. A human does them.
 8. **Calendar.** Which adapter first: the ICS feed or the Google projection? Who holds the feed secret, and how does a person renew it?
 9. **Maybe.** Does a `maybe` after the deadline count as an answer, or as no answer? May a person answer `no` after the deadline to free a place?
 10. **The legacy bot.** Where did the earlier bot live, and does anyone use it? The operator does not know its use.
+11. **Slack export access.** Which plan does the workspace have, and who can export direct messages? This decides whether `SlackDM` ballots are acceptable (operator gate 4).
 
 Source: operator decisions, 2026-10-27. The legacy Slack facts are from `BUSINESS_RULES.md` (RULE-212, 249, 266, 268, 273) and the legacy code review; the social event facts are from `packages/domain/src/content/socialEvent.ts` (RULE-085, RULE-188) and ADR 0005.
