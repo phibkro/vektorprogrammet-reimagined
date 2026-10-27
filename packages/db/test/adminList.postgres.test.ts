@@ -19,6 +19,7 @@ import {
   Principal,
   SiteOrigin,
   TeamsEndpoints,
+  ValidationFailed,
 } from "@vektorprogrammet/domain";
 import type {
   AdminGrantId,
@@ -34,6 +35,7 @@ import {
   Layer,
   Option,
   Predicate,
+  Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -145,6 +147,15 @@ const countingPlaces = Effect.gen(function* countingPlacesRead() {
 const refusedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) =>
   Option.exists(Exit.findErrorOption(exit), Predicate.isTagged(tag));
 
+/** Whether the exit is the refusal of the last place by `revokeAdmin`: a `ValidationFailed` that names `id`. */
+const refusedAsLastPlace = (exit: Exit.Exit<unknown, unknown>) =>
+  Option.exists(
+    Exit.findErrorOption(exit),
+    (refusal) =>
+      Schema.is(ValidationFailed)(refusal) &&
+      Arr.some(refusal.issues, (issue) => Arr.contains(issue.path, "id"))
+  );
+
 /** What went wrong in a round, with every loser's Cause; nothing when the round kept the rule. */
 const problemsOf = (
   round: number,
@@ -163,10 +174,11 @@ const problemsOf = (
     refusedWith(outcome.deactivated, "Conflict")
       ? []
       : ["the deactivation lost with something other than a Conflict"]),
-    ...(Exit.isSuccess(outcome.revoked) ||
-    refusedWith(outcome.revoked, "ValidationFailed")
+    ...(Exit.isSuccess(outcome.revoked) || refusedAsLastPlace(outcome.revoked)
       ? []
-      : ["the revocation lost with something other than ValidationFailed"]),
+      : [
+          "the revocation lost with something other than ValidationFailed on id",
+        ]),
     ...(outcome.counting === 1
       ? []
       : [
@@ -433,10 +445,7 @@ layer(
           2,
           "control: counting every valid place, as the rule did before R2, another one is left in both decisions"
         );
-        assert.isTrue(
-          refusedWith(revoked, "ValidationFailed"),
-          describeExit(revoked)
-        );
+        assert.isTrue(refusedAsLastPlace(revoked), describeExit(revoked));
         assert.isTrue(
           refusedWith(deactivated, "Conflict"),
           describeExit(deactivated)
