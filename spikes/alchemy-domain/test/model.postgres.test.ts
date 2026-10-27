@@ -27,11 +27,13 @@ import {
 import {
   Array as Arr,
   DateTime,
+  Deferred,
   Effect,
   Exit,
   Layer,
   Option,
   Predicate,
+  Ref,
   Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -66,6 +68,7 @@ import {
   Person,
 } from "../src/model/person.ts";
 import { AlreadyExists, ValidationFailed } from "../src/model/rejections.ts";
+import type { PostgresPlatformOptions } from "../src/postgresPlatform.ts";
 import { layer as postgresPlatform } from "../src/postgresPlatform.ts";
 import { race, raceReport, raceTwo } from "./support/race.ts";
 
@@ -78,19 +81,57 @@ const FAR = DateTime.makeUnsafe("2099-01-01T00:00:00.000Z");
 const adminPrincipal = (personId: PersonId) =>
   Principal.cases.Person.make({ adminUntil: FAR, memberships: [], personId });
 
-const databasePlatform = Layer.unwrap(
-  Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-    postgresPlatform({ now: Effect.succeed(DateTime.toEpochMillis(NOW)) }).pipe(
-      Layer.provideMerge(DatabaseLive({ maxConnections: 30, url }))
+const databasePlatform = (options: PostgresPlatformOptions = {}) =>
+  Layer.unwrap(
+    Effect.map(Effect.service(TestDatabaseUrl), (url) =>
+      postgresPlatform({
+        now: Effect.succeed(DateTime.toEpochMillis(NOW)),
+        ...options,
+      }).pipe(Layer.provideMerge(DatabaseLive({ maxConnections: 30, url })))
     )
-  )
-);
+  );
 
 const world = StaffingModel.layer(staffingProjections).pipe(
-  Layer.provideMerge(databasePlatform),
+  Layer.provideMerge(databasePlatform()),
   Layer.provideMerge(
     readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase))
   )
+);
+
+const unlockedWorld = Layer.unwrap(
+  Effect.gen(function* unlockedWorld() {
+    const arrivals = yield* Ref.make(0);
+    const bothRead = yield* Deferred.make<null>();
+
+    const afterRead = (aggregate: string, id: string) => {
+      if (aggregate !== "AdminList" || id !== "1") {
+        return Effect.void;
+      }
+
+      return Effect.gen(function* awaitBothReads() {
+        const count = yield* Ref.updateAndGet(arrivals, (value) => value + 1);
+
+        if (count === 2) {
+          yield* Deferred.succeed(bothRead, null);
+        }
+
+        yield* Deferred.await(bothRead);
+
+        return yield* Effect.void;
+      });
+    };
+
+    return StaffingModel.layer(staffingProjections).pipe(
+      Layer.provideMerge(
+        databasePlatform({
+          afterRead,
+          instanceLock: "none",
+          versionGuard: false,
+        })
+      ),
+      Layer.provideMerge(migratedTestDatabase)
+    );
+  })
 );
 
 const readOnlyClient = Layer.unwrap(
@@ -671,6 +712,8 @@ layer(world, { excludeTestServices: true })(
             }
           }
 
+          assert.deepStrictEqual(failures, []);
+
           return yield* Effect.void;
         })
     );
@@ -730,6 +773,128 @@ layer(world, { excludeTestServices: true })(
           }
 
           assert.deepStrictEqual(failures, []);
+        })
+    );
+  }
+);
+
+layer(unlockedWorld, { excludeTestServices: true })(
+  "PostgreSQL lock negative controls",
+  (it) => {
+    it.effect(
+      "negative control: disabling instanceLock and versionGuard makes #17 fail its serialized outcome",
+      () =>
+        Effect.gen(function* adminRaceWithoutLocks() {
+          const sql = yield* SqlClient;
+          const adminList = yield* AdminList;
+          const internals = yield* Internals;
+          const adminStore = internals.aggregates.get("AdminList");
+
+          if (adminStore === undefined) {
+            return yield* Effect.die("AdminList aggregate is not hosted");
+          }
+
+          const seedAdmin = adminStore.seed;
+
+          if (seedAdmin === undefined) {
+            return yield* Effect.die("AdminList aggregate has no seed store");
+          }
+
+          const [left, right, actor] = yield* Effect.all([
+            fixture("ucl"),
+            fixture("ucr"),
+            fixture("uca"),
+          ]);
+
+          const leftGrant = yield* nextId("admin_grant");
+          const rightGrant = yield* nextId("admin_grant");
+
+          const encodedEvents = yield* Effect.all([
+            Schema.encodeEffect(Schema.toCodecJson(AccountInvited))(
+              new AccountInvited({ personId: left.personId })
+            ),
+            Schema.encodeEffect(Schema.toCodecJson(AccountActivated))(
+              new AccountActivated({ personId: left.personId })
+            ),
+            Schema.encodeEffect(Schema.toCodecJson(AccountInvited))(
+              new AccountInvited({ personId: right.personId })
+            ),
+            Schema.encodeEffect(Schema.toCodecJson(AccountActivated))(
+              new AccountActivated({ personId: right.personId })
+            ),
+            Schema.encodeEffect(Schema.toCodecJson(AdminPlaceGranted))(
+              new AdminPlaceGranted({
+                grantedBy: null,
+                id: AdminGrantId.make(leftGrant),
+                personId: left.personId,
+                until: FAR,
+              })
+            ),
+            Schema.encodeEffect(Schema.toCodecJson(AdminPlaceGranted))(
+              new AdminPlaceGranted({
+                grantedBy: null,
+                id: AdminGrantId.make(rightGrant),
+                personId: right.personId,
+                until: FAR,
+              })
+            ),
+          ]);
+
+          yield* seedAdmin("1", encodedEvents);
+
+          const [deactivated, revoked] = yield* raceTwo(
+            sendAdmin(
+              adminList,
+              new DeactivateAccount({ personId: right.personId }),
+              actor.personId,
+              "unlocked-deactivate"
+            ),
+            sendAdmin(
+              adminList,
+              new DeleteAdminGrant({ id: AdminGrantId.make(leftGrant) }),
+              actor.personId,
+              "unlocked-revoke"
+            )
+          );
+
+          const rows = yield* sql.unsafe(
+            "select count(*)::int as count from alchemy_admin_place g join alchemy_admin_account a on a.person_id = g.person_id where a.state = 'Active' and g.until > $1",
+            [NOW.toJSON()]
+          );
+
+          const [row] = rows;
+
+          if (row === undefined) {
+            return yield* Effect.die(
+              "active admin place query returned no row"
+            );
+          }
+
+          const active = yield* Schema.decodeUnknownEffect(
+            Schema.Struct({ count: Schema.Finite })
+          )(row).pipe(Effect.orDie);
+
+          const safe = adminRaceIsSafe(deactivated, revoked, active.count);
+          const details = raceReport(1, [deactivated, revoked]);
+          const losers = Arr.filter([deactivated, revoked], Exit.isFailure);
+          assert.strictEqual(losers.length, 1);
+          assert.strictEqual(active.count, 1);
+          assert.include(details, "UniqueViolation");
+          assert.include(details, "alchemy_event_pkey");
+
+          yield* Effect.logInfo(
+            `#17 without aggregate locks/version guard: activePlaces=${
+              active.count
+            }; outcomes=${details}`
+          );
+          assert.isFalse(
+            safe,
+            `unlocked control unexpectedly produced a serialized, typed #17 outcome: ${
+              details
+            }`
+          );
+
+          return yield* Effect.void;
         })
     );
   }
