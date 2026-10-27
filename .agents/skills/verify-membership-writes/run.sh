@@ -5,8 +5,8 @@
 #   .agents/skills/verify-membership-writes/run.sh --touched <base-ref>   (no tools needed; used by CI)
 #
 # It does these things, in this order:
-#   1. DRIFT: has covered code changed since the sync commit in SKILL.md, or is there a writer of `membership`
-#      that the model does not know? Either one means the model may describe code that no longer exists.
+#   1. DRIFT: do the covered paths at HEAD match the sync digest in SKILL.md, and are all membership writers covered?
+#      Either condition means the model may describe code that no longer exists.
 #   2. CURRENT CODE: model-check every property against the code as model/Shapes.tla describes it. Must pass.
 #   3. GOALS (reach-*): the model can do what the properties are about: each of these must be reachable.
 #   4. BROKEN VARIANTS: model-check each variant (the real code with one edit). Each must fail on its property;
@@ -33,6 +33,7 @@ workers=${TLC_WORKERS:-8}
 heap=${TLC_HEAP:-2g}
 quick=0
 code=0
+digest=0
 
 # name | module | code | transactions | invariants | expected result
 # `pass` or `fails:<Invariant>`. Every name is also in SKILL.md (checked below).
@@ -74,6 +75,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --quick) quick=1 ;;
     --code) code=1 ;;
+    --digest) digest=1 ;;
     --list) printf '%s\n' "${matrix[@]}" | awk -F'|' '{printf "%-36s %-6s %-30s N=%s  %s -> %s\n", $1, $2, $3, $4, $5, $6}'; exit 0 ;;
     --touched) shift; touched_base=${1:-}; [ -n "$touched_base" ] || { echo "usage: run.sh --touched <base-ref>" >&2; exit 2; } ;;
     *) echo "usage: run.sh [--quick] [--code] [--list] | --touched <base-ref>" >&2; exit 2 ;;
@@ -82,11 +84,22 @@ while [ $# -gt 0 ]; do
 done
 
 coverage=$(awk '/^```coverage$/{f=1;next} /^```$/{f=0} f' "$skill")
-sync=$(printf '%s\n' "$coverage" | sed -n 's/^sync-commit: *//p' | head -n 1)
-mapfile -t covered < <(printf '%s\n' "$coverage" | grep -vE '^(sync-commit:|#|$)')
-if [ -z "$sync" ] || [ "${#covered[@]}" -eq 0 ]; then
-  echo "SKILL.md has no coverage block (sync-commit and covered paths)." >&2
+sync_digest=$(printf '%s\n' "$coverage" | sed -n 's/^sync-digest: *//p' | head -n 1)
+confirmed_at=$(printf '%s\n' "$coverage" | sed -n 's/^confirmed-at: *//p' | head -n 1)
+mapfile -t covered < <(printf '%s\n' "$coverage" | grep -vE '^(sync-digest:|confirmed-at:|#|$)')
+if [ -z "$sync_digest" ] || [ "${#covered[@]}" -eq 0 ]; then
+  echo "SKILL.md has no coverage block (sync-digest and covered paths)." >&2
   exit 2
+fi
+covered_digest() {
+  local tree
+  tree=$(git -C "$root" ls-tree -r "$1" -- "${covered[@]}")
+  [ -n "$tree" ] || return 1
+  printf '%s\n' "$tree" | git -C "$root" hash-object --stdin
+}
+if [ "$digest" = 1 ]; then
+  covered_digest HEAD || { echo "No covered paths found in HEAD." >&2; exit 2; }
+  exit 0
 fi
 membership_writers() {
   git -C "$root" grep -liE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]' \
@@ -118,19 +131,22 @@ status=0
 drift=0
 
 # ---------------------------------------------------------------- 1. drift
-if ! git -C "$root" cat-file -e "$sync^{commit}" 2>/dev/null; then
-  echo "DRIFT  the sync commit $sync is not in this repository: fetch it, or confirm the model against HEAD and move the sync commit."
+head_digest=$(covered_digest HEAD)
+if [ "$head_digest" != "$sync_digest" ]; then
+  echo "DRIFT  covered code digest differs from SKILL.md (recorded $sync_digest, HEAD $head_digest)."
+  echo "       Read covered-code changes, update model/Shapes.tla, then record \`run.sh --digest\` in the coverage block."
+  if [ -n "$confirmed_at" ] && git -C "$root" cat-file -e "$confirmed_at^{commit}" 2>/dev/null; then
+    changed=$(git -C "$root" diff --name-only "$confirmed_at" -- "${covered[@]}")
+    while IFS= read -r file; do [ -n "$file" ] && echo "         git diff $confirmed_at -- $file"; done <<<"$changed"
+  else
+    echo "       confirmed-at commit is unavailable; inspect covered paths with git log."
+  fi
   drift=1
 else
-  changed=$(git -C "$root" diff --name-only "$sync" -- "${covered[@]}")
-  if [ -n "$changed" ]; then
-    echo "DRIFT  covered code changed since the sync commit ${sync:0:9}. Read each change, update model/Shapes.tla from the code,"
-    echo "       run again, then move the sync commit (SKILL.md, \"Update the model after a change\"):"
-    while IFS= read -r file; do echo "         git diff ${sync:0:9} -- $file"; done <<<"$changed"
-    drift=1
-  else
-    echo "ok     covered code is unchanged since the sync commit ${sync:0:9}"
-  fi
+  echo "ok     covered code digest matches SKILL.md ($head_digest)"
+fi
+if [ -n "$(git -C "$root" status --porcelain -- "${covered[@]}")" ]; then
+  echo "warn   covered paths have uncommitted changes; drift compares HEAD only."
 fi
 
 writers=$(membership_writers)
@@ -252,7 +268,7 @@ if [ "$status" -ne 0 ]; then
   exit 1
 fi
 if [ "$drift" -ne 0 ]; then
-  echo "RESULT: every run was as expected, but the coverage is stale (DRIFT above). The pass describes the code at the sync commit, not at HEAD."
+  echo "RESULT: every run was as expected, but the coverage is stale (DRIFT above); recorded digest differs from covered paths at HEAD."
   exit 3
 fi
 echo "RESULT: ok. The current code keeps every property, and every broken variant is caught."

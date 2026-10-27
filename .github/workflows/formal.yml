@@ -2,7 +2,7 @@ name: Formal verification
 
 # Runs the TLA+ model of membership writes when a pull request touches what it covers. Which files that is comes from
 # the coverage block in .agents/skills/verify-membership-writes/SKILL.md (read by `run.sh --touched`), so this
-# workflow holds no second list of paths. Drift (exit 3: covered code changed since the model's sync commit) fails
+# workflow holds no second list of paths. Drift (exit 3: covered-path content digest differs from the recorded digest) fails
 # the job: the model must be confirmed against the change before it merges.
 
 on:

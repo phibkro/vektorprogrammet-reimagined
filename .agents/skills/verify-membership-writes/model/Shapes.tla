@@ -2,7 +2,7 @@
 (***************************************************************************)
 (* The code, as MembershipWrites.tla sees it: which statements each        *)
 (* repository write runs and in which order, and which commands call which *)
-(* repository writes. `CurrentCode` is the code at the sync commit named   *)
+(* repository writes. `CurrentCode` is the code at the digest-confirmed tree *)
 (* in SKILL.md; every line points at the code that a reviewer can open.    *)
 (* The other records are broken variants: each is `CurrentCode` with one   *)
 (* edit that the code could get, and the comment says which.               *)

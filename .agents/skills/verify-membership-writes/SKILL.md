@@ -16,7 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each repository write and each command, with file and line. `run.sh` reads this block.
 
 ```coverage
-sync-commit: 0795adc734dd5d980acece5fc3404116a24b84fa
+sync-digest: e014326bed025787b13f350dec0c4c33f3687549
+confirmed-at: 0795adc734dd5d980acece5fc3404116a24b84fa
 packages/db/src/repositories/teams.ts
 packages/domain/src/teams/commands.ts
 packages/domain/src/teams/declaration.ts
@@ -36,7 +37,7 @@ apps/web/src/server/transactor.ts
 | `classifySqlFailure` (`classifySqlFailure.ts:95-145`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
 | `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED) |
 
-The sync commit is the last commit at which someone confirmed that `model/Shapes.tla` describes this code. **Move it forward only after you have read every change to covered code since the old one and the model describes the new code** (see "Update the model after a change").
+The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change").
 
 ## Run it
 
@@ -52,7 +53,7 @@ What a good run prints, and what each line means:
 
 | Line | Means |
 | --- | --- |
-| `ok covered code is unchanged since the sync commit` | the model was confirmed against this code. `DRIFT` means a covered file changed, or a new writer of `membership` exists: the pass below describes older code |
+| `ok covered code digest matches SKILL.md` | the model was confirmed against this code. `DRIFT` means the HEAD digest differs from the recorded digest, or a new writer of `membership` exists. |
 | `current-code … pass` | all four properties hold for the code as `Shapes.tla` describes it |
 | `reach-overlap-loser`, `reach-lost-transition`, `reach-lock-wait`, `reach-check-wait-on-unlocked-remove`, `reach-change-commits`, `reach-all-commit` `… fails:Never…` | the model can reach what the properties are about: an overlap loser, a lost race, a wait for the lock, a wait inside the check for an unlocked `remove`, a committed `change`, every command committed. A pass of `current-code` over a model that cannot do these would mean nothing |
 | `insert-without-lock … fails:NoDeadlockAbort` and the other variants | the property can fail: this variant is the real code with one edit (table below) |
@@ -61,7 +62,7 @@ What a good run prints, and what each line means:
 
 Exit status: `0` all as expected, `1` the code breaks a property or a variant is not caught or a code test failed, `2` tool missing or no headroom, `3` all as expected but the coverage is stale.
 
-**In CI** (`.github/workflows/formal.yml`): every pull request runs `run.sh --touched origin/<base>`, which needs no tools and reads the coverage block above. When the diff touches a covered file, this skill, the formal profile, or adds an uncovered writer of `membership`, the job runs the full `run.sh`, and any non-zero exit, drift included, fails it. So a change to covered code merges only after the model has been confirmed against it and the sync commit moved.
+**In CI** (`.github/workflows/formal.yml`): every pull request runs `run.sh --touched origin/<base>`, which needs no tools and reads the coverage block above. `run.sh --touched origin/main` decides applicability. When the diff touches covered code, this skill, the formal profile, or adds an uncovered writer of `membership`, formal.yml runs the full model with `FORCE=1` and `TLC_WORKERS=2`. Any non-zero exit, including digest drift (exit 3), fails the job.
 
 ## Read a result
 
@@ -78,7 +79,7 @@ Read every result that is not `as expected`, and the passing `current-code`, wit
 
 Do this when `run.sh` says `DRIFT`, or when you change covered code on purpose.
 
-1. Read every change to covered code since the sync commit: `run.sh` prints the `git diff` command for each changed file, and it finds a new writer of `membership` as well. A writer that you add or change must be in the coverage block. For each change decide: **no effect** (formatting, comments, a person-only repository method), **the model no longer describes the code** (a statement was added, removed or moved, a WHERE condition changed, a command calls another write), or **the promise changed on purpose** (the doc comment, the tests or the spec say so; cite it).
+1. Review covered-code changes since `confirmed-at` when that commit is available; the digest itself is the authority for drift. `run.sh` prints per-file `git diff` hints when possible and finds new writers of `membership` too. A writer that you add or change must be in the coverage block. For each change decide whether the model still describes the code.
 2. Translate from the code, statement by statement, into `CurrentCode` in `model/Shapes.tla`. Write the update before you run it, and never shape it by what makes the run pass.
 
    | In the code | In `Shapes.tla` |
@@ -93,7 +94,7 @@ Do this when `run.sh` says `DRIFT`, or when you change covered code on purpose.
 
 3. **A statement that the model has no name for** (another table, `ON CONFLICT`, `FOR UPDATE` over a set of rows, an advisory lock, a retry, `SERIALIZABLE`) needs a new action in `MembershipWrites.tla`. First write the probe that shows the PostgreSQL rule in `membershipWriteModel.postgres.test.ts`; then the action; then a goal (`Never…`), a broken variant and their runs in `run.sh`.
 4. Run `run.sh`. Then break the new code the way the property guards against (drop the new lock, reorder the new statement), make the same edit in `Shapes.tla` as a new variant, and see it caught. A pass that you have not seen fail proves nothing.
-5. Commit the change to the model apart from any product change. Then set `sync-commit` above to the commit that contains the covered code you confirmed (a second small commit is fine: the diff of covered files from it to `HEAD` is still empty). Do not move it for a run that was blocked.
+5. Commit the change to the model apart from any product change. After confirming the model against the code, record `run.sh --digest` as `sync-digest` and the reference commit as `confirmed-at`. Do not update either after a run that was blocked.
 
 Spec 0006b will change this code: `Aggregate.lock` replaces the inline lock selects, writes take a `Locked<Person>`, `remove` locks too, `Machine.apply` writes the state. `WithReplaceAllWritesLocked` and `LocksInIdOrder` in `Shapes.tla` are the shapes that the spec promises. Compare the code that lands with them statement by statement.
 
@@ -132,7 +133,7 @@ Each is `CurrentCode` with one edit that the code could get. `run.sh --list` pri
 | `40P01` is a defect | `classifySqlFailure.test.ts` |
 | each command's calls, `remove` without a lock | nothing: only the drift check sees them. Adding a lock to `remove` is safe (spec 0006b does it), so no test pins its absence |
 
-## Findings at the sync commit
+## Findings at the confirmed commit
 
 - **The code keeps all four properties** inside the bounds. The reach goals show the model does what they are about.
 - **`remove` is unlocked and safe only because it is one statement with nothing after it that can wait.** A command that deletes a membership and then writes another one before it locks the person deadlocks (`whatif-replace-without-lock`; the same on PostgreSQL in `membershipWriteModel.postgres.test.ts`). The rule for a new command is to lock the person first. Spec 0006b makes that structural.
