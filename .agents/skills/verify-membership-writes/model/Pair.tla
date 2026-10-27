@@ -1,9 +1,8 @@
 -------------------------------- MODULE Pair --------------------------------
 (***************************************************************************)
-(* Two persons, and commands that lock both (a merge, a cross-department   *)
-(* change): AggregateLocks.lockAll over two ids. No command does that yet, *)
-(* so this module checks the lock construct and not a command. Both        *)
-(* commands name the same two persons, in opposite order.                  *)
+(* Two persons, and commands that lock both: AggregateLocks.lockAll over   *)
+(* two ids. Workspace's generated-address assignment uses this ordering.  *)
+(* Both transactions name the same two persons, in opposite order.        *)
 (***************************************************************************)
 EXTENDS MembershipWrites, Shapes, TLC
 

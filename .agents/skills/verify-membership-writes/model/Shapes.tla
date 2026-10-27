@@ -33,23 +33,30 @@ CurrentCode == [
     \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
     \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:251-252,
     \* 277-278, through lockAccount at 106-121) take the same two locks.
+    \* createMembership reads history and claims welcome_ledger; deleteMembership
+    \* also claims it after removal. Both use the existing Person token and take
+    \* no new root lock. Ledger and outbox guarantees are tested on PostgreSQL.
+    \* syncWorkspace locks generated-address owners in one sorted lockAll;
+    \* its one-person case is below, its multi-person and address ordering in Pair and Address.
     compose |-> [
-        createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:269, 305
-        deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:416, 418
-        changeMembership   |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:179-180, 190, 197
-        endEarlyMembership |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:432-433, 435
-        extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:457-458, 460
-        createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:238-239
-        deleteAdminGrant   |-> <<"lockList", "lock">>          \* teams/commands.ts:381, 391 (382 is a plain read)
+        createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:272, 311
+        deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:428, 430
+        changeMembership   |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:183, 193, 200
+        endEarlyMembership |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:447, 449
+        extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:472, 474
+        createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:241-242
+        deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:393, 403
+        syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:236, one person
+        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:65, 376
     ],
     \* The statements of each call, in order.
     repo |-> [
         \* beginTransition: the unlocked read that finds the owner, the lock
         \* of that person, the read through its token, on which the machine
-        \* decides (teams/commands.ts:115-145).
-        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 123, 124, 125, 126-142
-        find     |-> <<"find">>,                       \* teams.ts:381-391
-        read     |-> <<"read">>,                       \* teams.ts:393-401
+        \* decides (teams/commands.ts:118-148).
+        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 126, 127, 128, 129-145
+        find     |-> <<"find">>,                       \* teams.ts:465-475
+        read     |-> <<"read">>,                       \* teams.ts:477-485
         \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
         \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-111, 136-142). A row
         \* that the transaction holds sends no statement (87-90).
@@ -57,9 +64,9 @@ CurrentCode == [
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
         \* (domain/shared/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
-        insert   |-> <<"insertRow">>,                  \* teams.ts:474-493, Aggregates.insert (aggregates.ts:252-291)
-        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:495-530, Aggregates.update (aggregates.ts:329-350)
-        remove   |-> <<"deleteRow">>                   \* teams.ts:532-565, Aggregates.remove (aggregates.ts:292-305)
+        insert   |-> <<"insertRow">>,                  \* teams.ts:558-577, Aggregates.insert
+        setEnd   |-> <<"updateEnd">>,                  \* teams.ts:584-614, Aggregates.update
+        remove   |-> <<"deleteRow">>                   \* teams.ts:620-649, Aggregates.remove
     ],
     \* A lock that would come before one that the transaction holds is a defect
     \* before any statement is sent (db/aggregate/locks.ts:92-103,
@@ -67,9 +74,9 @@ CurrentCode == [
     \* (domain/shared/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:329-334, 525-529, 560-562).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:514-519
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:548-556
+    \* row is `lostRace`, the typed Conflict (teams.ts:609-613, 644-645).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:598-603
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:632-640
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10

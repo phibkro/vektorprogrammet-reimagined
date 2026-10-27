@@ -65,6 +65,9 @@ matrix=(
   "lockall-call-order-by-hand|Pair|LocksInCallOrder|2|NoDeadlockAbort|fails:NoDeadlockAbort"
   "lockall-call-order-through-registry|Pair|LocksInCallOrderThroughRegistry|2|NoDeadlockAbort|pass"
   "reach-pair-order-violation|Pair|LocksInCallOrderThroughRegistry|2|NeverOrderViolation|fails:NeverOrderViolation"
+  "address-order|Address|SortedAddresses|2|NoWaitCycle|pass"
+  "address-opposite-order|Address|OppositeAddresses|2|NoWaitCycle|fails:NoWaitCycle"
+  "address-reach-conflict|Address|SortedAddresses|2|NeverConflict|fails:NeverConflict"
 )
 # The slowest runs; --quick leaves them out and checks the current code with two transactions instead of three.
 quick_skip='^whatif-replace-through-construct$'
@@ -220,6 +223,14 @@ write_cfg() { # module code transactions invariants... > cfg
     *) echo "unsupported transaction count $n" >&2; exit 2 ;;
   esac
   echo "    NoTxn = NoTxn"
+  if [ "$module" = Address ]; then
+    echo "    Code <- $code"
+    echo "SYMMETRY TxnSymmetry"
+    echo "INVARIANTS"
+    echo "    TypeOK"
+    for invariant in "$@"; do echo "    $invariant"; done
+    return
+  fi
   echo "    Genesis = Genesis"
   echo "    NoRow = NoRow"
   echo "    Current = 2"
