@@ -32,8 +32,6 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Person**: One human known to Vektorprogrammet: an applicant, an assistant, a team member, or a former one. One person has one record, even when they leave and come back. _Avoid_: user, member, account (an account is how a person logs in)
 
-**Principal**: A person, a system job, the separate emergency principal, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
-
 **Engagement**: A period in which a person works for Vektorprogrammet: a placement or a current role assignment in an internal unit (Department or Team). A School or Sponsor contact assignment is not an engagement. _Avoid_: involvement, participation
 
 **Assistant** (vektorassistent): A person with a placement in the current semester. _Avoid_: volunteer (too wide), helper
@@ -52,15 +50,31 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 ## Acting in the system
 
-**Principal** (aktør): The party that is accountable for an action: a person, a named system job, the separate `Emergency` principal, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
+**Principal** (aktør): The accountable party that holds grants: `Anonymous`, a Person, a named system principal, a `Link(purpose)` holder, or `Emergency`. A person principal is an actor in business language and an ArchiMate Business Actor. _Avoid_: user, role, actor (in code)
 
-**System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. _Avoid_: root, service account, bot
+**System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. In ArchiMate, an Application Process of an Application Component, not a Business Actor. _Avoid_: root, service account, bot
 
 **Credential** (innloggingsmiddel): What proves a principal: a password, a passkey, a single-use code, or the platform's trigger for a scheduled job. _Avoid_: login, auth
 
 **Session** (økt): A period in which one credential holds one principal on one client. A person can see and end their sessions. _Avoid_: login, token
 
-**Client** (klient): The software that acts on behalf of a principal: a browser on a desktop or a phone, the server that runs a request, the scheduler, or the import tool. A client never has more permissions than its principal. _Avoid_: device, agent, app
+**Client** (klient): The software that acts on behalf of a principal: a browser on a desktop or a phone, the server that runs a request, the scheduler, the import tool, or the Slack bot. A client never has more permissions than its principal and never has grants of its own. In business language, an agent. _Avoid_: device, agent (in code), app
+
+**Slack link**: An explicit, recorded link between one Person and one Slack user id. It records its source (`auto: verified e-mail` or `manual: Sign in with Slack`) and, for an automatic link, the matched address. The person can remove it on Min side.
+
+## Activities
+
+**Activity**: An occasion that persons plan and the system schedules, runs and notifies: for example a social event, a general meeting or an election. It is not a domain or audit event (the facts that commands record). In ArchiMate, a Business Interaction. _Avoid_: event (for the occasion)
+
+**Activity type**: A declaration in code that says which capabilities an Activity has (required, optional, absent, or required when an instance setting holds). The audience follows one rule for every type. _Avoid_: event type
+
+**Capability**: An optional part of an Activity type: RSVP, Check-in or Voting.
+
+**RSVP**: A person's answer to an Activity: yes, no or maybe.
+
+**Check-in**: A record that a person is present at an Activity during its check-in window. It can count toward a quorum.
+
+**Organiser**: A person named on an Activity who may manage it. Whether it should be a role kind is open in ADR 0013.
 
 ## Admission and recruitment
 
