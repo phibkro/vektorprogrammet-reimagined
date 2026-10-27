@@ -21,6 +21,7 @@ import {
   AggregateLocks,
   CodeRepository,
   CurrentPrincipal,
+  Forbidden,
   PasswordHash,
   PersonId,
   PrincipalDirectory,
@@ -169,6 +170,12 @@ const callAuth = (path: string, cookie: string, body?: AuthBody) =>
 
 const currentSession = (cookie: string) =>
   Auth.use((auth) => auth.session(new Headers({ cookie })));
+
+/** The command that a `Forbidden` failure names, when the exit failed with one. */
+const refusedCommand = (exit: Exit.Exit<unknown, unknown>) =>
+  Option.filter(Exit.findErrorOption(exit), Schema.is(Forbidden)).pipe(
+    Option.map((refusal) => refusal.command)
+  );
 
 const mutantAuth = (url: Redacted.Redacted) =>
   Effect.acquireRelease(
@@ -635,6 +642,44 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
             Exit.findErrorOption(use),
             Predicate.isTagged("Forbidden")
           )
+        );
+      })
+  );
+
+  it.effect(
+    "a code that opens nothing is refused, and the refusal names the command of the code's purpose (spec 0007c R2)",
+    () =>
+      Effect.gen(function* unknownCode() {
+        const code = yield* mintCode().pipe(
+          Effect.provide(webCryptoLayer),
+          Effect.orDie
+        );
+
+        const provided = Effect.provide(
+          Layer.merge(webCryptoLayer, passwordHasherLayer)
+        );
+
+        const activation = yield* Effect.exit(
+          transactional(
+            AccountEndpoints.activateAccount({
+              code: code.token,
+              password: "valid password",
+            })
+          ).pipe(provided)
+        );
+
+        const reset = yield* Effect.exit(
+          transactional(
+            AccountEndpoints.resetPassword({
+              code: code.token,
+              password: "valid password",
+            })
+          ).pipe(provided)
+        );
+
+        assert.deepStrictEqual(
+          [refusedCommand(activation), refusedCommand(reset)],
+          [Option.some("activateAccount"), Option.some("resetPassword")]
         );
       })
   );

@@ -2,6 +2,8 @@
 
 **Status:** frozen when PR opens; later changes are dated entries under [Revisions](#revisions) · **Phase:** 2 · **Source:** brief §7 "Information model and personal data" (accepted 2026-10-26); `docs/system/teams.md`; ADR 0001, 0002, 0006, 0007.
 
+> **Command names.** Spec 0007c (ADR 0010) renamed every command that this spec names, and the text below keeps the names of its day. The table of old and new names is in [spec 0007c §4](0007c-command-resources.md#4-the-rename).
+
 ## Journey
 
 1. **An admin** opens Team in the control panel, creates a team in a department with a function (board, economy, IT, recruitment, placement, other) and a default term (1 or 2 semesters), and registers a person (name, e-mail).

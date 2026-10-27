@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 1723f8821e36ef997235354f55c0b33b7ef68d49
-confirmed-at: b93db65f8316e5393acd12a3fdf61c9289af7610
+sync-digest: 73c6b8c93af0654862b82651175df894ffb51f91
+confirmed-at: 9e521e156e609fc557a1d745de049d6d36be554e
 packages/db/src/repositories/teams.ts
 packages/domain/src/teams/commands.ts
 packages/domain/src/teams/declaration.ts
@@ -64,7 +64,7 @@ What a good run prints, and what each line means:
 | --- | --- |
 | `ok covered code digest matches SKILL.md` | the model was confirmed against this code. `DRIFT` means the HEAD digest differs from the recorded digest, or a new writer of `membership` exists. |
 | `current-code … pass` | all five properties hold for the code as `Shapes.tla` describes it |
-| `reach-overlap-loser`, `reach-lost-transition`, `reach-lock-wait`, `reach-list-wait`, `reach-person-wait-holding-list`, `reach-change-commits`, `reach-all-commit`, `reach-order-violation`, `reach-pair-order-violation` `… fails:Never…`, and `reach-check-wait … fails:NoWaitInCheck` | the model can reach what the properties are about: an overlap loser, a lost race, a wait for a person's lock, a wait for the admin list's lock, a wait for a person's lock while holding the list's, a committed `change`, every command committed, a lock refused as out of order, and a wait inside the exclusion check (which only a missing lock allows). A pass of `current-code` over a model that cannot do these would mean nothing |
+| `reach-overlap-loser`, `reach-lost-transition`, `reach-lock-wait`, `reach-list-wait`, `reach-person-wait-holding-list`, `reach-change-commits`, `reach-all-commit`, `reach-order-violation`, `reach-pair-order-violation` `… fails:Never…`, and `reach-check-wait … fails:NoWaitInCheck` | the model can reach what the properties are about: an overlap loser, a lost race, a wait for a person's lock, a wait for the admin list's lock, a wait for a person's lock while holding the list's, a committed `changeMembership`, every command committed, a lock refused as out of order, and a wait inside the exclusion check (which only a missing lock allows). A pass of `current-code` over a model that cannot do these would mean nothing |
 | `lock-takes-no-row-lock … fails:NoDeadlockAbort` and the other variants | the property can fail: this variant is the real code with one edit (table below) |
 | `story-r6-deadlock` and `story-r6-fixed` | the pair that `/statechart` reads: the R6 race in a scenario small enough to draw, without and with the lock |
 | `whatif-*`, `lockall-*` | not a command: a command that the code does not have, and `AggregateLocks.lockAll` over two persons (no command calls it yet) |

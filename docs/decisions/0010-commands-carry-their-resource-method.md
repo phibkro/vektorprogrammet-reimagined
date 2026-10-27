@@ -16,7 +16,7 @@ ADR 0006 stays: each command and query is declared once with `effect/rpc`, and i
 
 A standard method is the default. A custom method is the fallback for an intent that a standard method would blur: `extend`, `change` and `endEarly` all change a membership's end, but they differ in audit meaning and in transition. `extend` and `change` share `grant([leader, board], [...], "department")`; `endEarly` additionally has `grant([self], ["endEarly"], "own")`. So each is a custom method and none of them is an `update`. Names follow the method: `createTeam`, `updatePerson`, `deleteAdminGrant`, `extendMembership`.
 
-A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's conditional transition, which conditions on state. A stale `If-Match` answers `412` only when a row version exists. This decision therefore requires any `update` method to add a version column checked in the conditional write; no such version exists today.
+A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's conditional transition, which conditions on state. A stale `If-Match` answers `412` only when a row version exists. This decision therefore requires an `update` that the derived HTTP API exposes with `If-Match` to carry a version column, checked in the conditional write. No such version exists today and no route is derived yet, so no declared `update` promises a `412`; an `update` that no route exposes with `If-Match` needs no version column (revision below).
 
 ## Considered options
 
@@ -31,3 +31,5 @@ A transition from the wrong state answers `409` (`Conflict`): that is ADR 0007's
 - Built by spec 0007c (`docs/specs/0007c-command-resources.md`): the field, its checks and the rename (its table has the full mapping). The method has no field that could promise a `412`, so an `update` cannot claim one before a row version exists.
 
 Source: operator decision, 2026-10-27.
+
+Revision, 2026-10-27 (spec 0007c R2, after the review of PR 30): the requirement of the version column said "any `update` method". Spec 0007c declares four `update`s without one (`updateDepartment`, `updateFieldOfStudy`, `updateTeam` and `updatePerson`), none of them exposed over HTTP, and no field of the declaration promises them a `412`. The requirement now binds an `update` that the derived HTTP API exposes with `If-Match`, because the `412` is the one answer that needs a row version. Nothing else in this decision changes.
