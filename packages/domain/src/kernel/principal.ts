@@ -28,6 +28,16 @@ export const SystemJob = Schema.Literals([
 
 export type SystemJob = typeof SystemJob.Type;
 
+/** The kind of client that made a command for audit attribution. */
+export const AuditClient = Schema.Literals([
+  "browser",
+  "server",
+  "scheduler",
+  "import",
+]);
+
+export type AuditClient = typeof AuditClient.Type;
+
 /** One membership that is active this semester, reduced to what the permission algebra reads. */
 export const MembershipFact = Schema.Struct({
   departmentId: DepartmentId,
@@ -38,6 +48,22 @@ export const MembershipFact = Schema.Struct({
 
 export type MembershipFact = typeof MembershipFact.Type;
 
+/** The resource named by a credential restriction. */
+export const PrincipalResource = Schema.Struct({
+  departmentId: Schema.optionalKey(DepartmentId),
+  personId: Schema.optionalKey(PersonId),
+});
+
+export type PrincipalResource = typeof PrincipalResource.Type;
+
+/** A credential grants no authority beyond this command and resource. */
+export const Narrowing = Schema.Struct({
+  command: Schema.String,
+  resource: PrincipalResource,
+});
+
+export type Narrowing = typeof Narrowing.Type;
+
 /**
  * The acting party of one request or job.
  *
@@ -46,17 +72,34 @@ export type MembershipFact = typeof MembershipFact.Type;
  *   grants that were valid when the facts were loaded (absent when the person is not an admin).
  * - `System`: a scheduled job.
  */
-export const Principal = Schema.TaggedUnion({
+const PrincipalSchema = Schema.TaggedUnion({
   Anonymous: {},
   Person: {
     adminUntil: Schema.optionalKey(Schema.DateTimeUtc),
+    client: Schema.optionalKey(AuditClient),
     memberships: Schema.Array(MembershipFact),
+    narrowing: Schema.optionalKey(Schema.Array(Narrowing)),
     personId: PersonId,
+    sessionId: Schema.optionalKey(Schema.NonEmptyString),
   },
   System: { job: SystemJob },
 });
 
-export type Principal = typeof Principal.Type;
+/** Restricting an already restricted principal adds a constraint; it never replaces one. */
+export const Principal = Object.assign(PrincipalSchema, {
+  narrow: (
+    principal: Extract<
+      typeof PrincipalSchema.Type,
+      { readonly _tag: "Person" }
+    >,
+    restriction: Narrowing
+  ) => ({
+    ...principal,
+    narrowing: [...(principal.narrowing ?? []), restriction],
+  }),
+});
+
+export type Principal = typeof PrincipalSchema.Type;
 
 export type AnonymousPrincipal = Extract<
   Principal,

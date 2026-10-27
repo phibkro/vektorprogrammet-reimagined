@@ -7,8 +7,8 @@
  * table the importer owns, insert the plan in foreign-key order, advance the
  * identity sequences past the kept legacy ids, and read the row counts back.
  * A failure anywhere, including a count that differs from the plan, rolls the
- * target back to its previous state. There is no `CASCADE`: a table that references these and is not named here
- * makes the truncate fail instead of wiping it.
+ * target back to its previous state. There is no `CASCADE`: an unlisted reference makes the truncate fail.
+ * Account-bearing targets are refused before replacement: this importer does not import credentials (spec 0013).
  */
 import { PgClient } from "@effect/sql-pg";
 import { schema } from "@vektorprogrammet/db";
@@ -61,12 +61,15 @@ const TABLES = {
 } as const;
 
 /**
- * The tables of later phases that reference the importer's (a team has a department, a person a field of study).
- * PostgreSQL refuses to truncate a referenced table unless the referencing one goes with it, so a re-import clears
- * them too, until spec 0013 imports the legacy teams and memberships and takes over this list. The value list of
- * positions is not among them: the migration seeds it.
+ * The later-phase tables that reference imported rows. Account tables must be named for PostgreSQL even on an empty
+ * target, but a non-empty account target is refused under an exclusive lock: this import cannot restore credentials.
  */
 const BUILT_ON_TABLES = [
+  schema.authSession,
+  schema.authAccount,
+  schema.authUser,
+  schema.code,
+  schema.account,
   schema.endingSoonDigest,
   schema.adminGrant,
   schema.membership,
@@ -133,6 +136,26 @@ export class ImportTarget extends Context.Service<
             ...Arr.map(TARGET_TABLES, ({ table }) => TABLES[table]),
             ...BUILT_ON_TABLES,
           ];
+
+          // Hold the locks through the check and truncate: concurrent account creation cannot slip between them.
+          yield* db
+            .execute(
+              sql`lock table ${sql.join(tables, sql`, `)} in access exclusive mode`
+            )
+            .pipe(step("lock target"));
+
+          const accountRows = yield* Effect.forEach(
+            [schema.account, schema.code, schema.authUser],
+            (table) => db.$count(table).pipe(step("check accounts"))
+          );
+
+          if (Arr.some(accountRows, (count) => count > 0)) {
+            return yield* new TargetWriteError({
+              cause:
+                "target contains accounts or credentials; replacing them is outside this importer",
+              step: "protect accounts",
+            });
+          }
 
           yield* db
             .execute(

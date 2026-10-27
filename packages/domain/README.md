@@ -9,9 +9,9 @@ Domains are declared as data; the runtime, the control panel, the tests and `doc
 | Module | What it is |
 | --- | --- |
 | `principal.ts` | `CurrentPrincipal`: `Anonymous`, `Person { personId, memberships (active this semester), adminUntil? }` or `System { job }` (a scheduled job). `TeamFunction`, `SystemJob`. |
-| `subject.ts` | The subject sets (`Anyone`, `Admin`, `Member`, `Leader`, `Board`, `Fn`, `Self`, `System(job)`): pure functions of a principal's facts; `catalog` is what the docs list. |
+| `subject.ts` | Subject sets include `Anyone`, `Admin`, `Leader`, `Self`, `Holder(purpose)` and `System(job)`. They read principal facts. |
 | `grant.ts` | `Grant.make(subjects, commands, scope)`: a row; scope `own`, `department` or `all`. Only additive: no deny, no precedence. |
-| `authorize.ts` | `authorize(principal, command, resource)` reads the rows and nothing else. `canAnywhere` is what the sidebar asks; `requireGrant` fails a handler with `Forbidden`. |
+| `authorize.ts` | `authorize(principal, command, resource)` reads the grant table and every principal narrowing. `canAnywhere` drives the sidebar. |
 | `guard.ts` | Native `Schema.makeFilter` semester checks (typed paths, after/same/not/or), `describe`, and `SchemaRepresentation` revivers. Their JSON representations are available to compilers as well as the runtime. |
 | `machine.ts` | `Machine.make` (transition tables over a `Schema.TaggedUnion` of states and a context schema, typed by the domain's `RpcGroup`), `can`, `startsFrom`, `available`, `next`. Guard checks are compiled once; their JSON is exposed in machine descriptions. Calculated transitions are declared, not stored. |
 | `commands.ts` | `Info` (the annotation each `Rpc` carries: summary, the legacy rules it replaces, the job that alone runs it, its machine), `inProcess` (the group's handlers behind a client in this process) and `endpoint` (untrusted input in, the command's own result out). |
@@ -28,6 +28,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `kernel`, `shared` | all | the kernel above; ids, errors (`NotFound`, `Forbidden`, `AlreadyExists`, `Conflict`, `ValidationFailed`), Oslo clock helpers, `Outbox`, `InTransaction`, `SiteOrigin`, input decoding |
 | `organisation` | C1, C2 | departments, fields of study, semesters (RULE-022/033/050/051/084/237), admission decisions (RULE-015/119), the `OrganisationRpc` commands, the semester job (`semesterJob`) and the pure semester reads (`currentSemester`, `findCurrentSemester`) |
 | `teams` | spec 0006 | `Person`, `Team`, `Position`, `Membership` (a term of two semesters, its state calculated in `term.ts`), `AdminGrant`; the `TeamsRpc` commands and the Membership machine; the ending-soon digest (`endingSoon.ts`) |
+| `accounts` | spec 0007 | The Account machine, `AccountRpc`, password policy, single-use Code and request-scoped code principals. [Account reference](../../docs/system/accounts.md). |
 | `content` | C3, C5, C8 | the pure rules the public pages use (page size and order of news RULE-326/331, the sponsors' footer order), the rich-text sanitizer (RULE-133, run by the CMS importer), slugs, social events (RULE-085/188). Articles, static texts and sponsors live in the CMS since spec 0005 |
 | `contact` | C10 | support ticket (RULE-156/327) and its notifications (RULE-249) |
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |
@@ -47,12 +48,13 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `PersonRepository`, `TeamRepository`, `PositionRepository` | people, teams (unique name per department, deactivated and never deleted), the position value list |
 | `MembershipRepository` | reads, `insert` (no overlap: `AlreadyExists`), and the conditional `setEnd` and `remove` (a lost race is a `Conflict`) |
 | `AdminGrantRepository` | the admin list; `revoke` refuses the last place that ends after the current semester, atomically |
+| `AccountRepository`, `CodeRepository`, `PasswordHasher` | Account state, conditional code use and the bcrypt boundary. |
 | `DigestLedger` | one row per leader and semester: the digest goes out once |
 | `PrincipalDirectory` | loads a person's facts in one read (`apps/web` uses it to build the principal) |
 | `SocialEventRepository` | `list({ departmentId, semesterId })`, `create` |
 | `PublicFileRepository` | `findByKey`, `findByLegacyPath`, idempotent `register` |
 | `FileStore` | R2 `put` and `get` by content-addressed key |
-| `Outbox` | `enqueue` typed `OutboxMessage`s (e-mail, Slack) in the current transaction |
+| `Outbox` | Enqueues e-mail, Slack and account-delivery intents in the current transaction. |
 | `AuditLog` | `record` one `AuditEntry` per write in the current transaction, `latest` |
 | `SiteOrigin` | the origin that the links in messages carry |
 

@@ -4,7 +4,7 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, describe, it } from "@effect/vitest";
-import { DEFAULT_LOCAL_PERSON } from "@vektorprogrammet/db";
+import { CapturedMailStore, DEFAULT_LOCAL_PERSON } from "@vektorprogrammet/db";
 import {
   DepartmentId,
   EmailAddress,
@@ -12,7 +12,7 @@ import {
   SlackTarget,
   anonymous,
 } from "@vektorprogrammet/domain";
-import type { OutboxMessage } from "@vektorprogrammet/domain";
+import type { TransportMessage } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -26,6 +26,7 @@ import {
 import { HttpClient, HttpClientResponse } from "effect/http";
 import { TestClock } from "effect/testing";
 
+import { Auth } from "../src/server/auth";
 import { decodeDeployment } from "../src/server/deployment";
 import type { Deployment } from "../src/server/deployment";
 import { resolvePrincipal } from "../src/server/principal";
@@ -45,7 +46,7 @@ import {
   seedWorld,
 } from "./support/teamWorld";
 
-const email: OutboxMessage = OutboxMessageSchema.cases.Email.make({
+const email: TransportMessage = OutboxMessageSchema.cases.Email.make({
   replyTo: null,
   subject: "Henvendelse",
   text: "Hei",
@@ -88,6 +89,21 @@ const config = (
   slackWebhookUrl: Redacted.make("https://hooks.example.invalid/fake"),
 });
 
+const mailbox = Layer.effect(
+  CapturedMailStore,
+  Effect.gen(function* mailbox() {
+    const messages = yield* Ref.make<readonly TransportMessage[]>([]);
+
+    return CapturedMailStore.of({
+      record: (message) => Ref.update(messages, (all) => [...all, message]),
+    });
+  })
+);
+
+const noSession = Layer.mock(Auth, {
+  session: () => Effect.succeed({ cookiePresent: false, value: null }),
+});
+
 const sendMessages = Effect.gen(function* sendMessages() {
   const sender = yield* MessageSender;
   yield* sender.send(email);
@@ -100,11 +116,17 @@ const sendMessages = Effect.gen(function* sendMessages() {
 });
 
 const sendWithHttp = <E>(
-  senderLayer: Layer.Layer<MessageSender, E, HttpClient.HttpClient>,
+  senderLayer: Layer.Layer<
+    MessageSender,
+    E,
+    HttpClient.HttpClient | CapturedMailStore
+  >,
   urls: string[]
 ) =>
   sendMessages.pipe(
-    Effect.provide(senderLayer.pipe(Layer.provide(fakeHttp(urls))))
+    Effect.provide(
+      senderLayer.pipe(Layer.provide(Layer.merge(fakeHttp(urls), mailbox)))
+    )
   );
 
 const build = (
@@ -166,7 +188,7 @@ describe("deliveries are sandboxed outside production (architecture §4, critic 
         yield* sendMessages;
 
         return yield* Ref.get(yield* CapturedMessages);
-      }).pipe(Effect.provide(captureSenderLayer));
+      }).pipe(Effect.provide(captureSenderLayer.pipe(Layer.provide(mailbox))));
 
       assert.deepStrictEqual(
         Arr.map(captured, (message) => message._tag),
@@ -213,8 +235,8 @@ describe("deployment and actor", () => {
         yield* seedWorld(tables);
 
         const resolve = (deployment: Deployment, selection?: string) =>
-          resolvePrincipal(deployment, selection).pipe(
-            Effect.provide(memoryLayer(tables))
+          resolvePrincipal(deployment, selection, new Headers()).pipe(
+            Effect.provide(Layer.merge(memoryLayer(tables), noSession))
           );
 
         const byDefault = yield* resolve("local");

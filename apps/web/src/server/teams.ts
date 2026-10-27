@@ -6,6 +6,8 @@
  * validates every input through the command's payload schema; this module only turns form text into its shapes.
  */
 import {
+  AccountRepository,
+  Accounts,
   AdminGrantRepository,
   CurrentPrincipal,
   DepartmentRepository,
@@ -28,6 +30,7 @@ import {
   TeamId,
 } from "@vektorprogrammet/domain";
 import type {
+  Account,
   Department,
   DepartmentId,
   Membership,
@@ -45,13 +48,13 @@ import {
   Predicate,
 } from "effect";
 
+import { text } from "../lib/formText";
 import {
   SAVED,
   checkbox,
   integer,
   optionalText,
   osloLocalToIso,
-  text,
 } from "./panel";
 
 // ---------------------------------------------------------------- semesters in forms
@@ -153,6 +156,7 @@ export interface MemberRow {
   readonly canChange: boolean;
   readonly canEnd: boolean;
   readonly canExtend: boolean;
+  readonly canInvite: boolean;
   readonly changeChoices: readonly SemesterChoice[];
   readonly end: SemesterChoice;
   readonly endChoices: readonly SemesterChoice[];
@@ -171,6 +175,7 @@ const memberRow = (
   principal: Principal,
   team: Pick<Team, "departmentId">,
   current: Semester,
+  accounts: readonly Account[],
   member: Membership & {
     readonly personName: string;
     readonly positionName: string;
@@ -194,6 +199,12 @@ const memberRow = (
     canChange: may("change") && Arr.isReadonlyArrayNonEmpty(endings),
     canEnd: may("endEarly") && Arr.isReadonlyArrayNonEmpty(endings),
     canExtend: may("extend"),
+    canInvite:
+      !Arr.some(accounts, (account) => account.personId === member.personId) &&
+      authorize(principal, "invite", {
+        departmentId: team.departmentId,
+        personId: member.personId,
+      }),
     changeChoices: endings,
     end: choiceOf(member.end),
     endChoices: endings,
@@ -226,6 +237,7 @@ export const teamView = Effect.fnUntraced(function* teamView(id: number) {
   yield* Teams.TeamsDomain.requireGrant("viewTeams", { departmentId });
 
   const members = yield* (yield* MembershipRepository).listByTeam(team.id);
+  const accounts = yield* (yield* AccountRepository).list;
   const canAdd = authorize(principal, "addMember", { departmentId });
   const positions = yield* (yield* PositionRepository).list;
 
@@ -239,7 +251,7 @@ export const teamView = Effect.fnUntraced(function* teamView(id: number) {
     canEdit: authorize(principal, "editTeam", { departmentId }),
     current: semesterLabel(current),
     members: Arr.map(members, (member) =>
-      memberRow(principal, team, current, member)
+      memberRow(principal, team, current, accounts, member)
     ),
     people: Arr.map(people, (person) => ({ id: person.id, name: person.name })),
     positions: Arr.map(positions, (position) => ({
@@ -266,6 +278,27 @@ export const peopleView = Effect.gen(function* peopleView() {
   const people = yield* (yield* PersonRepository).list(null);
   const departments = yield* departmentNames;
   const fieldsOfStudy = yield* FieldOfStudyRepository;
+  const accounts = yield* (yield* AccountRepository).list;
+  const grants = yield* (yield* AdminGrantRepository).list;
+  const now = yield* DateTime.now;
+
+  const activeAdmins = new Set(
+    Arr.flatMap(grants, (grant) =>
+      DateTime.isGreaterThan(grant.until, now) &&
+      Arr.some(
+        accounts,
+        (account) =>
+          account.personId === grant.personId &&
+          Predicate.isTagged(account.state, "Active")
+      )
+        ? [grant.personId]
+        : []
+    )
+  );
+
+  const actorId = Predicate.isTagged(principal, "Person")
+    ? principal.personId
+    : null;
 
   const registrable = Arr.filter(departments, (department) =>
     authorize(principal, "registerPerson", { departmentId: department.id })
@@ -289,12 +322,50 @@ export const peopleView = Effect.gen(function* peopleView() {
           departmentId: person.departmentId,
         })
       ),
-      (person) => ({
-        departmentName: nameOfDepartment(departments, person.departmentId),
-        email: person.email,
-        id: person.id,
-        name: person.name,
-      })
+      (person) => {
+        const account = Arr.findFirst(
+          accounts,
+          (entry) => entry.personId === person.id
+        );
+
+        const state = Option.map(account, (entry) => entry.state._tag);
+
+        const mayChange = (command: "deactivate" | "reactivate") =>
+          Option.exists(
+            state,
+            (currentState) =>
+              authorize(principal, command, { personId: person.id }) &&
+              Machine.can(Accounts.AccountMachine, command, currentState, {
+                actorId,
+                lastActiveAdmin:
+                  activeAdmins.size === 1 && activeAdmins.has(person.id),
+                personId: person.id,
+              })
+          );
+
+        return {
+          accountState: Option.getOrNull(state),
+          canDeactivate: mayChange("deactivate"),
+          canEditProfile: authorize(principal, "updateProfile", {
+            departmentId: person.departmentId,
+            personId: person.id,
+          }),
+          canInvite:
+            Option.isNone(account) &&
+            authorize(principal, "invite", {
+              departmentId: person.departmentId,
+              personId: person.id,
+            }),
+          canReactivate: mayChange("reactivate"),
+          companyEmail: person.companyEmail ?? null,
+          departmentId: person.departmentId,
+          departmentName: nameOfDepartment(departments, person.departmentId),
+          email: person.email,
+          fieldOfStudyId: person.fieldOfStudyId,
+          id: person.id,
+          name: person.name,
+        };
+      }
     ),
   };
 });
@@ -359,6 +430,7 @@ export const deactivateTeamProgram = (form: FormData) =>
 export const registerPersonProgram = (form: FormData) =>
   answered(
     TeamsEndpoints.registerPerson({
+      companyEmail: optionalText(form, "companyEmail"),
       email: text(form, "email"),
       fieldOfStudyId: integer(text(form, "fieldOfStudyId")),
       name: text(form, "name"),

@@ -71,10 +71,10 @@ jobs:
           role: neondb_owner
           expires_at: ${{ steps.expiry.outputs.at }}
 
-      # drizzle-kit owns migrations; the branch is migrated before the Worker that reads it is deployed.
+      # Migrate and seed fake accounts on the fake-data dev and Preview branches before deployment.
       # The owner URL stays inside this step; only the host goes on to the deploy.
       # devenv exports PGHOST/PGPORT for its local PostgreSQL, which would redirect the Neon URL.
-      - name: Migrate the database branch
+      - name: Migrate and seed the database branch
         shell: bash
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
@@ -92,6 +92,7 @@ jobs:
             echo "NEON_HOST=$(bun -e "console.log(new URL(process.argv[1]).hostname)" "$owner_url")" >> "$GITHUB_ENV"
             cd packages/db
             DATABASE_URL="$owner_url" bun run db:migrate
+            SEED_TARGET_DATABASE_URL="$owner_url" bun run db:seed:local
           '
       - name: Deploy stage ${{ env.STAGE }}
         shell: bash

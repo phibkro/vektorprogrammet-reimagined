@@ -26,18 +26,12 @@ import {
   semesterLabel,
 } from "@vektorprogrammet/domain";
 import type { Department, Principal, Semester } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
+import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
 
+import { text } from "../lib/formText";
 import { actorSummary, nameOfActor } from "./shell";
 
 // ---------------------------------------------------------------- form text
-
-/** A form field as text; absent or a file → "". */
-export const text = (form: FormData, name: string): string => {
-  const value = form.get(name);
-
-  return Schema.is(Schema.String)(value) ? value : "";
-};
 
 /** Blank → null. */
 export const optionalText = (form: FormData, name: string): string | null => {

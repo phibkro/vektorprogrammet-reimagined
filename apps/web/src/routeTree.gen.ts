@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AktiverRouteImport } from './routes/aktiver'
 import { Route as AssistenterRouteImport } from './routes/assistenter'
+import { Route as EtterInnloggingRouteImport } from './routes/etter-innlogging'
 import { Route as ForeldreRouteImport } from './routes/foreldre'
+import { Route as GlemtPassordRouteImport } from './routes/glemt-passord'
 import { Route as KontrollpanelRouteRouteImport } from './routes/kontrollpanel/route'
+import { Route as LoggInnRouteImport } from './routes/logg-inn'
+import { Route as MinSideRouteImport } from './routes/min-side'
 import { Route as OmOssRouteImport } from './routes/om-oss'
 import { Route as SkolerRouteImport } from './routes/skoler'
+import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-passord'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
@@ -38,9 +44,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AktiverRoute = AktiverRouteImport.update({
+  id: '/aktiver',
+  path: '/aktiver',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AssistenterRoute = AssistenterRouteImport.update({
   id: '/assistenter',
   path: '/assistenter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EtterInnloggingRoute = EtterInnloggingRouteImport.update({
+  id: '/etter-innlogging',
+  path: '/etter-innlogging',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForeldreRoute = ForeldreRouteImport.update({
@@ -48,9 +64,24 @@ const ForeldreRoute = ForeldreRouteImport.update({
   path: '/foreldre',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GlemtPassordRoute = GlemtPassordRouteImport.update({
+  id: '/glemt-passord',
+  path: '/glemt-passord',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KontrollpanelRouteRoute = KontrollpanelRouteRouteImport.update({
   id: '/kontrollpanel',
   path: '/kontrollpanel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoggInnRoute = LoggInnRouteImport.update({
+  id: '/logg-inn',
+  path: '/logg-inn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MinSideRoute = MinSideRouteImport.update({
+  id: '/min-side',
+  path: '/min-side',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OmOssRoute = OmOssRouteImport.update({
@@ -61,6 +92,11 @@ const OmOssRoute = OmOssRouteImport.update({
 const SkolerRoute = SkolerRouteImport.update({
   id: '/skoler',
   path: '/skoler',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TilbakestillPassordRoute = TilbakestillPassordRouteImport.update({
+  id: '/tilbakestill-passord',
+  path: '/tilbakestill-passord',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FilerKeyRoute = FilerKeyRouteImport.update({
@@ -154,10 +190,16 @@ const KontrollpanelTeamTeamIdRoute = KontrollpanelTeamTeamIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/kontrollpanel': typeof KontrollpanelRouteRouteWithChildren
+  '/aktiver': typeof AktiverRoute
   '/assistenter': typeof AssistenterRoute
+  '/etter-innlogging': typeof EtterInnloggingRoute
   '/foreldre': typeof ForeldreRoute
+  '/glemt-passord': typeof GlemtPassordRoute
+  '/logg-inn': typeof LoggInnRoute
+  '/min-side': typeof MinSideRoute
   '/om-oss': typeof OmOssRoute
   '/skoler': typeof SkolerRoute
+  '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -178,10 +220,16 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/aktiver': typeof AktiverRoute
   '/assistenter': typeof AssistenterRoute
+  '/etter-innlogging': typeof EtterInnloggingRoute
   '/foreldre': typeof ForeldreRoute
+  '/glemt-passord': typeof GlemtPassordRoute
+  '/logg-inn': typeof LoggInnRoute
+  '/min-side': typeof MinSideRoute
   '/om-oss': typeof OmOssRoute
   '/skoler': typeof SkolerRoute
+  '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -204,10 +252,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/kontrollpanel': typeof KontrollpanelRouteRouteWithChildren
+  '/aktiver': typeof AktiverRoute
   '/assistenter': typeof AssistenterRoute
+  '/etter-innlogging': typeof EtterInnloggingRoute
   '/foreldre': typeof ForeldreRoute
+  '/glemt-passord': typeof GlemtPassordRoute
+  '/logg-inn': typeof LoggInnRoute
+  '/min-side': typeof MinSideRoute
   '/om-oss': typeof OmOssRoute
   '/skoler': typeof SkolerRoute
+  '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -231,10 +285,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/kontrollpanel'
+    | '/aktiver'
     | '/assistenter'
+    | '/etter-innlogging'
     | '/foreldre'
+    | '/glemt-passord'
+    | '/logg-inn'
+    | '/min-side'
     | '/om-oss'
     | '/skoler'
+    | '/tilbakestill-passord'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -255,10 +315,16 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/aktiver'
     | '/assistenter'
+    | '/etter-innlogging'
     | '/foreldre'
+    | '/glemt-passord'
+    | '/logg-inn'
+    | '/min-side'
     | '/om-oss'
     | '/skoler'
+    | '/tilbakestill-passord'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -280,10 +346,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/kontrollpanel'
+    | '/aktiver'
     | '/assistenter'
+    | '/etter-innlogging'
     | '/foreldre'
+    | '/glemt-passord'
+    | '/logg-inn'
+    | '/min-side'
     | '/om-oss'
     | '/skoler'
+    | '/tilbakestill-passord'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -306,10 +378,16 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   KontrollpanelRouteRoute: typeof KontrollpanelRouteRouteWithChildren
+  AktiverRoute: typeof AktiverRoute
   AssistenterRoute: typeof AssistenterRoute
+  EtterInnloggingRoute: typeof EtterInnloggingRoute
   ForeldreRoute: typeof ForeldreRoute
+  GlemtPassordRoute: typeof GlemtPassordRoute
+  LoggInnRoute: typeof LoggInnRoute
+  MinSideRoute: typeof MinSideRoute
   OmOssRoute: typeof OmOssRoute
   SkolerRoute: typeof SkolerRoute
+  TilbakestillPassordRoute: typeof TilbakestillPassordRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
   NyhetSlugRoute: typeof NyhetSlugRoute
@@ -329,11 +407,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/aktiver': {
+      id: '/aktiver'
+      path: '/aktiver'
+      fullPath: '/aktiver'
+      preLoaderRoute: typeof AktiverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/assistenter': {
       id: '/assistenter'
       path: '/assistenter'
       fullPath: '/assistenter'
       preLoaderRoute: typeof AssistenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/etter-innlogging': {
+      id: '/etter-innlogging'
+      path: '/etter-innlogging'
+      fullPath: '/etter-innlogging'
+      preLoaderRoute: typeof EtterInnloggingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/foreldre': {
@@ -343,11 +435,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForeldreRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/glemt-passord': {
+      id: '/glemt-passord'
+      path: '/glemt-passord'
+      fullPath: '/glemt-passord'
+      preLoaderRoute: typeof GlemtPassordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/kontrollpanel': {
       id: '/kontrollpanel'
       path: '/kontrollpanel'
       fullPath: '/kontrollpanel'
       preLoaderRoute: typeof KontrollpanelRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logg-inn': {
+      id: '/logg-inn'
+      path: '/logg-inn'
+      fullPath: '/logg-inn'
+      preLoaderRoute: typeof LoggInnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/min-side': {
+      id: '/min-side'
+      path: '/min-side'
+      fullPath: '/min-side'
+      preLoaderRoute: typeof MinSideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/om-oss': {
@@ -362,6 +475,13 @@ declare module '@tanstack/react-router' {
       path: '/skoler'
       fullPath: '/skoler'
       preLoaderRoute: typeof SkolerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tilbakestill-passord': {
+      id: '/tilbakestill-passord'
+      path: '/tilbakestill-passord'
+      fullPath: '/tilbakestill-passord'
+      preLoaderRoute: typeof TilbakestillPassordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/filer/$key': {
@@ -516,10 +636,16 @@ const KontrollpanelRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   KontrollpanelRouteRoute: KontrollpanelRouteRouteWithChildren,
+  AktiverRoute: AktiverRoute,
   AssistenterRoute: AssistenterRoute,
+  EtterInnloggingRoute: EtterInnloggingRoute,
   ForeldreRoute: ForeldreRoute,
+  GlemtPassordRoute: GlemtPassordRoute,
+  LoggInnRoute: LoggInnRoute,
+  MinSideRoute: MinSideRoute,
   OmOssRoute: OmOssRoute,
   SkolerRoute: SkolerRoute,
+  TilbakestillPassordRoute: TilbakestillPassordRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,
   NyhetSlugRoute: NyhetSlugRoute,

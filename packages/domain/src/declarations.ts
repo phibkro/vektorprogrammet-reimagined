@@ -5,6 +5,7 @@
  */
 import { Array as Arr } from "effect";
 
+import { AccountDomain } from "./accounts/declaration.ts";
 import { AuditDomain } from "./audit/declaration.ts";
 import { ContactDomain } from "./contact/declaration.ts";
 import { ContentDomain } from "./content/declaration.ts";
@@ -21,6 +22,7 @@ import { TeamsDomain } from "./teams/declaration.ts";
 export const Declarations = [
   OrganisationDomain,
   TeamsDomain,
+  AccountDomain,
   ContentDomain,
   FilesDomain,
   ContactDomain,

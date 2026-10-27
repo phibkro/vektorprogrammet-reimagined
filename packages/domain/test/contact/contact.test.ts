@@ -179,21 +179,24 @@ describe("C10 contact form", () => {
         assert.deepStrictEqual(
           pipe(
             outbox,
-            Arr.map((m): readonly (string | null)[] =>
-              Predicate.isTagged(m, "Email")
-                ? ["Email", m.to, m.replyTo]
-                : [
-                    "SlackPost",
-                    Match.value(m.target).pipe(
-                      Match.tag("Notifications", () => "#notifications"),
-                      Match.tag(
-                        "DepartmentChannel",
-                        (target) => target.channel
-                      ),
-                      Match.exhaustive
-                    ),
-                  ]
-            )
+            Arr.map((m): readonly (string | null)[] => {
+              if (Predicate.isTagged(m, "Email")) {
+                return ["Email", m.to, m.replyTo];
+              }
+
+              if (Predicate.isTagged(m, "SlackPost")) {
+                return [
+                  "SlackPost",
+                  Match.value(m.target).pipe(
+                    Match.tag("Notifications", () => "#notifications"),
+                    Match.tag("DepartmentChannel", (target) => target.channel),
+                    Match.exhaustive
+                  ),
+                ];
+              }
+
+              return [m._tag];
+            })
           ),
           [
             ["Email", "trondheim@example.org", "kari@example.com"],

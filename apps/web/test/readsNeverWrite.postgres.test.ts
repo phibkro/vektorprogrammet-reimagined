@@ -33,7 +33,10 @@ import {
   FieldOfStudyRepository,
   FileStore,
   MembershipRepository,
+  PersonId,
   PersonRepository,
+  Principal,
+  PrincipalDirectory,
   PositionId,
   SemesterRepository,
   TeamRepository,
@@ -46,7 +49,6 @@ import {
 import type {
   Forbidden,
   NotFound,
-  Principal,
   ValidationFailed,
 } from "@vektorprogrammet/domain";
 import {
@@ -65,6 +67,8 @@ import {
 import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
+import { myPage, signInDestination } from "../src/server/accounts";
+import { Auth } from "../src/server/auth";
 import {
   dashboardView,
   departmentsView,
@@ -100,7 +104,12 @@ import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
 import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 
-type ReadServices = CmsClient | DatabaseServices | CurrentPrincipal | FileStore;
+type ReadServices =
+  | CmsClient
+  | DatabaseServices
+  | CurrentPrincipal
+  | FileStore
+  | Auth;
 
 /** Every source file of the app, as text: the read paths are checked against its `runQuery` call sites. */
 const SOURCES = import.meta.glob<string>("../src/**/*.{ts,tsx}", {
@@ -233,9 +242,38 @@ const READ_PATHS: readonly ReadPath[] = [
   }),
   readPath("panel.functions getPeople", peopleView),
   readPath("panel.functions getAdmins", adminsView, { refusedTo: NOT_ADMIN }),
+  readPath("account.functions getSignInDestination", signInDestination),
+  readPath(
+    "account.functions getMyPage (signed in)",
+    myPage.pipe(
+      Effect.provideService(
+        CurrentPrincipal,
+        Principal.cases.Person.make({
+          memberships: [],
+          personId: PersonId.make(1),
+        })
+      )
+    ),
+    { empty: "NotFound" }
+  ),
+  readPath(
+    "account.functions getMyPage (anonymous)",
+    myPage.pipe(Effect.provideService(CurrentPrincipal, anonymous))
+  ),
   readPath(
     "server/runtime liveRequestLayer: the principal's facts",
-    resolvePrincipal("local", LOCAL_PERSON)
+    resolvePrincipal("local", LOCAL_PERSON, new Headers())
+  ),
+  readPath(
+    "server/principal active account and memberships",
+    Effect.gen(function* activePrincipalRead() {
+      const directory = yield* PrincipalDirectory;
+
+      return yield* directory.activeById(PersonId.make(1), {
+        current: yield* currentSemester,
+        now: yield* DateTime.now,
+      });
+    })
   ),
   readPath("routes/filer/$key GET", servePublicFile(KEY_SMALL), {
     empty: "NotFound",
@@ -245,6 +283,7 @@ const READ_PATHS: readonly ReadPath[] = [
 
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
+  "functions/account.functions.ts": 2,
   "functions/panel.functions.ts": 10,
   "functions/public.functions.ts": 11,
   "routes/filer/$key.ts": 1,
@@ -270,7 +309,12 @@ const fileStore = Layer.succeed(
 
 /** The services of one request: `DatabaseLive` as the role behind `url`, and an R2 stand-in. */
 const requestServices = (url: Redacted.Redacted) =>
-  fileStore.pipe(
+  Layer.merge(
+    fileStore,
+    Layer.mock(Auth, {
+      session: () => Effect.succeed({ cookiePresent: false, value: null }),
+    })
+  ).pipe(
     Layer.provideMerge(DatabaseLive({ maxConnections: 2, url })),
     Layer.orDie
   );
@@ -380,7 +424,7 @@ const readerContext = Effect.gen(function* readerContext() {
 });
 
 const runAs = <A, E>(
-  context: Context.Context<DatabaseServices | FileStore>,
+  context: Context.Context<DatabaseServices | FileStore | Auth>,
   principal: Principal,
   program: Effect.Effect<A, E, ReadServices>,
   cms: Partial<CmsSeed> = {}

@@ -1,6 +1,6 @@
 # @vektorprogrammet/docgen
 
-The generator reads the domain declarations and the root grant table. It replaces four marked blocks in `docs/system/teams.md`: who does what, the Membership diagram, commands and grants, and subject sets. It preserves text outside the markers.
+The generator reads the domain declarations, code policy and root grant table. It updates the marked teams and accounts reference blocks. It preserves text outside the markers.
 
 From the repository root, run:
 

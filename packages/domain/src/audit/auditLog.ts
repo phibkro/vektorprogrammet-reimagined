@@ -1,11 +1,11 @@
 /**
  * C12 change audit: one row per write, written in the write's transaction. Replaces the legacy Slack-as-audit-log
  * (`DbSubscriber`). Every row records the principal that acted (spec 0006, R1): a person id, or the name of the
- * scheduled job, never both. Session and device fields come with sign-in (spec 0007).
+ * scheduled job, never both. Session and client fields come with sign-in (spec 0007).
  */
-import { Context, DateTime, Effect, Match, Schema } from "effect";
+import { Context, DateTime, Effect, Match, Predicate, Schema } from "effect";
 
-import { SystemJob } from "../kernel/principal.ts";
+import { AuditClient, SystemJob } from "../kernel/principal.ts";
 import type { Principal } from "../kernel/principal.ts";
 import { EntityName, PersonId } from "../shared/ids.ts";
 
@@ -17,6 +17,12 @@ export const AuditAction = Schema.Literals([
   "socialEvent.created",
   "publicFile.registered",
   "person.registered",
+  "person.profileUpdated",
+  "account.invited",
+  "account.activated",
+  "account.deactivated",
+  "account.reactivated",
+  "account.passwordReset",
   "team.created",
   "team.updated",
   "team.deactivated",
@@ -43,10 +49,12 @@ export type AuditPrincipal = typeof AuditPrincipal.Type;
 export const AuditEntry = Schema.Struct({
   action: AuditAction,
   at: Schema.DateTimeUtc,
+  client: AuditClient,
   entity: EntityName,
   /** The entity's id or natural key, as text. */
   entityKey: Schema.String,
   principal: AuditPrincipal,
+  sessionId: Schema.NullOr(Schema.NonEmptyString),
 });
 
 export type AuditEntry = typeof AuditEntry.Type;
@@ -88,8 +96,14 @@ export const recordAudit = Effect.fnUntraced(function* recordAudit(
   yield* log.record({
     action,
     at,
+    client: Predicate.isTagged(principal, "Person")
+      ? (principal.client ?? "server")
+      : "scheduler",
     entity,
     entityKey: String(entityKey),
     principal: who,
+    sessionId: Predicate.isTagged(principal, "Person")
+      ? (principal.sessionId ?? null)
+      : null,
   });
 });

@@ -6,8 +6,18 @@
  * preview therefore cannot mail a real department by construction.
  */
 import type { SendEmail } from "@cloudflare/workers-types";
-import type { OutboxMessage } from "@vektorprogrammet/domain";
-import { Context, Effect, Layer, Match, Redacted, Ref, Schema } from "effect";
+import { CapturedMailStore } from "@vektorprogrammet/db";
+import type { TransportMessage } from "@vektorprogrammet/domain";
+import {
+  Context,
+  Effect,
+  Layer,
+  Match,
+  Predicate,
+  Redacted,
+  Ref,
+  Schema,
+} from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
 
 import type { Deployment } from "./deployment";
@@ -25,7 +35,7 @@ export class MessageSender extends Context.Service<
   MessageSender,
   {
     readonly send: (
-      message: OutboxMessage
+      message: TransportMessage
     ) => Effect.Effect<void, DeliveryFailed>;
   }
 >()("@vektorprogrammet/web/server/MessageSender") {}
@@ -39,32 +49,42 @@ export class SenderConfigRejected extends Schema.TaggedError<
 /** What the capture sink recorded, in send order. */
 export class CapturedMessages extends Context.Service<
   CapturedMessages,
-  Ref.Ref<readonly OutboxMessage[]>
+  Ref.Ref<readonly TransportMessage[]>
 >()("@vektorprogrammet/web/server/CapturedMessages") {}
 
 /** Records every message instead of sending it; logs only its kind (bodies hold personal data). */
-export const captureSenderLayer: Layer.Layer<MessageSender | CapturedMessages> =
-  Layer.effect(
-    MessageSender,
-    Effect.gen(function* captureSenderLayer() {
-      const captured = yield* CapturedMessages;
+export const captureSenderLayer: Layer.Layer<
+  MessageSender | CapturedMessages,
+  never,
+  CapturedMailStore
+> = Layer.effect(
+  MessageSender,
+  Effect.gen(function* captureSenderLayer() {
+    const captured = yield* CapturedMessages;
+    const mailbox = yield* CapturedMailStore;
 
-      return MessageSender.of({
-        send: (message) =>
-          Ref.update(captured, (messages) => [...messages, message]).pipe(
-            Effect.andThen(
-              Effect.logInfo(
-                "outbox message captured (non-production deployment)"
-              ).pipe(Effect.annotateLogs({ kind: message._tag }))
-            )
+    return MessageSender.of({
+      send: (message) =>
+        (Predicate.isTagged(message, "Email")
+          ? mailbox.record(message)
+          : Effect.void
+        ).pipe(
+          Effect.andThen(
+            Ref.update(captured, (messages) => [...messages, message])
           ),
-      });
-    })
-  ).pipe(
-    Layer.provideMerge(
-      Layer.effect(CapturedMessages, Ref.make<readonly OutboxMessage[]>([]))
-    )
-  );
+          Effect.andThen(
+            Effect.logInfo(
+              "outbox message captured (non-production deployment)"
+            ).pipe(Effect.annotateLogs({ kind: message._tag }))
+          )
+        ),
+    });
+  })
+).pipe(
+  Layer.provideMerge(
+    Layer.effect(CapturedMessages, Ref.make<readonly TransportMessage[]>([]))
+  )
+);
 
 /** The inputs the production senders need. */
 export interface SenderConfig {
@@ -88,7 +108,7 @@ export const senderConfigFromEnv = (
 });
 
 const slackChannelOf = (
-  message: Extract<OutboxMessage, { _tag: "SlackPost" }>
+  message: Extract<TransportMessage, { _tag: "SlackPost" }>
 ): string =>
   Match.value(message.target).pipe(
     Match.tagsExhaustive({
@@ -129,7 +149,7 @@ export const productionSenderLayer = (
       const http = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
       const send = (
-        message: OutboxMessage
+        message: TransportMessage
       ): Effect.Effect<void, DeliveryFailed> =>
         Match.value(message).pipe(
           Match.tagsExhaustive({
@@ -180,7 +200,11 @@ export const productionSenderLayer = (
  */
 export const messageSenderLayer = (
   config: SenderConfig
-): Layer.Layer<MessageSender, SenderConfigRejected, HttpClient.HttpClient> =>
+): Layer.Layer<
+  MessageSender,
+  SenderConfigRejected,
+  HttpClient.HttpClient | CapturedMailStore
+> =>
   config.deployment === "production"
     ? productionSenderLayer(config)
     : captureSenderLayer;

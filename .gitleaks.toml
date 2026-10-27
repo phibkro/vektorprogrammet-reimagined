@@ -31,6 +31,25 @@ regex = '(?i)INSERT\s+INTO\s+\x60?(?:user|users|person|persons|account|accounts)
 secretGroup = 0
 keywords = ["insert", "into"]
 
+[[rules.allowlists]]
+description = "Only the exact parameterized, example.org-only account fixtures; no other SQL-user-row match is exempt."
+condition = "AND"
+paths = ['''^apps/web/test/auth\.postgres\.test\.ts$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*yield\* sql\x60insert into person \(id, name, email, email_verified, field_of_study_id\) values \(\$\{id\}, \$\{state\}, \$\{email\}, true, 101\)\x60;$''',
+  '''^\s*yield\* sql\x60insert into account \(person_id, state\) values \(\$\{id\}, \$\{state\}\)\x60;$''',
+]
+
+[[rules.allowlists]]
+description = "Only the exact two fixed example.org people in the code-delivery test."
+condition = "AND"
+paths = ['''^apps/web/test/codeDelivery\.postgres\.test\.ts$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(201, 'Leader', 'leader@example\.org', 201\), \(202, 'Invitee', 'invitee@example\.org', 201\)\x60;$''',
+]
+
 [allowlist]
 description = "Only the local devenv SELECT-only MySQL placeholder password (legacy_reader) in devenv.nix; both the file and the value must match, so a real secret elsewhere in that file is still reported."
 condition = "AND"

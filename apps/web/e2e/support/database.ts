@@ -17,6 +17,7 @@ const importFixture = (url: Redacted.Redacted) =>
   runToEnd("bun", ["run", "import:fixture"], {
     cwd: importerDirectory,
     env: { IMPORT_TARGET_DATABASE_URL: Redacted.value(url) },
+    safeOutputOnFailure: true,
   }).pipe(Effect.flatMap(Console.log));
 
 /** Add the people used as principals after the importer has finished. */

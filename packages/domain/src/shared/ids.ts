@@ -84,6 +84,7 @@ export const EntityName = Schema.Literals([
   "SocialEvent",
   "PublicFile",
   "Person",
+  "Account",
   "Team",
   "Position",
   "Membership",

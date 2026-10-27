@@ -1,6 +1,6 @@
 # State
 
-**Lifecycle:** build (spec 0006, people and teams, on the information-system design branch)
+**Lifecycle:** build (spec 0007, accounts and sessions, on the spec 0006 kernel)
 
 ## Done
 
@@ -15,6 +15,7 @@
 - Spec 0005 (the public site on EmDash) is built end to end, to its seven falsifiers except the deployed half of the seventh (`docs/specs/0005-homepage-emdash.md`, R1 and R2). Every public page is a TanStack Start route in `apps/web`, ported from mono-web's homepage (commit `2aa6ce97`, its Radix components swapped for `base-nova`), and reads its texts, FAQ, news and sponsors from EmDash over its REST API (`packages/cms-client`: a typed client generated from the OpenAPI document, a read-only token, published entries only) and its departments and admission state from PostgreSQL. `apps/cms` is a headless EmDash (admin, API, no public page) on Neon's schema `emdash`, through its own Hyperdrive and role, declared in the same Alchemy stack as the web app. `tools/import` has a second program that moves the legacy articles, texts and sponsors into EmDash, and its rerun creates nothing. The Postgres content tables, the content control-panel pages and their domain code are gone (migration `content_moved_to_the_cms`). `apps/web/e2e/public.spec.ts` runs the real CMS: every page, an edit published without a deploy, the contact form's transaction, the 301 redirects.
 - The first deploy of the CMS Worker (stage `main`) answered 500 to every request; that is fixed and guarded (`docs/specs/0005-homepage-emdash.md` R3, `apps/cms/README.md` § The Worker bundle). `pg`'s `require` of Node built-ins reached the bundle as rolldown's throwing `__require`, because Bun installs `vite-plus-core` twice and rolldown ignores the `builtin:esm-external-require` plugin that Alchemy built with the other copy. `apps/cms/build/ownExternalRequire.ts` rebuilds that plugin with the copy that builds, and `bun run check:cms` (part of `ready` and CI) builds as Alchemy does and runs the bundle in workerd on a disposable PostgreSQL until EmDash answers. Before the fix it reproduced the deployed log line for line, and it fails without the fix.
 - Spec 0006 adds principals, grant declarations, serializable machine guards, people and teams. `docs/specs/0006-people-and-teams.md` is the contract. Its Worker Preview remains a pull-request gate.
+- Spec 0007 implements invitations, activation, sign-in, Min side, reset and deactivation. The [spec](docs/specs/0007-accounts-and-sessions.md) records the contract and revisions. CI and the deployed Preview are the lead's external gate.
 
 ## Next
 
@@ -23,7 +24,7 @@
 3. Phase 1 exit: the page-by-page diff against legacy.
 4. The events control-panel page is still at stub depth: a table and one Sheet form per capability (`apps/web/README.md`).
 5. Provision the CMS before its first deploy (`apps/cms/README.md`, `apps/web/README.md` § Stages and previews): the Neon role `emdash_app` and schema `emdash` on `dev` and `production` (`apps/cms/db/emdash-role.sql`), the secrets `NEON_EMDASH_PASSWORD`, `EMDASH_ENCRYPTION_KEY` and `CMS_READ_TOKEN`, then deploy `main` first and finish EmDash's setup wizard at once (its first visitor becomes the administrator) to create the read-only token.
-6. Spec 0007 adds sign-in. Until then, local requests use a seeded person and other deployments use an anonymous principal.
+6. After the local spec 0007 gates, the lead checks CI and the Worker Preview with a seeded fake account. Production deployment remains an operator step.
 7. Redeploy `main` and confirm that the CMS answers (`GET /_emdash/api/setup/status` is 200 on its `workers.dev` URL). `bun run check:cms` proves the bundle in workerd against a local PostgreSQL, so the first deploy after the R3 fix is the proof against Hyperdrive and Neon.
 
 ## Blocked on the operator

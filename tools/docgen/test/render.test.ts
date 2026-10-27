@@ -4,7 +4,11 @@ import type { Domain } from "@vektorprogrammet/domain";
 import { Declarations, GrantTable, Teams } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, FileSystem, Result } from "effect";
 
-import { checkDocument, renderDocument } from "../src/render.ts";
+import {
+  checkAccountsDocument,
+  checkDocument,
+  renderDocument,
+} from "../src/render.ts";
 
 const source = Effect.gen(function* source() {
   const fs = yield* FileSystem.FileSystem;
@@ -41,8 +45,13 @@ describe("spec 0006 falsifier 8: generated documentation", () => {
     () =>
       Effect.gen(function* removedGrant() {
         const document = yield* source;
-        const reduced = Arr.take(GrantTable, GrantTable.length - 1);
-        assert.strictEqual(reduced.length, GrantTable.length - 1);
+
+        const reduced = Arr.filter(
+          GrantTable,
+          (row) => !Arr.contains(row.commands, "createTeam")
+        );
+
+        assert.isBelow(reduced.length, GrantTable.length);
         assert.isTrue(
           Result.isFailure(checkDocument(document, Declarations, reduced))
         );
@@ -75,5 +84,37 @@ describe("spec 0006 falsifier 8: generated documentation", () => {
         Result.isFailure(renderDocument(nested, Declarations, GrantTable))
       );
     })
+  );
+});
+
+describe("spec 0007: generated account documentation", () => {
+  it.effect(
+    "the account reference matches its declaration, and removing its grant makes the check fail",
+    () =>
+      Effect.gen(function* accountReference() {
+        const fs = yield* FileSystem.FileSystem;
+
+        const document = yield* fs.readFileString(
+          "../../docs/system/accounts.md"
+        );
+
+        assert.isTrue(
+          Result.isSuccess(
+            checkAccountsDocument(document, Declarations, GrantTable)
+          )
+        );
+
+        const reduced = Arr.filter(
+          GrantTable,
+          (row) => !Arr.contains(row.commands, "activate")
+        );
+
+        assert.isBelow(reduced.length, GrantTable.length);
+        assert.isTrue(
+          Result.isFailure(
+            checkAccountsDocument(document, Declarations, reduced)
+          )
+        );
+      }).pipe(Effect.provide(NodeServices.layer))
   );
 });

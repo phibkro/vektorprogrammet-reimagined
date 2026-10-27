@@ -4,7 +4,7 @@ import { Array as Arr, Effect, Layer, Predicate } from "effect";
 
 import {
   contactCommand,
-  prepareContact,
+  prepareHuman,
   readContactSubmission,
 } from "../src/server/contact";
 import { contactRateLimiterTestLayer } from "../src/server/rateLimit";
@@ -60,7 +60,7 @@ const post = (fields: Record<string, string>, allowed = 5) => {
       async () =>
         await runCommandOutcome(
           layer,
-          prepareContact(submission),
+          prepareHuman(submission),
           () => contactCommand(submission),
           signal
         )

@@ -143,6 +143,7 @@ Active, Planned and Ended are calculated from the semester. They replace the leg
 | --- | --- |
 | `Anyone` | Every caller, also without sign-in |
 | `Self` | The person that the resource `r` belongs to |
+| `Holder(p)` | The holder of a code for purpose `p`, restricted to its command and person |
 | `Member(d)` | Has an active membership in a team of department `d` |
 | `Leader(d)` | Has an active membership with `leader = true` in a team of `d` |
 | `Fn(f, d)` | Has an active membership in a team of `d` whose function is `f` |

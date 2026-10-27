@@ -47,13 +47,27 @@
     },
     {
       "id": "EX-0004",
-      "rules": ["FX003", "FX012", "effecttsgo/async-function"],
+      "rules": [
+        "FX003",
+        "FX012",
+        "effecttsgo/async-function",
+        "no-await-in-loop"
+      ],
       "scope": {
-        "files": ["apps/web/e2e/teams.spec.ts"],
-        "symbols": ["register", "addMember", "Playwright test callbacks"],
+        "files": [
+          "apps/web/e2e/teams.spec.ts",
+          "apps/web/e2e/accounts.spec.ts"
+        ],
+        "symbols": [
+          "register",
+          "addMember",
+          "signIn",
+          "inviteeState",
+          "Playwright test callbacks"
+        ],
         "directives": ["oxlint-disable"]
       },
-      "reason": "Playwright owns the browser test callbacks and expects promises; its test functions and helpers await browser operations directly.",
+      "reason": "Playwright owns the browser test callbacks and expects promises; its test functions and helpers await browser operations directly. Shared rate-limit probes run sequentially, not as a race.",
       "missingCapability": "The Effect async-function diagnostic cannot recognize a Playwright-owned Promise boundary.",
       "nativeAlternativesExamined": [
         "Effect.promise can wrap a foreign Promise, but requires a Promise-returning thunk; the configured promise-function-async rule conflicts with effecttsgo/async-function at that boundary.",
@@ -71,6 +85,66 @@
         "typescript": "7.0.2"
       },
       "retirementTrigger": "Remove the exception when the diagnostics accept Playwright's Promise callbacks without contradicting promise-function-async, then run the browser journey."
+    },
+    {
+      "id": "EX-0016",
+      "rules": ["FX002", "FX012", "effect/no-native-promise-control-flow"],
+      "scope": {
+        "files": ["apps/web/src/server/password.ts"],
+        "symbols": ["hashPassword", "verifyPassword"],
+        "directives": ["oxlint-disable-next-line"]
+      },
+      "reason": "Spec 0007 requires Worker-compatible bcrypt and verification of legacy PHP hashes. Better Auth owns the Promise callback ABI.",
+      "missingCapability": "Effect 4.0.6 Crypto provides digests and random bytes, not bcrypt password hashing.",
+      "nativeAlternativesExamined": [
+        "Effect Crypto.digest provides SHA digests but not bcrypt password hashing.",
+        "Better Auth's default verifier uses scrypt and cannot verify PHP bcrypt hashes."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C apps/web test test/password.test.ts test/password.worker.test.ts",
+        "devenv shell -- bun run ready"
+      ],
+      "owner": "apps/web",
+      "versions": {
+        "effect": "4.0.6",
+        "better-auth": "1.7.14",
+        "bcryptjs": "3.0.3"
+      },
+      "retirementTrigger": "Retire when Better Auth or Effect supplies Worker-compatible bcrypt with equivalent legacy-hash and byte-limit semantics."
+    },
+    {
+      "id": "EX-0017",
+      "rules": [
+        "FX002",
+        "FX003",
+        "FX006",
+        "FX012",
+        "effect/no-native-promise-control-flow"
+      ],
+      "scope": {
+        "files": ["apps/web/src/server/auth.ts"],
+        "symbols": ["Auth", "authLayer", "Auth.setCredential"],
+        "directives": ["oxlint-disable-next-line"]
+      },
+      "reason": "Spec 0007 embeds Better Auth and its pg adapter. The library owns Promise callbacks and foreign calls finish before interruption is reported.",
+      "missingCapability": "Better Auth 1.7.14's pg/Kysely adapter and transaction callback accept neither Effect nor AbortSignal.",
+      "nativeAlternativesExamined": [
+        "Effect acquireRelease owns the request-local pool but cannot interrupt a Promise whose library ignores cancellation.",
+        "Effect tryPromise exposes a signal; Better Auth has no signal parameter to receive it.",
+        "Effect SQL transactions cannot own the library's separate adapter transaction."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C apps/web test test/auth.postgres.test.ts",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": "apps/web",
+      "versions": {
+        "effect": "4.0.6",
+        "better-auth": "1.7.14",
+        "pg": "8.23.1",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Retire when Better Auth forwards cancellation to its pg adapter and supports an equivalent cancellable transaction."
     }
   ],
   "typeBridges": [
@@ -96,6 +170,99 @@
         "oxc-parser": "0.153.0"
       },
       "retirementTrigger": "Retire when the upstream generator emits finite schemas directly or Effect provides a suitable TypeScript parser."
+    },
+    {
+      "id": "EX-0018",
+      "rules": ["FX002", "FX012"],
+      "scope": {
+        "files": ["packages/db/test/support/localSeed.ts"],
+        "symbols": ["seedFakeAccounts"]
+      },
+      "reason": "Fake browser and Preview accounts must use the same bcrypt algorithm and cost as real credentials.",
+      "missingCapability": "Effect Crypto does not implement bcrypt.",
+      "nativeAlternativesExamined": [
+        "Effect Crypto supplies random bytes and SHA digests, not bcrypt.",
+        "Better Auth's default password hashing is scrypt, which cannot seed the required bcrypt credentials."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C packages/db test test/localSeed.pglite.test.ts",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": "packages/db",
+      "versions": { "effect": "4.0.6", "bcryptjs": "3.0.3" },
+      "retirementTrigger": "Retire when a native Worker-compatible bcrypt implementation replaces bcryptjs for both live and fake credentials."
+    },
+    {
+      "id": "EX-0020",
+      "rules": ["FX012", "unicorn/throw-new-error"],
+      "scope": {
+        "files": [
+          "apps/web/src/server/authError.ts",
+          "apps/web/src/server/deliveryClaimLost.ts"
+        ],
+        "symbols": ["AuthBoundaryFailure", "DeliveryClaimLost"]
+      },
+      "reason": "The configured rule mistakes Schema.TaggedError declarations for throw statements.",
+      "missingCapability": "The rule cannot distinguish Effect's native typed error declarations from a throw expression.",
+      "nativeAlternativesExamined": [
+        "Schema.TaggedError is the native typed failure; using an untyped thrown error would lose the failure channel."
+      ],
+      "verification": ["devenv shell -- bun run ready"],
+      "owner": "apps/web",
+      "versions": { "effect": "4.0.6", "vite-plus": "1.2.0" },
+      "retirementTrigger": "Remove the narrow lint override when the rule recognizes Schema.TaggedError declarations."
+    },
+    {
+      "id": "EX-0021",
+      "rules": ["FX003", "FX012", "typescript/promise-function-async"],
+      "scope": {
+        "files": [
+          "apps/web/test/auth.postgres.test.ts",
+          "apps/web/test/password.test.ts",
+          "apps/web/test/password.worker.test.ts",
+          "apps/web/test/support/password.worker.ts",
+          "apps/web/test/support/workerRuntime.ts",
+          "apps/web/test/authStartup.worker.test.ts"
+        ],
+        "symbols": ["Effect Promise thunks", "Worker fetch callback"]
+      },
+      "reason": "The test boundaries pass the Better Auth, bcrypt and Miniflare Promise APIs to Effect or return the Worker's Promise ABI.",
+      "missingCapability": "The configured Promise lint requires async functions while the default-on Effect diagnostic rejects them.",
+      "nativeAlternativesExamined": [
+        "Effect.promise and Effect.tryPromise are used for the foreign calls, but their thunks must still return the foreign Promise.",
+        "Adding async wrappers conflicts with effecttsgo/async-function and changes the callback unnecessarily."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C apps/web test",
+        "devenv shell -- bun run ready"
+      ],
+      "owner": "apps/web",
+      "versions": { "effect": "4.0.6", "@effect/tsgo": "0.53.1" },
+      "retirementTrigger": "Remove the scoped override when the Promise rule accepts Effect's foreign-call thunks and Worker callbacks."
+    },
+    {
+      "id": "EX-0022",
+      "rules": ["FX002", "FX012", "knip/unlisted"],
+      "scope": {
+        "files": ["apps/web/src/cloudflareWorkers.d.ts", "knip.json"],
+        "symbols": ["cloudflare:workers env"]
+      },
+      "reason": "The Worker entry reads its startup binding from Cloudflare's virtual module. Knip treats the module scheme as an npm dependency.",
+      "missingCapability": "The app tsconfig loads DOM and Node globals but does not load Cloudflare's global ambient module declarations.",
+      "nativeAlternativesExamined": [
+        "The installed @cloudflare/workers-types declares cloudflare:workers in its global Worker environment, while this mixed client/server project selects DOM and Node types.",
+        "The narrow declaration types only the startup binding and does not replace the runtime module."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C apps/web test test/authStartup.worker.test.ts",
+        "devenv shell -- bun run ready"
+      ],
+      "owner": "apps/web",
+      "versions": {
+        "effect": "4.0.6",
+        "@cloudflare/workers-types": "5.20261015.1"
+      },
+      "retirementTrigger": "Remove the bridge when Cloudflare publishes a module-scoped env type compatible with the app's DOM and Node type configuration."
     }
   ],
   "unstableApis": [

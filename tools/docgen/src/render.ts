@@ -1,5 +1,10 @@
-/** Pure renderers for the generated parts of docs/system/teams.md. */
-import { Commands, Domain, Subject } from "@vektorprogrammet/domain";
+/** Pure renderers for the declaration-derived teams and accounts references. */
+import {
+  Commands,
+  Domain,
+  Subject,
+  codePolicy,
+} from "@vektorprogrammet/domain";
 import type { Grant, Machine } from "@vektorprogrammet/domain";
 import { Array as Arr, Option, Record as Rec, Result } from "effect";
 
@@ -32,6 +37,36 @@ const table = (
   }
 
   return Arr.join(lines, "\n");
+};
+
+/** Oxfmt aligns short Markdown tables. Emit that same layout so generation and formatting agree. */
+const alignedTable = (
+  header: readonly string[],
+  rows: readonly (readonly string[])[]
+): string => {
+  const escaped = Arr.map(rows, (row) => Arr.map(row, cell));
+  const headings = Arr.map(header, cell);
+
+  const widths = Arr.map(headings, (heading, index) =>
+    Arr.reduce(escaped, Math.max(heading.length, 3), (width, row) =>
+      Math.max(width, (row[index] ?? "").length)
+    )
+  );
+
+  const line = (values: readonly string[]) =>
+    `| ${Arr.join(
+      Arr.map(values, (value, index) => value.padEnd(widths[index] ?? 3)),
+      " | "
+    )} |`;
+
+  return Arr.join(
+    [
+      line(headings),
+      line(Arr.map(widths, (width) => "-".repeat(width))),
+      ...Arr.map(escaped, line),
+    ],
+    "\n"
+  );
 };
 
 const entriesOf = (domain: Declaration): readonly Entry[] => [
@@ -177,12 +212,12 @@ const replaceBlock = (
   );
 };
 
-/** Refuse incomplete declarations and preserve all text outside the four generated blocks. */
-export const renderDocument = (
-  document: string,
+/** Validate the declarations and select the one machine a reference describes. */
+const declaredMachine = (
   domains: readonly Declaration[],
-  grants: readonly GrantRow[]
-): Result.Result<string, string> => {
+  name: string,
+  machineName: string
+) => {
   const problems = Arr.flatMap(domains, Domain.problems);
 
   if (problems.length > 0) {
@@ -190,30 +225,27 @@ export const renderDocument = (
   }
 
   const domain = Option.getOrUndefined(
-    Arr.findFirst(domains, (entry) => entry.name === "teams")
+    Arr.findFirst(domains, (entry) => entry.name === name)
   );
 
   if (domain === undefined) {
-    return Result.fail("The teams declaration is missing");
+    return Result.fail(`The ${name} declaration is missing`);
   }
 
-  const membership = Option.getOrUndefined(
-    Arr.findFirst(domain.machines, (entry) => entry.name === "Membership")
+  const diagram = Option.getOrUndefined(
+    Arr.findFirst(domain.machines, (entry) => entry.name === machineName)
   );
 
-  if (membership === undefined) {
-    return Result.fail("The Membership machine is missing");
-  }
+  return diagram === undefined
+    ? Result.fail(`The ${machineName} machine is missing`)
+    : Result.succeed({ diagram, domain });
+};
 
-  const entries = entriesOf(domain);
-
-  const blocks = [
-    ["who", who(entries, grants)],
-    ["membership", machine(membership)],
-    ["commands", commands(entries, grants)],
-    ["subjects", subjects()],
-  ] as const;
-
+/** Preserve text outside the named blocks. */
+const replaceBlocks = (
+  document: string,
+  blocks: readonly (readonly [string, string])[]
+): Result.Result<string, string> => {
   let current = document;
 
   for (const [id, content] of blocks) {
@@ -229,14 +261,76 @@ export const renderDocument = (
   return Result.succeed(current);
 };
 
+const checkRendered = (
+  document: string,
+  output: Result.Result<string, string>
+): Result.Result<void, string> =>
+  Result.flatMap(output, (generated) =>
+    document === generated
+      ? Result.void
+      : Result.fail("Generated documentation differs. Run bun run docs.")
+  );
+
+/** Refuse incomplete declarations and preserve all text outside the four generated blocks. */
+export const renderDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[]
+): Result.Result<string, string> =>
+  Result.flatMap(
+    declaredMachine(domains, "teams", "Membership"),
+    ({ diagram, domain }) => {
+      const entries = entriesOf(domain);
+
+      return replaceBlocks(document, [
+        ["who", who(entries, grants)],
+        ["membership", machine(diagram)],
+        ["commands", commands(entries, grants)],
+        ["subjects", subjects()],
+      ]);
+    }
+  );
+
 /** The check used by CI and the CLI, without writing the document. */
 export const checkDocument = (
   document: string,
   domains: readonly Declaration[],
   grants: readonly GrantRow[]
 ): Result.Result<void, string> =>
-  Result.flatMap(renderDocument(document, domains, grants), (generated) =>
-    document === generated
-      ? Result.void
-      : Result.fail("Generated documentation differs. Run bun run docs.")
+  checkRendered(document, renderDocument(document, domains, grants));
+
+/** Account commands, grants, machine and code policy come from the same declarations the runtime uses. */
+export const renderAccountsDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[]
+): Result.Result<string, string> =>
+  Result.flatMap(
+    declaredMachine(domains, "accounts", "Account"),
+    ({ diagram, domain }) => {
+      const entries = entriesOf(domain);
+
+      const policy = alignedTable(
+        ["Purpose", "Command", "Lifetime (hours)"],
+        Arr.map(Rec.toEntries(codePolicy), ([purpose, value]) => [
+          purpose,
+          value.command,
+          String(value.lifetimeSeconds / 3600),
+        ])
+      );
+
+      return replaceBlocks(document, [
+        ["who", who(entries, grants)],
+        ["account", machine(diagram)],
+        ["commands", commands(entries, grants)],
+        ["code-policy", policy],
+      ]);
+    }
   );
+
+export const checkAccountsDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[]
+): Result.Result<void, string> =>
+  checkRendered(document, renderAccountsDocument(document, domains, grants));

@@ -13,7 +13,10 @@ export const NotSignedIn = ({
 }) => (
   <main className="mx-auto grid min-h-svh w-full max-w-md content-center gap-4 px-4 py-12">
     <h1 className="text-2xl font-semibold tracking-tight">Ikke innlogget</h1>
-    <p>Du må være innlogget som ansatt for å bruke kontrollpanelet.</p>
+    <p>Du må være innlogget for å bruke kontrollpanelet.</p>
+    <p>
+      <Link to="/logg-inn">Logg inn</Link>
+    </p>
     <p>
       <Link to="/">Til forsiden</Link>
     </p>
@@ -38,6 +41,9 @@ export const NoSections = ({
     <p>
       {name} er ikke medlem av noe team akkurat nå, så kontrollpanelet har ingen
       sider for deg.
+    </p>
+    <p>
+      <Link to="/min-side">Gå til Min side</Link>
     </p>
     <p>
       <Link to="/">Til forsiden</Link>

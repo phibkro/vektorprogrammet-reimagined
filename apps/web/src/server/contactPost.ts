@@ -8,11 +8,7 @@ import { setResponseStatus } from "@tanstack/react-start/server";
 import { Predicate } from "effect";
 
 import type { Failure } from "../lib/outcome";
-import {
-  contactCommand,
-  prepareContact,
-  readContactSubmission,
-} from "./contact";
+import { contactCommand, prepareHuman, readContactSubmission } from "./contact";
 import type { ContactValues } from "./contact";
 import type { RequestContext } from "./env";
 import { runPreparedCommand } from "./runtime";
@@ -36,7 +32,7 @@ export const handleContactPost = <Next>(options: {
 
     return runPreparedCommand(
       requestScope(options.context),
-      prepareContact(submission),
+      prepareHuman(submission),
       () => contactCommand(submission)
     ).then((outcome) => {
       if (Predicate.isTagged(outcome, "Success")) {

@@ -6,9 +6,17 @@
  * principal. The two routes share no code.
  */
 import { assert } from "@effect/vitest";
-import { Arbitrary, Array as Arr, DateTime, Effect, Schema } from "effect";
+import {
+  Arbitrary,
+  Array as Arr,
+  DateTime,
+  Effect,
+  Predicate,
+  Schema,
+} from "effect";
 
 import {
+  CodePurpose,
   DepartmentId,
   PersonId,
   Principal,
@@ -16,6 +24,7 @@ import {
   SystemJob,
   TeamFunction,
   TeamId,
+  codePolicy,
 } from "../../src/index.ts";
 import type {
   Grant,
@@ -67,6 +76,18 @@ const person = Arbitrary.map(personFacts, ({ admin, memberships, personId }) =>
   principalOf(memberships, personId, admin)
 );
 
+const narrowedPerson = Arbitrary.map(
+  Arbitrary.all({ facts: personFacts, purpose: Arbitrary.schema(CodePurpose) }),
+  ({ facts, purpose }) =>
+    Principal.narrow(
+      principalOf(facts.memberships, facts.personId, facts.admin),
+      {
+        command: codePolicy[purpose].command,
+        resource: { personId: facts.personId },
+      }
+    )
+);
+
 /** A generated property must pass; include its counterexample in the failure. */
 export const passes = <A, E>(result: Arbitrary.CheckResult<A, E>) => {
   assert.strictEqual(
@@ -82,12 +103,19 @@ const system = Arbitrary.map(Arbitrary.schema(SystemJob), (job) =>
 
 const anonymous = Arbitrary.Constant(Principal.cases.Anonymous.make({}));
 
-const principalKinds = { anonymous, person, system } as const;
+const principalKinds = { anonymous, narrowedPerson, person, system } as const;
 
 /** Persons mostly, but also every other kind of principal. */
 export const principals: Arbitrary.Arbitrary<Principal> = Arbitrary.flatMap(
   Arbitrary.schema(
-    Schema.Literals(["person", "person", "person", "system", "anonymous"])
+    Schema.Literals([
+      "person",
+      "person",
+      "narrowedPerson",
+      "narrowedPerson",
+      "system",
+      "anonymous",
+    ])
   ),
   (kind): Arbitrary.Arbitrary<Principal> => principalKinds[kind]
 );
@@ -127,6 +155,11 @@ type Atom =
   | { readonly kind: "system"; readonly job: SystemJob }
   | { readonly kind: "self"; readonly personId: PersonId }
   | {
+      readonly kind: "holder";
+      readonly personId: PersonId;
+      readonly purpose: CodePurpose;
+    }
+  | {
       readonly kind: "member" | "leader";
       readonly departmentId: DepartmentId;
     }
@@ -143,6 +176,16 @@ const atomsOf = (principal: Principal): readonly Atom[] =>
       { kind: "anyone" },
       { kind: "self", personId: facts.personId },
       ...(facts.adminUntil === undefined ? [] : [{ kind: "admin" } as const]),
+      ...Arr.flatMap(CodePurpose.literals, (purpose): readonly Atom[] =>
+        Arr.some(
+          facts.narrowing ?? [],
+          (restriction) =>
+            restriction.command === codePolicy[purpose].command &&
+            restriction.resource.personId === facts.personId
+        )
+          ? [{ kind: "holder", personId: facts.personId, purpose }]
+          : []
+      ),
       ...Arr.flatMap(facts.memberships, (m): readonly Atom[] => [
         { departmentId: m.departmentId, kind: "member" },
         ...(m.leader
@@ -180,6 +223,11 @@ const satisfies = (
       atom.kind === "fn" &&
       atom.function === teamFunction &&
       holdsIn(scope, resource, atom.departmentId),
+    Holder: ({ purpose }) =>
+      scope === "own" &&
+      atom.kind === "holder" &&
+      atom.purpose === purpose &&
+      resource.personId === atom.personId,
     Leader: () =>
       atom.kind === "leader" && holdsIn(scope, resource, atom.departmentId),
     Member: () =>
@@ -200,6 +248,21 @@ export const oracle = (
   resource: Resource
 ): boolean => {
   const atoms = atomsOf(principal);
+
+  if (
+    Predicate.isTagged(principal, "Person") &&
+    principal.narrowing !== undefined
+  ) {
+    for (const restriction of principal.narrowing) {
+      if (
+        restriction.command !== command ||
+        restriction.resource.personId !== resource.personId ||
+        restriction.resource.departmentId !== resource.departmentId
+      ) {
+        return false;
+      }
+    }
+  }
 
   return Arr.some(
     Arr.filter(table, (row) => Arr.contains(row.commands, command)),

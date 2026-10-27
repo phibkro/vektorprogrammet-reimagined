@@ -8,6 +8,9 @@ import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
+import { CodePurpose } from "../accounts/code.ts";
+import { PasswordHash } from "../accounts/passwordHasher.ts";
+import { PersonId } from "./ids.ts";
 import type { OutboxMessageId } from "./ids.ts";
 import { EmailAddress } from "./validation.ts";
 
@@ -37,6 +40,15 @@ export const OutboxMessage = Schema.TaggedUnion({
     text: Schema.String,
     to: EmailAddress,
   },
+  IssueCode: {
+    personId: PersonId,
+    purpose: CodePurpose,
+  },
+  SetCredential: {
+    passwordHash: Schema.NullOr(PasswordHash),
+    personId: PersonId,
+    revokeSessions: Schema.Boolean,
+  },
   SlackPost: {
     target: SlackTarget,
     text: Schema.String,
@@ -44,6 +56,12 @@ export const OutboxMessage = Schema.TaggedUnion({
 });
 
 export type OutboxMessage = typeof OutboxMessage.Type;
+
+/** Messages handed to e-mail and Slack transports after domain intents are interpreted. */
+export type TransportMessage = Extract<
+  OutboxMessage,
+  { readonly _tag: "Email" | "SlackPost" }
+>;
 
 export class Outbox extends Context.Service<
   Outbox,

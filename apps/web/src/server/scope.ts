@@ -12,6 +12,7 @@ import type { RequestScope } from "./runtime";
 export const requestScope = (context: RequestContext): RequestScope => ({
   ctx: context.ctx,
   env: context.env,
+  headers: getRequest().headers,
   signal: getRequest().signal,
   testActor: getCookie(TEST_ACTOR_COOKIE),
 });

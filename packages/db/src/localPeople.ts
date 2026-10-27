@@ -1,8 +1,6 @@
 /**
- * The people of the local seed (`test/support/localSeed.ts`, spec 0006). There is no sign-in before spec 0007, so the
- * local test actor is one of them, chosen by name; `vp dev` acts as `DEFAULT_LOCAL_PERSON` until a cookie chooses
- * another. The names are here, in the package root, because `apps/web` and its browser tests read them too; the seed
- * decides what each person is.
+ * Fake identities for local development, Preview and browser tests. The local test-actor cookie selects by name;
+ * Ada, Lise and Nora also have fake sign-in credentials. Mats starts without an account for the invitation journey.
  */
 export const LOCAL_PEOPLE = [
   "Ada Admin",
@@ -16,3 +14,6 @@ export const LOCAL_PEOPLE = [
 export type LocalPerson = (typeof LOCAL_PEOPLE)[number];
 
 export const DEFAULT_LOCAL_PERSON: LocalPerson = "Ada Admin";
+
+/** Public fixture password, used only for fake local/preview accounts. */
+export const LOCAL_FAKE_PASSWORD = "vektor-test-passord";

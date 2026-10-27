@@ -5,6 +5,7 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
+  AccountRepository,
   AdminGrantRepository,
   DigestLedger,
   EmailAddress,
@@ -44,7 +45,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
   );
 
   it.effect(
-    "a person has the department of their field of study, and one e-mail address is one person",
+    "a person's department follows their field, and only one person can verify an e-mail",
     () =>
       Effect.gen(function* effectProgram() {
         const { department, fieldOfStudy, person } = yield* world("alfa");
@@ -52,18 +53,19 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
 
         assert.strictEqual(person.departmentId, department.id);
 
-        const again = yield* Effect.flip(
-          people.create({
-            email: person.email,
-            fieldOfStudyId: fieldOfStudy.id,
-            name: "Annen Person",
-          })
-        );
+        const other = yield* people.create({
+          email: person.email,
+          fieldOfStudyId: fieldOfStudy.id,
+          name: "Annen Person",
+        });
 
-        assert.strictEqual(again._tag, "AlreadyExists");
-        assert.deepStrictEqual(
+        const accounts = yield* AccountRepository;
+        yield* accounts.verifyEmail(person.id);
+        const collision = yield* Effect.flip(accounts.verifyEmail(other.id));
+        assert.strictEqual(collision._tag, "AlreadyExists");
+        assert.sameMembers(
           Arr.map(yield* people.list(department.id), (found) => found.id),
-          [person.id]
+          [person.id, other.id]
         );
         assert.deepStrictEqual(yield* people.findById(person.id), person);
       })

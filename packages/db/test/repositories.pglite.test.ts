@@ -453,18 +453,22 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
         yield* audit.record({
           action: "department.created",
           at: AT,
+          client: "browser",
           entity: "Department",
           entityKey: "77",
           principal: AuditPrincipal.cases.Person.make({
             personId: PersonId.make(7),
           }),
+          sessionId: "test-session",
         });
         yield* audit.record({
           action: "endingSoon.sent",
           at: AT,
+          client: "scheduler",
           entity: "Person",
           entityKey: "8",
           principal: AuditPrincipal.cases.System.make({ job: "endingSoon" }),
+          sessionId: null,
         });
         const db = yield* Drizzle;
 
@@ -477,6 +481,8 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
         assert.strictEqual(rows[0]?.action, "department.created");
         assert.strictEqual(rows[0]?.personId, 7);
         assert.strictEqual(rows[0]?.systemJob, null);
+        assert.strictEqual(rows[0]?.client, "browser");
+        assert.strictEqual(rows[0]?.sessionId, "test-session");
         assert.strictEqual(
           rows[0]?.at.toISOString(),
           "2026-10-15T10:00:00.000Z"

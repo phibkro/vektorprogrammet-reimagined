@@ -3,7 +3,7 @@
  * goes to this process's own; its standard output comes back as text, so the caller reads what the program printed
  * (and chooses whether to show it: one of them prints a secret).
  */
-import { Effect, Schema, Stream } from "effect";
+import { Console, Effect, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 /** The directories of the programs the harness runs. */
@@ -33,6 +33,7 @@ export const runToEnd = Effect.fn("runToEnd")(function* runToEnd(
   options: {
     readonly cwd: string;
     readonly env?: Readonly<Record<string, string>>;
+    readonly safeOutputOnFailure?: boolean;
   }
 ) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -58,6 +59,10 @@ export const runToEnd = Effect.fn("runToEnd")(function* runToEnd(
       );
 
       if (exitCode !== ChildProcessSpawner.ExitCode(0)) {
+        if (options.safeOutputOnFailure === true) {
+          yield* Console.error(stdout);
+        }
+
         return yield* new CommandFailed({ command, exitCode });
       }
 

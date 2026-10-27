@@ -19,6 +19,7 @@
  */
 import {
   AuditAction,
+  AuditClient,
   AuditLog,
   AuditPrincipal,
   EntityName,
@@ -30,6 +31,7 @@ import {
 } from "@vektorprogrammet/domain";
 import type { AuditEntry } from "@vektorprogrammet/domain";
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import {
   Context,
   DateTime,
@@ -214,7 +216,7 @@ export const OutboxDeliveryLive = Layer.effect(
     const release = Effect.fnUntraced(function* release(
       id: OutboxMessageId,
       claimToken: OutboxClaimToken,
-      changes: Partial<typeof outbox.$inferInsert>
+      changes: PgUpdateSetSource<typeof outbox>
     ) {
       const rows = yield* db
         .update(outbox)
@@ -243,6 +245,7 @@ export const OutboxDeliveryLive = Layer.effect(
 
         return yield* release(id, claimToken, {
           deliveredAt: DateTime.toDateUtc(now),
+          payload: sql`case when ${outbox.kind} = 'SetCredential' then jsonb_set(${outbox.payload}, '{passwordHash}', 'null'::jsonb) else ${outbox.payload} end`,
           status: "delivered",
         });
       }
@@ -282,9 +285,11 @@ const principalColumns = (principal: AuditPrincipal) =>
 const StoredAuditEntry = Schema.Struct({
   action: AuditAction,
   at: Schema.DateTimeUtcFromDate,
+  client: AuditClient,
   entity: EntityName,
   entityKey: Schema.String,
   personId: Schema.NullOr(PersonId),
+  sessionId: Schema.NullOr(Schema.NonEmptyString),
   systemJob: Schema.NullOr(SystemJob),
 });
 
@@ -325,8 +330,10 @@ export const AuditLogLive = Layer.effect(
         .values({
           action: entry.action,
           at: DateTime.toDateUtc(entry.at),
+          client: entry.client,
           entity: entry.entity,
           entityKey: entry.entityKey,
+          sessionId: entry.sessionId,
           ...principalColumns(entry.principal),
         })
         .pipe(Effect.orDie);
