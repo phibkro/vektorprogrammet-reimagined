@@ -132,7 +132,7 @@ R6's lock was a convention that two repository methods happened to follow. [Spec
 
 1. A command locks the person first (`AggregateLocks.lock("Person", id)`), reads the facts it decides on through the returned `Locked<Person>` (`MembershipRepository.findLocked`, `listLocked`), and writes through it (`insert`, `setEnd`, `remove`, `AdminGrantRepository.create`). A write without the token does not type-check, and the hand-placed `FOR NO KEY UPDATE` in `insert` and `setEnd` is gone.
 2. R6's races keep their shape and now run through the construct: 300 rounds of two overlapping inserts and of an extension and an insert, and the test that an insert waits for the person's row lock. Without the lock they fail (spec 0006b, falsifier 3). The R6 negative control that made the update unconditional now shows the opposite: the lock alone keeps the replay legal, because every command decides on a row it has locked.
-3. `AdminGrantRepository.revoke` locks the owner of the place and every holder of a valid place, in ascending id order, before it decides whether the place is the last one.
+3. `AdminGrantRepository.revoke` decides under the admin list's lock ([spec 0006b](0006b-races-by-construction.md) R2): it reads the places that end after the cut-off and that an Active account holds, through the list's token, and deletes the place unless it is the last of them. R8 first had it lock the owner of the place and every holder of a valid place; that counted a deactivated account's place, so a deactivation and a revocation at once could leave no Active administrator with a place.
 
 ### R9 (2026-10-27): a refusal that names a hidden input is still shown (issue 26)
 
