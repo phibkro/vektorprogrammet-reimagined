@@ -153,8 +153,22 @@ interface Sentence {
 const within = (sentence: Sentence, other: Sentence["joint"]): string =>
   sentence.joint === other ? `(${sentence.text})` : sentence.text;
 
-/** Sentences that all hold: one is itself, several are joined by `and`. */
-const allOf = (sentences: readonly Sentence[]): Sentence => {
+/**
+ * How sentences are joined, and what is wrapped when they are: `and` wraps an `or` among its operands and `or` wraps
+ * an `and`, so that neither reads both ways.
+ */
+const joints = {
+  all: { opposite: "any", word: " and " },
+  any: { opposite: "all", word: " or " },
+} as const;
+
+/**
+ * Sentences that all hold (`all`) or of which one holds (`any`): one is itself, several are joined by `and` or by `or`.
+ */
+const joined = (
+  sentences: readonly Sentence[],
+  joint: keyof typeof joints
+): Sentence => {
   const [only, ...others] = sentences;
 
   if (only === undefined) {
@@ -164,29 +178,12 @@ const allOf = (sentences: readonly Sentence[]): Sentence => {
   return Arr.isReadonlyArrayEmpty(others)
     ? only
     : {
-        joint: "all",
+        joint,
         text: Arr.join(
-          Arr.map(sentences, (sentence) => within(sentence, "any")),
-          " and "
-        ),
-      };
-};
-
-/** Sentences of which one holds: one is itself, several are joined by `or`. */
-const anyOf = (sentences: readonly Sentence[]): Sentence => {
-  const [only, ...others] = sentences;
-
-  if (only === undefined) {
-    return { joint: "single", text: "condition" };
-  }
-
-  return Arr.isReadonlyArrayEmpty(others)
-    ? only
-    : {
-        joint: "any",
-        text: Arr.join(
-          Arr.map(sentences, (sentence) => within(sentence, "all")),
-          " or "
+          Arr.map(sentences, (sentence) =>
+            within(sentence, joints[joint].opposite)
+          ),
+          joints[joint].word
         ),
       };
 };
@@ -196,7 +193,7 @@ const sentenceOf = (check: SchemaAST.Check<never>): Sentence => {
 
   if (Predicate.isTagged(check, "FilterGroup")) {
     return expected === undefined
-      ? allOf(Arr.map(check.checks, sentenceOf))
+      ? joined(Arr.map(check.checks, sentenceOf), "all")
       : { joint: "single", text: expected };
   }
 
@@ -204,7 +201,7 @@ const sentenceOf = (check: SchemaAST.Check<never>): Sentence => {
 
   // the checks of an operand hold together, as the checks of a schema do
   const operands = Arr.map(representation?.schemas ?? [], (ast) =>
-    allOf(Arr.map(ast.checks ?? [], sentenceOf))
+    joined(Arr.map(ast.checks ?? [], sentenceOf), "all")
   );
 
   const [only, ...others] = operands;
@@ -218,7 +215,7 @@ const sentenceOf = (check: SchemaAST.Check<never>): Sentence => {
   }
 
   return representation?.id === OR && only !== undefined
-    ? anyOf(operands)
+    ? joined(operands, "any")
     : { joint: "single", text: expected ?? "condition" };
 };
 
