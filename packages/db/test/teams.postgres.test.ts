@@ -2,8 +2,12 @@
  * The teams domain on real PostgreSQL (spec 0006), each suite on its own disposable database:
  * - falsifier 3: twenty concurrent `extend` and `endEarly` calls on one membership leave a consistent row, and every
  *   loser gets the typed conflict. The row is consistent when the successes, in the order they committed, replay
- *   as a legal sequence of transitions that ends where the row ends. A negative control swaps the conditional update
- *   for an unconditional one and must break that replay.
+ *   as a legal sequence of transitions that ends where the row ends. Since spec 0006b the person's lock keeps that
+ *   replay legal on its own, so an unconditional update no longer breaks it: a test asserts that it stays legal.
+ * - the lock-removal controls of falsifier 3 (spec 0006b R3): that test and the one that shows an insert waiting for
+ *   the person's row lock. Both fail every time `AggregateLocks.lock` stops taking the row lock. The 300-round overlap
+ *   races guard the contract with the lock in place; they are not a control, because without the lock they fail only
+ *   now and then (spec 0006 R6 saw about 6 rounds in 1,000).
  * - falsifier 4: an overlapping membership and `end < start` are refused by the database itself; dropping the
  *   constraint makes the same insert succeed.
  * - the other races that a constraint or a lock settles: two overlapping inserts, two revocations of the last two
@@ -407,7 +411,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
       );
 
       it.effect(
-        "falsifier 3 (spec 0006b): the person's lock alone keeps the successes legal, even when the update is unconditional (take the lock away and this fails)",
+        "falsifier 3, lock-removal control (spec 0006b R3): the person's lock alone keeps the successes legal, even when the update is unconditional (take the lock away and this fails every time)",
         () =>
           Effect.gen(function* effectProgram() {
             yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
@@ -479,7 +483,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
       );
 
       it.effect(
-        "an insert waits for the person's row lock before it writes anything (the order that keeps overlapping writes from deadlocking)",
+        "falsifier 3, lock-removal control (spec 0006b R3): an insert waits for the person's row lock before it writes anything, the order that keeps overlapping writes from deadlocking (take the lock away and this fails every time)",
         () =>
           Effect.gen(function* effectProgram() {
             const { memberPosition, person, team } = yield* world("lockwait");
