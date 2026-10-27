@@ -31,6 +31,12 @@ import {
   OutboxDeliveryLive,
   OutboxLive,
 } from "./repositories/outbox.ts";
+import {
+  AlumniRequestsLive,
+  ConsentRepositoryLive,
+  LegalHoldsLive,
+  PersonalDataStoreLive,
+} from "./repositories/personalData.ts";
 import { SessionDirectoryLive } from "./repositories/sessions.ts";
 import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
 import {
@@ -77,7 +83,11 @@ export const RepositoriesLayer = Layer.mergeAll(
   PrincipalDirectoryLive,
   OutboxLive,
   OutboxDeliveryLive,
-  AuditLogLive
+  AuditLogLive,
+  ConsentRepositoryLive,
+  AlumniRequestsLive,
+  LegalHoldsLive,
+  PersonalDataStoreLive
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 export interface DatabaseConfig {

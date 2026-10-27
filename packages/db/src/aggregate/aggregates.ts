@@ -123,6 +123,44 @@ const refuseProtected = (
     : Effect.void;
 };
 
+/** The condition of a statement that the locks of several owners cover: their rows that `where` selects. */
+const ofHeld = (
+  column: PgColumn,
+  held: readonly { readonly id: number }[],
+  where: SQL | undefined
+): SQL | undefined =>
+  and(
+    inArray(
+      column,
+      Arr.map(held, (token) => token.id)
+    ),
+    where
+  );
+
+/**
+ * A statement on the rows of the owners that `where` selects. It is a defect unless this transaction holds the lock of
+ * each owner; `statement` gets the table and the condition that keeps it to those rows.
+ */
+const onHeld = <O extends AnyOwned>(
+  locks: Locks<NoInfer<RootNameOf<O>>>,
+  owned: O,
+  where: SQL | undefined,
+  statement: (
+    table: PgTable,
+    condition: SQL | undefined
+  ) => Effect.Effect<unknown, QueryFailure>
+): Statement<O["table"]> =>
+  Effect.gen(function* onHeldStatement() {
+    const held = Arr.ensure(locks);
+    yield* assertHeld(owned.root, held);
+    const table: PgTable = owned.table;
+
+    return yield* asRows(
+      owned,
+      statement(table, ofHeld(owned.owner, held, where))
+    );
+  });
+
 export class Aggregates extends Context.Service<
   Aggregates,
   {
@@ -152,24 +190,38 @@ export class Aggregates extends Context.Service<
       values: InsertValues<O["table"], O["ownerKey"]>,
       onConflict?: OnConflict<O["table"], O["ownerKey"], StateOf<O>>
     ) => Statement<O["table"]>;
-    /** Sets `set` on the root's own row (the person's name, e-mail address, …) and returns it. */
+    /**
+     * Sets `set` on the root's own row, or on the rows of several roots that `where` selects (the person's name, e-mail
+     * address, …; the nightly job anonymises the people it has locked), and returns them.
+     */
     readonly updateRoot: <Name extends AggregateRoot, Table extends PgTable>(
-      locked: Locked<NoInfer<Name>>,
+      locks: Locks<NoInfer<Name>>,
       root: Root<Name, Table>,
-      set: Partial<Omit<InferInsertModel<Table>, "id">>
+      set: Partial<Omit<InferInsertModel<Table>, "id">>,
+      where?: SQL
     ) => Statement<Table>;
-    /** Sets `set` on the owner's rows that `where` selects, and returns them. */
+    /** Sets `set` on the rows of the locked owners that `where` selects, and returns them. */
     readonly update: <O extends AnyOwned>(
-      locked: Locked<NoInfer<RootNameOf<O>>>,
+      locks: Locks<NoInfer<RootNameOf<O>>>,
       owned: O,
       change: {
         readonly set: SetValues<O["table"], O["ownerKey"], StateOf<O>>;
         readonly where?: SQL | undefined;
       }
     ) => Statement<O["table"]>;
-    /** Deletes the owner's rows that `where` selects, and returns them. */
+    /** Deletes the rows of the locked owners that `where` selects, and returns them. */
     readonly remove: <O extends AnyOwned>(
-      locked: Locked<NoInfer<RootNameOf<O>>>,
+      locks: Locks<NoInfer<RootNameOf<O>>>,
+      owned: O,
+      where?: SQL
+    ) => Statement<O["table"]>;
+    /**
+     * Moves the rows of one owner that `where` selects to another (a merge): `UPDATE … SET owner = to WHERE owner =
+     * from`. It needs both tokens, and it is the only write that sets an owner column: `update` refuses to.
+     */
+    readonly reassign: <O extends AnyOwned>(
+      from: Locked<NoInfer<RootNameOf<O>>>,
+      to: Locked<NoInfer<RootNameOf<O>>>,
       owned: O,
       where?: SQL
     ) => Statement<O["table"]>;
@@ -289,68 +341,57 @@ export class Aggregates extends Context.Service<
             return yield* asRows(owned, insertion.returning());
           }
         ),
-        remove: Effect.fn("Aggregates.remove")(
-          function* remove(locked, owned, where) {
-            yield* assertHeld(owned.root, [locked]);
+        reassign: Effect.fn("Aggregates.reassign")(
+          function* reassign(from, to, owned, where) {
+            yield* assertHeld(owned.root, [from, to]);
             const table: PgTable = owned.table;
 
+            // The one write that sets an owner column: it needs the tokens of both owners.
             return yield* asRows(
               owned,
               db
-                .delete(table)
-                .where(and(eq(owned.owner, locked.id), where))
+                .update(table)
+                .set({ [owned.ownerKey]: to.id })
+                .where(and(eq(owned.owner, from.id), where))
                 .returning()
             );
           }
         ),
-        select: Effect.fn("Aggregates.select")(
-          function* select(locks, owned, where) {
-            const held = Arr.ensure(locks);
-            yield* assertHeld(owned.root, held);
-            const table: PgTable = owned.table;
-
-            return yield* asRows(
-              owned,
-              db
-                .select()
-                .from(table)
-                .where(
-                  and(
-                    inArray(
-                      owned.owner,
-                      Arr.map(held, (token) => token.id)
-                    ),
-                    where
-                  )
-                )
-            );
-          }
+        remove: Effect.fn("Aggregates.remove")((locks, owned, where) =>
+          onHeld(locks, owned, where, (table, condition) =>
+            db.delete(table).where(condition).returning()
+          )
+        ),
+        select: Effect.fn("Aggregates.select")((locks, owned, where) =>
+          onHeld(locks, owned, where, (table, condition) =>
+            db.select().from(table).where(condition)
+          )
         ),
         update: Effect.fn("Aggregates.update")(
-          function* update(locked, owned, change) {
-            yield* assertHeld(owned.root, [locked]);
-
+          function* update(locks, owned, change) {
             yield* refuseProtected(
               owned.table,
               protectedKeysOf(owned),
               Struct.keys(change.set)
             );
 
-            const table: PgTable = owned.table;
-
-            return yield* asRows(
+            return yield* onHeld(
+              locks,
               owned,
-              db
-                .update(table)
-                .set({ ...change.set })
-                .where(and(eq(owned.owner, locked.id), change.where))
-                .returning()
+              change.where,
+              (table, condition) =>
+                db
+                  .update(table)
+                  .set({ ...change.set })
+                  .where(condition)
+                  .returning()
             );
           }
         ),
         updateRoot: Effect.fn("Aggregates.updateRoot")(
-          function* updateRoot(locked, root, set) {
-            yield* assertHeld(root, [locked]);
+          function* updateRoot(locks, root, set, where) {
+            const held = Arr.ensure(locks);
+            yield* assertHeld(root, held);
             yield* refuseProtected(root.table, ["id"], Struct.keys(set));
             const table: PgTable = root.table;
 
@@ -359,7 +400,7 @@ export class Aggregates extends Context.Service<
               db
                 .update(table)
                 .set({ ...set })
-                .where(eq(root.key, locked.id))
+                .where(ofHeld(root.key, held, where))
                 .returning()
             );
           }

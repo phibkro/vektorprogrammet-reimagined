@@ -286,6 +286,7 @@ const StoredAuditEntry = Schema.Struct({
   action: AuditAction,
   at: Schema.DateTimeUtcFromDate,
   client: AuditClient,
+  counts: Schema.NullOr(Schema.Record(Schema.String, Schema.Int)),
   entity: EntityName,
   entityKey: Schema.String,
   personId: Schema.NullOr(PersonId),
@@ -298,7 +299,11 @@ const decodeStoredEntry = decodeWith(StoredAuditEntry);
 const entryOf = Effect.fnUntraced(function* entryOf(
   row: typeof auditLog.$inferSelect
 ) {
-  const { personId, systemJob, ...stored } = yield* decodeStoredEntry(row);
+  const { counts, personId, systemJob, ...decoded } =
+    yield* decodeStoredEntry(row);
+
+  // A row that counts nothing has no `counts`, as an entry that was written without them has none.
+  const stored = counts === null ? decoded : { ...decoded, counts };
 
   if (personId !== null) {
     return {
@@ -331,6 +336,7 @@ export const AuditLogLive = Layer.effect(
           action: entry.action,
           at: DateTime.toDateUtc(entry.at),
           client: entry.client,
+          counts: entry.counts ?? null,
           entity: entry.entity,
           entityKey: entry.entityKey,
           sessionId: entry.sessionId,

@@ -28,6 +28,8 @@ export interface Root<
   /** The position of the root in the global lock order. */
   readonly rank: number;
   readonly table: Table;
+  /** The column that marks a tombstone (set: the row cannot be locked), for a root that declares one. */
+  readonly tombstone: PgColumn | undefined;
 }
 
 /** A table that a root owns, with the column that names the owner and the column of a stored machine's state. */
@@ -146,7 +148,7 @@ export const declare = <
       missing("the table", name)
     );
 
-  const declaredRoots = Arr.map(ownership, (entry) => {
+  const declaredRoots = Arr.map(ownership, (entry: RootOwnership) => {
     const table = tableNamed(entry.table);
 
     const root: Root = {
@@ -157,6 +159,10 @@ export const declare = <
         () => AggregateRoots.length
       ),
       table,
+      tombstone:
+        entry.tombstone === undefined
+          ? undefined
+          : columnOf(table, entry.tombstone),
     };
 
     const owned = Rec.map(entry.owns, (declared, key) => {

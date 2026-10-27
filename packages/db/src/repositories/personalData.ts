@@ -1,0 +1,225 @@
+/**
+ * The Layers of the personal data domain (spec 0007b): the consent records, the alumni requests, the legal holds and
+ * the store that interprets the catalog (the export, the erasure, the nightly run and the merge). The records and the
+ * requests are tables that the Person root owns, so every write takes the person's token and goes through `Aggregates`.
+ */
+import {
+  AggregateLocks,
+  AlumniRequests,
+  ConsentKind,
+  ConsentRepository,
+  LegalHolds,
+  PersonId,
+  PersonalDataStore,
+  Periods,
+} from "@vektorprogrammet/domain";
+import type { FileKey, Locked, StoredConsent } from "@vektorprogrammet/domain";
+import { eq, sql } from "drizzle-orm";
+import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
+
+import { Aggregates } from "../aggregate/aggregates.ts";
+import { roots } from "../aggregate/declaration.ts";
+import { Drizzle, decodeWith, single } from "../internal/drizzle.ts";
+import { personalDataExport } from "../personalData/export.ts";
+import { personalDataMerge } from "../personalData/merge.ts";
+import { photosOf, releasePhotos } from "../personalData/photos.ts";
+import { personalDataRetention } from "../personalData/retention.ts";
+import { addDuration } from "../personalData/sql.ts";
+import { consent, person } from "../schema.ts";
+
+const StoredRow = Schema.Struct({
+  givenAt: Schema.DateTimeUtcFromDate,
+  kind: ConsentKind,
+  personId: PersonId,
+  textVersion: Schema.Int,
+  withdrawnAt: Schema.NullOr(Schema.DateTimeUtcFromDate),
+});
+
+/** The stored row as the domain's record: a record that was not withdrawn has no `withdrawnAt`. */
+const asStored = (row: typeof StoredRow.Type): StoredConsent => {
+  const { withdrawnAt, ...rest } = row;
+
+  return withdrawnAt === null ? rest : { ...rest, withdrawnAt };
+};
+
+const consentColumns = {
+  givenAt: consent.givenAt,
+  kind: consent.kind,
+  personId: consent.personId,
+  textVersion: consent.textVersion,
+  withdrawnAt: consent.withdrawnAt,
+};
+
+export const ConsentRepositoryLive = Layer.effect(
+  ConsentRepository,
+  Effect.gen(function* ConsentRepositoryLive() {
+    const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
+    const decode = decodeWith(StoredRow);
+
+    const of = Effect.fn("ConsentRepository.of")(function* of(
+      personId: PersonId
+    ) {
+      const rows = yield* db
+        .select(consentColumns)
+        .from(consent)
+        .where(eq(consent.personId, personId))
+        .pipe(Effect.orDie);
+
+      return Arr.map(yield* Effect.forEach(rows, decode), asStored);
+    });
+
+    const ofLocked = Effect.fn("ConsentRepository.ofLocked")(function* ofLocked(
+      locked: Locked<"Person">
+    ) {
+      const rows = yield* aggregates
+        .select(locked, roots.Person.owned.consent)
+        .pipe(Effect.orDie);
+
+      return Arr.map(yield* Effect.forEach(rows, decode), asStored);
+    });
+
+    const record = Effect.fn("ConsentRepository.record")(function* record(
+      locked: Locked<"Person">,
+      kind: ConsentKind,
+      value: Parameters<ConsentRepository["Service"]["record"]>[2]
+    ) {
+      const stored = {
+        givenAt: DateTime.toDateUtc(value.givenAt),
+        textVersion: value.textVersion,
+        withdrawnAt:
+          value.withdrawnAt === undefined
+            ? null
+            : DateTime.toDateUtc(value.withdrawnAt),
+      };
+
+      const rows = yield* aggregates
+        .insert(
+          locked,
+          roots.Person.owned.consent,
+          { ...stored, kind },
+          {
+            action: "replace",
+            set: stored,
+            target: [consent.personId, consent.kind],
+          }
+        )
+        .pipe(Effect.orDie);
+
+      return asStored(yield* decode(yield* single(rows)));
+    });
+
+    return ConsentRepository.of({ of, ofLocked, record });
+  })
+);
+
+export const AlumniRequestsLive = Layer.effect(
+  AlumniRequests,
+  Effect.gen(function* AlumniRequestsLive() {
+    const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
+
+    const candidates = Effect.fn("AlumniRequests.candidates")(
+      function* candidates(now: DateTime.Utc) {
+        const at = DateTime.toDateUtc(now);
+
+        const rows = yield* db
+          .execute<{ person_id: number }>(
+            sql`select m.person_id
+              from (
+                select person_id, max(semester_end(end_term, end_year)) as last_end
+                from membership
+                group by person_id
+              ) as m
+              join person as p on p.id = m.person_id
+              join person_last_activity_end as a on a.person_id = p.id
+              where p.anonymised_at is null
+                and p.merged_into is null
+                and m.last_end <= ${at}
+                and ${addDuration(sql`a.at`, Periods.personCore.duration)} > ${at}
+                and not exists (
+                  select 1 from alumni_request as r
+                  where r.person_id = m.person_id and r.engagement_end = m.last_end
+                )
+              order by m.person_id`,
+            "objects"
+          )
+          .pipe(Effect.orDie);
+
+        return yield* Effect.forEach(rows, ({ person_id }) =>
+          Schema.decodeEffect(PersonId)(person_id).pipe(Effect.orDie)
+        );
+      }
+    );
+
+    const claim = Effect.fn("AlumniRequests.claim")(function* claim(
+      locked: Locked<"Person">,
+      engagementEnd: DateTime.Utc,
+      requestedAt: DateTime.Utc
+    ) {
+      const rows = yield* aggregates
+        .insert(
+          locked,
+          roots.Person.owned.alumniRequest,
+          {
+            engagementEnd: DateTime.toDateUtc(engagementEnd),
+            requestedAt: DateTime.toDateUtc(requestedAt),
+          },
+          { action: "ignore" }
+        )
+        .pipe(Effect.orDie);
+
+      return rows.length === 1;
+    });
+
+    return AlumniRequests.of({ candidates, claim });
+  })
+);
+
+/**
+ * No entity that can be held exists yet: the sources arrive with their entities (spec 0012 adds expense claims). Each
+ * is one more layer that provides `LegalHolds`, so a hold cannot be forgotten by the erasure.
+ */
+export const LegalHoldsLive = Layer.succeed(
+  LegalHolds,
+  LegalHolds.of({ of: () => Effect.succeed([]) })
+);
+
+export const PersonalDataStoreLive = Layer.effect(
+  PersonalDataStore,
+  Effect.gen(function* PersonalDataStoreLive() {
+    const db = yield* Drizzle;
+    const aggregates = yield* Aggregates;
+    const locks = yield* AggregateLocks;
+
+    const retention = personalDataRetention({ aggregates, db, locks });
+
+    const { merge } = personalDataMerge({
+      aggregates,
+      anonymisePerson: retention.anonymisePerson,
+      db,
+    });
+
+    const setPhoto = Effect.fn("PersonalDataStore.setPhoto")(function* setPhoto(
+      locked: Locked<"Person">,
+      photo: FileKey | null
+    ) {
+      const before = yield* photosOf(db, eq(person.id, locked.id));
+
+      yield* aggregates
+        .updateRoot(locked, roots.Person, { photoKey: photo })
+        .pipe(Effect.orDie);
+
+      // A key that the person still shows is not released: the statement leaves a file that a person shows alone.
+      return yield* releasePhotos(db, before, yield* DateTime.now);
+    });
+
+    return PersonalDataStore.of({
+      erase: retention.erase,
+      expire: retention.expire,
+      exportOf: personalDataExport(db),
+      merge,
+      setPhoto,
+    });
+  })
+);

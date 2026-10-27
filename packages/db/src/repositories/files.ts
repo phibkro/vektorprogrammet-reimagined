@@ -67,7 +67,10 @@ export const PublicFileRepositoryLive = Layer.effect(
       }
     );
 
-    /** Idempotent on `key`: an existing row wins over the argument. */
+    /**
+     * Idempotent on `key`: an existing row wins over the argument, except that a retired file (a person's photo that was
+     * cleared, spec 0007b) comes back when the same bytes are registered again.
+     */
     const register = Effect.fn("PublicFileRepository.register")(
       function* register(file: PublicFile) {
         yield* db
@@ -77,7 +80,10 @@ export const PublicFileRepositoryLive = Layer.effect(
             sha256: file.key.slice(0, SHA256_HEX_LENGTH),
             uploadedAt: DateTime.toDateUtc(file.uploadedAt),
           })
-          .onConflictDoNothing({ target: publicFile.key })
+          .onConflictDoUpdate({
+            set: { deletedAt: null },
+            target: publicFile.key,
+          })
           .pipe(Effect.orDie);
 
         const rows = yield* db
