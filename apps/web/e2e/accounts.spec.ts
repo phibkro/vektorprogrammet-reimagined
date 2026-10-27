@@ -3,8 +3,9 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/db";
-import { Array as Arr } from "effect";
+import { Array as Arr, Clock, Effect } from "effect";
 
+import { CONTACT_RATE_LIMIT } from "../worker.config.ts";
 import { openPage, sheetOf, sidebarOf, submitSheet } from "./support/panel.ts";
 import {
   accountStateOf,
@@ -16,6 +17,7 @@ import {
   seedResetCases,
   sessionCountOf,
 } from "./support/probes.ts";
+import { PROBE_BUDGET_MS, windowHasRoom } from "./support/rateLimitWindow.ts";
 
 const INVITEE_EMAIL = "mats.medlem@example.org";
 const PASSWORD = "et-nytt-testpassord";
@@ -291,24 +293,35 @@ test("reset requests have the same HTTP answer for every account state and compa
   expect(refused.status()).toBe(wrong.status());
   expect(await refused.body()).toEqual(wrongBody);
 
+  // The binding counts in fixed windows. Wait until a probe fits in one, then use a bucket nothing else has touched.
+  await expect
+    .poll(
+      () =>
+        windowHasRoom(
+          Effect.runSync(Clock.currentTimeMillis),
+          CONTACT_RATE_LIMIT.period * 1000,
+          PROBE_BUDGET_MS
+        ),
+      { intervals: [250], timeout: CONTACT_RATE_LIMIT.period * 1000 }
+    )
+    .toBe(true);
+
   const attempts = [];
 
-  for (const _index of Arr.range(1, 5)) {
+  for (const _index of Arr.range(0, CONTACT_RATE_LIMIT.limit)) {
     attempts.push(
       await request.post(`${origin}/api/auth/sign-in/email`, {
         data: {
           email: "ada.admin@example.org",
           password: "incorrect password",
         },
-        headers: { "cf-connecting-ip": "192.0.2.77", origin },
+        headers: { "cf-connecting-ip": "192.0.2.78", origin },
       })
     );
   }
 
-  expect(
-    Arr.filter(attempts, (response) => response.status() === 401)
-  ).toHaveLength(4);
-  expect(
-    Arr.filter(attempts, (response) => response.status() === 429)
-  ).toHaveLength(1);
+  expect(Arr.map(attempts, (response) => response.status())).toEqual([
+    ...Arr.replicate(401, CONTACT_RATE_LIMIT.limit),
+    429,
+  ]);
 });

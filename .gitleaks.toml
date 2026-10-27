@@ -42,12 +42,14 @@ regexes = [
 ]
 
 [[rules.allowlists]]
-description = "Only the exact two fixed example.org people in the code-delivery test."
+description = "Only the exact fixed and parameterized example.org people in the code-delivery test."
 condition = "AND"
 paths = ['''^apps/web/test/codeDelivery\.postgres\.test\.ts$''']
 regexTarget = "line"
 regexes = [
   '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(201, 'Leader', 'leader@example\.org', 201\), \(202, 'Invitee', 'invitee@example\.org', 201\)\x60;$''',
+  '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(\$\{personId\}, 'Invitee', \$\{email\}, \$\{LEADER\}\)\x60;$''',
+  '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(\$\{LEADER\}, 'Leader', 'retryleader@example\.org', \$\{LEADER\}\) on conflict do nothing\x60;$''',
 ]
 
 [allowlist]
