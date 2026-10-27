@@ -54,6 +54,7 @@ The subject sets of ADR 0001 follow from role assignments. Sets of one team take
 | `Admin` | A current `admin` role assignment on the Vektorprogrammet unit | the admin list |
 | `Link(purpose)` | The principal presenting a single-use link credential for purpose `purpose`, restricted to its command and person | `Holder(p)` |
 | `Self`, `Anyone`, `System(job)` | Unchanged |  |
+| `Emergency` | The separate `Emergency` principal (see Emergency access), restricted to its own small grant set | none (new) |
 
 **Applicant** is a lifecycle status (spec 0009), not a role. Roles can overlap, and each step from applicant towards a role in a unit needs an approval.
 
@@ -78,11 +79,11 @@ An Admin acts on the authority of the `Admin` grant. The audit entry names that 
 
 Renewal makes membership feel persistent to the person, while the system keeps a sequence of explicit temporary terms. A **renewal plan** is an option on a role assignment: its interval (`semester` or `year`), a mandatory latest end date (the cap), and whether it is on. The same decision that grants the role assignment approves its plan. Each role kind declares its cap once; the decision sets the assignment's latest end date from that declaration. A role kind without a declared renewal interval does not renew automatically. A renewal is not a new decision.
 
-The operator has decided the defaults: a five-year cap; a `member` interval of one semester; a `leader` interval of one year; and no automatic renewal for `admin`. A leader's renewal cannot outlast that leader's own term. After an assignment reaches its cap, continuing needs a new decision.
+The operator has decided the defaults: a five-year cap; a `member` interval of one semester; a `leader` interval of one year; and no automatic renewal for `admin`. Renewal authority is the unit's decision, not the leader who granted the assignment. A member's plan remains in force when that leader's term ends. A `leader` assignment granted by a unit decision renews yearly up to the cap; an elected leader position (ADR 0012, proposed separately) does not renew automatically. After an assignment reaches its cap, continuing needs a new decision.
 
-One interval before a term ends, `System(renewals)` runs `extendMembership` under its own grant. At that step it checks that the person's account is Active, the unit is active, the plan is still on, and the next end date stays within the cap. If a check fails, no extension occurs and the term ends on its current end date. The renewal takes the Person lock, like `extendMembership`; `Person`-owned reads and writes go through that token (spec 0006b).
+`System(renewals)` runs `extendMembership` under its own grant at a fixed lead before a term's end date, not a whole interval before it. The lead defaults to four weeks, the same as the ending-soon mail; one declaration controls it, and the operator can change it. The notice goes out one lead before the scheduled renewal, so the stop link works before the coming interval is added. Thus the notice comes two leads before the current end date. At the renewal step the job checks that the notice was sent, the person's account is Active, the unit is active, the plan is still on, the position is appointed rather than elected, and the next end date stays within the cap. If a check fails, no extension occurs and the term ends on its current end date. The renewal takes the Person lock, like `extendMembership`; `Person`-owned reads and writes go through that token (spec 0006b).
 
-The person can stop the plan from Min side, and a leader of the unit can stop it, at any time without a decision. Stopping the plan prevents future renewals only; it does not shorten the current term. Before each renewal, the system sends the person a notice with a single-use stop link. The ending-soon mail to leaders lists only assignments that will actually end. Retention under spec 0007b still applies after renewal stops and the term ends.
+The person can stop the plan from Min side, and a leader of the unit can stop it, at any time without a decision. Stopping the plan prevents future renewals only; it does not shorten the current term. The notice carries a single-use stop link and precedes the renewal by one lead, so a stop reaches the job before the coming interval is added. At the scheduled renewal step, the ending-soon mail to leaders lists only assignments that will actually end. Retention under spec 0007b still applies after renewal stops and the current term ends.
 
 ## Emergency access
 
@@ -92,7 +93,7 @@ The `Emergency` principal is used only when no Admin can access their account. I
 
 Custody belongs to the role `TeamLeader(it)`, not to a named person. At every change of IT leader, the emergency credential is rotated and the handover is recorded. Emergency use is rare and manual. Strong second-factor authentication is always required. Sessions are short and end as soon as the emergency need ends.
 
-There is no self-service recovery for `Emergency`: no password-reset link and no e-mail flow. The credential or second factor is reset or rotated only out of band by whoever holds infrastructure access (database, Cloudflare or Neon), through an audited command-line step. The web app must not offer a recovery path. A party with infrastructure access has already breached the system, so the operator judges that this adds no new attack vector.
+There is no self-service recovery for `Emergency`: no password-reset link and no e-mail flow. The credential or second factor is reset or rotated only out of band by whoever holds infrastructure access (database, Cloudflare or Neon), through an audited command-line step. The web app must not offer a recovery path. A party who gains infrastructure access without authorization has already breached the system, so the operator judges that this adds no new attack vector.
 
 Every sign-in and every command by `Emergency` writes an audit row and immediately notifies the admins and the board. The remaining exposure is the second factor and its custody: a lost device or social engineering of the IT leader. Handover rotation is the control.
 
@@ -149,9 +150,9 @@ The ArchiMate specification pages on `pubs.opengroup.org` ask for a sign-in, so 
 
 ## Consequences
 
-- **Kernel.** The subject sets gain `TeamMember` and `TeamLeader`, and `Holder` becomes `Link`. A grant scope `unit` joins `own`, `department` and `all`. Principal facts carry role assignments with their unit, not only team memberships. `authorize` stays one function over the one grant table. The facts type has no field for a label.
+- **Kernel.** The subject sets gain `TeamMember`, `TeamLeader` and `Emergency`; `CurrentPrincipal` gains `Emergency` alongside `Anonymous`, `Person` and `System`. `Holder` becomes `Link`. A grant scope `unit` joins `own`, `department` and `all`. Principal facts carry role assignments with their unit, not only team memberships. `authorize` stays one function over the one grant table. The facts type has no field for a label.
 - **Decisions in the kernel.** A command declares whether a grant or a decision gives it authority (`authority`, next to `resource` and `method` of ADR 0010). A decision is an entity with a machine, and the decision rules are `Schema` data in the domain package.
-- **Renewals.** The kernel declares one mandatory cap per role kind and the approved renewal plan on each assignment. `System(renewals)` runs `extendMembership` on the job's grant, under the Person lock, one interval before the term ends. It rechecks account state, unit state, plan state and cap. A stopped plan or failed check leaves the term to end normally. The job sends the notice and stop link; the ending-soon digest includes only terms that will end.
+- **Renewals.** The kernel declares one mandatory cap per role kind and the approved renewal plan on each assignment. `System(renewals)` runs `extendMembership` on the job's grant under the Person lock, at the configured lead before end. It verifies the account and unit are active, the plan is on, the role is not elected, and the next end date is within the cap. The notice precedes the attempt by the same declared lead; stopped or ineligible assignments end normally.
 - **Docgen.** The subject-set table, the grant tables and the system documents show the new names. A new generated block lists the role kinds per unit kind and the decision rules. A command that a decision governs shows "decision of the unit" in its "Granted to" column.
 - **effx `DomainDescription`.** A subject set gets a binding to a unit kind and a role kind (the membership binding). Units, role assignments and decisions with their rules need their own entries, so effx needs a spec for them (a follow-up to specs 0031 and 0032). The kernel exports them through the same description (ADR 0009).
 - **Formal checks.** The generated model adds:
@@ -160,16 +161,17 @@ The ArchiMate specification pages on `pubs.opengroup.org` ask for a sign-in, so 
   - _Tree._ No unit is its own ancestor. This holds by construction and the model checks it anyway.
   - _Authority._ Each role assignment has a grant or a passed decision as its origin.
   - _Labels._ No grant, guard or `authorize` input reads a label (a type-level test).
-  - _Renewal invariants._ No automatic renewal occurs after the cap, with an inactive account or unit, after the plan is stopped, or for `admin`. A renewal does not need a second decision. The interval and cap come from the role-kind declaration and its granting decision.
+  - _Renewal invariants._ No automatic renewal occurs after the cap, with an inactive account or unit, after the plan is stopped, for `admin`, or for an elected leader position. The term of the leader who approved a plan does not bound it; unit decisions hold the renewal authority. A renewal does not need a second decision.
 - **Specs.**
   - Spec 0009 (applicants): applicant stays a status. Approval into a unit uses the unit's rule.
   - Spec 0011 (placement): a school becomes a unit under its department, and its contacts are role assignments of kind `contact`. Sponsor contacts are also represented as `contact` assignments, but sponsor content remains in EmDash. The scope change needs a brief revision; the spec must declare the contact data's purpose, legal basis and retention before it stores it.
   - Spec 0012 (economy): an approval can reuse a decision, for example "`Fn(economy, d)` decides, one yes".
   - Spec 0006b: a decision's state changes through the conditional transition, so a vote and the deadline job cannot both settle it. `Person` owns role assignments and every automatic renewal takes the Person lock, replacing its ownership of `membership`; the AdminList root lock protocol carries over to `admin` assignments on Vektorprogrammet. The TLA+ membership-writes model follows role assignment, renewal and admin writes. Spec 0006b chooses which existing root guards each write; Unit itself is not a root.
   - Spec 0007/0007b: `System(renewals)` has the job grant for `extendMembership`; account Active is checked for every renewal. Retention still applies after a plan stops and the current term ends.
+  - Spec 0014 (Emergency access): add the `Emergency` second factor, out-of-band audited CLI reset, audit rows and immediate Admin/board notifications. Spec 0007 deferred two-factor sign-in.
 - **Lost power.** A board member or a leader of one team can no longer add members to other teams. A unit without a leader can only be changed by an Admin. ADR 0002 says that in this case "the board and the admins can still add members": on acceptance that sentence becomes "the admins". The "ending soon" digest then has to reach the admins too.
 - **Other ADRs.** On acceptance, ADR 0001 (the admin list is a role assignment), 0002 (explicit renewal plans replace “nothing rolls over by itself” with a capped plan approved by the granting decision), and 0008 (`Holder(p)` is `Link(purpose)` and `Emergency` is a separate principal) each get a revision line. This ADR changes nothing in them until then.
-- **Emergency access.** `Emergency` is distinct from `Admin` and does not count toward the last-active-admin invariant. Its proposed least-privilege grant set restores admin access only. Custody follows `TeamLeader(it)` and rotates on handover. Every use is audited and immediately notifies Admins and the board; strong second-factor authentication and short sessions are required. No self-service reset or e-mail flow exists; infrastructure-access holders perform an audited out-of-band CLI reset. Infrastructure access already breaches the system, so this adds no new attack vector. The remaining risk is second-factor custody (lost device or social engineering); handover rotation is the control.
+- **Emergency access.** `Emergency` is distinct from `Admin` and does not count toward the last-active-admin invariant. Its proposed least-privilege grant set restores admin access only. Custody follows `TeamLeader(it)` and rotates on handover. Every use is audited and immediately notifies Admins and the board; strong second-factor authentication and short sessions are required. No self-service reset or e-mail flow exists; infrastructure-access holders perform an audited out-of-band CLI reset. A party who gains infrastructure access without authorization has already breached the system, so this adds no new attack vector. The remaining risk is second-factor custody (lost device or social engineering); handover rotation is the control.
 
 ## Migration
 
@@ -192,7 +194,6 @@ The spec that builds this decision writes the migration. It must keep these fact
 6. **Leaderless unit.** Under leader decides, a unit without a leader cannot decide. Should the rule fall back to the unit above, or only to an Admin?
 7. **Moving a unit.** Units get a parent once. Moving one needs a check against cycles and a rule for who may do it.
 8. **Parent of a sponsor.** Root or department, or both?
-9. **Renewal notice.** How many weeks before a planned renewal should the person be notified?
-10. **Emergency backup.** Who besides the IT leader may hold a sealed backup credential?
+9. **Emergency backup.** Who besides the IT leader may hold a sealed backup credential?
 
 Source: operator decision, 2026-10-27.
