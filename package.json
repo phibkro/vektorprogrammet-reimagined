@@ -78,7 +78,15 @@
     "oxc-parser": "0.153.0",
     "alchemy": "2.0.0-beta.83",
     "@effect/platform-bun": "4.0.6",
+    "better-auth": "1.7.14",
+    "@better-auth/core": "1.7.14",
+    "@tanstack/react-query": "5.105.0",
+    "@tanstack/query-core": "5.105.0",
+    "@types/pg": "8.23.1",
+    "@better-auth-ui/core": "1.7.32",
+    "@better-auth-ui/react": "1.7.32",
     "bcryptjs": "3.0.3",
+    "bowser": "2.15.0",
     "@playwright/test": "1.63.0",
     "astro": "7.4.0",
     "@astrojs/react": "7.1.0",
@@ -90,6 +98,7 @@
     "@effect/openapi-generator": "4.0.6",
     "htmlparser2": "12.0.0",
     "domhandler": "6.0.1",
+    "esbuild": "0.28.2",
     "miniflare": "5.20261012.0-beta"
   }
 }

@@ -40,8 +40,8 @@ export const sweepOutbox = Rpc.make("sweepOutbox", {
   Info,
   info({
     job: "outboxSweep",
-    note: "Claims at most `limit` due rows, or only `ids`, and sends each one outside any transaction.",
-    summary: "Deliver the outbox messages that are due, mail and Slack.",
+    note: "Claims at most `limit` due rows, or only `ids`; code mail is minted and acknowledged in its delivery transaction (spec 0007 R1).",
+    summary: "Deliver due mail, Slack and credential intents.",
   })
 );
 

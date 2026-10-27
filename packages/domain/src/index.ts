@@ -24,6 +24,25 @@ export * as Machine from "./kernel/machine.ts";
 
 export * as Subject from "./kernel/subject.ts";
 
+// Account credentials and their purpose policy (spec 0007)
+export * from "./accounts/code.ts";
+
+export * from "./accounts/entities.ts";
+
+export * as Accounts from "./accounts/declaration.ts";
+
+export * from "./accounts/sso.ts";
+
+export * from "./accounts/services.ts";
+
+export * from "./accounts/codeRepository.ts";
+
+export * from "./accounts/passwordHasher.ts";
+
+export * from "./accounts/commands.ts";
+
+export * from "./accounts/principal.ts";
+
 // every domain's declaration, and the one grant table that `authorize` reads
 export * from "./declarations.ts";
 

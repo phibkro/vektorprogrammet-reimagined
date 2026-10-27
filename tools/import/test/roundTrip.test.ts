@@ -22,6 +22,7 @@ import {
   Layer,
   Option,
   Path,
+  Predicate,
   Record as Rec,
   Redacted,
   Schema,
@@ -447,6 +448,37 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           assert.notStrictEqual(cli.exitCode, ChildProcessSpawner.ExitCode(0));
           assert.include(`${cli.stdout}${cli.stderr}`, "--allow-dev-database");
           assert.isFalse(yield* fs.exists(`${reportDir}/reconciliation.json`));
+        })
+    );
+    it.effect(
+      "spec 0007 R8: replacement refuses an account-bearing target without changing its rows",
+      () =>
+        Effect.gen(function* preserveAccounts() {
+          yield* importOnce(Option.none());
+          yield* queryTarget(
+            (sql) =>
+              sql`insert into person (name, email, field_of_study_id) select 'Fake Account', 'protected@example.org', id from field_of_study order by id limit 1`
+          );
+          yield* queryTarget(
+            (sql) =>
+              sql`insert into account (person_id, state) select id, 'Active' from person where email = 'protected@example.org'`
+          );
+          const before = yield* dumpTarget;
+          const failed = yield* Effect.flip(importOnce(Option.none()));
+          assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
+
+          if (Predicate.isTagged(failed, "TargetWriteError")) {
+            assert.strictEqual(failed.step, "protect accounts");
+          }
+
+          assert.strictEqual(yield* dumpTarget, before);
+
+          const protectedRows = yield* queryTarget(
+            (sql) =>
+              sql`select p.email, a.state from person p join account a on a.person_id = p.id where p.email = 'protected@example.org'`
+          );
+
+          assert.strictEqual(protectedRows.length, 1);
         })
     );
   }

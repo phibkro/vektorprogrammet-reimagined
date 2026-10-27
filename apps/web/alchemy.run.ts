@@ -160,12 +160,19 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
             siteKey: TURNSTILE_TEST_KEYS.siteKey,
           };
 
-    // The origin the links in the digest's e-mail point at. Only production sends real mail: base and previews
-    // capture it, so their links need no origin.
+    // Captured Preview mail needs an absolute link too. Alchemy binds the Worker's own stage URL.
     const siteUrl =
-      kind === "production" ? yield* Config.NonEmptyString("SITE_URL") : "";
+      kind === "production"
+        ? yield* Config.NonEmptyString("SITE_URL")
+        : Cloudflare.Worker.URL;
+
+    // Alchemy persists one random, Redacted value in each stage's state.
+    const authSecret = yield* Alchemy.makeRandom("BetterAuthSecret", {
+      bytes: 32,
+    });
 
     const common = {
+      BETTER_AUTH_SECRET: authSecret,
       CMS_TOKEN: Config.Redacted("CMS_READ_TOKEN"),
       CMS_URL: reachableAt(cmsWorker),
       CONTACT_RATE_LIMIT: Cloudflare.RateLimit("CONTACT_RATE_LIMIT", {

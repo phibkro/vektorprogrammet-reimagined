@@ -3,6 +3,7 @@
  * answers with the runtime's serializable `Outcome` (the error table's statuses included).
  */
 import type {
+  AccountRepository,
   AdminGrantRepository,
   AuditLog,
   CurrentPrincipal,
@@ -32,6 +33,7 @@ import type { MemoryTables } from "./memory";
 const { signal } = new AbortController();
 
 type ViewServices =
+  | AccountRepository
   | CurrentPrincipal
   | SiteOrigin
   | DepartmentRepository

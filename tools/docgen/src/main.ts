@@ -4,9 +4,25 @@ import { Declarations, GrantTable } from "@vektorprogrammet/domain";
 import { Console, Effect, FileSystem, Result, Schema } from "effect";
 import { Command, Flag } from "effect/cli";
 
-import { checkDocument, renderDocument } from "./render.ts";
+import {
+  checkAccountsDocument,
+  checkDocument,
+  renderAccountsDocument,
+  renderDocument,
+} from "./render.ts";
 
-const FILE = "../../docs/system/teams.md";
+const DOCUMENTS = [
+  {
+    check: checkDocument,
+    file: "../../docs/system/teams.md",
+    render: renderDocument,
+  },
+  {
+    check: checkAccountsDocument,
+    file: "../../docs/system/accounts.md",
+    render: renderAccountsDocument,
+  },
+] as const;
 
 // oxlint-disable unicorn/throw-new-error -- EX-0003: this is a Schema.TaggedError declaration, not a throw.
 class DocumentationError extends Schema.TaggedError<
@@ -27,29 +43,34 @@ const command = Command.make(
   },
   Effect.fn(function* generate({ check }) {
     const fs = yield* FileSystem.FileSystem;
-    const source = yield* fs.readFileString(FILE);
 
-    if (check) {
-      const checked = checkDocument(source, Declarations, GrantTable);
+    for (const document of DOCUMENTS) {
+      const source = yield* fs.readFileString(document.file);
 
-      if (Result.isFailure(checked)) {
-        return yield* new DocumentationError({ message: checked.failure });
+      if (check) {
+        const checked = document.check(source, Declarations, GrantTable);
+
+        if (Result.isFailure(checked)) {
+          return yield* new DocumentationError({ message: checked.failure });
+        }
+
+        yield* Console.log(`${document.file}: generated blocks match`);
+      } else {
+        const generated = document.render(source, Declarations, GrantTable);
+
+        if (Result.isFailure(generated)) {
+          return yield* new DocumentationError({ message: generated.failure });
+        }
+
+        if (source !== generated.success) {
+          yield* fs.writeFileString(document.file, generated.success);
+        }
+
+        yield* Console.log(`${document.file}: generated blocks written`);
       }
-
-      return yield* Console.log(`${FILE}: generated blocks match`);
     }
 
-    const generated = renderDocument(source, Declarations, GrantTable);
-
-    if (Result.isFailure(generated)) {
-      return yield* new DocumentationError({ message: generated.failure });
-    }
-
-    if (source !== generated.success) {
-      yield* fs.writeFileString(FILE, generated.success);
-    }
-
-    return yield* Console.log(`${FILE}: generated blocks written`);
+    return yield* Effect.void;
   })
 );
 

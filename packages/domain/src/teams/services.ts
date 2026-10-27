@@ -181,6 +181,11 @@ export class DigestLedger extends Context.Service<
 export class PrincipalDirectory extends Context.Service<
   PrincipalDirectory,
   {
+    /** One read of account state and principal facts; non-Active accounts are absent. */
+    readonly activeById: (
+      personId: PersonId,
+      at: { readonly current: Semester; readonly now: DateTime.Utc }
+    ) => Effect.Effect<Option.Option<PersonPrincipal>>;
     readonly byName: (
       name: string,
       at: { readonly current: Semester; readonly now: DateTime.Utc }

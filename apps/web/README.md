@@ -23,7 +23,7 @@ Each server function or server route:
 2. Calls `runQuery`, `runCommand` or `runPreparedCommand` (`server/runtime.ts`). These build the **per-request Layer**:
    - `DatabaseLive({ url: env.HYPERDRIVE.connectionString, maxConnections: 2 })`
    - `FileStore` over the R2 binding (`server/fileStore.ts`)
-   - `CurrentPrincipal` from `PrincipalDirectory` (`server/principal.ts`)
+   - `CurrentPrincipal` from the Better Auth session and one account-and-membership read (`server/principal.ts`)
    - `SiteOrigin` for digest links
    - Web Crypto `Crypto.Crypto` (`server/webCrypto.ts`)
    - `TurnstileVerifier` and `ContactRateLimiter`
@@ -43,14 +43,14 @@ Each server function or server route:
 
    It returns a serializable `Outcome` (`lib/outcome.ts`). A server function's reply carries the failure's status as its HTTP status (`server/outcomeStatus.ts`, a function middleware registered in `src/start.ts`), so a refused call is a real 403 or 409 on the wire; the client still decodes the `Outcome` body. Loaders turn a 404 into TanStack's `notFound()` (`pageData`). Defects are logged with their cause and rethrown, so the framework answers 500.
 
-5. After a command commits, the outbox ids it enqueued are delivered in `ctx.waitUntil` (`claimDue({ ids })`). The cron sweep (every 10 minutes) claims every due row. Both send **outside** any transaction and mark each row delivered, or failed with backoff (5 min × 2ⁿ, at most 12 h). A row is dead after 8 attempts (`server/outboxDelivery.ts`).
+5. After a command commits, `ctx.waitUntil` delivers its outbox rows. The cron retries due rows with backoff. Code delivery mints and sends the link in its own transaction, then acknowledges the row (spec 0007 R1). Credential writes use Better Auth after the domain commit.
 
 ### Deployment and the sandbox
 
 `DEPLOYMENT` ∈ {`local`, `preview`, `production`} is decoded with Effect Schema (`server/deployment.ts`). A missing or unknown value is a defect; the code never guesses.
 
 - **Message senders** (`server/senders.ts`): only `production` can build the Cloudflare Email Service (`send_email`) and Slack-webhook senders. `productionSenderLayer` fails to build for any other deployment, or when a production binding is missing. `local` and `preview` get a capture sink that records each message and logs only its kind. `test/sandbox.test.ts` proves both.
-- **Principal:** Sign-in comes in spec 0007. In `local`, the `vp-test-actor` cookie selects a seeded person by name. The default is Ada Admin. The switch lists database people. Preview and production always use `Anonymous` for requests.
+- **Principal:** A valid Better Auth session resolves to a person only while the domain account is Active. In `local` only, the `vp-test-actor` cookie can select a seeded person when no session cookie exists. Preview and production never accept that cookie.
 
 ### Routes
 
@@ -65,6 +65,7 @@ Each server function or server route:
 | `/kontrollpanel` + `avdelinger`, `semestre`, `linjer` | C1, C2 | RULE-033/237, 084, 139 (spec 0001); `semestre` is a list only, no create form (spec 0003, RULE-144 and 190 retired) |
 | `/kontrollpanel/arrangementer` | C8 | RULE-085, 188 |
 | `/kontrollpanel/team`, `/kontrollpanel/team/{id}`, `/kontrollpanel/personer`, `/kontrollpanel/administratorer` | spec 0006 | Teams, people, membership terms and admin grants |
+| `/logg-inn`, `/aktiver`, `/glemt-passord`, `/tilbakestill-passord`, `/min-side` | spec 0007 | Sign-in, single-use codes, profile, sessions and password |
 
 `/filer/{key}` uses the domain's `servingHeaders` verbatim. Only JPEG, PNG, WebP, GIF and PDF are served inline; everything else is an attachment. Every response carries `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` and `Cache-Control: public, max-age=31536000, immutable`. Error responses also carry `nosniff` and the sandbox CSP.
 
@@ -76,7 +77,7 @@ The dashboard owns the whole page. Its sidebar lists sections from `canAnywhere`
 
 The sources are `server/shell.ts`, `server/panel.ts` and `server/teams.ts`. The declaration table lives in `packages/domain/src/declarations.ts`. `test/shell.test.ts` and `test/teamsPanel.test.ts` compare controls with commands.
 
-An anonymous visitor sees “Ikke innlogget”. A person without a current grant sees the no-sections page. Neither sees a sidebar. The public site has no control-panel link before sign-in exists.
+An anonymous visitor sees “Ikke innlogget”. A person without a current control-panel grant lands on Min side after sign-in.
 
 ### The public site (spec 0005)
 
@@ -100,10 +101,11 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 | Binding | Kind | Notes |
 | --- | --- | --- |
 | `DEPLOYMENT` | var | `production` on stage `production`, else `preview` |
-| `SITE_URL` | var | Origin for digest links. Production requires it. Set it explicitly for local development; previews use an empty value. |
+| `SITE_URL` | var | Origin for links. Production requires it. Set it for local development. Alchemy binds each Preview's own URL. |
 | `HYPERDRIVE` | Hyperdrive | Neon origin, **query caching disabled** |
+| `BETTER_AUTH_SECRET` | secret | Alchemy generates one persistent random value per deployed stage. Local development uses a fake key. A missing or short key prevents Worker startup. |
 | `PUBLIC_FILES` | R2 bucket | `vp-public-files` on production, `vp-public-files-<stage>` elsewhere; EU jurisdiction, no public access |
-| `CONTACT_RATE_LIMIT` | Rate Limiting binding | 5 posts / 60 s per client IP |
+| `CONTACT_RATE_LIMIT` | Rate Limiting binding | Five requests per 60 seconds per IP for contact posts and for each Better Auth route. |
 | `TURNSTILE_SITE_KEY` | var | production: `${TURNSTILE_SITE_KEY}` at deploy; elsewhere Cloudflare's always-pass test key |
 | `TURNSTILE_SECRET_KEY` | secret | production: `${TURNSTILE_SECRET_KEY}` at deploy; elsewhere the always-pass test secret |
 | `SEND_EMAIL` | `send_email` | **production only**; sender restricted to `MAIL_FROM` |
@@ -122,7 +124,7 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 | `pr-<n>` | a [Cloudflare Worker Preview](https://developers.cloudflare.com/workers/previews/) of `main`: own URL, bindings, Hyperdrive config and R2 bucket; no crons | Neon `preview/pr-<n>`, forked from `dev` and migrated before the deploy; expires 14 days after the last push | the same workflow on every push to a pull request; destroyed when it closes |
 | `production` | the production deployment (not deployed yet) | Neon `production` | operator only |
 
-Base and previews are the `preview` deployment: no mail or Slack binding, and no test actor, so the control panel refuses every staff write (403). Preview URLs are public; they serve fake data only. A Preview runs no cron, so its semester rows are the ones its Neon branch forked from `dev`, where the base stage's cron wrote them. If the current semester has no row there yet, the Semestre and Arrangementer pages say so and write nothing.
+Base and previews use the `preview` deployment. They cannot send real mail or Slack and cannot use the local actor cookie. The workflow seeds fake accounts before deployment. Preview URLs are public and serve fake data only. A Preview runs no cron. Its semester rows come from its Neon branch.
 
 **The CMS Worker (spec 0005)** is declared in the same stack (`alchemy.run.ts`: `Cms` and `Web`), so it has the same two kinds of stage: the base `main` and a Worker Preview per pull request. Each has its own Hyperdrive configuration for the role `emdash_app` (cache off) and its own R2 media bucket (`vp-cms-media-<stage>`). A Preview of the web app reads its own pull request's CMS Preview through `CMS_URL`, so content stays isolated per pull request. The CMS's database is the schema `emdash` of the same Neon database, so a Preview's Neon branch carries its own CMS content, forked from `dev`; a Preview has no editor access, because EmDash's passkeys are bound to a hostname. Deploy `main` before any Preview: a Preview is a Worker Preview of the base Worker.
 
@@ -157,7 +159,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 
 - **`vp dev` = the `local` deployment.** Hyperdrive's `localConnectionString` is `DATABASE_URL` (Miniflare needs a user and password in the URL; devenv's trust auth ignores the placeholder password). R2 and the rate limiter are simulated. There is no `send_email`, so outbox messages go to the capture sink and the Worker log. Set `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` to Cloudflare's published test keys to try the contact form. Without them, every contact post is rejected (RULE-167 fails closed).
 - **A standalone `vp build` is labelled `preview`** (no test actor, no secrets in `dist/server/wrangler.json`). Real deployments go through Alchemy, which injects its own Cloudflare plugin (`ALCHEMY_CLOUDFLARE_VITE_INJECTED=1`); this config's plugin then stands down.
-- Under `vp test` (Vitest 5, Node) no Vite plugins load. The tests run in Node with in-memory Layers (`test/support/memory.ts`). workerd tests cannot run under Vite+ (architecture, Checkpoint 2: `vitest-pool-workers` needs Vitest 4).
+- Under `vp test`, most tests run in Node. The password and auth-startup Worker tests bundle their real modules and run in workerd through Miniflare.
 - **Scheduled jobs in `vp dev`.** Run `curl http://localhost:3000/cdn-cgi/handler/scheduled` once. This runs the semester job, the leader digest and the outbox sweep. The browser harness runs the scheduled handler for you.
 - **The CMS in `vp dev`.** The content pages read the CMS named by `CMS_URL` with `CMS_TOKEN`. Start `apps/cms` first (`apps/cms/README.md`: `bun run dev` listens on 4321), take a token from `POST http://localhost:4321/_emdash/api/setup/dev-bypass?token=1`, and run `CMS_URL=http://localhost:4321 CMS_TOKEN=… bunx vp dev`. Without a reachable CMS the content pages answer 503 and the rest of the app works. `global_fetch_strictly_public` does not stop `vp dev` from fetching a `localhost` CMS (the browser tests rely on it).
 
@@ -173,6 +175,9 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `test/outboxDelivery.test.ts` | delivery, retry, and authorization of the sweep as its System principal |
 | `test/organisationPanel.test.ts` | spec 0001: the departments, semesters and fields-of-study programs a server function runs: create, edit, refusals (repeated city, another department's field of study), what the views return; spec 0003: the semester views are reads (a missing row stays missing and is shown as such) |
 | `test/readsNeverWrite.postgres.test.ts` | specs 0003 and 0006: all registered reads run with a SELECT-only database role, including a negative control |
+| `test/auth.postgres.test.ts`, `test/codeDelivery.postgres.test.ts` | Real Better Auth and PostgreSQL, state and refresh negative controls, cancellation, sessions and the plaintext scan |
+| `test/password.test.ts`, `test/password.worker.test.ts` | Legacy bcrypt fixtures and the default-verifier negative control on Node and workerd |
+| `test/authStartup.worker.test.ts` | Missing and short signing keys prevent workerd startup. |
 | `test/shell.test.ts`, `test/teamsPanel.test.ts` | sidebar, teams, people and admin controls agree with the grant table and membership machine |
 | `test/site.test.ts` | spec 0005: the public pages' programs over an in-memory CMS: RULE-267 (a draft or an unknown slug is 404, drafts are not in the list), RULE-326 (newest first, ten a page, a page past the end is empty), RULE-331 and RULE-119 on the home page, the text slots, the footer's sponsor order, the team and contact pages, a department's URL segment (Å is `aa`) |
 | `test/portableTextView.test.tsx` | RULE-133: a `javascript:` address is plain text, only http(s), mailto and tel addresses are links, raw HTML never reaches the page; every block type the design renders |
@@ -182,6 +187,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `e2e/journey.spec.ts` | specs 0001 and 0003 in a real browser (below), in Sheets: steps 1 to 4 and falsifier 5 |
 | `e2e/shell.spec.ts` | spec 0004 in a real browser (below): falsifiers 1 to 5, per actor |
 | `e2e/teams.spec.ts` | spec 0006 falsifier 10: create a team and people, switch principals, and change membership terms against PostgreSQL |
+| `e2e/accounts.spec.ts` | Spec 0007 local browser journey over the real Worker, database and capture mailbox |
 | `e2e/public.spec.ts` | spec 0005 in a real browser against the real CMS (below): every page, an edit published without a deploy, the contact form's transaction, the 301 redirects |
 
 Real-database behaviour (transactions, constraints, `FOR UPDATE SKIP LOCKED`) is tested in `packages/db`.
@@ -195,7 +201,7 @@ disposable PostgreSQL → legacy fixture → local people → CMS → vp dev →
 ```
 
 - **Database:** `vp_db_test_<random>` on the devenv server (`TEST_DATABASE_ADMIN_URL`), from `@vektorprogrammet/db/testing`: the one migrated-disposable-database helper that `packages/db`'s tests and the importer's round trip use too. It is created, migrated with `packages/db`'s generated `drizzle/` migrations, and then filled by `tools/import`'s `import:fixture` script: the real importer pipeline on the importer's fake legacy fixture (a throwaway MySQL database, dropped again). The data is therefore migrated data with the importer's own quirks: the fixture's third department is quarantined (an invalid e-mail address), five duplicate semester rows are collapsed to two, and the orphan fields of study are left out. The database is dropped (forcibly) at the end; the developer's `vektorprogrammet` database is never touched. It needs the devenv MySQL service, as the importer's own tests do.
-- **Local people:** After the importer, `db:seed:local` adds the people used by the principal switch.
+- **Local people:** After the importer, `db:seed:local` adds the people and fake accounts. Ada, Lise and Nora use `LOCAL_FAKE_PASSWORD`. Mats has no account until a leader invites him.
 - **App:** the real `vp dev` (the `local` deployment: the test actor chosen by the `vp-test-actor` cookie, a simulated R2 and rate limiter) with `DATABASE_URL` pointing at that database. The harness waits for `http://localhost:<port>` (Vite binds `localhost`, which is `::1` on some hosts), then runs the Worker's `scheduled` handler once (`GET /cdn-cgi/handler/scheduled`, which the Cloudflare Vite plugin forwards to it), so the semester job has written the current and the next semester, and fetches every page the specs open once, so the server has compiled them before the browser asks.
 - **CMS:** the real EmDash (`apps/cms` under `astro dev` with `CMS_STANDALONE=1`) on the same database, in its schema `emdash`. The harness runs `apps/cms/db/emdash-role.sql` with `psql` (the script a deployment runs once), starts the server with a local Hyperdrive string for the role `emdash_app` and a generated `EMDASH_ENCRYPTION_KEY`, waits for `/_emdash/api/setup/status` (the first request runs EmDash's migrations and creates the collections of the seed), and calls the development bypass (`POST /_emdash/api/setup/dev-bypass?token=1`), which applies the default copy of `seed/seed.json` and mints a token. `tools/import`'s `import:fixture:cms` then moves the fixture's articles, texts and sponsors in, and runs a second time: the harness fails unless the second run creates nothing (spec 0005, falsifier 4). `vp dev` gets `CMS_URL`, `CMS_TOKEN` and Cloudflare's always-pass Turnstile keys, so the contact form is exercised with the real widget (this needs outbound network).
 - **Browser:** Playwright 1.63.0 driving the Chromium that devenv provides. `devenv.nix` sets `PLAYWRIGHT_BROWSERS_PATH` to a Chromium-only build of nixpkgs' `playwright-driver.browsers` (no Firefox or WebKit, which keeps the closure small) and `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS`. Playwright never downloads a browser.

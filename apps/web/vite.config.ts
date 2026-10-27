@@ -107,6 +107,10 @@ const standaloneWorker = (devServer: boolean) => {
       ],
       triggers: { crons: [OUTBOX_SWEEP_CRON] },
       vars: {
+        // Fake local-only signing key; no secret is baked into a standalone build.
+        BETTER_AUTH_SECRET: devServer
+          ? "local-only-fake-auth-signing-key-not-for-deployment"
+          : "",
         // Dev only: a secret must never be baked into dist/server/wrangler.json.
         CMS_TOKEN: devServer ? environment.CMS_TOKEN : "",
         CMS_URL: environment.CMS_URL,

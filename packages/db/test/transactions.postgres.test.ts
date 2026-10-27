@@ -29,9 +29,11 @@ const writeAll = Effect.fnUntraced(function* writeAll(semester: Semester) {
   yield* (yield* AuditLog).record({
     action: "department.created",
     at: AT,
+    client: "scheduler",
     entity: "Semester",
     entityKey: String(semester.year),
     principal: AuditPrincipal.cases.System.make({ job: "semesters" }),
+    sessionId: null,
   });
   yield* (yield* Outbox).enqueue([
     OutboxMessage.cases.SlackPost.make({

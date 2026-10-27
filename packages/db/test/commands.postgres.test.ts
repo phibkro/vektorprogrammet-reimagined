@@ -237,11 +237,17 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             assert.deepStrictEqual(
               pipe(
                 messages,
-                Arr.map((message) =>
-                  Predicate.isTagged(message, "Email")
-                    ? `Email:${message.to}`
-                    : `SlackPost:${message.target._tag}`
-                )
+                Arr.map((message) => {
+                  if (Predicate.isTagged(message, "Email")) {
+                    return `Email:${message.to}`;
+                  }
+
+                  if (Predicate.isTagged(message, "SlackPost")) {
+                    return `SlackPost:${message.target._tag}`;
+                  }
+
+                  return message._tag;
+                })
               ),
               [
                 "Email:gjøvik@avdeling.example",

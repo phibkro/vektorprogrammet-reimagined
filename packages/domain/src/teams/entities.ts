@@ -31,6 +31,7 @@ export const PersonEmailInput = Schema.Trim.pipe(
  * belongs to the team's department (RULE-164).
  */
 export const Person = Schema.Struct({
+  companyEmail: Schema.optionalKey(Schema.NullOr(EmailAddress)),
   departmentId: DepartmentId,
   email: EmailAddress,
   fieldOfStudyId: FieldOfStudyId,
@@ -42,6 +43,7 @@ export type Person = typeof Person.Type;
 
 /** What a person is registered with. */
 export const PersonDraft = Schema.Struct({
+  companyEmail: Schema.optionalKey(Schema.NullOr(EmailAddress)),
   email: EmailAddress,
   fieldOfStudyId: FieldOfStudyId,
   name: NonBlank,
@@ -51,6 +53,7 @@ export type PersonDraft = typeof PersonDraft.Type;
 
 /** The payload of `registerPerson`. */
 export const PersonInput = Schema.Struct({
+  companyEmail: Schema.optionalKey(Schema.NullOr(PersonEmailInput)),
   email: PersonEmailInput,
   fieldOfStudyId: FieldOfStudyId,
   name: requiredText({ maxLength: 250 }),

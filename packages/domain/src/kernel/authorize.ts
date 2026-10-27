@@ -46,6 +46,15 @@ export const authorizeWith =
     table: readonly Grant.Row<Command>[]
   ): Authorize<Command> =>
   (principal, command, resource = {}) =>
+    (!Predicate.isTagged(principal, "Person") ||
+      principal.narrowing === undefined ||
+      Arr.every(
+        principal.narrowing,
+        (restriction) =>
+          restriction.command === command &&
+          restriction.resource.personId === resource.personId &&
+          restriction.resource.departmentId === resource.departmentId
+      )) &&
     Arr.some(
       table,
       (row) =>

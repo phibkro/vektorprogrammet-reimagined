@@ -42,6 +42,7 @@ import type {
   TeamId,
 } from "@vektorprogrammet/domain";
 import { and, asc, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
 
 import { classifySqlFailure } from "../classifySqlFailure.ts";
@@ -52,6 +53,7 @@ import {
   single,
 } from "../internal/drizzle.ts";
 import {
+  account,
   adminGrant,
   endingSoonDigest,
   fieldOfStudy,
@@ -64,6 +66,7 @@ import {
 // ---------------------------------------------------------------- people
 
 const personColumns = {
+  companyEmail: person.companyEmail,
   departmentId: fieldOfStudy.departmentId,
   email: person.email,
   fieldOfStudyId: person.fieldOfStudyId,
@@ -703,8 +706,8 @@ export const PrincipalDirectoryLive = Layer.effect(
     const db = yield* Drizzle;
     const decodeFacts = decodeFirstOption(decodeWith(Facts));
 
-    const byName = Effect.fn("PrincipalDirectory.byName")(function* byName(
-      name: string,
+    const load = Effect.fnUntraced(function* load(
+      condition: SQL,
       at: { readonly current: Semester; readonly now: DateTime.Utc }
     ) {
       const ordinal = semesterOrdinal(at.current);
@@ -732,7 +735,7 @@ export const PrincipalDirectoryLive = Layer.effect(
           ), '[]'::json)`,
         })
         .from(person)
-        .where(eq(person.name, name))
+        .where(condition)
         .orderBy(asc(person.id))
         .limit(1)
         .pipe(Effect.orDie);
@@ -747,6 +750,24 @@ export const PrincipalDirectoryLive = Layer.effect(
       );
     });
 
+    const byName = Effect.fn("PrincipalDirectory.byName")(
+      (
+        name: string,
+        at: { readonly current: Semester; readonly now: DateTime.Utc }
+      ) => load(eq(person.name, name), at)
+    );
+
+    const activeById = Effect.fn("PrincipalDirectory.activeById")(
+      (
+        personId: PersonId,
+        at: { readonly current: Semester; readonly now: DateTime.Utc }
+      ) =>
+        load(
+          sql`${person.id} = ${personId} and exists (select 1 from ${account} where ${account.personId} = ${person.id} and ${account.state} = 'Active')`,
+          at
+        )
+    );
+
     const names = Effect.fn("PrincipalDirectory.names")(function* names(
       limit: number
     ) {
@@ -760,6 +781,6 @@ export const PrincipalDirectoryLive = Layer.effect(
       return Arr.map(rows, (row) => row.name);
     });
 
-    return PrincipalDirectory.of({ byName, names });
+    return PrincipalDirectory.of({ activeById, byName, names });
   })
 );

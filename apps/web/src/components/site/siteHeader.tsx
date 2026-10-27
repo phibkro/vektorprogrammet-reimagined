@@ -3,7 +3,7 @@
  * a pill with the logo and the eight tabs on wide screens, and a menu button with a drawer on narrow ones. The
  * active tab is a pill drawn in CSS, so the server renders it in place (mono-web slid a measured indicator in
  * with `motion` after hydration).
- * Mono-web's "Logg inn" link is not ported: there is no sign-in before Phase 2.
+ * Sign-in is available separately from the public navigation tabs.
  */
 import { Dialog } from "@base-ui/react/dialog";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -99,6 +99,17 @@ const MobileMenu = () => {
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link
+                  className="text-vektor-DARKblue text-lg"
+                  onClick={() => {
+                    setOpen(false);
+                  }}
+                  to="/logg-inn"
+                >
+                  Logg inn
+                </Link>
+              </li>
             </ul>
             <Dialog.Close className="mt-6 rounded-md border px-4 py-2 text-sm">
               Lukk
@@ -121,6 +132,9 @@ export const SiteHeader = () => (
           width={32}
         />
         <NavTabs />
+        <Link className="rounded-full px-4 text-sm font-medium" to="/logg-inn">
+          Logg inn
+        </Link>
       </div>
     </div>
     <MobileMenu />

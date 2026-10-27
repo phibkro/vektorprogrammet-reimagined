@@ -6,7 +6,7 @@ PostgreSQL: the Drizzle schema (single source), the generated migrations, and th
 
 | Export | What it is |
 | --- | --- |
-| `schema` | Drizzle `pg-core` tables: `department`, `semester`, `fieldOfStudy`, `admissionPeriod`, `socialEvent`, `publicFile`, `person`, `team`, `position`, `membership`, `adminGrant`, `endingSoonDigest`, `outbox`, `auditLog`, and the enums `semesterTerm`, `teamFunction`, `outboxStatus`. TS names are camelCase, SQL names snake_case. |
+| `schema` | Drizzle tables for organisation, teams, accounts, codes, outbox and audit. Better Auth owns `auth_user`, `auth_session`, `auth_account` and `auth_verification`. |
 | `UniqueConstraint` | The constraint names that map to `AlreadyExists`: `department_city_unique`, `semester_term_year_unique`, `person_email_unique`, `team_department_name_unique` and the exclusion constraint `membership_no_overlap`. |
 | `DatabaseLive({ url, maxConnections? })` | `Layer<` every repository (`DepartmentRepository`, `AdmissionPeriodRepository`, `SemesterRepository`, `FieldOfStudyRepository`, `SocialEventRepository`, `PublicFileRepository`, `PersonRepository`, `TeamRepository`, `PositionRepository`, `MembershipRepository`, `AdminGrantRepository`, `DigestLedger`, `PrincipalDirectory`) `\| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. |
 | `transactional(effect)` | Runs the effect in `SqlClient.withTransaction` (a savepoint when nested) and provides `InTransaction`. The only provider of `InTransaction`. A typed failure, a defect or an interruption rolls back every row, including audit and outbox rows. A failing BEGIN/COMMIT is a defect. |
@@ -34,11 +34,19 @@ PostgreSQL: the Drizzle schema (single source), the generated migrations, and th
 - `AdminGrantRepository.revoke` locks the places that end after the cut-off (`SELECT … ORDER BY id FOR UPDATE`) before it deletes, so two revocations at once queue up and the second is told it is the last one. `DigestLedger.claim` is `INSERT … ON CONFLICT DO NOTHING RETURNING`.
 - `PrincipalDirectory.byName` loads a person's active memberships and admin places in one statement (`json_agg` subselects) and builds the principal with the domain's `personPrincipal`.
 
+### Accounts and sessions (spec 0007)
+
+- `account` stores the state. `code` stores one hash per purpose and person. Conditional updates enforce expiry and single use.
+- A partial unique index applies to verified private e-mail addresses. Company addresses have a separate unique index.
+- `SessionDirectory` derives last seen from the session creation time and its latest audit entry. Audit rows include the session and client kind.
+- `captured_mail` is the non-production mailbox. The outbox does not hold plaintext codes, even before delivery.
+- The Phase 1 importer refuses an account-bearing target. It cannot restore credentials after replacement.
+
 ## Hyperdrive rules
 
 - `PgClient` runs with `prepare: false` (Hyperdrive pools in transaction mode), `multiplex: false`, and a small `maxConnections`. The settings live in `DatabaseLive`.
 - This package uses no advisory locks, no LISTEN/NOTIFY and no session `SET`. Invariants come from constraints, `ON CONFLICT … RETURNING` and row locks.
-- Transactions are short and never contain provider I/O. Commands enqueue outbox rows, and delivery happens after commit.
+- Domain command transactions never contain provider I/O. Code delivery uses a separate transaction to mint, send and acknowledge a link (spec 0007 R1).
 - Turn Hyperdrive query caching off (architecture §4).
 
 ## Migrations
@@ -94,7 +102,7 @@ devenv shell -- bash -c 'cd packages/db && bunx vp check'  # format, lint, type 
 - `readOnlyRole` (`test/support/readOnlyRole.ts`, exported as `@vektorprogrammet/db/testing/read-only-role`) adds a login role on the disposable database that holds `SELECT` and nothing else. Code run through it that succeeds wrote nothing; a write is refused with `permission denied`. `test/readOnlyRole.postgres.test.ts` proves it reads and refuses INSERT, UPDATE, DELETE, TRUNCATE, `ON CONFLICT DO UPDATE`, sequence use, temporary tables and `CREATE`. `apps/web`'s `readsNeverWrite.postgres.test.ts` uses it for spec 0003, falsifier 3. The role is cluster-wide: the layer drops it before it drops the database. Leftovers: `select rolname from pg_roles where rolname like 'vp_read_only_%'`.
 - Build the PostgreSQL layer with `excludeTestServices: true`. The pool reads the Clock it was built with to track connection age. When a test moved a shared `TestClock`, the suite hung. Tests that need fixed time nest `it.layer(TestClock.layer())`. At least one cause of that hang is gone: the disposable database's own release (see `withClient` above). The rule stays, because nobody has measured the suites without it.
 - The PGlite database loads `btree_gist` (`@electric-sql/pglite/contrib/btree_gist`), because the migration `membership_no_overlap` creates the extension.
-- The local seed (`test/support/localSeed.ts`, exported as `@vektorprogrammet/db/testing/local-seed`, run with `bun run db:seed:local`) gives `vp dev` and the browser tests the people they act as: Ada Admin (an admin place), Lise Leder (leads the recruitment team), Mats Medlem, Sofie Styre (the board team), Nora Nybegynner (no team) and Eva Ekstern (a membership that has ended). It reads `SEED_TARGET_DATABASE_URL`, else `DATABASE_URL`, and is safe to run again.
+- The local seed gives Ada, Lise and Nora fake bcrypt credentials. Mats starts without an account for the invitation journey. The same seed runs on fake-data Preview branches.
 
 Each Behavior Contract rule that the database enforces is covered by a test whose name contains the rule id. These rules are RULE-096, 133, 188, 189, 237, 249, 290 and 296.
 

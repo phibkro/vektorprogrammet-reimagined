@@ -21,6 +21,8 @@ export interface WorkerEnv {
   readonly DEPLOYMENT: string;
   /** Neon through Hyperdrive with query caching disabled (locally: `DATABASE_URL`). */
   readonly HYPERDRIVE: Hyperdrive;
+  /** Stage-scoped Better Auth signing secret; local uses a fake secret. */
+  readonly BETTER_AUTH_SECRET: string;
   /** R2 bucket `vp-public-files` (EU jurisdiction, no public access). */
   readonly PUBLIC_FILES: R2Bucket;
   /** Per-IP limit for the `/kontakt` form post. */

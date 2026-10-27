@@ -17,7 +17,11 @@ import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive } from "@vektorprogrammet/db";
-import type { OutboxDelivery } from "@vektorprogrammet/db";
+import type {
+  CapturedMailStore,
+  OutboxDelivery,
+  SessionDirectory,
+} from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
   Outbox,
@@ -28,9 +32,11 @@ import {
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {
+  AccountRepository,
   AdminGrantRepository,
   AdmissionPeriodRepository,
   AuditLog,
+  CodeRepository,
   DepartmentRepository,
   DigestLedger,
   FieldOfStudyRepository,
@@ -38,6 +44,8 @@ import type {
   InTransaction,
   MembershipRepository,
   OutboxMessageId,
+  PasswordHasher,
+  PersonId,
   PersonRepository,
   PositionRepository,
   PrincipalDirectory,
@@ -52,6 +60,10 @@ import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
 
 import type { Outcome } from "../lib/outcome";
+import type { AccountDelivery } from "./accountDelivery";
+import { accountDeliveryLayer } from "./accountDelivery";
+import { Auth, authLayer } from "./auth";
+import { AuthBoundaryFailure } from "./authError";
 import { decodeDeployment } from "./deployment";
 import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
@@ -59,6 +71,7 @@ import type { RequestError } from "./errors";
 import { r2FileStoreLayer } from "./fileStore";
 import { SWEEP_LIMIT } from "./outboxDelivery";
 import { withOutbox } from "./outboxSweep";
+import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
 import { contactRateLimiterLayer } from "./rateLimit";
 import type { ContactRateLimiter } from "./rateLimit";
@@ -76,6 +89,7 @@ const MAX_CONNECTIONS_PER_REQUEST = 2;
 export interface RequestScope {
   readonly env: WorkerEnv;
   readonly ctx: Pick<ExecutionContext, "waitUntil">;
+  readonly headers: Headers;
   readonly signal: AbortSignal;
   /** Raw `vp-test-actor` cookie (honoured only in a `local` deployment). */
   readonly testActor: string | undefined;
@@ -83,6 +97,8 @@ export interface RequestScope {
 
 /** What `DatabaseLive` provides (packages/db contract). */
 export type DatabaseServices =
+  | AccountRepository
+  | CodeRepository
   | AdmissionPeriodRepository
   | DepartmentRepository
   | SemesterRepository
@@ -98,12 +114,16 @@ export type DatabaseServices =
   | PrincipalDirectory
   | Outbox
   | AuditLog
+  | CapturedMailStore
   | OutboxDelivery
+  | SessionDirectory
   | SqlClient.SqlClient;
 
 /** Every service a request program may require. */
 export type RequestServices =
   | DatabaseServices
+  | Auth
+  | PasswordHasher
   | Transactor
   | FileStore
   | CurrentPrincipal
@@ -130,10 +150,11 @@ export const liveRequestLayer = (
         r2FileStoreLayer(scope.env.PUBLIC_FILES),
         Layer.effect(
           CurrentPrincipal,
-          resolvePrincipal(deployment, scope.testActor)
+          resolvePrincipal(deployment, scope.testActor, scope.headers)
         ),
         Layer.succeed(SiteOrigin)(scope.env.SITE_URL),
         webCryptoLayer,
+        passwordHasherLayer,
         turnstileLiveLayer(Redacted.make(scope.env.TURNSTILE_SECRET_KEY)),
         contactRateLimiterLayer(scope.env.CONTACT_RATE_LIMIT),
         cmsLayer({
@@ -141,7 +162,12 @@ export const liveRequestLayer = (
           url: scope.env.CMS_URL,
         })
       ).pipe(
-        Layer.provideMerge(databaseLayer(scope.env)),
+        Layer.provideMerge(
+          Layer.merge(
+            databaseLayer(scope.env),
+            authLayer(scope.env).pipe(Layer.orDie)
+          )
+        ),
         Layer.provide(FetchHttpClient.layer)
       )
     )
@@ -248,15 +274,29 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
 /** Outbox delivery with its own connection: used by `waitUntil` and by the cron sweep. */
 const deliveryLayer = (
   env: WorkerEnv
-): Layer.Layer<MessageSender | DatabaseServices> =>
+): Layer.Layer<
+  | AccountDelivery
+  | MessageSender
+  | DatabaseServices
+  | Auth
+  | Crypto.Crypto
+  | SiteOrigin
+> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
-      Layer.merge(
-        messageSenderLayer(senderConfigFromEnv(deployment, env)).pipe(
-          Layer.provide(FetchHttpClient.layer),
-          Layer.orDie
-        ),
-        databaseLayer(env)
+      accountDeliveryLayer.pipe(
+        Layer.provideMerge(
+          Layer.mergeAll(
+            messageSenderLayer(senderConfigFromEnv(deployment, env)).pipe(
+              Layer.provide(FetchHttpClient.layer),
+              Layer.orDie,
+              Layer.provideMerge(databaseLayer(env))
+            ),
+            authLayer(env).pipe(Layer.orDie),
+            webCryptoLayer,
+            Layer.succeed(SiteOrigin)(env.SITE_URL)
+          )
+        )
       )
     )
   );
@@ -297,6 +337,40 @@ export const runDelivery = (
         )
       )
     )
+  );
+
+/** Activation and reset wait for their own credential intent after the domain commit. */
+export const runDeliveryChecked = (
+  env: WorkerEnv,
+  ids: readonly OutboxMessageId[],
+  signal: AbortSignal
+) =>
+  Effect.runPromise(
+    withOutbox((client) => client.sweepOutbox({ ids, limit: ids.length })).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
+      Effect.provide(deliveryLayer(env)),
+      Effect.orDie,
+      logDefects
+    ),
+    { signal }
+  );
+
+export const runSignInPerson = (
+  env: WorkerEnv,
+  input: {
+    readonly personId: PersonId;
+    readonly password: string;
+    readonly headers: Headers;
+  },
+  signal: AbortSignal
+): Promise<Response> =>
+  Effect.runPromise(
+    Auth.use((auth) => auth.signInPerson(input)).pipe(
+      Effect.provide(authLayer(env)),
+      Effect.orDie,
+      logDefects
+    ),
+    { signal }
   );
 
 /** The Layer of the jobs that write: the database, the transaction runner and the site's origin. */
@@ -391,3 +465,29 @@ export const runCommand = <
   scope: RequestScope,
   command: Effect.Effect<A, E, R>
 ): Promise<Outcome<A>> => runPreparedCommand(scope, Effect.void, () => command);
+
+/** Each Better Auth path has a separate per-IP bucket on the shared Worker binding. */
+export const runAuthRequest = (
+  request: Request,
+  env: WorkerEnv
+): Promise<Response> =>
+  Effect.runPromise(
+    Effect.gen(function* authRequest() {
+      const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+
+      const result = yield* Effect.tryPromise({
+        catch: (cause) => new AuthBoundaryFailure({ cause }),
+        try: () =>
+          env.CONTACT_RATE_LIMIT.limit({
+            key: `auth:${new URL(request.url).pathname}:${ip}`,
+          }),
+      });
+
+      if (!result.success) {
+        return new Response("Too Many Requests", { status: 429 });
+      }
+
+      return yield* (yield* Auth).handle(request);
+    }).pipe(Effect.provide(authLayer(env)), Effect.orDie),
+    { signal: request.signal }
+  );

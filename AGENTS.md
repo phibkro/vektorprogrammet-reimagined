@@ -25,6 +25,7 @@ Paths starting with `../../` are relative to this repository inside the moderniz
 flowchart LR
   web["apps/web<br/>TanStack Start on one Cloudflare Worker<br/>fetch + scheduled"] --> domain["packages/domain<br/>Effect v4 rules, grants,<br/>service interfaces, commands"]
   web --> db["packages/db<br/>Drizzle schema + migrations,<br/>repositories, transactional, outbox"]
+  web -->|"Better Auth pg pool → Hyperdrive"| pg
   db --> domain
   import["tools/import<br/>legacy MySQL → PostgreSQL + EmDash"] --> db
   import --> domain
@@ -37,11 +38,13 @@ flowchart LR
   cms -->|binding| r2cms[("R2 media")]
 ```
 
-- **One Worker.** Server functions are the only write path. A command runs in one transaction that writes domain rows, an audit row and outbox rows. Mail (Cloudflare Email Service) and Slack are delivered after commit by `waitUntil` and a cron sweep.
+- **One Worker.** Domain commands write domain, audit and outbox rows in one transaction. Better Auth owns its four tables and writes outside domain command transactions. Delivery runs after commit. Code delivery mints, sends and acknowledges in a separate transaction (spec 0007 R1).
 - **`domain` is pure Effect** and imports nothing from `db` or `web`. Atomic commands require `InTransaction`, which only `db`'s `transactional` provides, so an unwrapped command doesn't type-check.
 - **Only production can send real mail or Slack.** Local and preview deployments get a capture sink (structural, tested).
+- **Codes and sessions.** A code principal is request-scoped and narrowed to one command and person. The outbox carries no plaintext code. Every login session requires an Active account. The non-production mailbox is the only stored copy of the delivered link.
+- **Person aggregate writes.** Account commands concerning an identified person and code delivery lock the Person row with `FOR NO KEY UPDATE` in their transaction before final state decisions and guarded writes. Reset first identifies a candidate, then rechecks its address and state under the lock. Account and Code persistence live in separate repository modules; state updates remain conditional. This prepares the cutover to spec 0006b's `Locked<Person>` token.
 - **Database rules for every phase:** no advisory locks, LISTEN/NOTIFY or session `SET` (Hyperdrive). Invariants live in constraints and `INSERT … ON CONFLICT … RETURNING`.
-- **A cancelled request interrupts its program** (and rolls back an open transaction) only because `apps/web/worker.config.ts` sets `enable_request_signal`, which has no default compatibility date. Slice 0000 check 3b measured both sides: without the flag the transaction committed after the client had gone.
+- **A cancelled request interrupts its domain program** (and rolls back an open domain transaction) only because `apps/web/worker.config.ts` sets `enable_request_signal`, which has no default compatibility date. Slice 0000 check 3b measured both sides: without the flag the transaction committed after the client had gone. Better Auth's pg/Kysely adapter cannot receive an `AbortSignal`: its calls complete in an uninterruptible boundary before interruption is reported (spec 0007 R4, EX-0017). An aborted sign-in can leave one unseen session, visible on Min side until it expires.
 - **Reads never write** (specs 0003 and 0006). Commands and the scheduled jobs are the write paths. Register each new `runQuery` path and principal read in `apps/web/test/readsNeverWrite.postgres.test.ts`.
 
 ## Units
@@ -73,11 +76,12 @@ devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://local
 ```
 
 - Environment variables (`DATABASE_URL`, `TEST_DATABASE_ADMIN_URL`, `LEGACY_MYSQL_URL`) come from `devenv.nix`, derived from the ports devenv allocates. Deployed environments get the database through the Hyperdrive binding declared in `apps/web/alchemy.run.ts`.
-- Secrets (Turnstile, Slack webhooks, the CMS's encryption key and the web app's read-only CMS token) are Worker secrets set with `cf`, never files.
+- Turnstile, Slack and CMS secrets are Worker secrets set with `cf`, never files. Alchemy generates the Better Auth signing secret once per stage and stores it in stage state. Only local development uses a fake key.
+- Alchemy binds each Preview's `SITE_URL` with `Cloudflare.Worker.URL`. Production uses its explicitly configured origin.
 - Neon secrets are declared in `secretspec.toml` and read only through `secretspec run -- <command>` with a `SECRETSPEC_REASON`, so a value never enters devenv evaluation, the Nix store or a shell. `packages/db/README.md` (Neon) has the branch, role and connection details.
 - Real-PostgreSQL tests create and drop their own `vp_db_test_*` databases, through one helper (`@vektorprogrammet/db/testing`; `@vektorprogrammet/db/testing/read-only-role` adds a SELECT-only role on top). The importer's MySQL fixture databases are `import_test_*`.
 - The CMS has its own run steps (`apps/cms/README.md` § Run it locally) and so does the importer's pair of programs (`tools/import/README.md`); the browser tests start the CMS themselves, put the importer's fixture in it twice, and need outbound network for Turnstile's always-pass test keys.
-- The local test actor exists only when `DEPLOYMENT=local`. The `vp-test-actor` cookie selects a seeded person by name. Run the local seed first. Preview and production remain anonymous.
+- The local test actor exists only when `DEPLOYMENT=local`. The cookie selects a seeded person when no Better Auth cookie exists. Preview and production use real sessions and never accept the test-actor cookie.
 
 ## Quality gates
 
@@ -123,6 +127,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | `Entity/Department.php` (admission helpers) | 015ʳ, 119ʳ | `domain/src/organisation/admission.ts` |
 | `Controller/FieldOfStudyController.php` | 139 | `domain/src/organisation/fieldOfStudy.ts` and the grant table; `web` `/kontrollpanel/linjer` |
 | `Entity/Team.php`, `Entity/TeamMembership.php`, `Entity/User.php` | 016, 023, 031, 048, 124, 157, 164, 206, 234, 251, 252, 284, 298 | `domain/src/teams`; `db` people and membership repositories; `web` Team and People pages |
+| Legacy user credentials and sessions | 024, 104, 112, 125, 126, 131, 132, 166, 201, 202, 220, 281 | `domain/src/accounts`, Better Auth in `web/src/server/auth.ts`, Min side and code pages |
 | `app/Resources/views/adminBase.html.twig`, `base/admin/main_navigation.html.twig`, `base/admin/mobile_navigation.html.twig` (menu entries hidden by `is_granted_team_leader()` and `is_granted_admin()`, a role list beside the security rules) | — (brief §7, spec 0004) | `web` shell: `server/shell.ts` derives the sidebar from `authorize`; `components/panel/` |
 | `Controller/StaticContentController.php`, `Twig/Extension/SafeHtmlExtension.php` | 296 retired (EmDash's role model), 133ʳ | the CMS's `texts` collection, keyed by the legacy `html_id` (`apps/cms/seed/seed.json`, `apps/web/src/lib/textSlots.ts`); `domain/src/content/sanitizer.ts` runs in the CMS importer; `web` `components/site/portableTextView.tsx` renders Portable Text without raw HTML |
 | `Controller/ArticleController.php`, `ArticleAdminController.php`, `Service/SlugMaker.php`, `Repository/ArticleRepository.php` | 096, 182, 266 (bug fixed), 267 → CMS drafts, 326, 331 | the CMS's `news` collection; `domain/src/content/{article,slug}.ts` keeps the pure rules (page size, front-page order, slugs); `web` `/nyheter`, `/nyhet/$slug` |

@@ -11,9 +11,13 @@
  */
 import { Array as Arr, Match, Predicate, Schema } from "effect";
 
-import type { DepartmentId, PersonId } from "../shared/ids.ts";
+import { CodePurpose, codePolicy } from "../accounts/code.ts";
 import { SystemJob, TeamFunction } from "./principal.ts";
-import type { MembershipFact, Principal } from "./principal.ts";
+import type {
+  MembershipFact,
+  Principal,
+  PrincipalResource,
+} from "./principal.ts";
 
 /**
  * Where a grant applies (`docs/system/teams.md`): the actor's own records, the departments in which the
@@ -22,15 +26,13 @@ import type { MembershipFact, Principal } from "./principal.ts";
 export type Scope = "own" | "department" | "all";
 
 /** What a command is about, as far as permissions go: the department of the record, the person it belongs to. */
-export interface Resource {
-  readonly departmentId?: DepartmentId;
-  readonly personId?: PersonId;
-}
+export type Resource = PrincipalResource;
 
 export const Any = Schema.TaggedUnion({
   Admin: {},
   Anyone: {},
   Fn: { function: TeamFunction },
+  Holder: { purpose: CodePurpose },
   Leader: {},
   Member: {},
   Self: {},
@@ -44,7 +46,7 @@ export type Global = Extract<
   { readonly _tag: "Admin" | "Anyone" | "System" }
 >;
 
-export type Personal = Extract<Any, { readonly _tag: "Self" }>;
+export type Personal = Extract<Any, { readonly _tag: "Holder" | "Self" }>;
 
 export type Departmental = Extract<
   Any,
@@ -63,6 +65,10 @@ export const system = (job: SystemJob): Global =>
 
 /** The person that the resource belongs to. */
 export const self: Personal = Any.cases.Self.make({});
+
+/** The recipient of a valid single-use code, restricted to its purpose and person. */
+export const holder = (purpose: CodePurpose): Personal =>
+  Any.cases.Holder.make({ purpose });
 
 /** Has an active membership in a team of the department. */
 export const member: Departmental = Any.cases.Member.make({});
@@ -119,6 +125,16 @@ export const holds = (
         resource,
         (membership) => membership.function === teamFunction
       ),
+    Holder: ({ purpose }) =>
+      scope === "own" &&
+      Predicate.isTagged(principal, "Person") &&
+      resource.personId === principal.personId &&
+      Arr.some(
+        principal.narrowing ?? [],
+        (restriction) =>
+          restriction.command === codePolicy[purpose].command &&
+          restriction.resource.personId === principal.personId
+      ),
     Leader: () =>
       someMembership(
         principal,
@@ -144,6 +160,7 @@ export const notation = (subject: Any): string =>
     Anyone: () => "Anyone",
     Fn: ({ function: teamFunction }) =>
       teamFunction === "board" ? "Board" : `Fn(${teamFunction}, d)`,
+    Holder: ({ purpose }) => `Holder(${purpose})`,
     Leader: () => "Leader(d)",
     Member: () => "Member(d)",
     Self: () => "Self",
@@ -160,6 +177,7 @@ export const label = (subject: Any): string =>
         teamFunction === "board"
           ? "A member of the board"
           : `A member of a team with the ${teamFunction} function`,
+      Holder: ({ purpose }) => `The holder of the ${purpose} code`,
       Leader: () => "A team leader in the department",
       Member: () => "A member of a team in the department",
       Self: () => "The person the record belongs to",
@@ -176,6 +194,11 @@ export const catalog: readonly {
   {
     definition: "The person that the resource `r` belongs to",
     notation: "Self",
+  },
+  {
+    definition:
+      "The holder of a code for purpose `p`, restricted to its command and person",
+    notation: "Holder(p)",
   },
   {
     definition: "Has an active membership in a team of department `d`",

@@ -4,10 +4,14 @@
  * the Playwright runner awaits.
  */
 import { PgClient } from "@effect/sql-pg";
+import { mintCode } from "@vektorprogrammet/domain";
+import type { CodePurpose } from "@vektorprogrammet/domain";
 import { Config, Effect, Layer, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
+
+import { webCryptoLayer } from "../../src/server/webCrypto.ts";
 
 const DatabaseLive = Layer.unwrap(
   Config.Redacted("E2E_DATABASE_URL").pipe(
@@ -126,6 +130,63 @@ export const membershipsNamed = (teamName: string, personName: string) =>
         where t.name = ${teamName} and person.name = ${personName}
         order by m.start_ordinal, m.id`
   );
+
+/** The fake non-production mailbox is the only persisted copy of an activation/reset link. */
+export const capturedMailTo = (recipient: string) =>
+  rowsOf(
+    Schema.Struct({ text: Schema.String }),
+    (sql) =>
+      sql`select text from captured_mail where recipient = ${recipient} order by id desc`
+  );
+
+export const accountStateOf = (email: string) =>
+  rowsOf(
+    Schema.Struct({ state: Schema.String }),
+    (sql) =>
+      sql`select a.state from account a join person p on p.id = a.person_id where p.email = ${email}`
+  );
+
+export const sessionCountOf = (email: string) =>
+  countOf(
+    (sql) =>
+      sql`select count(*)::int as n from auth_session s join auth_user u on u.id = s.user_id where u.email = ${email}`
+  );
+
+/** Fake rows for the reset-response comparison. They have no Better Auth credentials. */
+export const seedResetCases = Effect.gen(function* seedResetCases() {
+  const sql = yield* SqlClient;
+  yield* sql`insert into person (name, email, company_email, field_of_study_id)
+    select names.name, names.email, names.company, (select id from field_of_study order by id limit 1)
+    from (values ('Reset Active', 'privacy-active@example.org', 'privacy-company@example.org'),
+                 ('Reset Invited', 'privacy-invited@example.org', null),
+                 ('Reset Deactivated', 'privacy-deactivated@example.org', null)) as names(name, email, company)`;
+  yield* sql`insert into account (person_id, state)
+    select id, case email when 'privacy-active@example.org' then 'Active' when 'privacy-invited@example.org' then 'Invited' else 'Deactivated' end
+    from person where email in ('privacy-active@example.org', 'privacy-invited@example.org', 'privacy-deactivated@example.org')`;
+});
+
+export const resetIntentCount = countOf(
+  (sql) =>
+    sql`select count(*)::int as n from outbox where kind = 'IssueCode' and payload ->> 'purpose' = 'resetPassword'`
+);
+
+export const deactivateResetFixture = Effect.flatMap(
+  SqlClient,
+  (sql) =>
+    sql`update account set state = 'Deactivated' where person_id = (select id from person where email = 'privacy-active@example.org')`
+);
+
+/** Install only the hash of a fresh code for a real HTTP state-precondition probe. */
+export const codeFor = (email: string, purpose: CodePurpose) =>
+  Effect.gen(function* seedCode() {
+    const sql = yield* SqlClient;
+    const { hash, token } = yield* mintCode().pipe(Effect.orDie);
+    yield* sql`insert into code (purpose, subject, hash, expires_at, used_at)
+      select ${purpose}, id, ${hash}, now() + interval '1 hour', null from person where email = ${email}
+      on conflict (purpose, subject) do update set hash = excluded.hash, expires_at = excluded.expires_at, used_at = null`;
+
+    return token;
+  }).pipe(Effect.provide(webCryptoLayer));
 
 const OutboxRow = Schema.Struct({
   kind: Schema.String,

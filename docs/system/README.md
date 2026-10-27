@@ -100,6 +100,7 @@ Each domain page starts with a plain description. A **Reference** section for de
 | [Recruitment](recruitment.md) | Interview forms, interviews, outcomes |
 | [Placement](placement.md) | Schools, school capacity, placement suggestions, placements |
 | [Teams and people](teams.md) | Teams, memberships, terms, people who join, move, leave and come back |
+| [Accounts and sessions](accounts.md) | Invitations, credentials, account state, sessions and profile |
 | [Economy](economy.md) | Expense claims, refunds, bookkeeping export |
 | [Administration](administration.md) | Accounts, the admin list, personal data and retention |
 
@@ -127,4 +128,4 @@ The Reference section of each domain page declares, for developers:
 - the personal data: purpose, legal basis and retention
 - the legacy rules (RULE-nnn) that each item replaces
 
-Spec 0006 generates the marked teams blocks from `packages/domain`. Run `bun run docs` after changing declarations. CI runs `bun run check:docs`. Other domain references remain hand-written from `INFORMATION_MODEL.md` until their slices are built.
+Specs 0006 and 0007 generate the marked teams and accounts blocks from `packages/domain`. Run `bun run docs` after changing declarations. CI runs `bun run check:docs`. Other references remain hand-written until their slices are built.

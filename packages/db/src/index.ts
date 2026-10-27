@@ -11,6 +11,13 @@ export { DatabaseLive, type DatabaseConfig } from "./databaseLive.ts";
 
 export { transactional } from "./transactional.ts";
 
+export { CapturedMailStore } from "./repositories/capturedMail.ts";
+
+export {
+  SessionDirectory,
+  type SessionActivity,
+} from "./repositories/sessions.ts";
+
 export {
   classifySqlFailure,
   violatedUniqueConstraint,
@@ -25,6 +32,7 @@ export {
 
 export {
   DEFAULT_LOCAL_PERSON,
+  LOCAL_FAKE_PASSWORD,
   LOCAL_PEOPLE,
   type LocalPerson,
 } from "./localPeople.ts";

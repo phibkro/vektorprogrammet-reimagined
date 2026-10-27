@@ -1,36 +1,19 @@
-/**
- * Outbox delivery (architecture §4): after a command commits, `waitUntil`
- * delivers the ids it enqueued; the cron sweep (`scheduled`) delivers every
- * due row. Both claim rows through `OutboxDelivery` (`FOR UPDATE SKIP LOCKED`,
- * claim token), send OUTSIDE any transaction, then mark the row delivered or
- * failed with exponential backoff, and dead after `MAX_ATTEMPTS`.
- */
+/** Post-commit delivery: claim due rows, interpret each intent, and fence acknowledgements by claim token. */
 import { OutboxDelivery } from "@vektorprogrammet/db";
 import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
 import type { OutboxMessageId } from "@vektorprogrammet/domain";
 import { DateTime, Duration, Effect, Predicate } from "effect";
 
+import { AccountDelivery } from "./accountDelivery";
 import { MessageSender } from "./senders";
 
-/** Attempts (including the first) before a row is marked dead. */
 export const MAX_ATTEMPTS = 8;
-
-/** Delay after the first failure; doubles per attempt. */
 export const BASE_RETRY_DELAY = Duration.minutes(5);
-
-/** Upper bound on one retry delay. */
 export const MAX_RETRY_DELAY = Duration.hours(12);
-
-/** How long a claim is held before another sweeper may take the row. */
 export const LEASE_SECONDS = 120;
-
-/** Rows one sweep handles; low volume, so one batch per cron tick. */
 export const SWEEP_LIMIT = 50;
 
-/**
- * When to try again after the `attempts`-th failed attempt, or `"dead"`.
- * attempts 1 → +5 min, 2 → +10 min, 3 → +20 min, … capped at 12 h.
- */
+/** When to retry, or `dead` after the final attempt. */
 export const nextAttemptAfterFailure = (
   attempts: number,
   failedAt: DateTime.Utc
@@ -47,29 +30,44 @@ export const nextAttemptAfterFailure = (
   return DateTime.addDuration(failedAt, delay);
 };
 
-const deliverOne = Effect.fnUntraced(function* deliverOne(
+const deliverClaim = Effect.fnUntraced(function* deliverClaim(
   row: ClaimedOutboxMessage
 ) {
   const delivery = yield* OutboxDelivery;
-  const sender = yield* MessageSender;
-  const sent = yield* Effect.result(sender.send(row.message));
+  const { message } = row;
 
-  if (Predicate.isTagged(sent, "Success")) {
-    const ack = yield* delivery.markDelivered(row.id, row.claimToken);
+  if (Predicate.isTagged(message, "IssueCode")) {
+    return yield* (yield* AccountDelivery).issueCode(row, message);
+  }
 
+  yield* Predicate.isTagged(message, "SetCredential")
+    ? (yield* AccountDelivery).setCredential(row, message)
+    : (yield* MessageSender).send(message);
+
+  return yield* delivery.markDelivered(row.id, row.claimToken);
+});
+
+const deliverOne = Effect.fnUntraced(function* deliverOne(
+  row: ClaimedOutboxMessage
+) {
+  const result = yield* Effect.result(deliverClaim(row));
+
+  if (Predicate.isTagged(result, "Success")) {
     return {
       id: row.id,
       outcome:
-        ack === "recorded" ? ("delivered" as const) : ("claimLost" as const),
+        result.success === "recorded"
+          ? ("delivered" as const)
+          : ("claimLost" as const),
     };
   }
 
   const next = nextAttemptAfterFailure(row.attempts, yield* DateTime.now);
 
-  const ack = yield* delivery.markFailed(
+  const ack = yield* (yield* OutboxDelivery).markFailed(
     row.id,
     row.claimToken,
-    sent.failure.reason,
+    result.failure.reason,
     next
   );
 
@@ -91,10 +89,7 @@ const deliverOne = Effect.fnUntraced(function* deliverOne(
   };
 });
 
-/**
- * Claims due rows (optionally only `ids`) and delivers them one at a time.
- * Never runs inside a transaction: each claim and mark is its own statement.
- */
+/** Claim a bounded batch and process it in order; claims are fenced by their token. */
 export const deliverOutbox = Effect.fn("deliverOutbox")(
   function* deliverOutbox(options: {
     readonly ids?: readonly OutboxMessageId[];

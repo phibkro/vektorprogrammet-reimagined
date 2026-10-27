@@ -27,6 +27,13 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
+      boundaries: ["external-data"],
+      files: ["apps/web/src/server/auth.ts", "apps/web/src/server/password.ts"],
+      platform: "node",
+      role: "runtime-adapter",
+      strictness: "strict",
+    },
+    {
       files: [
         "apps/web/src/components/**",
         "apps/web/src/lib/**",
@@ -61,6 +68,7 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/server/site/**",
         "apps/web/src/server/turnstile.ts",
         "apps/web/src/server/outboxDelivery.ts",
+        "apps/web/src/server/accountDelivery.ts",
         "apps/web/src/server/contact.ts",
         "apps/web/src/server/transactor.ts",
         "apps/web/src/server/scope.ts",
@@ -85,8 +93,10 @@ const effectConfig: EffectConfigInput = {
     {
       files: [
         "apps/web/src/server.ts",
+        "apps/web/src/server/authStartup.ts",
         "apps/web/src/server/runtime.ts",
         "apps/web/src/server/contactPost.ts",
+        "apps/web/src/server/accountPost.ts",
       ],
       platform: "portable",
       role: "composition-root",
@@ -172,6 +182,8 @@ const effectConfig: EffectConfigInput = {
         "packages/cms-client/test/collections.test.ts",
         "apps/web/test/textSlots.test.ts",
         "tools/docgen/test/render.test.ts",
+        "packages/db/test/accounts.postgres.test.ts",
+        "apps/web/test/support/workerRuntime.ts",
       ],
       platform: "node",
       role: "composition-root",
@@ -329,6 +341,7 @@ export default defineConfig({
           "apps/web/src/routes/filer/$key.ts",
           "apps/web/src/routes/kontakt/*.tsx",
           "apps/web/src/functions/panel.functions.ts",
+          "apps/web/src/functions/account.functions.ts",
           "apps/web/src/routes/nyhet/$slug.tsx",
           "apps/web/src/routes/nyheter/index.tsx",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
@@ -357,6 +370,8 @@ export default defineConfig({
           "tools/db-path-spike/src/worker/http.ts",
           "tools/db-path-spike/src/smoke.ts",
           "tools/db-path-spike/src/smoke/refused.ts",
+          "apps/web/src/server/authError.ts",
+          "apps/web/src/server/deliveryClaimLost.ts",
           "apps/web/e2e/run.ts",
           "apps/web/e2e/support/devServer.ts",
           "apps/web/e2e/support/command.ts",
@@ -464,6 +479,15 @@ export default defineConfig({
           "apps/web/src/server.ts",
           "apps/web/src/server/runtime.ts",
           "apps/web/src/server/contactPost.ts",
+          "apps/web/src/server/accountPost.ts",
+          "apps/web/src/server/auth.ts",
+          "apps/web/src/server/password.ts",
+          "apps/web/test/auth.postgres.test.ts",
+          "apps/web/test/password.test.ts",
+          "apps/web/test/password.worker.test.ts",
+          "apps/web/test/support/password.worker.ts",
+          "apps/web/test/support/workerRuntime.ts",
+          "apps/web/test/authStartup.worker.test.ts",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
           "apps/web/src/server/fileStore.ts",
           "apps/web/src/server/rateLimit.ts",
@@ -499,6 +523,7 @@ export default defineConfig({
         files: [
           "apps/web/src/lib/outcome.ts",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
+          "apps/web/src/routes/etter-innlogging.tsx",
         ],
         rules: {
           "effect/no-untyped-throw": "off",
@@ -511,7 +536,7 @@ export default defineConfig({
         rules: { "effect/no-untyped-throw": "off" },
       },
       {
-        // failureOf is a synchronous pure serialization boundary over an already typed error union.
+        // Typed error serialization is the existing synchronous Schema bridge.
         files: ["apps/web/src/server/errors.ts"],
         rules: { "effecttsgo/schema-sync": "off" },
       },
@@ -590,8 +615,9 @@ export default defineConfig({
         rules: { "unicorn/prefer-structured-clone": "off" },
       },
       {
-        // Playwright actions on one page must run in order: every `fill` moves the focus, so filling fields concurrently types into the wrong ones, and a spec visits its pages one after another.
+        // Playwright actions on one page and the account test's shared rate-limit probes must run in order, not race each other.
         files: [
+          "apps/web/e2e/accounts.spec.ts",
           "apps/web/e2e/support/panel.ts",
           "apps/web/e2e/shell.spec.ts",
           "apps/web/e2e/public.spec.ts",

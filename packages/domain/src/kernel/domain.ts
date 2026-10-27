@@ -18,6 +18,8 @@ import {
 import type { NonEmptyReadonlyArray } from "effect/Array";
 import type { Rpc, RpcGroup } from "effect/rpc";
 
+import { codePolicy } from "../accounts/code.ts";
+import type { CodePurpose } from "../accounts/code.ts";
 import type { Forbidden } from "../shared/errors.ts";
 import { PersonId } from "../shared/ids.ts";
 import type { DepartmentId } from "../shared/ids.ts";
@@ -39,7 +41,15 @@ export { Info, info } from "./commands.ts";
 
 export { make as grant } from "./grant.ts";
 
-export { anyone, board, leader, member, self, system } from "./subject.ts";
+export {
+  anyone,
+  board,
+  holder,
+  leader,
+  member,
+  self,
+  system,
+} from "./subject.ts";
 
 /** A read the domain guards by name (a page, a list): it has a grant but no transition and no handler. */
 export interface ReadInfo {
@@ -142,6 +152,13 @@ const jobOf = (rpc: Rpc.Any): SystemJob | null =>
     Option.getOrNull
   );
 
+/** The code purpose that alone runs a command, if any. */
+const credentialOf = (rpc: Rpc.Any): CodePurpose | null =>
+  Commands.infoOf(rpc).pipe(
+    Option.flatMapNullishOr((info) => info.credential),
+    Option.getOrNull
+  );
+
 /**
  * Declares a domain. `grants` are typed by the group: a row that names a command outside it does not compile.
  * `reads` names what the domain guards besides commands.
@@ -160,7 +177,9 @@ export const make = <
   const rpcs = Arr.fromIterable(declaration.commands.requests.values());
 
   const personal: readonly CommandOf<Rpcs, Reads>[] = [
-    ...Arr.flatMap(rpcs, (rpc) => (jobOf(rpc) === null ? [rpc._tag] : [])),
+    ...Arr.flatMap(rpcs, (rpc) =>
+      jobOf(rpc) === null && credentialOf(rpc) === null ? [rpc._tag] : []
+    ),
     ...Rec.keys(declaration.reads),
   ];
 
@@ -211,6 +230,7 @@ const scopeFits = (subject: Subject.Any, scope: Subject.Scope): boolean =>
     Admin: () => scope === "all",
     Anyone: () => scope === "all",
     Fn: () => scope !== "own",
+    Holder: () => scope === "own",
     Leader: () => scope !== "own",
     Member: () => scope !== "own",
     Self: () => scope === "own",
@@ -279,6 +299,32 @@ const jobGrants = (declaration: Declaration) =>
     );
   });
 
+/** A code-only command is granted solely to the holder of that purpose. */
+const credentialGrants = (declaration: Declaration) =>
+  Arr.flatMap(declaration.commands, (rpc) => {
+    const purpose = credentialOf(rpc);
+
+    const wrongCommand =
+      purpose !== null && codePolicy[purpose].command !== rpc._tag
+        ? [`${purpose} is not the credential for ${rpc._tag}`]
+        : [];
+
+    return [
+      ...wrongCommand,
+      ...Arr.flatMap(rowsNaming(declaration, rpc._tag), (row) =>
+        Arr.flatMap(row.subjects, (subject) => {
+          const holderPurpose = Predicate.isTagged(subject, "Holder")
+            ? subject.purpose
+            : null;
+
+          return holderPurpose === purpose
+            ? []
+            : [`${rpc._tag} is not granted to ${Subject.notation(subject)}`];
+        })
+      ),
+    ];
+  });
+
 const jobsWithoutGrant = (declaration: Declaration) =>
   Arr.flatMap(declaration.commands, (rpc) => {
     const job = jobOf(rpc);
@@ -303,12 +349,12 @@ const admin = Principal.cases.Person.make({
 const adminGaps = (declaration: Declaration) => {
   const authorize = authorizeWith(declaration.table);
 
-  const jobCommands = Arr.flatMap(declaration.commands, (rpc) =>
-    jobOf(rpc) === null ? [] : [rpc._tag]
+  const restrictedCommands = Arr.flatMap(declaration.commands, (rpc) =>
+    jobOf(rpc) === null && credentialOf(rpc) === null ? [] : [rpc._tag]
   );
 
   return Arr.flatMap(namesOf(declaration), (name) =>
-    Arr.contains(jobCommands, name) || authorize(admin, name)
+    Arr.contains(restrictedCommands, name) || authorize(admin, name)
       ? []
       : [`an admin does not hold ${name}`]
   );
@@ -365,6 +411,7 @@ export const problems = (declaration: Declaration): readonly string[] => [
   ...unannotated(declaration),
   ...misfitScopes(declaration),
   ...jobGrants(declaration),
+  ...credentialGrants(declaration),
   ...jobsWithoutGrant(declaration),
   ...adminGaps(declaration),
   ...machineProblems(declaration),

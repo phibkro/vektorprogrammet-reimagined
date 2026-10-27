@@ -18,6 +18,7 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
+import { AccountDelivery } from "../src/server/accountDelivery";
 import {
   BASE_RETRY_DELAY,
   MAX_ATTEMPTS,
@@ -77,7 +78,13 @@ const run = (
           limit: 50,
         }
   ).pipe(
-    Effect.provide(Layer.merge(memoryLayer(tables), senderLayer(fails, sent)))
+    Effect.provide(
+      Layer.mergeAll(
+        memoryLayer(tables),
+        senderLayer(fails, sent),
+        Layer.mock(AccountDelivery, {})
+      )
+    )
   );
 
 describe("outbox delivery (architecture §4)", () => {
@@ -176,7 +183,11 @@ const sweepAs = (
 ) =>
   withOutbox((client) => client.sweepOutbox({ limit: 50 })).pipe(
     Effect.provide(
-      Layer.merge(memoryLayer(tables, principal), senderLayer(false, sent))
+      Layer.mergeAll(
+        memoryLayer(tables, principal),
+        senderLayer(false, sent),
+        Layer.mock(AccountDelivery, {})
+      )
     )
   );
 

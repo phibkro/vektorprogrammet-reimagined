@@ -14,10 +14,12 @@ import {
   Layer,
   Option,
   Order,
+  Predicate,
   Ref,
 } from "effect";
 
 import {
+  AccountRepository,
   AdminGrantId,
   AdminGrantRepository,
   AlreadyExists,
@@ -43,6 +45,7 @@ import {
   semesterOrdinal,
 } from "../../src/index.ts";
 import type {
+  Account,
   ActiveMembership,
   AdminGrant,
   AdminGrantView,
@@ -63,6 +66,7 @@ export const MEMBER_POSITION = PositionId.make(2);
 
 /** One `Ref` for the rows of each fake teams table. */
 export interface TeamTableRefs {
+  readonly accounts: Ref.Ref<readonly Account[]>;
   readonly adminGrants: Ref.Ref<readonly AdminGrant[]>;
   readonly digests: Ref.Ref<ReadonlySet<string>>;
   readonly memberships: Ref.Ref<readonly Membership[]>;
@@ -74,6 +78,7 @@ export interface TeamTableRefs {
 
 /** Fresh, empty tables, with the seeded position list. */
 export const makeTeamTables = (): TeamTableRefs => ({
+  accounts: Ref.makeUnsafe<readonly Account[]>([]),
   adminGrants: Ref.makeUnsafe<readonly AdminGrant[]>([]),
   digests: Ref.makeUnsafe<ReadonlySet<string>>(new Set()),
   memberships: Ref.makeUnsafe<readonly Membership[]>([]),
@@ -95,6 +100,7 @@ export type RestoreTeamTables = () => Effect.Effect<void>;
  */
 export const snapshotTeamTables = (tables: TeamTableRefs) =>
   Effect.gen(function* snapshot() {
+    const accounts = yield* Ref.get(tables.accounts);
     const adminGrants = yield* Ref.get(tables.adminGrants);
     const digests = yield* Ref.get(tables.digests);
     const memberships = yield* Ref.get(tables.memberships);
@@ -105,6 +111,7 @@ export const snapshotTeamTables = (tables: TeamTableRefs) =>
     const restore: RestoreTeamTables = () =>
       Effect.all(
         [
+          Ref.set(tables.accounts, accounts),
           Ref.set(tables.adminGrants, adminGrants),
           Ref.set(tables.digests, digests),
           Ref.set(tables.memberships, memberships),
@@ -577,59 +584,80 @@ const principalDirectory = Layer.effect(
   Effect.gen(function* principalDirectory() {
     const tables = yield* TeamTables;
 
-    return PrincipalDirectory.of({
-      byName: (name, { current, now }) =>
-        Effect.gen(function* load() {
-          const person = Arr.findFirst(
-            yield* Ref.get(tables.people),
-            (row) => row.name === name
-          );
+    const load = Effect.fnUntraced(function* loadPrincipal(
+      matches: (person: Person) => boolean,
+      {
+        current,
+        now,
+      }: { readonly current: Semester; readonly now: DateTime.Utc }
+    ) {
+      const person = Arr.findFirst(yield* Ref.get(tables.people), matches);
 
-          if (Option.isNone(person)) {
+      if (Option.isNone(person)) {
+        return Option.none();
+      }
+
+      const teams = yield* Ref.get(tables.teams);
+
+      const stored = yield* Ref.get(tables.memberships);
+
+      const memberships = Arr.flatMap(
+        Arr.filter(
+          stored,
+          (membership) =>
+            membership.personId === person.value.id &&
+            membershipState(membership, current) === "Active"
+        ),
+        (membership: Membership): readonly MembershipFact[] =>
+          Option.match(
+            Arr.findFirst(teams, (team) => team.id === membership.teamId),
+            {
+              onNone: () => [],
+              onSome: (team) => [
+                {
+                  departmentId: team.departmentId,
+                  function: team.function,
+                  leader: membership.leader,
+                  teamId: team.id,
+                },
+              ],
+            }
+          )
+      );
+
+      const grants = yield* Ref.get(tables.adminGrants);
+
+      return Option.some(
+        personPrincipal({
+          memberships,
+          now,
+          personId: person.value.id,
+          placeEnds: Arr.flatMap(grants, (grant) =>
+            grant.personId === person.value.id ? [grant.until] : []
+          ),
+        })
+      );
+    });
+
+    return PrincipalDirectory.of({
+      activeById: (personId, at) =>
+        Effect.gen(function* loadActive() {
+          const accounts = yield* Ref.get(tables.accounts);
+
+          if (
+            !Arr.some(
+              accounts,
+              (entry) =>
+                entry.personId === personId &&
+                Predicate.isTagged(entry.state, "Active")
+            )
+          ) {
             return Option.none();
           }
 
-          const teams = yield* Ref.get(tables.teams);
-
-          const stored = yield* Ref.get(tables.memberships);
-
-          const memberships = Arr.flatMap(
-            Arr.filter(
-              stored,
-              (membership) =>
-                membership.personId === person.value.id &&
-                membershipState(membership, current) === "Active"
-            ),
-            (membership: Membership): readonly MembershipFact[] =>
-              Option.match(
-                Arr.findFirst(teams, (team) => team.id === membership.teamId),
-                {
-                  onNone: () => [],
-                  onSome: (team) => [
-                    {
-                      departmentId: team.departmentId,
-                      function: team.function,
-                      leader: membership.leader,
-                      teamId: team.id,
-                    },
-                  ],
-                }
-              )
-          );
-
-          const grants = yield* Ref.get(tables.adminGrants);
-
-          return Option.some(
-            personPrincipal({
-              memberships,
-              now,
-              personId: person.value.id,
-              placeEnds: Arr.flatMap(grants, (grant) =>
-                grant.personId === person.value.id ? [grant.until] : []
-              ),
-            })
-          );
+          return yield* load((person) => person.id === personId, at);
         }),
+      byName: (name, at) => load((person) => person.name === name, at),
       names: (limit) =>
         Effect.map(Ref.get(tables.people), (people) =>
           Arr.take(
@@ -644,7 +672,15 @@ const principalDirectory = Layer.effect(
   })
 );
 
+/** The teams views only read account rows; unimplemented account mutations fail loudly in this test layer. */
+const accountReads = Layer.unwrap(
+  Effect.map(TeamTables, (tables) =>
+    Layer.mock(AccountRepository, { list: Ref.get(tables.accounts) })
+  )
+);
+
 const teamsRepositories = Layer.mergeAll(
+  accountReads,
   personRepository,
   teamRepository,
   positionRepository,

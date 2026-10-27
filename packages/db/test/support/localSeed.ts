@@ -15,6 +15,7 @@
  * active whenever the seed runs.
  */
 import {
+  AccountRepository,
   AdminGrantRepository,
   DepartmentRepository,
   EmailAddress,
@@ -36,9 +37,11 @@ import type {
   Team,
   TeamFunction,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
+import { hashSync as bcryptHash } from "bcryptjs";
+import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
 
-import { LOCAL_PEOPLE } from "../../src/localPeople.ts";
+import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "../../src/localPeople.ts";
 
 const byId = Order.mapInput(
   Order.Number,
@@ -156,6 +159,57 @@ const join = Effect.fnUntraced(function* join(
     .pipe(Effect.catchTag("AlreadyExists", () => Effect.void));
 });
 
+/** EX-0018: seed fake Better Auth credentials outside any domain command transaction. */
+const seedFakeAccounts = Effect.fnUntraced(function* seedFakeAccounts(
+  people: readonly Person[]
+) {
+  const sql = yield* SqlClient;
+  const accounts = yield* AccountRepository;
+  const instant = yield* DateTime.now;
+  const now = DateTime.toDateUtc(instant);
+
+  const passwordHash = yield* Effect.try(() =>
+    bcryptHash(LOCAL_FAKE_PASSWORD, 12)
+  ).pipe(Effect.orDie);
+
+  const decodeUser = Schema.decodeUnknownEffect(
+    Schema.Struct({ id: Schema.NonEmptyString })
+  );
+
+  for (const person of people) {
+    const id = `fake-${person.id}`;
+
+    if (Option.isNone(yield* accounts.find(person.id))) {
+      yield* accounts.invite(person.id).pipe(Effect.orDie);
+      yield* accounts
+        .transition({
+          from: "Invited",
+          now: instant,
+          personId: person.id,
+          prohibitLastActiveAdmin: false,
+          to: "Active",
+        })
+        .pipe(Effect.orDie);
+    }
+
+    yield* accounts.verifyEmail(person.id).pipe(Effect.orDie);
+    yield* sql`insert into auth_user (id, person_id, name, email, email_verified, created_at, updated_at)
+      values (${id}, ${person.id}, ${person.name}, ${person.email}, true, ${now}, ${now}) on conflict do nothing`.pipe(
+      Effect.orDie
+    );
+
+    const rows =
+      yield* sql`select id from auth_user where person_id = ${person.id}`.pipe(
+        Effect.orDie
+      );
+
+    const user = yield* decodeUser(rows[0]).pipe(Effect.orDie);
+    yield* sql`insert into auth_account (id, account_id, provider_id, user_id, password, credential_version, created_at, updated_at)
+      values (${`credential-${person.id}`}, ${user.id}, 'credential', ${user.id}, ${passwordHash}, 0, ${now}, ${now})
+      on conflict do nothing`.pipe(Effect.orDie);
+  }
+});
+
 /** The seed. It needs the repositories that `DatabaseLive` provides. */
 export const seedLocal = Effect.gen(function* seedLocal() {
   const { department, field } = yield* placeOfSeed;
@@ -174,7 +228,8 @@ export const seedLocal = Effect.gen(function* seedLocal() {
   const mats = yield* personNamed("Mats Medlem", field);
   const sofie = yield* personNamed("Sofie Styre", field);
   const eva = yield* personNamed("Eva Ekstern", field);
-  yield* personNamed("Nora Nybegynner", field);
+  const nora = yield* personNamed("Nora Nybegynner", field);
+  yield* seedFakeAccounts([ada, lise, nora]);
 
   const grants = yield* AdminGrantRepository;
 

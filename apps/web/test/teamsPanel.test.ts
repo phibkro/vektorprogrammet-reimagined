@@ -8,7 +8,7 @@
  * would go through for the principal, for the membership's calculated state.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { anonymous } from "@vektorprogrammet/domain";
+import { anonymous, authorize } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
 import { MEMBER_POSITION } from "@vektorprogrammet/domain/testing";
 import { Array as Arr, DateTime, Effect, Option, Ref } from "effect";
@@ -538,6 +538,22 @@ describe("spec 0006: the People and Admin pages", () => {
         assert.isFalse(
           assertSuccess(yield* viewAs(tables, MATS, peopleView)).canRegister
         );
+
+        for (const principal of [ADMIN, LISE, BOARD]) {
+          const rows = assertSuccess(
+            yield* viewAs(tables, principal, peopleView)
+          ).people;
+
+          for (const person of rows) {
+            assert.strictEqual(
+              person.canEditProfile,
+              authorize(principal, "updateProfile", {
+                departmentId: person.departmentId,
+                personId: person.id,
+              })
+            );
+          }
+        }
       })
   );
 

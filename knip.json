@@ -18,14 +18,16 @@
         "src/start.ts",
         "alchemy.run.ts",
         "e2e/playwright.config.ts",
-        "e2e/**/*.spec.ts"
+        "e2e/**/*.spec.ts",
+        "test/support/*.worker.ts"
       ],
       "project": [
         "src/**/*.{ts,tsx}",
         "test/**/*.{ts,tsx}",
         "e2e/**/*.ts",
         "**/*.css"
-      ]
+      ],
+      "ignoreDependencies": ["^cloudflare$"]
     },
     "apps/cms": {
       "entry": ["src/live.config.ts"],

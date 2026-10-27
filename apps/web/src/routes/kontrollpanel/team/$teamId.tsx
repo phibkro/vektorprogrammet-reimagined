@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { inviteAccount } from "@/functions/account.functions";
 import {
   addMember,
   cancelMembership,
@@ -76,6 +77,18 @@ const MemberActions = ({
   opened: boolean;
 }) => (
   <div className="flex flex-wrap justify-end gap-2">
+    {member.canInvite && (
+      <CommandSheet
+        trigger={rowButton("Inviter", member)}
+        triggerLabel="Inviter"
+        title={`Inviter ${member.personName}`}
+        description="En aktiveringslenke sendes til personens private e-post."
+        action={inviteAccount}
+        submitLabel="Send invitasjon"
+      >
+        <input name="personId" type="hidden" value={member.personId} />
+      </CommandSheet>
+    )}
     {member.canExtend && (
       <CommandSheet
         trigger={rowButton("Forleng", member)}

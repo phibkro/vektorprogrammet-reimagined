@@ -78,3 +78,49 @@ These are recorded and do not block code (operator approval 2026-10-26).
 Personal-data declarations, consents, photos, export, erasure, merge and retention (spec 0007b); passkeys and two-factor sign-in (credential kinds that Better Auth plugins can add later); e-mail templates, delivery and Google company accounts (spec 0008); importing legacy accounts and password hashes (spec 0013).
 
 ## Revisions
+
+### R1 (2026-10-27): mint codes at delivery
+
+The lead resolves the conflict between the all-table plaintext scan and an outbox that contains the e-mail link. `invite` and `requestPasswordReset` commit an outbox message naming only the purpose and subject, without a code. Delivery mints the code in its own transaction, invalidates the older code for that purpose and subject, stores only the hash, renders and sends the e-mail with the plaintext in memory, and marks the message delivered. A retry mints a fresh code and invalidates the previous one (RULE-220).
+
+The capture sink is a mailbox that exists only outside production and necessarily holds the link. Falsifier 4 scans every text and jsonb column after the command, after delivery and after a retried delivery, excluding exactly the capture-sink table for that reason. No other table, including the outbox, holds the plaintext code. As a negative control, placing the plaintext in the outbox payload makes the scan fail.
+
+### R2 (2026-10-27): code principals are not login sessions
+
+The lead resolves the conflict between activation from Invited and falsifier 2's Active-only sessions. Presenting a code yields a request-scoped principal narrowed to its command and resource; it is never stored as a Better Auth session. `activate` accepts it only from Invited, as the Account machine declares, and `resetPassword` only from Active. Every Better Auth session, including the one created after successful activation, passes the Active-only `session.create.before` guard. Falsifier 2 tests those login sessions separately from code principals: an activation code for an Active or Deactivated account and a reset code for an Invited or Deactivated account are refused byte-identically to a wrong password.
+
+### R3 (2026-10-27): expired session reads
+
+Better Auth 1.7.14 deletes an expired session on `getSession` even when `disableSessionRefresh` is enabled. Its `deferSessionRefresh` setting prevents that deletion on GET, so it is enabled as well and the HTTP session read is GET-only. Falsifier 5's refresh negative control disables both settings, allowing an overdue refresh to attempt its write. The read-only requirement is unchanged.
+
+### R4 (2026-10-27): Better Auth cancellation boundary
+
+The installed Better Auth pg/Kysely adapter takes no `AbortSignal`. The lead requires each library handler and API call to run to completion in an uninterruptible boundary: interruption is not reported while its foreign transaction may still commit. Domain commands retain their existing abort-and-rollback guarantee. An aborted sign-in may leave at most one session whose cookie the client did not receive; it is visible in the person's session list and expires normally, and no domain row changes. A registered exception retires when Better Auth forwards cancellation to its database adapter.
+
+### R5 (2026-10-27): registry variant and stage secrets
+
+The Better Auth UI registry's default URL redirects to `radix-nova`, but it also publishes a `base-nova` variant. The shadcn namespace explicitly selects that variant; the sign-in, session and password cards are adapted to this journey and use the registry's React hooks. Alchemy 2.0.0-beta.83 provides `makeRandom`, whose Redacted value is generated once and persisted per stage; deployed Workers bind that stage-specific signing secret. Only local development uses a fake signing key, and a missing or too-short key fails closed.
+
+### R6 (2026-10-27): password change rotates the current session
+
+Better Auth 1.7.14 implements `revokeOtherSessions` by deleting all sessions, creating a replacement for the current client, and returning its new cookie. The current client remains signed in with that cookie. All other sessions end, as required.
+
+### R7 (2026-10-27): rate-limit buckets per auth route
+
+The shared Worker binding permits five requests per minute. A single auth bucket also counts routine session reads, so it can block session revocation during the normal journey. Each Better Auth route now has its own per-IP bucket on that same binding. All library routes remain rate limited.
+
+### R8 (2026-10-27): protect accounts during the Phase 1 import
+
+PostgreSQL refuses the Phase 1 importer's truncate when the new account tables reference a person, even if those tables are empty. The importer names those tables under an exclusive transaction lock and refuses any target that already holds an account, code or auth user. It does not delete credentials or import accounts. Spec 0013 owns account migration.
+
+### R9 (2026-10-27): Preview mail links use the stage URL
+
+The earlier Preview configuration left `SITE_URL` empty because mail was only captured. Captured activation and reset messages still need usable links. Alchemy 2.0.0-beta.83 provides `Cloudflare.Worker.URL`, which binds each Worker's own public stage URL without a provisioning step. Preview uses that binding. Production keeps its explicitly configured origin.
+
+### R10 (2026-10-27): check the signing key before Worker startup
+
+Cloudflare exposes Worker bindings at module load through `cloudflare:workers`. The entry validates the signing key there, before it accepts a request. A workerd test starts the same validator with missing, short and valid keys. The first two fail startup without logging a key.
+
+### R11 (2026-10-27): serialize Person account decisions
+
+In preparation for spec 0006b's aggregate lock, Account commands concerning an identified person and code delivery take a `FOR NO KEY UPDATE` lock on the Person inside their transaction before final state decisions and guarded writes. Reset requests first identify a candidate, then recheck its private address and Active state after taking the lock. Account and Code writes each have one repository module, and Account state updates remain conditional. A 100-round PostgreSQL test proves the lock is held to transaction completion; the code-use and last-admin races run 300 rounds each.

@@ -49,6 +49,10 @@ const uniqueOutcomes: Record<UniqueConstraint, UniqueOutcome> = {
     entity: "Person",
     message: () => PERSON_EXISTS,
   },
+  [UniqueConstraint.personCompanyEmail]: {
+    entity: "Person",
+    message: () => PERSON_EXISTS,
+  },
   [UniqueConstraint.semesterTermYear]: {
     entity: "Semester",
     message: (key) => `Semesteret ${key} finnes allerede`,

@@ -131,6 +131,16 @@ const PanelSidebar = ({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
+              tooltip="Min side"
+              onClick={closeMobileSidebar}
+              render={<Link to="/min-side" />}
+            >
+              <UserRoundIcon />
+              <span>Min side</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
               tooltip="Til nettsiden"
               onClick={closeMobileSidebar}
               render={<Link to="/" />}

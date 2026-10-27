@@ -14,7 +14,10 @@
  * - Constraint names are explicit; `classifySqlFailure` maps the unique ones.
  */
 import {
+  AccountState,
   AuditAction,
+  AuditClient,
+  CodePurpose,
   EntityName,
   FileExtension,
   OutboxMessage,
@@ -39,6 +42,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -71,6 +75,7 @@ export const teamFunction = pgEnum("team_function", TeamFunction.literals);
 export const UniqueConstraint = {
   departmentCity: "department_city_unique",
   membershipOverlap: "membership_no_overlap",
+  personCompanyEmail: "person_company_email_unique",
   personEmail: "person_email_unique",
   semesterTermYear: "semester_term_year_unique",
   teamName: "team_department_name_unique",
@@ -171,7 +176,9 @@ export const fieldOfStudy = pgTable(
 export const person = pgTable(
   "person",
   {
+    companyEmail: text("company_email"),
     email: text("email").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
     fieldOfStudyId: integer("field_of_study_id")
       .notNull()
       .references(() => fieldOfStudy.id),
@@ -179,12 +186,157 @@ export const person = pgTable(
     name: text("name").notNull(),
   },
   (t) => [
-    unique(UniqueConstraint.personEmail).on(t.email),
+    uniqueIndex(UniqueConstraint.personEmail)
+      .on(t.email)
+      .where(sql`${t.emailVerified}`),
+    uniqueIndex(UniqueConstraint.personCompanyEmail)
+      .on(t.companyEmail)
+      .where(sql`${t.companyEmail} is not null`),
     index("person_field_of_study_idx").on(t.fieldOfStudyId),
     check("person_email_lowercase", sql`${t.email} = lower(${t.email})`),
+    check(
+      "person_company_email_lowercase",
+      sql`${t.companyEmail} is null or ${t.companyEmail} = lower(${t.companyEmail})`
+    ),
     check("person_name", sql`length(${t.name}) > 0`),
   ]
 );
+
+/** The domain's account state is separate from Better Auth's credentials. */
+export const account = pgTable(
+  "account",
+  {
+    personId: integer("person_id")
+      .primaryKey()
+      .references(() => person.id),
+    state: text("state").notNull(),
+  },
+  (t) => [
+    check(
+      "account_state",
+      oneOf(sql`${t.state}`, Rec.keys(AccountState.cases))
+    ),
+  ]
+);
+
+/** One current, hashed code per purpose and person. Resending atomically replaces it. */
+export const code = pgTable(
+  "code",
+  {
+    expiresAt: instant("expires_at").notNull(),
+    hash: text("hash").notNull(),
+    purpose: text("purpose").notNull(),
+    subject: integer("subject")
+      .notNull()
+      .references(() => person.id),
+    usedAt: instant("used_at"),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.purpose, t.subject],
+      name: "code_purpose_subject_pk",
+    }),
+    unique("code_hash_unique").on(t.hash),
+    check("code_purpose", oneOf(sql`${t.purpose}`, CodePurpose.literals)),
+    check("code_hash_format", sql`${t.hash} ~ '^[0-9a-f]{64}$'`),
+  ]
+);
+
+/** The only link from Better Auth to the domain is a unique person id. */
+export const authUser = pgTable(
+  "auth_user",
+  {
+    createdAt: instant("created_at").notNull(),
+    email: text("email").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    id: text("id").primaryKey(),
+    image: text("image"),
+    name: text("name").notNull(),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    updatedAt: instant("updated_at").notNull(),
+  },
+  (t) => [
+    unique("auth_user_person_unique").on(t.personId),
+    unique("auth_user_email_unique").on(t.email),
+  ]
+);
+
+export const authSession = pgTable(
+  "auth_session",
+  {
+    createdAt: instant("created_at").notNull(),
+    expiresAt: instant("expires_at").notNull(),
+    id: text("id").primaryKey(),
+    ipAddress: text("ip_address"),
+    token: text("token").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    unique("auth_session_token_unique").on(t.token),
+    index("auth_session_user_idx").on(t.userId),
+    check(
+      "auth_session_no_ip",
+      sql`${t.ipAddress} is null or ${t.ipAddress} = ''`
+    ),
+  ]
+);
+
+export const authAccount = pgTable(
+  "auth_account",
+  {
+    accessToken: text("access_token"),
+    accessTokenExpiresAt: instant("access_token_expires_at"),
+    accountId: text("account_id").notNull(),
+    createdAt: instant("created_at").notNull(),
+    credentialVersion: integer("credential_version").notNull().default(0),
+    id: text("id").primaryKey(),
+    idToken: text("id_token"),
+    password: text("password"),
+    providerId: text("provider_id").notNull(),
+    refreshToken: text("refresh_token"),
+    refreshTokenExpiresAt: instant("refresh_token_expires_at"),
+    scope: text("scope"),
+    updatedAt: instant("updated_at").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    unique("auth_account_provider_account_unique").on(
+      t.providerId,
+      t.accountId
+    ),
+    index("auth_account_user_idx").on(t.userId),
+  ]
+);
+
+export const authVerification = pgTable(
+  "auth_verification",
+  {
+    createdAt: instant("created_at").notNull(),
+    expiresAt: instant("expires_at").notNull(),
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    updatedAt: instant("updated_at").notNull(),
+    value: text("value").notNull(),
+  },
+  (t) => [index("auth_verification_identifier_idx").on(t.identifier)]
+);
+
+/** A fake mailbox: only the local and preview sender layers can write it. */
+export const capturedMail = pgTable("captured_mail", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  recipient: text("recipient").notNull(),
+  sentAt: instant("sent_at").notNull(),
+  subject: text("subject").notNull(),
+  text: text("text").notNull(),
+});
 
 /** A team of one department (RULE-157: the name is unique there). Deactivated, never deleted (RULE-233). */
 export const team = pgTable(
@@ -398,14 +550,18 @@ export const auditLog = pgTable(
   {
     action: text("action").notNull(),
     at: instant("at").notNull(),
+    client: text("client").notNull().default("server"),
     entity: text("entity").notNull(),
     entityKey: text("entity_key").notNull(),
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     personId: integer("person_id"),
+    sessionId: text("session_id"),
     systemJob: text("system_job"),
   },
   (t) => [
     index("audit_log_entity_idx").on(t.entity, t.entityKey),
+    index("audit_log_session_idx").on(t.sessionId),
+    check("audit_log_client", oneOf(sql`${t.client}`, AuditClient.literals)),
     check("audit_log_action", oneOf(sql`${t.action}`, AuditAction.literals)),
     check("audit_log_entity", oneOf(sql`${t.entity}`, EntityName.literals)),
     check("audit_log_person", sql`${t.personId} is null or ${t.personId} > 0`),

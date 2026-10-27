@@ -10,6 +10,8 @@ legacy MySQL (SELECT-only legacy_reader, one snapshot)
   → reconciliation.json + reconciliation.md
 ```
 
+The importer refuses a target that contains accounts, codes or auth users. It cannot restore their credentials. Account migration belongs to spec 0013.
+
 ## Authority
 
 - **Loading rows derived from the 2024-08-22 backup into Neon branches is authorised** (operator, Checkpoint 2, 2026-10-15). Production Neon is written only at the final import.

@@ -13,6 +13,9 @@ import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { Drizzle } from "./internal/drizzle.ts";
+import { AccountRepositoryLive } from "./repositories/accounts.ts";
+import { CapturedMailStoreLive } from "./repositories/capturedMail.ts";
+import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
 import {
   AdmissionPeriodRepositoryLive,
@@ -25,6 +28,7 @@ import {
   OutboxDeliveryLive,
   OutboxLive,
 } from "./repositories/outbox.ts";
+import { SessionDirectoryLive } from "./repositories/sessions.ts";
 import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
 import {
   AdminGrantRepositoryLive,
@@ -47,6 +51,10 @@ export const RepositoriesLayer = Layer.mergeAll(
   FieldOfStudyRepositoryLive,
   SocialEventRepositoryLive,
   PublicFileRepositoryLive,
+  AccountRepositoryLive,
+  CodeRepositoryLive,
+  CapturedMailStoreLive,
+  SessionDirectoryLive,
   PersonRepositoryLive,
   TeamRepositoryLive,
   PositionRepositoryLive,

@@ -60,7 +60,9 @@ export const readContactSubmission = (
 };
 
 /** Step 1, outside the transaction: rate limit, then RULE-167. */
-export const prepareContact = (submission: ContactSubmission) =>
+export const prepareHuman = (
+  submission: Pick<ContactSubmission, "remoteIp" | "captchaToken">
+) =>
   Effect.gen(function* runPreparation() {
     const limiter = yield* ContactRateLimiter;
     yield* limiter.check(submission.remoteIp);
