@@ -185,7 +185,7 @@ const PeoplePage = () => {
   );
 };
 
-/** Spec 0006: people of the principal's departments; the register control is there only when `registerPerson` is granted. */
+/** Spec 0006: people of the principal's departments; the register control is there only when `createPerson` is granted. */
 export const Route = createFileRoute("/kontrollpanel/personer")({
   component: PeoplePage,
   loader: () => getPeople().then(pageData),

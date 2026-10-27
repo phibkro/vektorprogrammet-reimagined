@@ -163,7 +163,7 @@ const invite = (personId: number) =>
     const email = `invitee${personId}@example.org`;
     yield* sql`insert into person (id, name, email, field_of_study_id) values (${personId}, 'Invitee', ${email}, ${LEADER})`;
     yield* transactional(
-      AccountEndpoints.invite({ personId }).pipe(
+      AccountEndpoints.createAccount({ personId }).pipe(
         Effect.provideService(CurrentPrincipal, leaderPrincipal)
       )
     );
@@ -223,7 +223,7 @@ layer(live, { excludeTestServices: true })(
           });
 
           yield* transactional(
-            AccountEndpoints.invite({ personId: 202 }).pipe(
+            AccountEndpoints.createAccount({ personId: 202 }).pipe(
               Effect.provideService(CurrentPrincipal, leader)
             )
           );
@@ -252,12 +252,12 @@ layer(live, { excludeTestServices: true })(
 
           if (Option.isSome(codeHolder)) {
             assert.isTrue(
-              authorize(codeHolder.value, "activate", {
+              authorize(codeHolder.value, "activateAccount", {
                 personId: PersonId.make(202),
               })
             );
             assert.isFalse(
-              authorize(codeHolder.value, "deactivate", {
+              authorize(codeHolder.value, "deactivateAccount", {
                 personId: PersonId.make(201),
               })
             );
@@ -268,7 +268,7 @@ layer(live, { excludeTestServices: true })(
           assert.deepStrictEqual(leaked(afterRetry, token2), []);
 
           const activated = yield* transactional(
-            AccountEndpoints.activate({
+            AccountEndpoints.activateAccount({
               code: token2,
               password: "safe test password",
             })

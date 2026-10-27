@@ -18,8 +18,8 @@ import {
   createDepartment,
   createFieldOfStudy,
   ensureSemesters,
-  renameFieldOfStudy,
   updateDepartment,
+  updateFieldOfStudy,
 } from "./declaration.ts";
 import { nextSemester, semesterForDate, sortNewestFirst } from "./semester.ts";
 import {
@@ -109,7 +109,24 @@ export const OrganisationHandlers = OrganisationRpc.toLayer({
         };
       }),
   }),
-  renameFieldOfStudy: OrganisationDomain.handle(renameFieldOfStudy, {
+  updateDepartment: OrganisationDomain.handle(updateDepartment, {
+    resource: ({ id }) => Effect.succeed({ departmentId: id }),
+    run: ({ id, ...draft }, principal) =>
+      Effect.gen(function* run() {
+        yield* InTransaction;
+        const departments = yield* DepartmentRepository;
+        const updated = yield* departments.update(id, draft);
+        yield* recordAudit(
+          principal,
+          "department.updated",
+          "Department",
+          updated.id
+        );
+
+        return updated;
+      }),
+  }),
+  updateFieldOfStudy: OrganisationDomain.handle(updateFieldOfStudy, {
     resource: ({ id }) =>
       Effect.gen(function* resource() {
         const fieldsOfStudy = yield* FieldOfStudyRepository;
@@ -132,23 +149,6 @@ export const OrganisationHandlers = OrganisationRpc.toLayer({
         return renamed;
       }),
   }),
-  updateDepartment: OrganisationDomain.handle(updateDepartment, {
-    resource: ({ id }) => Effect.succeed({ departmentId: id }),
-    run: ({ id, ...draft }, principal) =>
-      Effect.gen(function* run() {
-        yield* InTransaction;
-        const departments = yield* DepartmentRepository;
-        const updated = yield* departments.update(id, draft);
-        yield* recordAudit(
-          principal,
-          "department.updated",
-          "Department",
-          updated.id
-        );
-
-        return updated;
-      }),
-  }),
 });
 
 /** The organisation's commands behind the in-process client; see `Commands.inProcess`. */
@@ -165,11 +165,11 @@ export const OrganisationEndpoints = {
   createFieldOfStudy: Commands.endpoint(createFieldOfStudy, (payload) =>
     withOrganisation((client) => client.createFieldOfStudy(payload))
   ),
-  renameFieldOfStudy: Commands.endpoint(renameFieldOfStudy, (payload) =>
-    withOrganisation((client) => client.renameFieldOfStudy(payload))
-  ),
   updateDepartment: Commands.endpoint(updateDepartment, (payload) =>
     withOrganisation((client) => client.updateDepartment(payload))
+  ),
+  updateFieldOfStudy: Commands.endpoint(updateFieldOfStudy, (payload) =>
+    withOrganisation((client) => client.updateFieldOfStudy(payload))
   ),
 };
 

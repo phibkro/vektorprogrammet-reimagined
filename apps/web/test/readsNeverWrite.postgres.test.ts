@@ -172,7 +172,7 @@ const NO_PANEL = ["anonymous", "person without team"];
 /** Who the departments, the fields of study and the people also refuse: a plain team member holds none of their commands or reads. */
 const NO_MANAGEMENT = [...NO_PANEL, "team member"];
 
-/** Who `grantAdmin` refuses: everyone but an administrator. */
+/** Who `createAdminGrant` refuses: everyone but an administrator. */
 const NOT_ADMIN = [
   "anonymous",
   "team leader",

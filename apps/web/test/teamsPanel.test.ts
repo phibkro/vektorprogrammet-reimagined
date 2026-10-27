@@ -537,7 +537,7 @@ describe("spec 0006: the People and Admin pages", () => {
           for (const person of rows) {
             assert.strictEqual(
               person.canEditProfile,
-              authorize(principal, "updateProfile", {
+              authorize(principal, "updatePerson", {
                 departmentId: person.departmentId,
                 personId: person.id,
               })

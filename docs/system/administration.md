@@ -64,10 +64,10 @@ Every service that keeps data for the system runs on an account that the organis
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Invited : invite
-  Invited --> Active : activate(code)
-  Active --> Deactivated : deactivate
-  Deactivated --> Active : reactivate
+  [*] --> Invited : createAccount
+  Invited --> Active : activateAccount(code)
+  Active --> Deactivated : deactivateAccount
+  Deactivated --> Active : reactivateAccount
 ```
 
 Every login path refuses a Deactivated account (RULE-125, 104 ✗). Leaving Vektorprogrammet does not deactivate an account; access ends because the engagements end.
@@ -76,11 +76,11 @@ Every login path refuses a Deactivated account (RULE-125, 104 ✗). Leaving Vekt
 
 | Command | Granted to | Scope | Replaces |
 | --- | --- | --- | --- |
-| `invite(person)` | `Leader(d)` | department | 323, 207 |
-| `activate(code)`, `resetPassword(code)` | holder of the code | — | 132 ✗, 220 ✗, 131 ✗, 201, 112 ✗ |
-| `deactivate`, `reactivate` | `Admin` | all, never oneself | 202 ✗, 299 ✗, 117 |
-| `updateProfile`, `setPhoto` | `Self ∪ Leader(d)` | own / department | 143, 160, 142 |
-| `grantAdmin`, `revokeAdmin` | See the [teams command table](teams.md#commands-and-grants) |  |  |
+| `createAccount(person)` | `Leader(d)` | department | 323, 207 |
+| `activateAccount(code)`, `resetPassword(code)` | holder of the code | — | 132 ✗, 220 ✗, 131 ✗, 201, 112 ✗ |
+| `deactivateAccount`, `reactivateAccount` | `Admin` | all, never oneself | 202 ✗, 299 ✗, 117 |
+| `updatePerson`, `setPhoto` | `Self ∪ Leader(d)` | own / department | 143, 160, 142 |
+| `createAdminGrant`, `deleteAdminGrant` | See the [teams command table](teams.md#commands-and-grants) |  |  |
 | `mergePersons(a, b)` | `Admin` | all | new |
 | `exportMyData` | `Self` | own | new (GDPR Art. 15, 20) |
 | `eraseMe` / `erasePerson` | `Self` / `Admin` | own / all | new (Art. 17). Refuses, with the reason, while a legal hold applies (an open claim, accounting retention) |

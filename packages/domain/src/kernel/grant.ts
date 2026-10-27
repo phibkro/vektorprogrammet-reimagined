@@ -36,7 +36,7 @@ interface Make {
   ): Row<Command>;
 }
 
-/** One grant row: `Grant.make([Subject.leader, Subject.board], ["addMember"], "department")`. */
+/** One grant row: `Grant.make([Subject.leader, Subject.board], ["createMembership"], "department")`. */
 export const make: Make = <const Command extends string>(
   subjects: NonEmptyReadonlyArray<Subject.Any>,
   commands: NonEmptyReadonlyArray<Command>,

@@ -2,25 +2,90 @@
  * Commands (ADR 0006): each is an `Rpc.make(name, { payload, success, error })` in one `RpcGroup` per domain. This
  * module holds what the kernel adds around `effect/rpc`:
  *
- * - `Info`, the annotation every command carries: its summary in plain words, the legacy rules it replaces, the job
- *   that alone runs it (if it is a job's), and the machine whose transition it applies. The grants, the
- *   completeness tests and the generated docs read it.
+ * - `Info`, the annotation every command carries: its summary in plain words, the resource it acts on and the method
+ *   it uses (ADR 0010), the legacy rules it replaces, the job that alone runs it (if it is a job's), and the machine
+ *   whose transition it applies. The grants, the completeness tests and the generated docs read it.
  * - `inProcess`, the client a server function (or a scheduled job) calls: the group’s handlers connected
  *   in memory, so there is no HTTP surface beside TanStack Start’s.
  * - `decodePayload`, the decoder of a command's payload schema: the form and the handler use the same schema.
  */
-import { Context, Effect } from "effect";
+import { Array as Arr, Context, Effect } from "effect";
 import type { Layer, Option } from "effect";
 import { RpcClient, RpcServer } from "effect/rpc";
 import type { Rpc, RpcGroup } from "effect/rpc";
 
 import type { CodePurpose } from "../accounts/code.ts";
+import { EntityName } from "../shared/ids.ts";
 import { decodeInput } from "../shared/validation.ts";
 import type { SystemJob } from "./principal.ts";
+
+/**
+ * The nouns that commands act on and that no error or audit row names, so they are not in `EntityName`. Adding one
+ * to `EntityName` would widen the `CHECK` on `audit_log.entity` (a migration) for a value that no row can hold.
+ */
+export const NonEntityResources = [
+  "AuditEntry",
+  "OutboxMessage",
+  "SupportTicket",
+] as const;
+
+/**
+ * What a command acts on (ADR 0010, AIP-121): an entity that the domain names, or one of `NonEntityResources`. The set
+ * is closed, so a typo cannot become a second noun: a new noun is added here or to `EntityName` first.
+ */
+export type Resource = EntityName | (typeof NonEntityResources)[number];
+
+/** Every resource, in the order that the generated reference lists them: the entities, then the other nouns. */
+export const Resources: readonly Resource[] = [
+  ...EntityName.literals,
+  ...NonEntityResources,
+];
+
+/** The standard methods (AIP-131 to AIP-135), in the order that the generated reference lists them. */
+export const StandardMethods = [
+  "get",
+  "list",
+  "create",
+  "update",
+  "delete",
+] as const;
+
+export type StandardMethod = (typeof StandardMethods)[number];
+
+/**
+ * A custom method (AIP-136), written as ADR 0010 writes it in a URL: a colon, then a lowerCamelCase verb (`":extend"`).
+ * The completeness test refuses a verb of another shape.
+ */
+export type CustomMethod = `:${string}`;
+
+/**
+ * How a command acts on its resource (ADR 0010). A standard method is the default; a custom method is the fallback for
+ * an intent that a standard one would blur. Nothing here can promise a `412`: that needs a row version, and none
+ * exists (a promise is added to `update` together with the column).
+ */
+export type Method = StandardMethod | CustomMethod;
+
+/** Whether `method` is a standard one. */
+export const isStandard = (method: Method): method is StandardMethod =>
+  Arr.contains(StandardMethods, method);
+
+/** The verb that a command's name starts with: a standard method itself, or a custom verb without its colon. */
+export const verbOf = (method: Method): string =>
+  isStandard(method) ? method : method.slice(1);
+
+/** A query changes nothing; a command may. `get` and `list` are queries and every other method is a command. */
+export type Kind = "command" | "query";
+
+export const kindOf = (method: Method): Kind =>
+  method === "get" || method === "list" ? "query" : "command";
 
 export interface CommandInfo {
   /** What the command does, in one plain English sentence: the line a "who does what" table shows. */
   readonly summary: string;
+  /** What the command acts on (ADR 0010). */
+  readonly resource: Resource;
+  /** How it acts on it (ADR 0010): a standard method, or a custom verb that a standard one would blur. */
+  readonly method: Method;
   /** The legacy rules (`RULE-206`, …) that this command replaces or whose behaviour it keeps. */
   readonly replaces: readonly string[];
   /** The scheduled job that alone runs this command; no person holds it, not even an admin (R1). */
@@ -38,9 +103,11 @@ export class Info extends Context.Service<Info, CommandInfo>()(
   "@vektorprogrammet/domain/kernel/Command"
 ) {}
 
-/** The value of the `Info` annotation. Only `summary` is required. */
+/** The value of the `Info` annotation. `summary`, `resource` and `method` are required. */
 export const info = (fields: {
   readonly summary: string;
+  readonly resource: Resource;
+  readonly method: Method;
   readonly replaces?: readonly string[];
   readonly job?: SystemJob;
   readonly credential?: CodePurpose;
@@ -50,8 +117,10 @@ export const info = (fields: {
   credential: fields.credential ?? null,
   job: fields.job ?? null,
   machine: fields.machine ?? null,
+  method: fields.method,
   note: fields.note ?? null,
   replaces: fields.replaces ?? [],
+  resource: fields.resource,
   summary: fields.summary,
 });
 

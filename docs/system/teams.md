@@ -96,14 +96,14 @@ The generated blocks describe the declarations in `packages/domain`. The remaini
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Planned : addMember (later start)
-  [*] --> Active : addMember (start this semester)
-  Active --> Active : extend (new end)
-  Active --> Ended : endEarly (semester)
-  Active --> Ended : change (the old membership)
-  [*] --> Planned : change (the new membership, starting later)
-  [*] --> Active : change (the new membership, starting now)
-  Planned --> [*] : cancel
+  [*] --> Planned : createMembership (later start)
+  [*] --> Active : createMembership (start this semester)
+  Active --> Active : extendMembership (new end)
+  Active --> Ended : endEarlyMembership (semester)
+  Active --> Ended : changeMembership (the old membership)
+  [*] --> Planned : changeMembership (the new membership, starting later)
+  [*] --> Active : changeMembership (the new membership, starting now)
+  Planned --> [*] : deleteMembership
   Planned --> Active : the start semester arrives
   Active --> Ended : the end semester has passed
 ```
@@ -116,22 +116,22 @@ Active, Planned and Ended are calculated from the semester. They replace the leg
 
 <!-- docgen:begin commands -->
 
-| Command or read | What it does | Granted to | Scope | Replaces |
-| --- | --- | --- | --- | --- |
-| `createTeam` | Create a team in a department. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
-| `editTeam` | Change a team's name, function and default term. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
-| `deactivateTeam` | Deactivate a team. A team is never deleted. | Leader(d) ∪ Board; Admin | department, all | RULE-233, RULE-329 |
-| `registerPerson` | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin | department, all | RULE-164 |
-| `addMember` | Add a person to a team for a term. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin | department, all | RULE-164, RULE-206, RULE-284 |
-| `extend` | Extend a membership to a later end semester. | Leader(d) ∪ Board; Admin | department, all | RULE-234, RULE-251, RULE-252 |
-| `change` | Change the position, team or leader flag from a semester: the old membership ends and a new one starts. A move to a team in another department also needs the grant in the receiving department, in the same transaction. | Leader(d) ∪ Board; Admin | department, all |  |
-| `endEarly` | End a membership from a semester. A member can end their own. | Leader(d) ∪ Board; Self; Admin | department, own, all | RULE-298 |
-| `cancel` | Cancel a membership that has not started. | Leader(d) ∪ Board; Admin | department, all |  |
-| `grantAdmin` | Put a person on the admin list until a date. Never for oneself. | Admin | all | RULE-113, RULE-308 |
-| `revokeAdmin` | Take a place off the admin list. Never one's own, and never the last place that ends after the current semester and that an Active account holds. | Admin | all | RULE-113, RULE-308 |
-| `sendEndingSoon` | Four weeks before the semester ends, e-mail each team leader the memberships of the department that end. | System(endingSoon) | all |  |
-| `viewPeople` | See the people of the department. | Leader(d) ∪ Board; Admin | department, all |  |
-| `viewTeams` | See the teams of the department and their memberships. | Member(d); Admin | department, all |  |
+| Command or read | Resource | Method | What it does | Granted to | Scope | Replaces |
+| --- | --- | --- | --- | --- | --- | --- |
+| `createTeam` | Team | `create` | Create a team in a department. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
+| `updateTeam` | Team | `update` | Change a team's name, function and default term. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
+| `deactivateTeam` | Team | `:deactivate` | Deactivate a team. A team is never deleted. | Leader(d) ∪ Board; Admin | department, all | RULE-233, RULE-329 |
+| `createPerson` | Person | `create` | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin | department, all | RULE-164 |
+| `createMembership` | Membership | `create` | Add a person to a team for a term. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin | department, all | RULE-164, RULE-206, RULE-284 |
+| `extendMembership` | Membership | `:extend` | Extend a membership to a later end semester. | Leader(d) ∪ Board; Admin | department, all | RULE-234, RULE-251, RULE-252 |
+| `changeMembership` | Membership | `:change` | Change the position, team or leader flag from a semester: the old membership ends and a new one starts. A move to a team in another department also needs the grant in the receiving department, in the same transaction. | Leader(d) ∪ Board; Admin | department, all |  |
+| `endEarlyMembership` | Membership | `:endEarly` | End a membership from a semester. A member can end their own. | Leader(d) ∪ Board; Self; Admin | department, own, all | RULE-298 |
+| `deleteMembership` | Membership | `delete` | Cancel a membership that has not started. | Leader(d) ∪ Board; Admin | department, all |  |
+| `createAdminGrant` | AdminGrant | `create` | Put a person on the admin list until a date. Never for oneself. | Admin | all | RULE-113, RULE-308 |
+| `deleteAdminGrant` | AdminGrant | `delete` | Take a place off the admin list. Never one's own, and never the last place that ends after the current semester and that an Active account holds. | Admin | all | RULE-113, RULE-308 |
+| `sendEndingSoon` | Membership | `:sendEndingSoon` | Four weeks before the semester ends, e-mail each team leader the memberships of the department that end. | System(endingSoon) | all |  |
+| `viewPeople` | — | — | See the people of the department. | Leader(d) ∪ Board; Admin | department, all |  |
+| `viewTeams` | — | — | See the teams of the department and their memberships. | Member(d); Admin | department, all |  |
 
 <!-- docgen:end commands -->
 

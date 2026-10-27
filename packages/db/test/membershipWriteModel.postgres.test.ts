@@ -683,15 +683,15 @@ layer(teamsDatabase, { excludeTestServices: true })(
       // The current semester is Høst 2026. An Active membership runs from it to Vår 2027.
       const active = { end: VAR_2027, start: HOST_2026 };
 
-      it.effect("addMember", () =>
+      it.effect("createMembership", () =>
         Effect.gen(function* effectProgram() {
           yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
           const who = yield* fresh("cmdadd");
 
           yield* waitsForThePersonsLock(
-            "addMember",
+            "createMembership",
             who,
-            TeamsEndpoints.addMember({
+            TeamsEndpoints.createMembership({
               leader: false,
               personId: who.personId,
               positionId: who.positionId,
@@ -702,16 +702,16 @@ layer(teamsDatabase, { excludeTestServices: true })(
         })
       );
 
-      it.effect("extend", () =>
+      it.effect("extendMembership", () =>
         Effect.gen(function* effectProgram() {
           yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
           const who = yield* fresh("cmdextend");
           const base = yield* placeMembership(who, active);
 
           yield* waitsForThePersonsLock(
-            "extend",
+            "extendMembership",
             who,
-            TeamsEndpoints.extend({
+            TeamsEndpoints.extendMembership({
               end: advanceSemester(VAR_2027, 1),
               id: base.id,
             })
@@ -719,35 +719,38 @@ layer(teamsDatabase, { excludeTestServices: true })(
         })
       );
 
-      it.effect("endEarly", () =>
+      it.effect("endEarlyMembership", () =>
         Effect.gen(function* effectProgram() {
           yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
           const who = yield* fresh("cmdend");
           const base = yield* placeMembership(who, active);
 
           yield* waitsForThePersonsLock(
-            "endEarly",
+            "endEarlyMembership",
             who,
-            TeamsEndpoints.endEarly({ id: base.id, semester: VAR_2027 })
+            TeamsEndpoints.endEarlyMembership({
+              id: base.id,
+              semester: VAR_2027,
+            })
           );
         })
       );
 
-      it.effect("change", () =>
+      it.effect("changeMembership", () =>
         Effect.gen(function* effectProgram() {
           yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
           const who = yield* fresh("cmdchange");
           const base = yield* placeMembership(who, active);
 
           yield* waitsForThePersonsLock(
-            "change",
+            "changeMembership",
             who,
-            TeamsEndpoints.change({ from: VAR_2027, id: base.id })
+            TeamsEndpoints.changeMembership({ from: VAR_2027, id: base.id })
           );
         })
       );
 
-      it.effect("cancel", () =>
+      it.effect("deleteMembership", () =>
         Effect.gen(function* effectProgram() {
           yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
           const who = yield* fresh("cmdcancel");
@@ -758,9 +761,9 @@ layer(teamsDatabase, { excludeTestServices: true })(
           });
 
           yield* waitsForThePersonsLock(
-            "cancel",
+            "deleteMembership",
             who,
-            TeamsEndpoints.cancel({ id: planned.id })
+            TeamsEndpoints.deleteMembership({ id: planned.id })
           );
         })
       );

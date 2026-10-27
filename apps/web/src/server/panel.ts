@@ -138,7 +138,7 @@ export const saveFieldOfStudyProgram = (form: FormData) => {
   return Effect.as(
     id === ""
       ? OrganisationEndpoints.createFieldOfStudy(fieldOfStudyInput(form))
-      : OrganisationEndpoints.renameFieldOfStudy({
+      : OrganisationEndpoints.updateFieldOfStudy({
           id: integer(id),
           ...fieldOfStudyRename(form),
         }),

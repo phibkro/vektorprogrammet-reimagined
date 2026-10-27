@@ -19,7 +19,7 @@ import { asPerson, grantPlace } from "./teamsWorld.ts";
 /** Applies the Account machine's transition `command` from `state` to the locked person's account. */
 export const moveAccount = Effect.fnUntraced(function* moveAccount(
   locked: Locked<"Person">,
-  command: "activate" | "deactivate" | "reactivate",
+  command: "activateAccount" | "deactivateAccount" | "reactivateAccount",
   state: "Active" | "Deactivated" | "Invited"
 ) {
   const moment: Accounts.AccountTransition = {
@@ -45,7 +45,7 @@ export const activateAccount = Effect.fnUntraced(function* activateAccount(
     Effect.orDie
   );
 
-  return yield* moveAccount(locked, "activate", "Invited");
+  return yield* moveAccount(locked, "activateAccount", "Invited");
 });
 
 /**

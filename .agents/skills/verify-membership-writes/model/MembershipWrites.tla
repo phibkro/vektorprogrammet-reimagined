@@ -235,16 +235,16 @@ StateOf(term) ==
     ELSE IF Current <= term.e THEN "Active"
     ELSE "Ended"
 
-NewEnd(pl) == IF pl.kind = "extend" THEN pl.e ELSE pl.from - 1
+NewEnd(pl) == IF pl.kind = "extendMembership" THEN pl.e ELSE pl.from - 1
 
 \* declaration.ts MembershipMachine: the transitions and their guards.
 Allowed(pl, term) ==
-    CASE pl.kind = "extend"
+    CASE pl.kind = "extendMembership"
             -> StateOf(term) = "Active" /\ pl.e > term.e
-      [] pl.kind \in {"endEarly", "change"}
+      [] pl.kind \in {"endEarlyMembership", "changeMembership"}
             -> StateOf(term) = "Active" /\ term.s < pl.from /\ pl.from <= term.e
                /\ Current <= pl.from
-      [] pl.kind \in {"cancel", "replace"}
+      [] pl.kind \in {"deleteMembership", "replace"}
             -> StateOf(term) = "Planned"
 
 \* MembershipRepository.findById: a plain SELECT without a lock. It finds whose
@@ -313,10 +313,10 @@ AcquireLock(t) ==
                   /\ UNCHANGED << plan, pc, status, outcome, err, holder, versions,
                                   seen, pending, replaced, backed >>
 
-\* The membership that an INSERT writes: a command's own input, or for `change`
-\* the rest of the term of the membership that it ends (teams/commands.ts:275-281).
+\* The membership that an INSERT writes: a command's own input, or for `changeMembership`
+\* the rest of the term of the membership that it ends (teams/commands.ts:197-203).
 InsertedTerm(t) ==
-    IF plan[t].kind = "change"
+    IF plan[t].kind = "changeMembership"
         THEN [team |-> plan[t].team2, s |-> plan[t].from, e |-> seen[t].e]
         ELSE [team |-> plan[t].team, s |-> plan[t].s, e |-> plan[t].e]
 
@@ -551,8 +551,8 @@ NeverWaitsForPersonHoldingList ==
 \* A lock out of order is refused as a defect.
 NeverOrderViolation == \A t \in Txns : outcome[t] /= "LockOrderViolation"
 
-\* A `change` commits: it ends one membership and starts another in one transaction.
-NeverChangeCommits == \A t \in Txns : ~(plan[t].kind = "change" /\ status[t] = "committed")
+\* A `changeMembership` commits: it ends one membership and starts another in one transaction.
+NeverChangeCommits == \A t \in Txns : ~(plan[t].kind = "changeMembership" /\ status[t] = "committed")
 
 \* Every command commits, none refused and none cancelled.
 NeverAllCommit == ~(\A t \in Txns : status[t] = "committed")

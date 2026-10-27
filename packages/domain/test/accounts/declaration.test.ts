@@ -88,22 +88,27 @@ describe("spec 0007: Account declarations", () => {
 
   it("RULE-202, 299: neither one's own account nor the last active admin can be deactivated", () => {
     assert.isTrue(
-      Machine.can(Accounts.AccountMachine, "deactivate", "Active", context)
+      Machine.can(
+        Accounts.AccountMachine,
+        "deactivateAccount",
+        "Active",
+        context
+      )
     );
     assert.isFalse(
-      Machine.can(Accounts.AccountMachine, "deactivate", "Active", {
+      Machine.can(Accounts.AccountMachine, "deactivateAccount", "Active", {
         ...context,
         actorId: personId,
       })
     );
     assert.isFalse(
-      Machine.can(Accounts.AccountMachine, "deactivate", "Active", {
+      Machine.can(Accounts.AccountMachine, "deactivateAccount", "Active", {
         ...context,
         lastActiveAdmin: true,
       })
     );
     assert.isFalse(
-      Machine.can(Accounts.AccountMachine, "reactivate", "Deactivated", {
+      Machine.can(Accounts.AccountMachine, "reactivateAccount", "Deactivated", {
         ...context,
         actorId: personId,
       })
@@ -117,7 +122,7 @@ describe("spec 0007: Account declarations", () => {
       name: "Account",
       states: AccountState,
       transitions: Arr.map(Accounts.AccountMachine.transitions, (transition) =>
-        transition.command === "deactivate"
+        transition.command === "deactivateAccount"
           ? {
               command: transition.command,
               from: transition.from,
@@ -129,29 +134,31 @@ describe("spec 0007: Account declarations", () => {
 
     const last = { ...context, lastActiveAdmin: true };
     assert.isFalse(
-      Machine.can(Accounts.AccountMachine, "deactivate", "Active", last)
+      Machine.can(Accounts.AccountMachine, "deactivateAccount", "Active", last)
     );
-    assert.isTrue(Machine.can(mutant, "deactivate", "Active", last));
+    assert.isTrue(Machine.can(mutant, "deactivateAccount", "Active", last));
   });
 
-  it("RULE-131, 201: an admin holding an activation code is confined to activate and its person", () => {
+  it("RULE-131, 201: an admin holding an activation code is confined to activateAccount and its person", () => {
     const codePrincipal = Principal.narrow(admin, {
-      command: "activate",
+      command: "activateAccount",
       resource: { personId },
     });
 
-    assert.isTrue(authorize(codePrincipal, "activate", { personId }));
-    assert.isFalse(authorize(codePrincipal, "activate", { personId: otherId }));
+    assert.isTrue(authorize(codePrincipal, "activateAccount", { personId }));
+    assert.isFalse(
+      authorize(codePrincipal, "activateAccount", { personId: otherId })
+    );
     assert.isFalse(authorize(codePrincipal, "resetPassword", { personId }));
-    assert.isFalse(authorize(codePrincipal, "deactivate", { personId }));
-    assert.isFalse(authorize(admin, "activate", { personId }));
+    assert.isFalse(authorize(codePrincipal, "deactivateAccount", { personId }));
+    assert.isFalse(authorize(admin, "activateAccount", { personId }));
 
     const narrowedAgain = Principal.narrow(codePrincipal, {
-      command: "deactivate",
+      command: "deactivateAccount",
       resource: { personId },
     });
 
-    assert.isFalse(authorize(narrowedAgain, "activate", { personId }));
-    assert.isFalse(authorize(narrowedAgain, "deactivate", { personId }));
+    assert.isFalse(authorize(narrowedAgain, "activateAccount", { personId }));
+    assert.isFalse(authorize(narrowedAgain, "deactivateAccount", { personId }));
   });
 });

@@ -9,9 +9,16 @@ export const CodePurpose = Schema.Literals(["activation", "resetPassword"]);
 
 export type CodePurpose = typeof CodePurpose.Type;
 
-/** The command and lifetime associated with each purpose are domain data. */
+/**
+ * The command and lifetime associated with each purpose are domain data. `Domain.problems` checks that each command
+ * is the command whose `Info.credential` is the purpose (`credentialGrants`), because this module sits below the
+ * declarations and cannot name their tags.
+ */
 export const codePolicy = {
-  activation: { command: "activate", lifetimeSeconds: 14 * 24 * 60 * 60 },
+  activation: {
+    command: "activateAccount",
+    lifetimeSeconds: 14 * 24 * 60 * 60,
+  },
   resetPassword: { command: "resetPassword", lifetimeSeconds: 24 * 60 * 60 },
 } as const satisfies Record<
   CodePurpose,

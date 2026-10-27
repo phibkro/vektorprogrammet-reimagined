@@ -1,12 +1,27 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import type { Domain } from "@vektorprogrammet/domain";
-import { Declarations, GrantTable, Teams } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, FileSystem, Result } from "effect";
+import {
+  Commands,
+  Contact,
+  Declarations,
+  Domain,
+  GrantTable,
+  Teams,
+} from "@vektorprogrammet/domain";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  Predicate,
+  Result,
+} from "effect";
 
 import {
   checkAccountsDocument,
+  checkCommandsDocument,
   checkDocument,
+  renderCommandsDocument,
   renderDocument,
 } from "../src/render.ts";
 
@@ -106,7 +121,7 @@ describe("spec 0007: generated account documentation", () => {
 
         const reduced = Arr.filter(
           GrantTable,
-          (row) => !Arr.contains(row.commands, "activate")
+          (row) => !Arr.contains(row.commands, "activateAccount")
         );
 
         assert.isBelow(reduced.length, GrantTable.length);
@@ -116,5 +131,179 @@ describe("spec 0007: generated account documentation", () => {
           )
         );
       }).pipe(Effect.provide(NodeServices.layer))
+  );
+});
+
+const commandsSource = Effect.gen(function* commandsSource() {
+  const fs = yield* FileSystem.FileSystem;
+
+  return yield* fs.readFileString("../../docs/system/commands.md");
+}).pipe(Effect.provide(NodeServices.layer));
+
+/** The section of `resource` in the generated page: its heading up to the next heading, or the end of the block. */
+const sectionOf = (document: string, resource: string): string => {
+  const start = document.indexOf(`\n### ${resource}\n`);
+
+  if (start === -1) {
+    return "";
+  }
+
+  const rest = document.slice(start + 1);
+  const next = rest.search(/\n(?:### |<!-- docgen:end)/u);
+
+  return next === -1 ? rest : rest.slice(0, next);
+};
+
+describe("spec 0007c falsifier 5: every command by resource", () => {
+  it.effect(
+    "the committed page matches the declarations, and lists every command once, under the resource it declares",
+    () =>
+      Effect.gen(function* listsEveryCommand() {
+        const document = yield* commandsSource;
+
+        assert.isTrue(
+          Result.isSuccess(
+            checkCommandsDocument(document, Declarations, GrantTable)
+          )
+        );
+
+        for (const domain of Declarations) {
+          for (const rpc of domain.commands) {
+            const row = `| \`${rpc._tag}\` |`;
+
+            assert.strictEqual(
+              document.split(row).length - 1,
+              1,
+              `${rpc._tag} is listed once`
+            );
+
+            const resource = Commands.infoOf(rpc).pipe(
+              Option.map((info) => info.resource),
+              Option.getOrElse(() => "no resource")
+            );
+
+            assert.include(
+              sectionOf(document, resource),
+              row,
+              `${rpc._tag} is under ${resource}`
+            );
+          }
+        }
+      })
+  );
+
+  it.effect(
+    "negative control: one changed character in the generated block fails the check",
+    () =>
+      Effect.gen(function* changedCharacter() {
+        const document = yield* commandsSource;
+
+        const changed = document.replace(
+          "| Command | Method |",
+          "| Command | Methods |"
+        );
+
+        assert.notStrictEqual(changed, document);
+        assert.isTrue(
+          Result.isFailure(
+            checkCommandsDocument(changed, Declarations, GrantTable)
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "negative control: a command moved to another resource in its declaration, without regenerating, fails the check; regenerating makes it pass",
+    () =>
+      Effect.gen(function* movedCommand() {
+        const document = yield* commandsSource;
+
+        const moved = Contact.submitContact.annotate(
+          Commands.Info,
+          Commands.info({
+            method: ":submit",
+            replaces: ["RULE-156", "RULE-249"],
+            resource: "Person",
+            summary: "Send a message to a department's contact address.",
+          })
+        );
+
+        const domains = Arr.map(Declarations, (domain): Domain.Declaration =>
+          domain.name === "contact" ? { ...domain, commands: [moved] } : domain
+        );
+
+        assert.deepStrictEqual(Domain.allProblems(domains), []);
+        assert.isTrue(
+          Result.isFailure(checkCommandsDocument(document, domains, GrantTable))
+        );
+
+        const regenerated = renderCommandsDocument(
+          document,
+          domains,
+          GrantTable
+        );
+
+        assert.isTrue(Result.isSuccess(regenerated));
+        assert.isTrue(
+          Result.isSuccess(
+            Result.flatMap(regenerated, (text) =>
+              checkCommandsDocument(text, domains, GrantTable)
+            )
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "an incomplete declaration, a missing marker and a nested marker are refused",
+    () =>
+      Effect.gen(function* refused() {
+        const document = yield* commandsSource;
+
+        const misnamed = Teams.createTeam.annotate(
+          Commands.Info,
+          Commands.info({
+            method: "create",
+            resource: "Person",
+            summary: "Create a team in a department.",
+          })
+        );
+
+        const unnamed: Domain.Declaration = {
+          ...Teams.TeamsDomain,
+          commands: Arr.map(Teams.TeamsDomain.commands, (rpc) =>
+            Predicate.isTagged(rpc, "createTeam") ? misnamed : rpc
+          ),
+        };
+
+        assert.isTrue(
+          Result.isFailure(
+            renderCommandsDocument(document, [unnamed], GrantTable)
+          )
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            renderCommandsDocument(
+              document.replace("<!-- docgen:end resources -->", ""),
+              Declarations,
+              GrantTable
+            )
+          )
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            renderCommandsDocument(
+              document.replace(
+                "<!-- docgen:end resources -->",
+                "<!-- docgen:begin inner -->\n<!-- docgen:end resources -->"
+              ),
+              Declarations,
+              GrantTable
+            )
+          )
+        );
+      })
   );
 });

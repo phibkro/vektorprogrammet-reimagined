@@ -146,16 +146,29 @@ export const make = <
   }),
 });
 
+/**
+ * What a machine is asked about a command: the table, a command of its own group, a state and the values that the
+ * guards read. `command` is inferred from the table alone, so a name that the group does not have does not compile (a
+ * renamed command left behind as a string is found by the type check, not by a test that happens to run it).
+ */
+type Question<
+  State extends string,
+  Command extends string,
+  Context,
+> = readonly [
+  table: Table<State, Command, Context>,
+  command: NoInfer<Command>,
+  state: State | Boundary,
+  context: Context,
+];
+
 /** The transitions of `command` that start from `state` and whose guard holds for `context`. */
 export const available = <
   State extends string,
   Command extends string,
   Context,
 >(
-  table: Table<State, Command, Context>,
-  command: Command,
-  state: State | Boundary,
-  context: Context
+  ...[table, command, state, context]: Question<State, Command, Context>
 ): readonly Transition<State, Command, Context>[] =>
   Arr.filter(
     table.transitions,
@@ -167,12 +180,8 @@ export const available = <
 
 /** Whether `command` may be applied in `state`. Pure. */
 export const can = <State extends string, Command extends string, Context>(
-  table: Table<State, Command, Context>,
-  command: Command,
-  state: State | Boundary,
-  context: Context
-): boolean =>
-  Arr.isReadonlyArrayNonEmpty(available(table, command, state, context));
+  ...question: Question<State, Command, Context>
+): boolean => Arr.isReadonlyArrayNonEmpty(available(...question));
 
 /**
  * Whether some transition of `command` starts from `state`, whatever its guard says. A page asks this to decide
@@ -184,7 +193,7 @@ export const startsFrom = <
   Context,
 >(
   table: Table<State, Command, Context>,
-  command: Command,
+  command: NoInfer<Command>,
   state: State | Boundary
 ): boolean =>
   Arr.some(
@@ -195,12 +204,6 @@ export const startsFrom = <
 
 /** The state `command` leaves the resource in, when it may be applied in `state`. */
 export const next = <State extends string, Command extends string, Context>(
-  table: Table<State, Command, Context>,
-  command: Command,
-  state: State | Boundary,
-  context: Context
+  ...question: Question<State, Command, Context>
 ): Option.Option<State | Boundary> =>
-  Option.map(
-    Arr.head(available(table, command, state, context)),
-    (transition) => transition.to
-  );
+  Option.map(Arr.head(available(...question)), (transition) => transition.to);

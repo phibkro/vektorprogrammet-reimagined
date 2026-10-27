@@ -56,19 +56,23 @@ export const createTeam = Rpc.make("createTeam", {
 }).annotate(
   Info,
   info({
+    method: "create",
     replaces: ["RULE-157", "RULE-321"],
+    resource: "Team",
     summary: "Create a team in a department.",
   })
 );
 
-export const editTeam = Rpc.make("editTeam", {
+export const updateTeam = Rpc.make("updateTeam", {
   error: DomainErrorSchema,
   payload: { id: TeamId, ...TeamDetails.fields },
   success: Team,
 }).annotate(
   Info,
   info({
+    method: "update",
     replaces: ["RULE-157", "RULE-321"],
+    resource: "Team",
     summary: "Change a team's name, function and default term.",
   })
 );
@@ -80,26 +84,30 @@ export const deactivateTeam = Rpc.make("deactivateTeam", {
 }).annotate(
   Info,
   info({
+    method: ":deactivate",
     replaces: ["RULE-233", "RULE-329"],
+    resource: "Team",
     summary: "Deactivate a team. A team is never deleted.",
   })
 );
 
-export const registerPerson = Rpc.make("registerPerson", {
+export const createPerson = Rpc.make("createPerson", {
   error: DomainErrorSchema,
   payload: PersonInput,
   success: Person,
 }).annotate(
   Info,
   info({
+    method: "create",
     note: "Granted for the department of the chosen field of study.",
     replaces: ["RULE-164"],
+    resource: "Person",
     summary:
       "Register a person, with the field of study that gives them a department.",
   })
 );
 
-export const addMember = Rpc.make("addMember", {
+export const createMembership = Rpc.make("createMembership", {
   error: DomainErrorSchema,
   payload: {
     end: Schema.optionalKey(Semester),
@@ -114,13 +122,15 @@ export const addMember = Rpc.make("addMember", {
   Info,
   info({
     machine: "Membership",
+    method: "create",
     replaces: ["RULE-164", "RULE-206", "RULE-284"],
+    resource: "Membership",
     summary:
       "Add a person to a team for a term. The end defaults to the team's default term.",
   })
 );
 
-export const extend = Rpc.make("extend", {
+export const extendMembership = Rpc.make("extendMembership", {
   error: DomainErrorSchema,
   payload: { end: Semester, id: MembershipId },
   success: Membership,
@@ -128,12 +138,14 @@ export const extend = Rpc.make("extend", {
   Info,
   info({
     machine: "Membership",
+    method: ":extend",
     replaces: ["RULE-234", "RULE-251", "RULE-252"],
+    resource: "Membership",
     summary: "Extend a membership to a later end semester.",
   })
 );
 
-export const change = Rpc.make("change", {
+export const changeMembership = Rpc.make("changeMembership", {
   error: DomainErrorSchema,
   payload: {
     from: Semester,
@@ -147,13 +159,15 @@ export const change = Rpc.make("change", {
   Info,
   info({
     machine: "Membership",
+    method: ":change",
     note: "A move to a team in another department also needs the grant in the receiving department, in the same transaction.",
+    resource: "Membership",
     summary:
       "Change the position, team or leader flag from a semester: the old membership ends and a new one starts.",
   })
 );
 
-export const endEarly = Rpc.make("endEarly", {
+export const endEarlyMembership = Rpc.make("endEarlyMembership", {
   error: DomainErrorSchema,
   payload: { id: MembershipId, semester: Semester },
   success: Membership,
@@ -161,12 +175,14 @@ export const endEarly = Rpc.make("endEarly", {
   Info,
   info({
     machine: "Membership",
+    method: ":endEarly",
     replaces: ["RULE-298"],
+    resource: "Membership",
     summary: "End a membership from a semester. A member can end their own.",
   })
 );
 
-export const cancel = Rpc.make("cancel", {
+export const deleteMembership = Rpc.make("deleteMembership", {
   error: DomainErrorSchema,
   payload: { id: MembershipId },
   success: Schema.Void,
@@ -174,32 +190,38 @@ export const cancel = Rpc.make("cancel", {
   Info,
   info({
     machine: "Membership",
+    method: "delete",
+    resource: "Membership",
     summary: "Cancel a membership that has not started.",
   })
 );
 
-export const grantAdmin = Rpc.make("grantAdmin", {
+export const createAdminGrant = Rpc.make("createAdminGrant", {
   error: DomainErrorSchema,
   payload: { personId: PersonId, until: Schema.DateTimeUtcFromString },
   success: AdminGrant,
 }).annotate(
   Info,
   info({
+    method: "create",
     note: "Never for oneself.",
     replaces: ["RULE-113", "RULE-308"],
+    resource: "AdminGrant",
     summary: "Put a person on the admin list until a date.",
   })
 );
 
-export const revokeAdmin = Rpc.make("revokeAdmin", {
+export const deleteAdminGrant = Rpc.make("deleteAdminGrant", {
   error: DomainErrorSchema,
   payload: { id: AdminGrantId },
   success: Schema.Void,
 }).annotate(
   Info,
   info({
+    method: "delete",
     note: "Never one's own, and never the last place that ends after the current semester and that an Active account holds.",
     replaces: ["RULE-113", "RULE-308"],
+    resource: "AdminGrant",
     summary: "Take a place off the admin list.",
   })
 );
@@ -211,6 +233,8 @@ export const sendEndingSoon = Rpc.make("sendEndingSoon", {
   Info,
   info({
     job: "endingSoon",
+    method: ":sendEndingSoon",
+    resource: "Membership",
     summary:
       "Four weeks before the semester ends, e-mail each team leader the memberships of the department that end.",
   })
@@ -218,16 +242,16 @@ export const sendEndingSoon = Rpc.make("sendEndingSoon", {
 
 export const TeamsRpc = RpcGroup.make(
   createTeam,
-  editTeam,
+  updateTeam,
   deactivateTeam,
-  registerPerson,
-  addMember,
-  extend,
-  change,
-  endEarly,
-  cancel,
-  grantAdmin,
-  revokeAdmin,
+  createPerson,
+  createMembership,
+  extendMembership,
+  changeMembership,
+  endEarlyMembership,
+  deleteMembership,
+  createAdminGrant,
+  deleteAdminGrant,
   sendEndingSoon
 );
 
@@ -262,55 +286,55 @@ export const MembershipMachine = Machine.make({
   states: MembershipState,
   transitions: [
     {
-      command: "addMember",
+      command: "createMembership",
       from: [Machine.Boundary],
       guard: guard.after(["term", "start"], ["current"]),
       to: "Planned",
       when: "later start",
     },
     {
-      command: "addMember",
+      command: "createMembership",
       from: [Machine.Boundary],
       guard: guard.same(["term", "start"], ["current"]),
       to: "Active",
       when: "start this semester",
     },
     {
-      command: "extend",
+      command: "extendMembership",
       from: ["Active"],
       guard: guard.after(["requested"], ["term", "end"]),
       to: "Active",
       when: "new end",
     },
     {
-      command: "endEarly",
+      command: "endEarlyMembership",
       from: ["Active"],
       guard: endsBefore,
       to: "Ended",
       when: "semester",
     },
     {
-      command: "change",
+      command: "changeMembership",
       from: ["Active"],
       guard: endsBefore,
       to: "Ended",
       when: "the old membership",
     },
     {
-      command: "change",
+      command: "changeMembership",
       from: [Machine.Boundary],
       guard: guard.after(["requested"], ["current"]),
       to: "Planned",
       when: "the new membership, starting later",
     },
     {
-      command: "change",
+      command: "changeMembership",
       from: [Machine.Boundary],
       guard: guard.same(["requested"], ["current"]),
       to: "Active",
       when: "the new membership, starting now",
     },
-    { command: "cancel", from: ["Planned"], to: Machine.Boundary },
+    { command: "deleteMembership", from: ["Planned"], to: Machine.Boundary },
   ],
 });
 
@@ -323,19 +347,19 @@ export const TeamsDomain = declareDomain({
       [leader, board],
       [
         "createTeam",
-        "editTeam",
+        "updateTeam",
         "deactivateTeam",
-        "registerPerson",
-        "addMember",
-        "extend",
-        "change",
-        "endEarly",
-        "cancel",
+        "createPerson",
+        "createMembership",
+        "extendMembership",
+        "changeMembership",
+        "endEarlyMembership",
+        "deleteMembership",
         "viewPeople",
       ],
       "department"
     ),
-    grant([self], ["endEarly"], "own"),
+    grant([self], ["endEarlyMembership"], "own"),
     grant([member], ["viewTeams"], "department"),
     grant([system("endingSoon")], ["sendEndingSoon"], "all"),
   ],

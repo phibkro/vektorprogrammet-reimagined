@@ -161,7 +161,11 @@ const momentOf = (
 });
 
 const can = (
-  command: "cancel" | "createTeam" | "endEarly" | "extend",
+  command:
+    | "createTeam"
+    | "deleteMembership"
+    | "endEarlyMembership"
+    | "extendMembership",
   state: MembershipState,
   requested: Semester
 ) => Machine.can(MembershipMachine, command, state, momentOf(state, requested));
@@ -179,27 +183,27 @@ describe("the Membership machine (ADR 0007)", () => {
     );
   });
 
-  it("extend: only an Active membership, and only to a later end", () => {
-    assert.isTrue(can("extend", "Active", host(2027)));
-    assert.isFalse(can("extend", "Active", vaar(2027)));
-    assert.isFalse(can("extend", "Active", vaar(2026)));
-    assert.isFalse(can("extend", "Planned", vaar(2030)));
-    assert.isFalse(can("extend", "Ended", vaar(2030)));
+  it("extendMembership: only an Active membership, and only to a later end", () => {
+    assert.isTrue(can("extendMembership", "Active", host(2027)));
+    assert.isFalse(can("extendMembership", "Active", vaar(2027)));
+    assert.isFalse(can("extendMembership", "Active", vaar(2026)));
+    assert.isFalse(can("extendMembership", "Planned", vaar(2030)));
+    assert.isFalse(can("extendMembership", "Ended", vaar(2030)));
   });
 
-  it("endEarly: an Active membership ends before a semester inside its term that is not in the past", () => {
-    assert.isTrue(can("endEarly", "Active", host(2026)));
-    assert.isTrue(can("endEarly", "Active", vaar(2027)));
-    assert.isFalse(can("endEarly", "Active", vaar(2026)));
-    assert.isFalse(can("endEarly", "Active", host(2027)));
-    assert.isFalse(can("endEarly", "Ended", host(2026)));
-    assert.isFalse(can("endEarly", "Planned", vaar(2028)));
+  it("endEarlyMembership: an Active membership ends before a semester inside its term that is not in the past", () => {
+    assert.isTrue(can("endEarlyMembership", "Active", host(2026)));
+    assert.isTrue(can("endEarlyMembership", "Active", vaar(2027)));
+    assert.isFalse(can("endEarlyMembership", "Active", vaar(2026)));
+    assert.isFalse(can("endEarlyMembership", "Active", host(2027)));
+    assert.isFalse(can("endEarlyMembership", "Ended", host(2026)));
+    assert.isFalse(can("endEarlyMembership", "Planned", vaar(2028)));
   });
 
-  it("cancel: only a Planned membership", () => {
-    assert.isTrue(can("cancel", "Planned", vaar(2027)));
-    assert.isFalse(can("cancel", "Active", vaar(2027)));
-    assert.isFalse(can("cancel", "Ended", vaar(2027)));
+  it("deleteMembership: only a Planned membership", () => {
+    assert.isTrue(can("deleteMembership", "Planned", vaar(2027)));
+    assert.isFalse(can("deleteMembership", "Active", vaar(2027)));
+    assert.isFalse(can("deleteMembership", "Ended", vaar(2027)));
   });
 
   it("a command that the machine does not declare is never allowed, in any state", () => {
@@ -211,15 +215,28 @@ describe("the Membership machine (ADR 0007)", () => {
   it("startsFrom answers which controls a state offers, whatever the guards say", () => {
     const offered = (state: MembershipState) =>
       Arr.filter(
-        ["cancel", "change", "endEarly", "extend"] as const,
+        [
+          "deleteMembership",
+          "changeMembership",
+          "endEarlyMembership",
+          "extendMembership",
+        ] as const,
         (command) => Machine.startsFrom(MembershipMachine, command, state)
       );
 
-    assert.deepStrictEqual(offered("Planned"), ["cancel"]);
-    assert.deepStrictEqual(offered("Active"), ["change", "endEarly", "extend"]);
+    assert.deepStrictEqual(offered("Planned"), ["deleteMembership"]);
+    assert.deepStrictEqual(offered("Active"), [
+      "changeMembership",
+      "endEarlyMembership",
+      "extendMembership",
+    ]);
     assert.deepStrictEqual(offered("Ended"), []);
     assert.isTrue(
-      Machine.startsFrom(MembershipMachine, "addMember", Machine.Boundary)
+      Machine.startsFrom(
+        MembershipMachine,
+        "createMembership",
+        Machine.Boundary
+      )
     );
   });
 });

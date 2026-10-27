@@ -3,8 +3,10 @@
  * the contexts and services and `src/README.md` for the transaction convention.
  *
  * Each domain's declaration (its commands as `Rpc`s, its grants, its machines) is a namespace of its own
- * (`Teams.createTeam`, `Organisation.TeamsDomain`), because command names such as `extend` and `change` mean
- * nothing outside their domain.
+ * (`Teams.createTeam`, `Organisation.OrganisationDomain`): a declaration exports many names (the commands, the group,
+ * the machines, the domain) and each reads best beside its domain. A command's name is unique across domains on its
+ * own (`Domain.allProblems` refuses a tag that two domains declare), so the namespace is for reading and not for
+ * telling two commands of one name apart.
  */
 
 // kernel (spec 0006): principals, subject sets, grants, machines, commands, domain declarations

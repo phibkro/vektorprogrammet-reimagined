@@ -1,6 +1,6 @@
 /**
- * Spec 0006b R2: an Active administrator is always left, however two commands interleave. `deactivate` (of an account)
- * and `revokeAdmin` (of a place) decide on every administrator, and each used to lock only the person that it changes:
+ * Spec 0006b R2: an Active administrator is always left, however two commands interleave. `deactivateAccount` (of an
+ * account) and `deleteAdminGrant` (of a place) decide on every administrator, and each used to lock only the person that it changes:
  * two administrators that deactivate each other's account and revoke each other's place at once were each told that
  * another one is left, and nobody was. Both now lock the admin list first and read through its token, so the command
  * that decides second sees the result of the first. Each race runs in rounds of fresh state, prints every loser's full
@@ -87,21 +87,21 @@ const adminPrincipal = (personId: PersonId) =>
 /** `actor` deactivates the account of `personId`, in a transaction of its own. */
 const deactivateAs = (actor: PersonId, personId: PersonId) =>
   transactional(
-    AccountEndpoints.deactivate({ personId }).pipe(
+    AccountEndpoints.deactivateAccount({ personId }).pipe(
       Effect.provideService(CurrentPrincipal, adminPrincipal(actor))
     )
   );
 
 const reactivateAs = (actor: PersonId, personId: PersonId) =>
   transactional(
-    AccountEndpoints.reactivate({ personId }).pipe(
+    AccountEndpoints.reactivateAccount({ personId }).pipe(
       Effect.provideService(CurrentPrincipal, adminPrincipal(actor))
     )
   );
 
 const grantAs = (actor: PersonId, personId: PersonId) =>
   transactional(
-    TeamsEndpoints.grantAdmin({ personId, until: UNTIL }).pipe(
+    TeamsEndpoints.createAdminGrant({ personId, until: UNTIL }).pipe(
       Effect.provideService(CurrentPrincipal, adminPrincipal(actor))
     )
   );
@@ -109,7 +109,7 @@ const grantAs = (actor: PersonId, personId: PersonId) =>
 /** `actor` revokes the place `id`, in a transaction of its own. */
 const revokeAs = (actor: PersonId, id: AdminGrantId) =>
   transactional(
-    TeamsEndpoints.revokeAdmin({ id }).pipe(
+    TeamsEndpoints.deleteAdminGrant({ id }).pipe(
       Effect.provideService(CurrentPrincipal, adminPrincipal(actor))
     )
   );
@@ -147,7 +147,7 @@ const countingPlaces = Effect.gen(function* countingPlacesRead() {
 const refusedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) =>
   Option.exists(Exit.findErrorOption(exit), Predicate.isTagged(tag));
 
-/** Whether the exit is the refusal of the last place by `revokeAdmin`: a `ValidationFailed` that names `id`. */
+/** Whether the exit is the refusal of the last place by `deleteAdminGrant`: a `ValidationFailed` that names `id`. */
 const refusedAsLastPlace = (exit: Exit.Exit<unknown, unknown>) =>
   Option.exists(
     Exit.findErrorOption(exit),
@@ -434,7 +434,7 @@ layer(
 
         // `gone` was an administrator when its request began; then its account was deactivated.
         yield* asPerson(gone.id, (locked) =>
-          moveAccount(locked, "deactivate", "Active")
+          moveAccount(locked, "deactivateAccount", "Active")
         );
 
         const everyValid = yield* sql<{
@@ -471,7 +471,7 @@ layer(
   );
 
   it.effect(
-    "deactivate, reactivate, grantAdmin and revokeAdmin wait for the admin list's lock before they write anything; a command that does not lock the list does not wait",
+    "deactivateAccount, reactivateAccount, createAdminGrant and deleteAdminGrant wait for the admin list's lock before they write anything; a command that does not lock the list does not wait",
     () =>
       Effect.gen(function* waitsForTheList() {
         const { fieldOfStudy, person: holder } = yield* world("listwait");
@@ -485,24 +485,24 @@ layer(
         const holdersPlace = yield* activeAdmin(holder.id, expiresAt);
         yield* asPerson(away.id, activateAccount);
         yield* asPerson(away.id, (locked) =>
-          moveAccount(locked, "deactivate", "Active")
+          moveAccount(locked, "deactivateAccount", "Active")
         );
 
         const observed = [
           summarized(
-            "deactivate",
+            "deactivateAccount",
             yield* meetsHeldList(deactivateAs(boss.id, subject.id))
           ),
           summarized(
-            "reactivate",
+            "reactivateAccount",
             yield* meetsHeldList(reactivateAs(boss.id, away.id))
           ),
           summarized(
-            "grantAdmin",
+            "createAdminGrant",
             yield* meetsHeldList(grantAs(boss.id, newcomer.id))
           ),
           summarized(
-            "revokeAdmin",
+            "deleteAdminGrant",
             yield* meetsHeldList(revokeAs(boss.id, holdersPlace.id))
           ),
           summarized(
@@ -512,10 +512,10 @@ layer(
         ];
 
         assert.deepStrictEqual(observed, [
-          ["deactivate", 1, true, [], false, "succeeded"],
-          ["reactivate", 1, true, [], false, "succeeded"],
-          ["grantAdmin", 1, true, [], false, "succeeded"],
-          ["revokeAdmin", 1, true, [], false, "succeeded"],
+          ["deactivateAccount", 1, true, [], false, "succeeded"],
+          ["reactivateAccount", 1, true, [], false, "succeeded"],
+          ["createAdminGrant", 1, true, [], false, "succeeded"],
+          ["deleteAdminGrant", 1, true, [], false, "succeeded"],
           ["a person's lock alone", 0, false, [], false, "succeeded"],
         ]);
       }),

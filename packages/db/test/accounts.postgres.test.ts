@@ -49,14 +49,16 @@ const assertAuthority = (
   purpose: CodePurpose,
   personId: PersonId
 ) => {
-  const command = purpose === "activation" ? "activate" : "resetPassword";
-  const other = purpose === "activation" ? "resetPassword" : "activate";
+  const command =
+    purpose === "activation" ? "activateAccount" : "resetPassword";
+
+  const other = purpose === "activation" ? "resetPassword" : "activateAccount";
   assert.isTrue(authorize(principal, command, { personId }));
   assert.isFalse(authorize(principal, other, { personId }));
   assert.isFalse(
     authorize(principal, command, { personId: PersonId.make(personId + 1) })
   );
-  assert.isFalse(authorize(principal, "deactivate", { personId }));
+  assert.isFalse(authorize(principal, "deactivateAccount", { personId }));
 };
 
 const checkPurpose = Effect.fnUntraced(function* checkPurpose(
@@ -298,13 +300,13 @@ layer(
         for (const state of ["Invited", "Active", "Deactivated"] as const) {
           if (state === "Active") {
             yield* asPerson(fixture.person.id, (locked) =>
-              moveAccount(locked, "activate", "Invited")
+              moveAccount(locked, "activateAccount", "Invited")
             );
           }
 
           if (state === "Deactivated") {
             yield* asPerson(fixture.person.id, (locked) =>
-              moveAccount(locked, "deactivate", "Active")
+              moveAccount(locked, "deactivateAccount", "Active")
             );
           }
 
@@ -350,9 +352,9 @@ layer(
             Arr.map(pair, (person) =>
               Effect.exit(
                 transactional(
-                  AccountEndpoints.deactivate({ personId: person.id }).pipe(
-                    Effect.provideService(CurrentPrincipal, actor)
-                  )
+                  AccountEndpoints.deactivateAccount({
+                    personId: person.id,
+                  }).pipe(Effect.provideService(CurrentPrincipal, actor))
                 )
               )
             ),

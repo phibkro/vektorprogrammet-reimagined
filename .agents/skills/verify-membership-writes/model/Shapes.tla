@@ -29,18 +29,18 @@ EXTENDS Sequences
 
 CurrentCode == [
     \* The calls that each command makes, in order (each handler runs in one
-    \* transaction, packages/db/src/transactional.ts:41-58). `grantAdmin` and
-    \* `revokeAdmin` write admin_grant, not membership: the model takes only
-    \* their locks. `deactivate` and `reactivate` (accounts/commands.ts:230-231,
+    \* transaction, packages/db/src/transactional.ts:41-58). `createAdminGrant` and
+    \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
+    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:251-252,
     \* 277-278, through lockAccount at 106-121) take the same two locks.
     compose |-> [
-        addMember   |-> <<"lock", "insert">>,           \* teams/commands.ts:166, 197
-        cancel      |-> <<"beginTransition", "remove">>, \* teams/commands.ts:220, 222
-        change      |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:257-258, 268, 275
-        endEarly    |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:336-337, 339
-        extend      |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:361-362, 364
-        grantAdmin  |-> <<"lockList", "lock">>,         \* teams/commands.ts:399-400
-        revokeAdmin |-> <<"lockList", "lock">>          \* teams/commands.ts:451, 461 (452 is a plain read)
+        createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:269, 305
+        deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:416, 418
+        changeMembership   |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:179-180, 190, 197
+        endEarlyMembership |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:432-433, 435
+        extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:457-458, 460
+        createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:238-239
+        deleteAdminGrant   |-> <<"lockList", "lock">>          \* teams/commands.ts:381, 391 (382 is a plain read)
     ],
     \* The statements of each call, in order.
     repo |-> [
@@ -121,16 +121,16 @@ NoExclusionConstraint == [CurrentCode EXCEPT !.exclusion = FALSE]
 \* meant that the other write won. Only visible together with a missing lock.
 DeadlockMappedToAlreadyExists == [LockTakesNoRowLock EXCEPT !.on40P01 = "AlreadyExists"]
 
-\* `revokeAdmin` locks the holder of the place before the admin list: the order
+\* `deleteAdminGrant` locks the holder of the place before the admin list: the order
 \* that spec 0006b R2 forbids. The registry refuses it, as a defect, before it
 \* sends the second statement.
 ListAfterPerson ==
     [CurrentCode EXCEPT !.compose = [CurrentCode.compose EXCEPT
-        !.revokeAdmin = <<"lock", "lockList">>]]
+        !.deleteAdminGrant = <<"lock", "lockList">>]]
 
 \* The same order, and the registry does not refuse it (locks.ts:94-103
-\* deleted): `grantAdmin` holds the list and waits for the person, and
-\* `revokeAdmin` holds the person and waits for the list.
+\* deleted): `createAdminGrant` holds the list and waits for the person, and
+\* `deleteAdminGrant` holds the person and waits for the list.
 ListAfterPersonUnchecked == [ListAfterPerson EXCEPT !.orderCheck = FALSE]
 
 (***************************************************************************)
@@ -138,8 +138,9 @@ ListAfterPersonUnchecked == [ListAfterPerson EXCEPT !.orderCheck = FALSE]
 (* show what taking the person's lock first buys.                          *)
 (***************************************************************************)
 
-Kinds == {"addMember", "cancel", "change", "endEarly", "extend", "grantAdmin",
-          "revokeAdmin", "replace"}
+Kinds == {"createMembership", "deleteMembership", "changeMembership",
+          "endEarlyMembership", "extendMembership", "createAdminGrant",
+          "deleteAdminGrant", "replace"}
 
 \* A command that cancels a planned membership and adds another one in the same
 \* transaction, written around the construct: a DELETE with no lock before it

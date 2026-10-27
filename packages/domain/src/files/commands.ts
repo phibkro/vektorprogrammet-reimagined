@@ -2,10 +2,10 @@
  * C11 upload and serving. An upload is two steps because R2 is provider I/O and
  * the database rule forbids provider I/O inside a transaction:
  *
- *   1. `storeUpload`        outside any transaction: ask the grant of `registerPublicFile`, type by magic
+ *   1. `storeUpload`        outside any transaction: ask the grant of `createPublicFile`, type by magic
  *                           bytes, hash, `FileStore.put` (idempotent: the key is the content hash, so a
  *                           retried or orphaned put is harmless).
- *   2. `registerPublicFile` inside the transaction, as the command of `FilesRpc`: registry row + audit entry.
+ *   2. `createPublicFile`   inside the transaction, as the command of `FilesRpc`: registry row + audit entry.
  */
 import { Crypto, DateTime, Effect, Option, Predicate, Schema } from "effect";
 
@@ -15,7 +15,7 @@ import { NotFound, validationFailed } from "../shared/errors.ts";
 import { FileKey } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { decodeInput, requiredText } from "../shared/validation.ts";
-import { FilesDomain, FilesRpc, registerPublicFile } from "./declaration.ts";
+import { FilesDomain, FilesRpc, createPublicFile } from "./declaration.ts";
 import type { StoredUpload } from "./declaration.ts";
 import {
   IMAGE_REQUIRED_MESSAGE,
@@ -40,7 +40,7 @@ export const storeUpload = Effect.fn("storeUpload")(
     readonly bytes: Uint8Array;
     readonly accept: UploadAccept;
   }) {
-    yield* FilesDomain.requireGrant("registerPublicFile", {});
+    yield* FilesDomain.requireGrant("createPublicFile", {});
     const { name } = yield* decodeFileName({ name: upload.name });
 
     const contentType = yield* Effect.fromResult(
@@ -68,7 +68,7 @@ export const storeUpload = Effect.fn("storeUpload")(
 
 export const FilesHandlers = FilesRpc.toLayer({
   /** Step 2 (in the transaction): register the stored object and audit it. */
-  registerPublicFile: FilesDomain.handle(registerPublicFile, {
+  createPublicFile: FilesDomain.handle(createPublicFile, {
     resource: () => Effect.succeed({}),
     run: (upload, principal) =>
       Effect.gen(function* run() {
@@ -104,8 +104,8 @@ export const withFiles = Commands.inProcess(FilesRpc, FilesHandlers);
 
 /** The server functions' entries: untrusted input in, the command's own result out (`Commands.endpoint`). */
 export const FilesEndpoints = {
-  registerPublicFile: Commands.endpoint(registerPublicFile, (payload) =>
-    withFiles((client) => client.registerPublicFile(payload))
+  createPublicFile: Commands.endpoint(createPublicFile, (payload) =>
+    withFiles((client) => client.createPublicFile(payload))
   ),
 };
 

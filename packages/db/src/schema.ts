@@ -417,9 +417,9 @@ export const membership = pgTable(
 );
 
 /**
- * The admin list as one row (spec 0006b): the row that `deactivate`, `reactivate`, `grantAdmin` and `revokeAdmin` lock
- * first, because whether an Active administrator is left spans every administrator. It holds no data; a migration
- * inserts it (`admin_list_seeded`), and `ADMIN_LIST_ID` names it.
+ * The admin list as one row (spec 0006b): the row that `deactivateAccount`, `reactivateAccount`, `createAdminGrant` and
+ * `deleteAdminGrant` lock first, because whether an Active administrator is left spans every administrator. It holds
+ * no data; a migration inserts it (`admin_list_seeded`), and `ADMIN_LIST_ID` names it.
  */
 export const adminList = pgTable(
   "admin_list",

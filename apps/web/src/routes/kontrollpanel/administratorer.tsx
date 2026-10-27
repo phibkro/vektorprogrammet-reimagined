@@ -115,7 +115,7 @@ const AdminsPage = () => {
   );
 };
 
-/** Spec 0006: the admin list, for a principal that holds `grantAdmin`; revoking one's own place is not offered. */
+/** Spec 0006: the admin list, for a principal that holds `createAdminGrant`; revoking one's own place is not offered. */
 export const Route = createFileRoute("/kontrollpanel/administratorer")({
   component: AdminsPage,
   loader: () => getAdmins().then(pageData),

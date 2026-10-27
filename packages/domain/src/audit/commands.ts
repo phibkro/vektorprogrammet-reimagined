@@ -3,10 +3,10 @@ import { Effect } from "effect";
 
 import * as Commands from "../kernel/commands.ts";
 import { AuditLog } from "./auditLog.ts";
-import { AuditDomain, AuditRpc, readAudit } from "./declaration.ts";
+import { AuditDomain, AuditRpc, listAuditEntries } from "./declaration.ts";
 
 export const AuditHandlers = AuditRpc.toLayer({
-  readAudit: AuditDomain.handle(readAudit, {
+  listAuditEntries: AuditDomain.handle(listAuditEntries, {
     resource: () => Effect.succeed({}),
     run: ({ limit }) =>
       Effect.gen(function* run() {
@@ -22,7 +22,7 @@ export const withAudit = Commands.inProcess(AuditRpc, AuditHandlers);
 
 /** The server functions' entries: untrusted input in, the command's own result out (`Commands.endpoint`). */
 export const AuditEndpoints = {
-  readAudit: Commands.endpoint(readAudit, (payload) =>
-    withAudit((client) => client.readAudit(payload))
+  listAuditEntries: Commands.endpoint(listAuditEntries, (payload) =>
+    withAudit((client) => client.listAuditEntries(payload))
   ),
 };

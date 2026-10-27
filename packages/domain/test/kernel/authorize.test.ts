@@ -151,26 +151,30 @@ describe("kernel: scopes", () => {
   it("a department scope needs the department of the resource, and a leader of another department is refused", () => {
     const leader = person([fact(ONE, { leader: true })]);
 
-    assert.isTrue(authorize(leader, "create", { departmentId: ONE }));
-    assert.isFalse(authorize(leader, "create", { departmentId: TWO }));
-    assert.isFalse(authorize(leader, "create", {}));
+    assert.isTrue(authorize(leader, "createArticle", { departmentId: ONE }));
+    assert.isFalse(authorize(leader, "createArticle", { departmentId: TWO }));
+    assert.isFalse(authorize(leader, "createArticle", {}));
   });
 
   it("a department scope never holds for a member who does not lead, nor for a board member's other department", () => {
     const member = person([fact(ONE)]);
     const board = person([fact(ONE, { function: "board" })]);
 
-    assert.isFalse(authorize(member, "create", { departmentId: ONE }));
-    assert.isTrue(authorize(board, "create", { departmentId: ONE }));
-    assert.isFalse(authorize(board, "create", { departmentId: TWO }));
+    assert.isFalse(authorize(member, "createArticle", { departmentId: ONE }));
+    assert.isTrue(authorize(board, "createArticle", { departmentId: ONE }));
+    assert.isFalse(authorize(board, "createArticle", { departmentId: TWO }));
   });
 
   it("an own scope needs the person the resource belongs to", () => {
     const mine = person([], { personId: 7 });
 
-    assert.isTrue(authorize(mine, "publish", { personId: PersonId.make(7) }));
-    assert.isFalse(authorize(mine, "publish", { personId: PersonId.make(8) }));
-    assert.isFalse(authorize(mine, "publish", {}));
+    assert.isTrue(
+      authorize(mine, "publishArticle", { personId: PersonId.make(7) })
+    );
+    assert.isFalse(
+      authorize(mine, "publishArticle", { personId: PersonId.make(8) })
+    );
+    assert.isFalse(authorize(mine, "publishArticle", {}));
   });
 
   it("scope all holds for the one department-bound set that a row names, wherever the actor belongs", () => {
@@ -198,25 +202,27 @@ describe("kernel: admins and system principals (R1)", () => {
   const admin = person([], { admin: true });
 
   it("the admin row holds every command that a person may run, in every department, and nothing else needs a membership", () => {
-    for (const name of ["create", "publish", "viewNotes"]) {
+    for (const name of ["createArticle", "publishArticle", "viewNotes"]) {
       assert.isTrue(authorize(admin, name, { departmentId: TWO }), name);
       assert.isTrue(authorize(admin, name), name);
     }
   });
 
   it("an admin does not hold a job's command, and the job holds only its own", () => {
-    assert.isFalse(authorize(admin, "sweep"));
-    assert.isTrue(authorize(systemPrincipal("semesters"), "sweep"));
-    assert.isFalse(authorize(systemPrincipal("endingSoon"), "sweep"));
+    assert.isFalse(authorize(admin, "sweepArticle"));
+    assert.isTrue(authorize(systemPrincipal("semesters"), "sweepArticle"));
+    assert.isFalse(authorize(systemPrincipal("endingSoon"), "sweepArticle"));
     assert.isFalse(
-      authorize(systemPrincipal("semesters"), "create", { departmentId: ONE })
+      authorize(systemPrincipal("semesters"), "createArticle", {
+        departmentId: ONE,
+      })
     );
-    assert.isFalse(authorize(anonymous, "sweep"));
+    assert.isFalse(authorize(anonymous, "sweepArticle"));
   });
 
   it("a person whose admin place is absent holds nothing by it", () => {
     const former = person([]);
 
-    assert.isFalse(authorize(former, "create", { departmentId: ONE }));
+    assert.isFalse(authorize(former, "createArticle", { departmentId: ONE }));
   });
 });

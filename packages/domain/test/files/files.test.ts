@@ -161,7 +161,7 @@ describe("C11 upload and serving", () => {
         assert.strictEqual(again.key, stored.key);
 
         const registered = yield* asPrincipal(admin)(
-          FilesEndpoints.registerPublicFile(stored)
+          FilesEndpoints.createPublicFile(stored)
         );
 
         assert.strictEqual(registered.uploadedBy, admin.personId);
