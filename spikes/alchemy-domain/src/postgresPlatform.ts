@@ -28,7 +28,6 @@ import type * as Aggregate from "@alchemy.run/domain/Aggregate";
  * `instanceLock` and `versionGuard` exist so that a test can remove each defence and watch the race fail (the
  * negative controls of REPORT.md). Production would not expose them.
  */
-import * as InMemory from "@alchemy.run/domain/InMemory";
 import { Platform } from "@alchemy.run/domain/Platform";
 import type {
   Accepted,
@@ -58,6 +57,7 @@ import { SqlSchema } from "effect/sql";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 
+import { Consumers } from "./consumers.ts";
 import { migrate } from "./ddl.ts";
 import { StaleInstance } from "./errors.ts";
 import {
@@ -96,6 +96,8 @@ export class PostgresPlatformControl extends Context.Service<
   {
     /** Deliver every undelivered row, in order per instance. What the Worker's scheduled handler would run. */
     readonly sweep: Effect.Effect<number>;
+    /** Recover admitted view and policy inputs and their downstream outboxes. */
+    readonly recover: Effect.Effect<void>;
     /** Send every scheduled command that is due on the platform's clock. */
     readonly fireDue: Effect.Effect<number>;
     /** Undelivered outbox rows, for tests and diagnostics. */
@@ -860,18 +862,18 @@ export const layer = (
   Layer.effectContext(
     Effect.gen(function* buildPostgresPlatform() {
       const sql = yield* SqlClient;
-      const memory = yield* Layer.build(InMemory.make().layer);
-      const inMemory = Context.get(memory, Platform);
       const now = options.now ?? Clock.currentTimeMillis;
 
       if (options.migrate !== false) {
         yield* migrate.pipe(Effect.orDie);
       }
 
-      // The stores find kits and projections at run time: `Model.build` hosts aggregates before projections.
       const kits = new Map<string, AggregateKit>();
       const stores = new Map<string, AggregateStore>();
       const hostedProjections = new Map<string, ProjectionKit>();
+      const consumers = yield* Consumers;
+      const viewRecoveries = new Map<string, Effect.Effect<void>>();
+      const policyRecoveries = new Map<string, Effect.Effect<void>>();
 
       const instances = makeInstances(sql, {
         lockInstance: options.instanceLock ?? "row",
@@ -907,7 +909,13 @@ export const layer = (
 
             return store;
           }),
-        policy: inMemory.policy,
+        policy: (_definition, kit) =>
+          Effect.sync(() => {
+            const store = consumers.makePolicy(kit);
+            policyRecoveries.set(kit.name, store.recover);
+
+            return store;
+          }),
         projection: (_definition, kit) =>
           Effect.sync(() => {
             hostedProjections.set(kit.name, kit);
@@ -917,12 +925,26 @@ export const layer = (
         stream: (definition) =>
           Effect.die(
             new Error(
-              `PostgreSQL spike does not support stream ${
-                definition.streamName
-              }`
+              `PostgreSQL spike does not support stream ${definition.streamName}`
             )
           ),
-        view: inMemory.view,
+        view: (_definition, kit) =>
+          Effect.sync(() => {
+            const store = consumers.makeView(kit);
+            viewRecoveries.set(kit.name, store.recover);
+
+            return store;
+          }),
+      });
+
+      const recover = Effect.gen(function* recoverConsumers() {
+        yield* Effect.forEach(viewRecoveries.values(), (run) => run, {
+          discard: true,
+        });
+        yield* Effect.forEach(policyRecoveries.values(), (run) => run, {
+          discard: true,
+        });
+        yield* outbox.sweep;
       });
 
       return Context.make(Platform, platform).pipe(
@@ -931,9 +953,10 @@ export const layer = (
           PostgresPlatformControl.of({
             fireDue: makeScheduler(sql, now, stores),
             pendingDeliveries: outbox.pendingCount,
+            recover,
             sweep: outbox.sweep,
           })
         )
       );
     })
-  );
+  ).pipe(Layer.provide(Consumers.layer));

@@ -298,7 +298,40 @@
                 "effect/rpc/RpcClient",
                 "effect/rpc/RpcServer",
                 "effect/sql",
-                "@effect/sql-pg"
+                "@effect/sql-pg",
+                "effect/rpc/RpcMiddleware"
+              ]
+            }
+          },
+          {
+            "include": [
+              "spikes/alchemy-domain/test/**/*.ts",
+              "spikes/alchemy-domain/test/**/*.tsx",
+              "../../spikes/alchemy-domain/test/**/*.ts",
+              "../../spikes/alchemy-domain/test/**/*.tsx"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "@effect/platform-bun/BunRuntime",
+                "@effect/platform-bun/BunServices",
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "@effect/vitest",
+                "effect/Arbitrary",
+                "effect/rpc/RpcTest",
+                "@effect/sql-pglite",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/sql",
+                "@effect/sql-pg",
+                "effect/rpc/RpcMiddleware"
               ]
             }
           },

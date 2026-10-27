@@ -522,6 +522,27 @@
       "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
+      "id": "EX-0040",
+      "name": "rpcMiddleware",
+      "scope": {
+        "files": ["spikes/alchemy-domain/**"],
+        "modules": ["effect/rpc/RpcMiddleware"]
+      },
+      "reason": "Spike: the command middleware of @alchemy.run/domain (RpcMiddleware.Service) carries the grant guard derived from the grant table.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.6, and @alchemy.run/domain's Command.middleware is typed over it.",
+      "nativeAlternativesExamined": [
+        "A guard inside each aggregate's decide needs no middleware, but then an Api-exposed command is judged only after it reached the aggregate; the middleware is what refuses it before decide."
+      ],
+      "verification": ["devenv shell -- bunx vp -C spikes/alchemy-domain test"],
+      "owner": "spikes/alchemy-domain",
+      "versions": {
+        "effect": "4.0.6",
+        "@effect/tsgo": "0.53.1",
+        "@alchemy.run/domain": "2.0.0-beta.84"
+      },
+      "retirementTrigger": "Delete with the spike, or when Effect marks RpcMiddleware stable."
+    },
+    {
       "id": "EX-0010",
       "name": "mysql",
       "scope": {

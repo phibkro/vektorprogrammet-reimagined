@@ -101,6 +101,27 @@ const statements: readonly string[] = [
      email text not null,
      phone text not null
    )`,
+  `create table if not exists alchemy_consumer_key (
+     consumer text not null, key text not null, state jsonb, version integer not null default 0, seq integer not null default 0,
+     primary key (consumer, key)
+   )`,
+  `create table if not exists alchemy_consumer_input (
+     position integer generated always as identity primary key, consumer text not null, key text not null, source text not null, seq integer not null, delivery jsonb not null, handled_at timestamptz,
+     unique (consumer, key, source, seq), foreign key (consumer, key) references alchemy_consumer_key (consumer, key)
+   )`,
+  `create index if not exists alchemy_consumer_input_pending on alchemy_consumer_input (consumer, key, position) where handled_at is null`,
+  `create table if not exists alchemy_consumer_checkpoint (
+     consumer text not null, key text not null, source text not null, seq integer not null,
+     primary key (consumer, key, source), foreign key (consumer, key) references alchemy_consumer_key (consumer, key)
+   )`,
+  `create table if not exists alchemy_view_entry (
+     view text not null, key text not null, seq integer not null, event jsonb not null, envelope jsonb not null, state jsonb,
+     primary key (view, key, seq)
+   )`,
+  `create table if not exists alchemy_consumer_outbox (
+     position integer generated always as identity primary key, consumer text not null, key text not null, delivery jsonb not null, delivered_at timestamptz
+   )`,
+  `create index if not exists alchemy_consumer_outbox_pending on alchemy_consumer_outbox (consumer, key, position) where delivered_at is null`,
 ];
 
 /** Creates the Platform's tables when they are not there. Idempotent; run it after the repository's migrations. */

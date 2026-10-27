@@ -663,6 +663,82 @@ layer(postgresWorld, { excludeTestServices: true })(
           );
         })
     );
+    it.effect(
+      "view and policy consumer logs retain committed checkpoints and recovery is idempotent",
+      () =>
+        Effect.gen(function* consumerRecovery() {
+          const counters = yield* Counter;
+          const control = yield* PostgresPlatformControl;
+          const sql = yield* SqlClient;
+          const views = yield* CounterView;
+          const id = yield* fresh("consumer-recovery");
+
+          yield* counters.send(id, new Increment({ by: 4 }));
+          yield* eventually(
+            views.query(Counter.ref(id)),
+            Option.exists((state) => state.total === 4),
+            "the view applied its input"
+          );
+          yield* eventually(
+            totalOf(`${MIRROR}${id}`),
+            (total) => total === 4,
+            "the policy committed its command once"
+          );
+
+          const rows = yield* sql<{
+            readonly consumer: string;
+            readonly handled: number;
+            readonly total: number;
+          }>`
+            select consumer, count(*)::int as total, count(*) filter (where handled_at is not null)::int as handled
+            from alchemy_consumer_input where delivery->>'source' in (${`Counter/${id}`}, ${`Counter/${MIRROR}${id}`})
+            group by consumer order by consumer`;
+
+          const viewLog = Arr.findFirst(
+            rows,
+            (row) => row.consumer === "view:CounterView"
+          );
+
+          const policyLog = Arr.findFirst(
+            rows,
+            (row) => row.consumer === "policy:Echo"
+          );
+
+          assert.deepStrictEqual(
+            viewLog,
+            Option.some({ consumer: "view:CounterView", handled: 2, total: 2 })
+          );
+          assert.deepStrictEqual(
+            policyLog,
+            Option.some({ consumer: "policy:Echo", handled: 2, total: 2 })
+          );
+
+          const checkpoints = yield* sql<{
+            readonly consumer: string;
+            readonly source: string;
+            readonly seq: number;
+          }>`
+            select consumer, source, seq from alchemy_consumer_checkpoint
+            where source in (${`Counter/${id}`}, ${`Counter/${MIRROR}${id}`}) order by consumer, source`;
+
+          assert.deepStrictEqual(
+            Arr.map(checkpoints, (row) => [row.consumer, row.source, row.seq]),
+            [
+              ["policy:Echo", `Counter/${id}`, 1],
+              ["policy:Echo", `Counter/${MIRROR}${id}`, 1],
+              ["view:CounterView", `Counter/${id}`, 1],
+              ["view:CounterView", `Counter/${MIRROR}${id}`, 1],
+            ]
+          );
+
+          yield* control.recover;
+          assert.strictEqual((yield* eventsOf(`${MIRROR}${id}`)).length, 1);
+          assert.deepStrictEqual(
+            yield* views.query(Counter.ref(id)),
+            Option.some({ total: 4 })
+          );
+        })
+    );
   }
 );
 
