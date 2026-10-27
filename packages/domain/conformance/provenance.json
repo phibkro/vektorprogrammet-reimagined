@@ -42,7 +42,7 @@
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 6540,
+        "authorization": 9342,
         "commands": 0,
         "transitions": 0
       },
@@ -90,21 +90,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "b0d19edfaa03f2427e3e912b584347fe1bdcfcf6a63f2c36c7d949a951976003",
-      "instances": 26742,
+      "descriptionSha256": "ad75d5df5afc26aaeeff2a45c3470635deb462dac74363fe5724f9988dca3def",
+      "instances": 34808,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 877800,
-        "commands": 522240,
-        "transitions": 1044480
+        "authorization": 1146628,
+        "commands": 675840,
+        "transitions": 1351680
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "2172146483782cb0b495c91148e40c6aea62f9123ea6330752b491baf812f773"
+      "vectorsSha256": "7d12c03d46999ea1d3e37c809bcd0c71570b998ae8211bffafc064a06ac8f83a"
     },
     "accounts": {
       "assertions": [
@@ -144,7 +144,7 @@
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 4360,
+        "authorization": 6228,
         "commands": 0,
         "transitions": 0
       },
@@ -191,7 +191,7 @@
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 770,
+        "authorization": 1141,
         "commands": 0,
         "transitions": 0
       },
@@ -238,7 +238,7 @@
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 770,
+        "authorization": 1141,
         "commands": 0,
         "transitions": 0
       },
@@ -285,7 +285,7 @@
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 770,
+        "authorization": 1141,
         "commands": 0,
         "transitions": 0
       },
@@ -330,7 +330,7 @@
       "nondeterministic": [],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 770,
+        "authorization": 1141,
         "commands": 0,
         "transitions": 0
       },
@@ -378,6 +378,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 10899,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
