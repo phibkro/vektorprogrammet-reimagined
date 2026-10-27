@@ -1,0 +1,85 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "deactivateAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "reactivateAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "updatePerson"
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "createAccount",
+        "updatePerson"
+      ],
+      "scope": "department",
+      "subject": "Leader(d)@department"
+    },
+    {
+      "permits": [
+        "updatePerson"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
+        "createAccount",
+        "deactivateAccount",
+        "reactivateAccount",
+        "updatePerson"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "accounts",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "position": "leader",
+        "term": "active"
+      },
+      "name": "Leader(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Self"
+      },
+      "name": "Self@own"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createPublicFile"
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "createPublicFile"
+      ],
+      "scope": "all",
+      "subject": "Member(d)@all"
+    },
+    {
+      "permits": [
+        "createPublicFile"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "files",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "any",
+        "term": "active"
+      },
+      "name": "Member(d)@all"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

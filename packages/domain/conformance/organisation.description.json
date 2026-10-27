@@ -1,0 +1,114 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createDepartment"
+    },
+    {
+      "kind": "Command",
+      "name": "updateDepartment"
+    },
+    {
+      "kind": "Command",
+      "name": "createFieldOfStudy"
+    },
+    {
+      "kind": "Command",
+      "name": "updateFieldOfStudy"
+    },
+    {
+      "kind": "Command",
+      "name": "ensureSemesters",
+      "runBy": {
+        "job": "semesters"
+      }
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "updateDepartment",
+        "createFieldOfStudy",
+        "updateFieldOfStudy"
+      ],
+      "scope": "department",
+      "subject": "Leader(d)@department"
+    },
+    {
+      "permits": [
+        "openControlPanel"
+      ],
+      "scope": "all",
+      "subject": "Member(d)@all"
+    },
+    {
+      "permits": [
+        "ensureSemesters"
+      ],
+      "scope": "all",
+      "subject": "System(semesters)@all"
+    },
+    {
+      "permits": [
+        "createDepartment",
+        "updateDepartment",
+        "createFieldOfStudy",
+        "updateFieldOfStudy",
+        "openControlPanel"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "organisation",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [
+    {
+      "name": "openControlPanel"
+    }
+  ],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "position": "leader",
+        "term": "active"
+      },
+      "name": "Leader(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "any",
+        "term": "active"
+      },
+      "name": "Member(d)@all"
+    },
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "semesters"
+      },
+      "name": "System(semesters)@all"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

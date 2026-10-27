@@ -1,0 +1,498 @@
+{
+  "adminList": {
+    "grant": "createAdminGrant",
+    "revoke": "deleteAdminGrant"
+  },
+  "clock": {
+    "order": "Semester"
+  },
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createTeam"
+    },
+    {
+      "kind": "Command",
+      "name": "updateTeam"
+    },
+    {
+      "kind": "Command",
+      "name": "deactivateTeam"
+    },
+    {
+      "kind": "Command",
+      "name": "createPerson"
+    },
+    {
+      "kind": "Command",
+      "name": "createMembership"
+    },
+    {
+      "kind": "Command",
+      "name": "extendMembership"
+    },
+    {
+      "kind": "Command",
+      "name": "changeMembership"
+    },
+    {
+      "kind": "Command",
+      "name": "endEarlyMembership"
+    },
+    {
+      "kind": "Command",
+      "name": "deleteMembership"
+    },
+    {
+      "kind": "Command",
+      "name": "createAdminGrant"
+    },
+    {
+      "kind": "Command",
+      "name": "deleteAdminGrant"
+    },
+    {
+      "kind": "Command",
+      "name": "sendEndingSoon",
+      "runBy": {
+        "job": "endingSoon"
+      }
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "createTeam",
+        "updateTeam",
+        "deactivateTeam",
+        "createPerson",
+        "createMembership",
+        "extendMembership",
+        "changeMembership",
+        "endEarlyMembership",
+        "deleteMembership",
+        "viewPeople"
+      ],
+      "scope": "department",
+      "subject": "Leader(d) + Board@department"
+    },
+    {
+      "permits": [
+        "endEarlyMembership"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
+        "viewTeams"
+      ],
+      "scope": "department",
+      "subject": "Member(d)@department"
+    },
+    {
+      "permits": [
+        "sendEndingSoon"
+      ],
+      "scope": "all",
+      "subject": "System(endingSoon)@all"
+    },
+    {
+      "permits": [
+        "createTeam",
+        "updateTeam",
+        "deactivateTeam",
+        "createPerson",
+        "createMembership",
+        "extendMembership",
+        "changeMembership",
+        "endEarlyMembership",
+        "deleteMembership",
+        "createAdminGrant",
+        "deleteAdminGrant",
+        "viewPeople",
+        "viewTeams"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [
+    {
+      "calculated": [
+        {
+          "from": "Planned",
+          "to": "Active"
+        },
+        {
+          "from": "Active",
+          "to": "Ended"
+        }
+      ],
+      "context": {
+        "clockPath": [
+          "current"
+        ],
+        "fields": [
+          {
+            "kind": "clock",
+            "order": "Semester",
+            "path": [
+              "current"
+            ]
+          },
+          {
+            "kind": "parameter",
+            "order": "Semester",
+            "path": [
+              "requested"
+            ]
+          },
+          {
+            "kind": "stored",
+            "order": "Semester",
+            "path": [
+              "term",
+              "start"
+            ]
+          },
+          {
+            "kind": "stored",
+            "order": "Semester",
+            "path": [
+              "term",
+              "end"
+            ]
+          }
+        ],
+        "name": "MembershipContext"
+      },
+      "name": "Membership",
+      "states": [
+        "Active",
+        "Ended",
+        "Planned"
+      ],
+      "terminal": [
+        "Ended"
+      ],
+      "transitions": [
+        {
+          "command": "createMembership",
+          "from": [
+            "[*]"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/order/after",
+              "payload": {
+                "left": [
+                  "term",
+                  "start"
+                ],
+                "right": [
+                  "current"
+                ]
+              }
+            }
+          },
+          "to": "Planned"
+        },
+        {
+          "command": "createMembership",
+          "from": [
+            "[*]"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/order/same",
+              "payload": {
+                "left": [
+                  "term",
+                  "start"
+                ],
+                "right": [
+                  "current"
+                ]
+              }
+            }
+          },
+          "to": "Active"
+        },
+        {
+          "command": "extendMembership",
+          "from": [
+            "Active"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/order/after",
+              "payload": {
+                "left": [
+                  "requested"
+                ],
+                "right": [
+                  "term",
+                  "end"
+                ]
+              }
+            }
+          },
+          "to": "Active"
+        },
+        {
+          "command": "endEarlyMembership",
+          "from": [
+            "Active"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "_tag": "FilterGroup",
+              "checks": [
+                {
+                  "id": "effx/order/after",
+                  "payload": {
+                    "left": [
+                      "requested"
+                    ],
+                    "right": [
+                      "term",
+                      "start"
+                    ]
+                  }
+                },
+                {
+                  "id": "effx/guard/not",
+                  "payload": {
+                    "id": "effx/order/after",
+                    "payload": {
+                      "left": [
+                        "requested"
+                      ],
+                      "right": [
+                        "term",
+                        "end"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "effx/guard/not",
+                  "payload": {
+                    "id": "effx/order/after",
+                    "payload": {
+                      "left": [
+                        "current"
+                      ],
+                      "right": [
+                        "requested"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "to": "Ended"
+        },
+        {
+          "command": "changeMembership",
+          "from": [
+            "Active"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "_tag": "FilterGroup",
+              "checks": [
+                {
+                  "id": "effx/order/after",
+                  "payload": {
+                    "left": [
+                      "requested"
+                    ],
+                    "right": [
+                      "term",
+                      "start"
+                    ]
+                  }
+                },
+                {
+                  "id": "effx/guard/not",
+                  "payload": {
+                    "id": "effx/order/after",
+                    "payload": {
+                      "left": [
+                        "requested"
+                      ],
+                      "right": [
+                        "term",
+                        "end"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "effx/guard/not",
+                  "payload": {
+                    "id": "effx/order/after",
+                    "payload": {
+                      "left": [
+                        "current"
+                      ],
+                      "right": [
+                        "requested"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "to": "Ended"
+        },
+        {
+          "command": "changeMembership",
+          "from": [
+            "[*]"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/order/after",
+              "payload": {
+                "left": [
+                  "requested"
+                ],
+                "right": [
+                  "current"
+                ]
+              }
+            }
+          },
+          "to": "Planned"
+        },
+        {
+          "command": "changeMembership",
+          "from": [
+            "[*]"
+          ],
+          "guard": {
+            "context": "MembershipContext",
+            "representation": {
+              "id": "effx/order/same",
+              "payload": {
+                "left": [
+                  "requested"
+                ],
+                "right": [
+                  "current"
+                ]
+              }
+            }
+          },
+          "to": "Active"
+        },
+        {
+          "command": "deleteMembership",
+          "from": [
+            "Planned"
+          ],
+          "to": "[*]"
+        }
+      ]
+    }
+  ],
+  "memberships": {
+    "grantingStates": [
+      "Active"
+    ],
+    "machine": "Membership"
+  },
+  "name": "teams",
+  "orders": [
+    {
+      "name": "Semester"
+    }
+  ],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [
+    {
+      "name": "viewPeople"
+    },
+    {
+      "name": "viewTeams"
+    }
+  ],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "position": "leader",
+        "term": "active"
+      },
+      "name": "Leader(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "function": "board",
+        "term": "active"
+      },
+      "name": "Board@department"
+    },
+    {
+      "expression": {
+        "_tag": "Union",
+        "sets": [
+          "Leader(d)@department",
+          "Board@department"
+        ]
+      },
+      "name": "Leader(d) + Board@department"
+    },
+    {
+      "expression": {
+        "_tag": "Self"
+      },
+      "name": "Self@own"
+    },
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "term": "active"
+      },
+      "name": "Member(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "endingSoon"
+      },
+      "name": "System(endingSoon)@all"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

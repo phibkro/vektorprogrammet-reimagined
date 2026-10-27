@@ -1,0 +1,40 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "listAuditEntries"
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "listAuditEntries"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "audit",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

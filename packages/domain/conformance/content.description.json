@@ -1,0 +1,55 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createSocialEvent"
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "createSocialEvent"
+      ],
+      "scope": "department",
+      "subject": "Member(d)@department"
+    },
+    {
+      "permits": [
+        "createSocialEvent"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "content",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "term": "active"
+      },
+      "name": "Member(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

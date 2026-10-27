@@ -1,0 +1,112 @@
+[
+  {
+    "_tag": "NoField",
+    "field": "aggregate roots",
+    "values": [
+      "AdminList",
+      "Person"
+    ]
+  },
+  {
+    "_tag": "ProseGuard",
+    "domain": "teams",
+    "from": "Planned",
+    "machine": "Membership",
+    "to": "Active",
+    "when": "the start semester arrives"
+  },
+  {
+    "_tag": "ProseGuard",
+    "domain": "teams",
+    "from": "Active",
+    "machine": "Membership",
+    "to": "Ended",
+    "when": "the end semester has passed"
+  },
+  {
+    "_tag": "UndeclaredWrites",
+    "commands": [
+      "createMembership",
+      "extendMembership",
+      "changeMembership",
+      "endEarlyMembership",
+      "deleteMembership"
+    ],
+    "domain": "teams",
+    "machine": "Membership"
+  },
+  {
+    "_tag": "AdminExpiry",
+    "domain": "teams"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "activateAccount"
+    ],
+    "domain": "accounts",
+    "subject": "Holder(activation)"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "resetPassword"
+    ],
+    "domain": "accounts",
+    "subject": "Holder(resetPassword)"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "requestPasswordReset"
+    ],
+    "domain": "accounts",
+    "subject": "Anyone"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "command": "deactivateAccount",
+    "domain": "accounts",
+    "id": "vektorprogrammet/account/different-person",
+    "machine": "Account"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "command": "deactivateAccount",
+    "domain": "accounts",
+    "id": "vektorprogrammet/account/not-last-active-admin",
+    "machine": "Account"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "command": "reactivateAccount",
+    "domain": "accounts",
+    "id": "vektorprogrammet/account/different-person",
+    "machine": "Account"
+  },
+  {
+    "_tag": "MachineDropped",
+    "domain": "accounts",
+    "machine": "Account",
+    "reason": "a guard uses a check that effx does not know"
+  },
+  {
+    "_tag": "MachineDropped",
+    "domain": "accounts",
+    "machine": "Account",
+    "reason": "a transition applies activateAccount, which effx cannot be given"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "submitContact"
+    ],
+    "domain": "contact",
+    "subject": "Anyone"
+  },
+  {
+    "_tag": "NoDescription",
+    "domain": "contact",
+    "reason": "no command or read of the domain can be stated to effx"
+  }
+]
