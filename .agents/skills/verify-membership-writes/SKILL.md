@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: c5b4194037fab815d2aafbce5d375163dbf84963
-confirmed-at: 435656f9df1681ed86bc7ea12810baf217c0dd5d
+sync-digest: 78010a261122fceca9b759d3689eb55b7c47f3df
+confirmed-at: f3d51173dbbde82533a2efa0c49b5dc3e40b7ffc
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -45,9 +45,9 @@ apps/web/src/server/transactor.ts
 | `WelcomeLedger.claim` (`packages/db/src/repositories/teams.ts`) | its write uses the same Person token; it adds no lock. The model does not prove welcome-message uniqueness; `welcome.postgres.test.ts` tests that separately. |
 | Workspace assignment and shared address claims (`workspace/commands.ts`, `repositories/companyAddresses.ts`) | Person locks precede address claims; multiple people lock by id and multiple addresses claim by address. `Address.tla` checks two projections with two addresses each; the PostgreSQL probe pins unique-insert waiting. Profile and team edits claim one address each. |
 | `AggregateRoots`, `lockAdminList` (`shared/aggregate.ts`) | the admin list's lock comes before every person's |
-| `MembershipMachine` (`declaration.ts:278-356`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
+| `MembershipMachine` (`declaration.ts:274-352`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
 | `membership_no_overlap` (`drizzle/20261026221817_membership_no_overlap`) | the exclusion constraint on person, team and term |
-| `classifySqlFailure` (`classifySqlFailure.ts:95-145`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
+| `classifySqlFailure` (`classifySqlFailure.ts:99-149`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
 | `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED) |
 
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change").
@@ -124,8 +124,8 @@ Each is `CurrentCode` with one edit that the code could get (two edits, where th
 | --- | --- | --- | --- |
 | `lock-takes-no-row-lock`, `story-r6-deadlock`, `reach-check-wait` | delete `.for("no key update")` at `locks.ts:110` (mutation M1 of spec 0006b R3; the code before the fix of spec 0006 R6) | `NoDeadlockAbort`, `NoWaitInCheck` | every lock, a person's and the admin list's, becomes a plain read: both writes write their row and index entry, then each overlap check waits for the other's unfinished row: deadlock |
 | `decide-before-lock` | `beginTransition` decides on `findById` (an unlocked read) and locks afterwards | passes | the conditional UPDATE catches a stale decision: a second guard |
-| `decide-before-lock-without-observed-end` | the same, and drop `eq(membership.endOrdinal, …observedEnd)` at `teams.ts:516` | `LegalAtApply` | two extensions read the same end; the later one shortens the term |
-| `decide-before-lock-unconditional` | the same, and keep only `eq(membership.id, …)` at `teams.ts:515` | `LegalAtApply` | two early ends of one membership: the second applies to a membership that the first already ended |
+| `decide-before-lock-without-observed-end` | the same, and drop `eq(membership.endOrdinal, …observedEnd)` at `teams.ts:600` | `LegalAtApply` | two extensions read the same end; the later one shortens the term |
+| `decide-before-lock-unconditional` | the same, and keep only `eq(membership.id, …)` at `teams.ts:599` | `LegalAtApply` | two early ends of one membership: the second applies to a membership that the first already ended |
 | `setend-unconditional` | keep only `eq(membership.id, …)`, the decision still under the lock (the control of `teams.postgres.test.ts` that spec 0006b R1 item 10 changed) | passes | the lock alone keeps every commit legal; each guard alone is enough |
 | `no-exclusion-constraint` | drop `membership_no_overlap` (the negative control of falsifier 4) | `NoOverlapCommitted` | an insert that overlaps an existing membership commits |
 | `deadlock-mapped-to-already-exists` | map `40P01` to `AlreadyExists` in `classifySqlFailure` (with the missing lock) | `RefusalsAreTrue` | the victim is told "already exists" although the other write has not committed: it can still roll back, and then nothing exists |

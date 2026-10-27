@@ -24,7 +24,7 @@ Plan(kind, row, team, s, e, from, team2) ==
 
 Teams == {"x", "y"}
 
-\* createMembership: a term that starts now or later (declaration.ts:305-318).
+\* createMembership: a term that starts now or later (declaration.ts:301-314).
 AddMembers ==
     { p \in { Plan("createMembership", NoRow, tm, s, e, 0, "-") : tm \in Teams, s \in 2..4, e \in 2..4 } :
         p.s <= p.e }

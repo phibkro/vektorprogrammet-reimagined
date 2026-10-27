@@ -81,7 +81,7 @@ CurrentCode == [
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
     \* What the caller is told for each SQLSTATE that a write can meet.
-    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:95-120, 126-145
+    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:99-124, 130-149
     on40P01 |-> "defect"                            \* classifySqlFailure.ts: no case; test classifySqlFailure.test.ts:51
 ]
 
