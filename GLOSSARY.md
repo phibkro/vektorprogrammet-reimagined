@@ -1,6 +1,6 @@
 # Vektorprogrammet
 
-Vektorprogrammet is a volunteer organisation. It sends university students into lower secondary schools as assistants in mathematics classes. This glossary gives one name to each concept, with its Norwegian name. The documents in `docs/system/` and the code use these names.
+Vektorprogrammet is a volunteer organisation. It sends university students into lower secondary schools as assistants in mathematics classes. This glossary gives one name to each concept, with its Norwegian word. The documents in `docs/system/` and the code use these names.
 
 ## Organisation
 
@@ -12,31 +12,47 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Team function**: The kind of work a team does: board, economy, IT, recruitment, placement or other. The function decides what members of the team can do in the system. _Avoid_: role, team type
 
+**Unit** (enhet): An organisational grouping of persons: Vektorprogrammet, a department, a team, the board, a school or a sponsor. Units form a tree with Vektorprogrammet as the root.
+
+**Role kind** (rolletype): A role declared in code for a unit kind. Its privileges come from the grant table.
+
+**Label** (etikett): Display text on a role assignment, such as “Nestleder” or “Kasserer”. A label never gives permission.
+
+**Decision** (vedtak): A recorded decision by a unit. A passed decision authorises its command and is its audit record.
+
+**Decision rule** (vedtaksregel): The declaration of who may propose, who may decide, how it passes, and what happens at its deadline.
+
+**Link** (lenke): A single-use credential for a purpose. Any person status may present it; it is not a role.
+
+**Renewal plan** (fornyelsesplan): The approved interval, latest end date and on/off setting for automatic extensions of a role assignment. The same unit decision or Admin grant approves the plan and assignment; its cap comes from the role-kind declaration.
+
 **Semester** (semester): A half-year: spring (vår, January to July) or autumn (høst, August to December). Every workflow in the system belongs to one semester. _Avoid_: term (used for something else below)
 
 ## People
 
 **Person**: One human known to Vektorprogrammet: an applicant, an assistant, a team member, or a former one. One person has one record, even when they leave and come back. _Avoid_: user, member, account (an account is how a person logs in)
 
-**Principal**: A person, a system job, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
+**Principal**: A person, a system job, the separate emergency principal, or an anonymous caller that acts in the system. The principal's facts determine which actions it can perform. _Avoid_: role, user
 
-**Engagement**: A period in which a person does work for Vektorprogrammet. An engagement is a placement or a membership. _Avoid_: involvement, participation
+**Engagement**: A period in which a person works for Vektorprogrammet: a placement or a current role assignment in an internal unit (Department or Team). A School or Sponsor contact assignment is not an engagement. _Avoid_: involvement, participation
 
 **Assistant** (vektorassistent): A person with a placement in the current semester. _Avoid_: volunteer (too wide), helper
 
-**Membership** (teammedlemskap): A person's place in a team, with a position and a term. _Avoid_: role, team assignment
+**Role assignment**: A person's place in one unit: a role kind held for a term, with an optional display label and renewal plan. A contact on an external unit is not membership in Vektorprogrammet. _Avoid_: role (when you mean role kind)
 
-**Term** (periode): The semesters a membership covers, from its start semester to its end semester. Every membership has an end semester. _Avoid_: tenure, duration
+**Membership** (teammedlemskap): A person's role assignment in a team, with a role kind, a label and a term. _Avoid_: role (for the role kind), team assignment
 
-**Team leader** (teamleder): A person whose membership is marked as leader of the team. _Avoid_: head, admin
+**Term** (periode): The period a role assignment covers. A membership term runs from its start semester to its end semester. Every membership has an end semester. _Avoid_: tenure, duration
 
-**Admin**: A person with an active place on the admin list. An admin can do every action available to a person, but not a system job. _Avoid_: superuser, administrator role
+**Team leader** (teamleder): A person with the `leader` role kind in a team. _Avoid_: head, admin
 
-**Alumnus** (tidligere medlem): A person with no current engagement who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
+**Admin**: A person with the `admin` role kind on the Vektorprogrammet unit. An admin can do every action available to a person, but not a system job. _Avoid_: superuser, administrator role
+
+**Alumnus** (tidligere medlem): A person with no current engagement in an internal unit who agreed that Vektorprogrammet keeps their details for 5 years. _Avoid_: ex-member, inactive user
 
 ## Acting in the system
 
-**Principal** (aktør): The party that is accountable for an action: a person, a named system job, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
+**Principal** (aktør): The party that is accountable for an action: a person, a named system job, the separate `Emergency` principal, or nobody (anonymous). Permissions are given to principals. _Avoid_: actor, user, role
 
 **System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. _Avoid_: root, service account, bot
 
@@ -84,7 +100,33 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Retention period** (lagringstid): How long the system keeps one kind of personal data before it deletes or anonymises it. _Avoid_: TTL, expiry
 
-**Retention report** (lagringsrapport): The nightly retention run in its counting mode. It finds what has reached the end of its period, counts it and audits the counts (`retention.reported`), and changes nothing. Production runs it until every period that the run applies is approved; local and preview deployments, which hold fake data, run the retention for real. _Avoid_: dry run, simulation
+**Consent** (samtykke): A recorded yes from a person to one purpose, for example admission alerts. A person can withdraw each consent separately. _Avoid_: opt-in, permission
+
+## Elections and voting
+
+**Election** (valg): A democratic decision with candidates for seats, counted by a voting system. The electorate is frozen at the nomination cut-off.
+
+**Election type** (valgtype): A declaration in code that sets the electorate rule, positions and role kinds granted by an election.
+
+**Electorate** (velgermasse): The people eligible to vote in one election, determined by its scope and frozen at nomination cut-off.
+
+**Voting system** (valgsystem): A typed composition of ballot type, aggregation, win condition, denominator and tie-break chain.
+
+**Motion vote** (avstemning): A democratic decision on a proposal, using yes/no/abstain ballots and a declared threshold.
+
+**Certification** (godkjenning): The passed decision that confirms an election result and is the recorded origin of elected role assignments. The election type declares the certifier subject set; `System(elections)` creates the role assignments at term start. When all certifiers are candidates, authority falls to the parent unit's committee and then Admin at the root.
+
+**Ballot type** (stemmeseddeltype): The form of one ballot: yes/no/abstain, single choice, approval, ranked, or score/grade.
+
+**Aggregation** (aggregering): The typed function that combines ballots into a result, such as counting, elimination rounds, or a pairwise matrix.
+
+**Win condition** (vinnerregel): The condition that makes a candidate or motion win, applied to an aggregation result.
+
+**Tie-break chain** (avgjørelseskjede): Zero or more non-deciding rules followed by one terminal rule that always decides. The election default is runoff, committee, then lot; aggregation-specific tie rules run first.
+
+**Denominator** (nevner): The declared basis for a threshold: valid ballots, all ballots cast, checked-in attendees, or the whole electorate.
+
+**Preset** (forhåndsvalg): A named voting-system composition with sensible defaults for its parameters. An election type restricts which presets may be selected. **Retention report** (lagringsrapport): The nightly retention run in its counting mode. It finds what has reached the end of its period, counts it and audits the counts (`retention.reported`), and changes nothing. Production runs it until every period that the run applies is approved; local and preview deployments, which hold fake data, run the retention for real. _Avoid_: dry run, simulation
 
 **Consent** (samtykke): A recorded answer from a person to one question, for example "keep my details for 5 years" or "send me alumni news". The record names the version of the text that the person saw, when they said yes and when they withdrew. A "no" is a record too. A person can withdraw each consent separately. _Avoid_: opt-in, permission
 
