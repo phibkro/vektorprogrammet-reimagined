@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 73c6b8c93af0654862b82651175df894ffb51f91
-confirmed-at: 9e521e156e609fc557a1d745de049d6d36be554e
+sync-digest: 4127cf1da4720275fa4d7944bcb0627a0b628531
+confirmed-at: 58d5758d42defbeb2d4adc8d5efb349dfe245673
 packages/db/src/repositories/teams.ts
 packages/domain/src/teams/commands.ts
 packages/domain/src/teams/declaration.ts
@@ -38,7 +38,7 @@ apps/web/src/server/transactor.ts
 | `MembershipRepositoryLive.findById`, `findLocked`, `insert`, `setEnd`, `remove` (`teams.ts:381-565`) | the statements of each call; the WHERE clause of each conditional write; "no row matched" is `lostRace`, the typed `Conflict` |
 | the handlers `createMembership`, `deleteMembership`, `changeMembership`, `endEarlyMembership`, `extendMembership`, `createAdminGrant`, `deleteAdminGrant` (`teams/commands.ts`) and `deactivateAccount`, `reactivateAccount` (`accounts/commands.ts:251-252, 277-278`) | which locks and repository calls each command makes, in order (`compose`); `beginTransition` (`teams/commands.ts:115-145`) is find, lock, read, decide |
 | `AggregateRoots`, `lockAdminList` (`shared/aggregate.ts`) | the admin list's lock comes before every person's |
-| `MembershipMachine` (`declaration.ts:278-339`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
+| `MembershipMachine` (`declaration.ts:278-346`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
 | `membership_no_overlap` (`drizzle/20261026221817_membership_no_overlap`) | the exclusion constraint on person, team and term |
 | `classifySqlFailure` (`classifySqlFailure.ts:95-145`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
 | `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED) |
