@@ -18,7 +18,7 @@ stop:   after round 3, unless an open finding is critical or high (then keep goi
 
 ## 1. Prepare
 
-- The PR's head in its own worktree from `origin` (the recipe in `verify-vektorprogrammet` § Reviewing a pull request). A new worktree starts with a copy of the main worktree's database state: run `rm -rf .devenv/state/postgres .devenv/state/mysql` in it before `devenv up -d` (AGENTS.md).
+- Create a separate detached worktree for each reviewer/fixer role: `git worktree add --detach ../reimagined-pr-$N-<role> origin/<head branch>` (no local branch); each worktree has its own devenv state. The `verify-vektorprogrammet` skill's `pr-$N` recipe is for a single reviewer, so do not share that worktree among parallel reviewers. If PostgreSQL tests fail with "PgConnection: Failed to connect" in a worktree, run `devenv processes list`. If postgres is `gave_up`, read `devenv processes logs postgres`: (a) "Address already in use" means another worktree's services hold the port; run `devenv down` here and start again, or stop the other worktree's services; (b) "lock file postmaster.pid already exists" naming another worktree's server indicates a foreign state copy (observed; cause unknown); run `devenv down; rm -rf .devenv/state/postgres .devenv/state/mysql; devenv up -d`. Never touch another worktree's state (AGENTS.md).
 - Read the PR body, its spec in `docs/specs/` (falsifiers and Revisions), and `git diff --stat origin/main...HEAD`.
 
 ## 2. Review round: two independent reviewers, in parallel
@@ -55,7 +55,7 @@ Each finding: severity, file:line or run path, what is wrong in one sentence, an
 
 **Pass** when all of these hold: no open finding of medium or above; CI green on the head (including `Formal verification` when it ran); the verification evidence exists for every mapped feature. Low and nit findings go into the merge comment, or are fixed if cheap.
 
-**Merge a passing PR** as the repository does: squash, title `<type>: <summary> (#<n>)`. If `main` moved since the head was checked, rebase the head onto it first and check that the tree is identical to a tree CI and the reviewers saw (`git rev-parse HEAD^{tree}`); if it is not identical, the rebase changed the code, and the round starts again. Post the evidence summary as the merge comment.
+- **Merge a passing PR** as the repository does: squash, title `<type>: <summary> (#<n>)`. If `main` moved since the head was reviewed, compute the expected tree with `git merge-tree --write-tree origin/main <reviewed head>`; after `git rebase origin/main`, require `git rev-parse HEAD^{tree}` to equal that expected tree. If the merge has conflicts or the trees differ, the code changed and the round restarts. When main's change touches files the PR touches, also require CI green on the rebased head before merging. Post the evidence summary as the merge comment.
 
 **Otherwise**, start a fixer: a separate agent in the PR's worktree, with the findings verbatim. It fixes the code and, for `maintenance` findings, the verification skills themselves (feature maps, path table, TLA+ model and coverage block, sync commit only after confirming the model against the new code). It commits, pushes, and reports. Then the next round, with fresh reviewers.
 
