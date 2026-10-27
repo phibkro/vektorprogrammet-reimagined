@@ -8,6 +8,7 @@ import {
   AccountRepository,
   AdminGrantRepository,
   DigestLedger,
+  CompanyEmail,
   EmailAddress,
   MembershipRepository,
   PersonRepository,
@@ -17,6 +18,7 @@ import {
 } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Exit, Option } from "effect";
 
+import { transactional } from "../src/index.ts";
 import {
   activateAccount,
   activeAdmin,
@@ -66,11 +68,13 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
 
         assert.strictEqual(person.departmentId, department.id);
 
-        const other = yield* people.create({
-          email: person.email,
-          fieldOfStudyId: fieldOfStudy.id,
-          name: "Annen Person",
-        });
+        const other = yield* transactional(
+          people.create({
+            email: person.email,
+            fieldOfStudyId: fieldOfStudy.id,
+            name: "Annen Person",
+          })
+        );
 
         const accounts = yield* AccountRepository;
         yield* asPerson(person.id, (locked) => accounts.verifyEmail(locked));
@@ -93,11 +97,13 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
       const { fieldOfStudy } = yield* world("beta");
 
       const exit = yield* Effect.exit(
-        (yield* PersonRepository).create({
-          email: EmailAddress.make("Stor.Bokstav@example.org"),
-          fieldOfStudyId: fieldOfStudy.id,
-          name: "Stor Bokstav",
-        })
+        transactional(
+          (yield* PersonRepository).create({
+            email: EmailAddress.make("Stor.Bokstav@example.org"),
+            fieldOfStudyId: fieldOfStudy.id,
+            name: "Stor Bokstav",
+          })
+        )
       );
 
       assert.isTrue(Exit.hasDies(exit));
@@ -112,19 +118,25 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const teams = yield* TeamRepository;
 
         const duplicate = yield* Effect.flip(
-          teams.create({
+          transactional(
+            teams.create({
+              defaultTerm: 1,
+              departmentId: department.id,
+              function: "it",
+              groupEmail: null,
+              name: team.name,
+            })
+          )
+        );
+
+        const renamedToItself = yield* transactional(
+          teams.update(team.id, {
             defaultTerm: 1,
-            departmentId: department.id,
             function: "it",
+            groupEmail: null,
             name: team.name,
           })
         );
-
-        const renamedToItself = yield* teams.update(team.id, {
-          defaultTerm: 1,
-          function: "it",
-          name: team.name,
-        });
 
         const deactivated = yield* teams.deactivate(team.id);
 
@@ -134,6 +146,49 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         assert.deepStrictEqual(
           Arr.map(yield* teams.list(department.id), (found) => found.id),
           [team.id]
+        );
+      })
+  );
+
+  it.effect(
+    "team group addresses persist and a duplicate is a typed conflict",
+    () =>
+      Effect.gen(function* groupAddresses() {
+        const { department, team } = yield* world("workspace");
+        const teams = yield* TeamRepository;
+
+        const groupEmail = CompanyEmail.make(
+          "team-workspace@vektorprogrammet.no"
+        );
+
+        const assigned = yield* transactional(
+          teams.update(team.id, {
+            defaultTerm: 2,
+            function: "recruitment",
+            groupEmail,
+            name: team.name,
+          })
+        );
+
+        assert.strictEqual(assigned.groupEmail, groupEmail);
+
+        const refused = yield* Effect.flip(
+          transactional(
+            teams.create({
+              defaultTerm: 1,
+              departmentId: department.id,
+              function: "it",
+              groupEmail,
+              name: "Other group",
+            })
+          )
+        );
+
+        assert.strictEqual(refused._tag, "Conflict");
+        assert.include(refused.message, "allerede i bruk");
+        assert.strictEqual(
+          (yield* teams.findById(team.id)).groupEmail,
+          groupEmail
         );
       })
   );
@@ -426,11 +481,13 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
 
         const other = yield* PersonRepository.use((people) =>
-          people.create({
-            email: EmailAddress.make("iota2.other@example.org"),
-            fieldOfStudyId: fieldOfStudy.id,
-            name: "Annen administrator",
-          })
+          transactional(
+            people.create({
+              email: EmailAddress.make("iota2.other@example.org"),
+              fieldOfStudyId: fieldOfStudy.id,
+              name: "Annen administrator",
+            })
+          )
         );
 
         const mine = yield* activeAdmin(person.id, LATER);

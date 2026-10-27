@@ -8,6 +8,8 @@ import {
   Domain,
   Forms,
   GrantTable,
+  Job,
+  JobRegistry,
   Teams,
   approvalWords,
   codePolicy,
@@ -581,5 +583,143 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
 
         assert.include(block, "| alumniConsent");
       }).pipe(Effect.provide(NodeServices.layer))
+  );
+});
+
+describe("spec 0008 falsifier 6: the scheduled jobs are the registry, rendered", () => {
+  it.effect(
+    "the committed page matches the registry, and lists every registered job and its due rule",
+    () =>
+      Effect.gen(function* listsEveryJob() {
+        const document = yield* administrationSource;
+
+        assert.isTrue(
+          Result.isSuccess(
+            checkAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              SOURCES
+            )
+          )
+        );
+
+        for (const job of JobRegistry.Jobs) {
+          assert.include(
+            document,
+            `| \`${job.name}\` |`,
+            `${job.name} is listed`
+          );
+
+          for (const rule of job.dueWhen) {
+            assert.include(document, Job.describeDueWhen(rule));
+          }
+        }
+      })
+  );
+
+  it.effect(
+    "negative control: changing one declaration without regenerating fails the check",
+    () =>
+      Effect.gen(function* changedDeclaration() {
+        const document = yield* administrationSource;
+
+        const approved = Arr.map(JobRegistry.Jobs, (job) =>
+          job.name === "workspaceSync"
+            ? Job.make({
+                ...job,
+                name: job.name,
+                schedule: { ...job.schedule, status: "approved" },
+              })
+            : job
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            checkAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              SOURCES,
+              approved
+            )
+          )
+        );
+
+        const later = Arr.map(JobRegistry.Jobs, (job) =>
+          job.name === "workspaceSync"
+            ? Job.make({
+                ...job,
+                dueWhen: [Job.DueWhen.cases.Daily.make({ hour: 3 })],
+                name: job.name,
+              })
+            : job
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            checkAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              SOURCES,
+              later
+            )
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "negative control: one changed character in the generated block fails the check",
+    () =>
+      Effect.gen(function* changedCharacter() {
+        const document = yield* administrationSource;
+        const changed = document.replace("| Cadence", "| Cadenze");
+
+        assert.notStrictEqual(changed, document);
+        assert.isTrue(
+          Result.isFailure(
+            checkAdministrationDocument(
+              changed,
+              Declarations,
+              GrantTable,
+              SOURCES
+            )
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "negative control: an incomplete registry, or invalid markers, are refused",
+    () =>
+      Effect.gen(function* refused() {
+        const document = yield* administrationSource;
+
+        // A System principal without a declaration.
+        assert.isTrue(
+          Result.isFailure(
+            renderAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              SOURCES,
+              Arr.filter(JobRegistry.Jobs, (job) => job.name !== "endingSoon")
+            )
+          )
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            renderAdministrationDocument(
+              document.replace("<!-- docgen:end jobs -->", ""),
+              Declarations,
+              GrantTable,
+              SOURCES
+            )
+          )
+        );
+      })
   );
 });

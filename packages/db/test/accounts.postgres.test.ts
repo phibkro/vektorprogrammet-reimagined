@@ -105,11 +105,13 @@ layer(
         const sql = yield* SqlClient;
 
         for (const round of Arr.range(1, 100)) {
-          const person = yield* people.create({
-            email: EmailAddress.make(`lock-${round}@example.org`),
-            fieldOfStudyId: fixture.fieldOfStudy.id,
-            name: `Person lock ${round}`,
-          });
+          const person = yield* transactional(
+            people.create({
+              email: EmailAddress.make(`lock-${round}@example.org`),
+              fieldOfStudyId: fixture.fieldOfStudy.id,
+              name: `Person lock ${round}`,
+            })
+          );
 
           const locked = yield* Deferred.make<null>();
           const release = yield* Deferred.make<null>();
@@ -337,11 +339,15 @@ layer(
           const pair = yield* Effect.forEach(
             ["left", "right"] as const,
             (side) =>
-              people.create({
-                email: EmailAddress.make(`admin-${round}-${side}@example.org`),
-                fieldOfStudyId: fixture.fieldOfStudy.id,
-                name: `Admin ${round} ${side}`,
-              })
+              transactional(
+                people.create({
+                  email: EmailAddress.make(
+                    `admin-${round}-${side}@example.org`
+                  ),
+                  fieldOfStudyId: fixture.fieldOfStudy.id,
+                  name: `Admin ${round} ${side}`,
+                })
+              )
           );
 
           for (const person of pair) {

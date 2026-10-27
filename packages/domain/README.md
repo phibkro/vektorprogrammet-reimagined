@@ -20,7 +20,7 @@ Domains are declared as data; the runtime, the control panel, the tests and `doc
 
 `declarations.ts` lists every domain and builds `GrantTable` (the rows of all domains, and the one `Admin` row that names everything a person may run) and the root `authorize` and `canAnywhere`. A domain that is not in that list has no permissions and no page.
 
-A principal is a person with facts, never a role (ADR 0001). The scheduled jobs run as their own `System` principal through the same `authorize`: `ensureSemesters` is granted only to `System("semesters")`, `sweepOutbox` only to `System("outboxSweep")` and `sendEndingSoon` only to `System("endingSoon")`. No person holds a job's command, an admin included.
+A principal is a person with facts, never a role (ADR 0001). Every scheduled job runs as its own `System` principal through the same `authorize`; the job registry and its grant checks are in `src/jobs`. No person holds a job's command, an admin included.
 
 **A command names its resource and method** (ADR 0010, spec 0007c): `info({ summary, resource: "Membership", method: ":extend" })`. `resource` is `EntityName` or one of the nouns in `NonEntityResources` (`kernel/commands.ts`); `method` is `get`, `list`, `create`, `update`, `delete`, or a custom verb with a colon. Both are required, so a command without them does not type-check. `Domain.problems` then checks what the types cannot: a standard method's name is its verb and resource (`createTeam`, `updatePerson`), a `list` and a custom method start with their verb (`listAuditEntries`, `extendMembership`), a `get` or `list` changes nothing (no machine, job or credential), a `create` starts every transition from `[*]`, a `delete` ends every transition in `[*]`, an `update` changes no state, and no two commands share a resource and method. There is no way to promise a `412`: no row version exists. `docs/system/commands.md` lists every command by resource.
 
@@ -39,6 +39,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |
 | `audit` | C12 | `AuditEntry` (it records the principal: a person id or a job name), `AuditLog`, `recordAudit`, the `listAuditEntries` query |
 | `outbox` | C12 | the `sweepOutbox` job command; its handler is in `apps/web` |
+| `jobs`, `workspace` | spec 0008 | The closed registry and due rules; Workspace projection, report, read/write ports and commands. |
 | `personalData` | spec 0007b | The declarations (`declaration.ts`: columns, retention, expiry, person relations, merge rules), `catalog.ts` (every domain's `personalData.ts` gathered), `periods.ts` and `texts.ts` (the periods and the privacy and consent texts, each with an `approval`, and `basesApproval`, the one approval of the legal bases), `duration.ts` (the words of a period: every text that states one builds it there), the readings (`derive.ts`: retention rules and whether a retention rests on a proposal, the checks of the catalog; `notice.ts`: the privacy notice of a form, which carries the decisions that are open and `draftNote`, the one sentence that names them, and the record of processing, whose rows carry the approval of the period and of the basis), the consent records, the alumni rules, and the `PersonalDataRpc` commands with the retention and alumni jobs. [Reference](../../docs/system/administration.md). |
 
 ## Services
@@ -63,8 +64,11 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `ConsentRepository`, `AlumniRequests`, `LegalHolds`, `PersonalDataStore` | A person's consent records (read for display, written through their `Locked` token); the people to ask and the one request for each end of an engagement; the legal holds on a person (no source yet); and the operations that the catalog compiles in `packages/db`: the export, the early expiry of an erasure, the photo (spec 0007b) |
 | `RetentionRun` | the nightly retention run (spec 0007b R4): `run(now)` gives the counts and the mode, `Apply` (rows changed) or `ReportOnly` (rows that would be, and nothing changed). The layer fixes the mode, so no program chooses it: `DatabaseLive` provides the report, and only `packages/db`'s `JobDatabaseLive` can provide the run that changes rows |
 | `FileStore` | R2 `put` and `get` by content-addressed key |
-| `Outbox` | Enqueues e-mail, Slack and account-delivery intents in the current transaction. |
+| `Outbox` | Enqueues e-mail, Slack, account-delivery and Workspace intents in the current transaction. |
 | `AuditLog` | `record` one `AuditEntry` per write in the current transaction, `latest` |
+| `JobRuns`, `WorkspaceFacts`, `WorkspaceReports` | Claim and fence job periods, read projection inputs, and persist report chunks. |
+| `WelcomeLedger` | Claims one first-membership notification under a Person token in the same transaction as membership and outbox. |
+| `WorkspaceDirectory`, `WorkspaceWriter` | Separate provider read and mutation capabilities. The production Google adapter is not configured. |
 | `SiteOrigin` | the origin that the links in messages carry |
 
 `storeUpload` also needs Effect's `Crypto.Crypto` (SHA-256); `apps/web` provides a Web Crypto implementation.

@@ -17,6 +17,7 @@ import {
   TeamId,
 } from "../shared/ids.ts";
 import { EmailAddress, requiredText } from "../shared/validation.ts";
+import { CompanyEmail } from "../workspace/companyEmail.ts";
 
 const NonBlank = Schema.String.check(Schema.isNonEmpty());
 
@@ -24,6 +25,12 @@ const NonBlank = Schema.String.check(Schema.isNonEmpty());
 export const PersonEmailInput = Schema.Trim.pipe(
   Schema.decode(SchemaTransformation.toLowerCase()),
   Schema.decodeTo(EmailAddress)
+);
+
+/** A company address is normalized before the company-domain rule is checked. */
+export const CompanyEmailInput = Schema.Trim.pipe(
+  Schema.decode(SchemaTransformation.toLowerCase()),
+  Schema.decodeTo(CompanyEmail)
 );
 
 /**
@@ -53,7 +60,9 @@ export type PersonDraft = typeof PersonDraft.Type;
 
 /** The payload of `createPerson`, and the profile that `updatePerson` takes beside a person's id. */
 export const PersonInput = Schema.Struct({
-  companyEmail: Schema.optionalKey(Schema.NullOr(PersonEmailInput)),
+  companyEmail: Schema.optionalKey(
+    Schema.NullOr(CompanyEmailInput.pipe(Schema.decodeTo(EmailAddress)))
+  ),
   email: PersonEmailInput,
   fieldOfStudyId: FieldOfStudyId,
   name: requiredText({ maxLength: 250 }),
@@ -69,6 +78,7 @@ export const Team = Schema.Struct({
   defaultTerm: DefaultTerm,
   departmentId: DepartmentId,
   function: TeamFunction,
+  groupEmail: Schema.NullOr(CompanyEmail),
   id: TeamId,
   name: NonBlank,
 });
@@ -79,6 +89,7 @@ export const TeamDraft = Schema.Struct({
   defaultTerm: DefaultTerm,
   departmentId: DepartmentId,
   function: TeamFunction,
+  groupEmail: Schema.NullOr(CompanyEmail),
   name: NonBlank,
 });
 
@@ -88,6 +99,7 @@ export type TeamDraft = typeof TeamDraft.Type;
 export const TeamDetails = Schema.Struct({
   defaultTerm: DefaultTerm,
   function: TeamFunction,
+  groupEmail: Schema.NullOr(CompanyEmailInput),
   name: requiredText({ maxLength: 250 }),
 });
 

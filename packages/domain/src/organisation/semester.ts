@@ -14,7 +14,12 @@
 import type { DateTime } from "effect";
 import { Array as Arr, Order, Schema } from "effect";
 
-import { isBefore, osloParts, osloWallClock } from "../shared/clock.ts";
+import {
+  addOsloCalendar,
+  isBefore,
+  osloParts,
+  osloWallClock,
+} from "../shared/clock.ts";
 import { SemesterId } from "../shared/ids.ts";
 
 export const Term = Schema.Literals(["VAR", "HOST"]);
@@ -75,6 +80,23 @@ export const windowContains = (
   window: Window,
   instant: DateTime.DateTime
 ): boolean => !isBefore(instant, window.start) && isBefore(instant, window.end);
+
+/**
+ * Whether `instant` is in the last `weeks` weeks of `semester` (Oslo calendar weeks), the end excluded. The one
+ * definition behind "ending soon" (spec 0006) and a job that is due before a semester ends (spec 0008).
+ */
+export const inLastWeeksOf = (
+  semester: Semester,
+  weeks: number,
+  instant: DateTime.DateTime
+): boolean => {
+  const { end } = semesterWindow(semester);
+
+  return windowContains(
+    { end, start: addOsloCalendar(end, { weeks: -weeks }) },
+    instant
+  );
+};
 
 /** RULE-050: by year, then Vår before Høst. */
 export const SemesterOrder: Order.Order<Semester> = Order.combine(

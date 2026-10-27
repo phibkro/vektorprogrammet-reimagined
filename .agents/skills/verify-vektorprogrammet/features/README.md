@@ -12,8 +12,8 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 | Person (cookie value) | What they are | What they may open in the control panel |
 | --- | --- | --- |
-| `Ada Admin` | holds an admin place, no membership | everything, including Administratorer |
-| `Lise Leder` | leads the recruitment team of Avdeling Alfa | everything but Administratorer |
+| `Ada Admin` | holds an admin place, no membership | everything, including Administratorer and Integrasjoner |
+| `Lise Leder` | leads the recruitment team of Avdeling Alfa | everything but Administratorer and Integrasjoner |
 | `Mats Medlem` | member of the recruitment team | Oversikt, Semestre, Team, Arrangementer |
 | `Sofie Styre` | member of the department's board team | Oversikt, Semestre, Team, Personer, Arrangementer |
 | `Nora Nybegynner` | registered, no team | nothing: `403 Ingen tilgang` |
@@ -44,4 +44,5 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Team memberships](./team-memberships.md) covers the spec 0006 journey: create a team, register people, add, extend, change and end memberships, and switch principal.
 - [Organisation admin](./organisation-admin.md) covers departments, semesters (read-only), and fields of study with their department scoping.
 - [Accounts and sessions](./accounts.md) covers spec 0007: invitation, activation, profile and sessions, password change and reset, deactivation, and the identical answers of the reset and refusal paths.
+- [Integrations and scheduled jobs](./integrations.md) covers spec 0008: the administrator's Integrasjoner page, a team's Google group address, the dry-run report that the scheduled handler produces from a request, and the job ledger.
 - [Personal data](./personal-data.md) covers spec 0007b: the two consent questions on Min side, the JSON export and the erasure of a person's own data, the alumni e-mail link, the administrator's merge and erasure, the nightly retention cron, and the privacy notice on the contact form.

@@ -16,10 +16,19 @@ export const Periods = {
   auditRows: period(years(3), "proposed"),
   /** `captured_mail`: the non-production mailbox (proposed). */
   capturedMail: period(days(30), "proposed"),
+  /** `captured_slack`: the non-production Slack, beside the mailbox (spec 0008, proposed). */
+  capturedSlack: period(days(30), "proposed"),
   /** `code`: a code is dead at its expiry; the row is kept a while for support (proposed). */
   codeAfterExpiry: period(days(30), "proposed"),
   /** `membership`: who was a member or assistant where and when (§11.7 decision 6). */
   engagementHistory: period(years(10), "decided"),
+  /**
+   * `job_run`: a scheduled job's periods, whose `last_error` can carry what a provider said (spec 0008, proposed). A
+   * row is the claim that makes a period run once, so it must outlive its period: the longest period is a semester
+   * (Vår, from 1 January to 1 August), and a claim that was forgotten sooner would let the semester job run the same
+   * semester again (`test/jobs/registry.test.ts`).
+   */
+  jobRuns: period(years(1), "proposed"),
   /** `outbox`: sent e-mails carry addresses (§11.3, proposed). */
   outboxRows: period(days(30), "proposed"),
   /** The person's core fields: one year after the last activity ends (§11.9 decision 1). */
@@ -28,4 +37,6 @@ export const Periods = {
   personCoreWithKeepDetails: period(years(5), "decided"),
   /** `auth_session` and `auth_verification`: the row goes when the session or token expires (§11.3). */
   sessionExpiry: period(days(0), "decided"),
+  /** `workspace_report`: a snapshot of the Google Workspace projection, which holds addresses (spec 0008, proposed). */
+  workspaceReports: period(days(30), "proposed"),
 } as const;

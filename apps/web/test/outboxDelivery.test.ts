@@ -5,6 +5,7 @@ import {
   OutboxMessage as OutboxMessageSchema,
   anonymous,
   systemPrincipal,
+  WorkspaceWriter,
 } from "@vektorprogrammet/domain";
 import type { OutboxMessage, Principal } from "@vektorprogrammet/domain";
 import {
@@ -82,7 +83,8 @@ const run = (
       Layer.mergeAll(
         memoryLayer(tables),
         senderLayer(fails, sent),
-        Layer.mock(AccountDelivery, {})
+        Layer.mock(AccountDelivery, {}),
+        Layer.mock(WorkspaceWriter, {})
       )
     )
   );
@@ -186,7 +188,8 @@ const sweepAs = (
       Layer.mergeAll(
         memoryLayer(tables, principal),
         senderLayer(false, sent),
-        Layer.mock(AccountDelivery, {})
+        Layer.mock(AccountDelivery, {}),
+        Layer.mock(WorkspaceWriter, {})
       )
     )
   );

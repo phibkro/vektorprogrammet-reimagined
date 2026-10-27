@@ -18,9 +18,10 @@ import { roots } from "./aggregate/declaration.ts";
 import { aggregateLocksLayer } from "./aggregate/locks.ts";
 import { Drizzle } from "./internal/drizzle.ts";
 import { AccountRepositoryLive } from "./repositories/accounts.ts";
-import { CapturedMailStoreLive } from "./repositories/capturedMail.ts";
+import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
+import { JobRunsLive } from "./repositories/jobRuns.ts";
 import {
   AdmissionPeriodRepositoryLive,
   DepartmentRepositoryLive,
@@ -50,7 +51,13 @@ import {
   PositionRepositoryLive,
   PrincipalDirectoryLive,
   TeamRepositoryLive,
+  WelcomeLedgerLive,
 } from "./repositories/teams.ts";
+import {
+  WorkspaceAssignmentsLive,
+  WorkspaceFactsLive,
+  WorkspaceReportsLive,
+} from "./repositories/workspace.ts";
 
 /**
  * The aggregate construct (spec 0006b) that the repositories write through: the domain's `AggregateLocks` over the
@@ -75,7 +82,7 @@ const Repositories = Layer.mergeAll(
   PublicFileRepositoryLive,
   AccountRepositoryLive,
   CodeRepositoryLive,
-  CapturedMailStoreLive,
+  CapturedMessageStoreLive,
   SessionDirectoryLive,
   PersonRepositoryLive,
   TeamRepositoryLive,
@@ -83,6 +90,7 @@ const Repositories = Layer.mergeAll(
   MembershipRepositoryLive,
   AdminGrantRepositoryLive,
   DigestLedgerLive,
+  WelcomeLedgerLive,
   PrincipalDirectoryLive,
   OutboxLive,
   OutboxDeliveryLive,
@@ -90,7 +98,11 @@ const Repositories = Layer.mergeAll(
   ConsentRepositoryLive,
   AlumniRequestsLive,
   LegalHoldsLive,
-  PersonalDataStoreLive
+  PersonalDataStoreLive,
+  JobRunsLive,
+  WorkspaceAssignmentsLive,
+  WorkspaceFactsLive,
+  WorkspaceReportsLive
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 /**

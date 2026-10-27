@@ -52,6 +52,7 @@ export const Ownership = [
       code: { owner: "subject" },
       consent: { owner: "personId" },
       membership: { owner: "personId" },
+      welcomeLedger: { owner: "personId" },
     },
     table: "person",
     tombstone: "mergedInto",
@@ -62,6 +63,8 @@ export const Ownership = [
 export const NotOwned = {
   authUser:
     "Better Auth's table. The library writes it through its own connection, outside every domain transaction, and a command never writes it: it enqueues an outbox message that the delivery performs after commit (spec 0007). The one exception is deletion and the relink of a merge (spec 0007b): erasure, retention and merge delete the person's rows, or move `person_id`, in the transaction that holds the person's lock, because an erasure that left a name and an address in `auth_user` until a retried delivery ran would not have erased.",
+  companyAddress:
+    "A shared unique address namespace (spec 0008): each row belongs to either a person or a team. Person claims and releases use the Person token through Aggregates; team claims use the same unique index in their transaction. Erasure, retention and merge (spec 0007b) delete the person's claims while they hold the person's lock, which releases the address.",
   endingSoonDigest:
     "A claim ledger: its only write is INSERT … ON CONFLICT DO NOTHING on its own primary key (person, term, year), which the unique index orders, and nothing is decided from the person's other rows. A person lock would only queue the digest behind unrelated writes. Erasure, retention and merge (spec 0007b) delete or move its rows while they hold the person's lock.",
 } as const satisfies Readonly<Record<string, string>>;

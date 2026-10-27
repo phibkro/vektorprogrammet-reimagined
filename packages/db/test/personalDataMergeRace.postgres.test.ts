@@ -27,6 +27,7 @@ import type {
 import { Array as Arr, DateTime, Effect, Exit } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { transactional } from "../src/index.ts";
 import { activeAdmin, noAdmins } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { mergeAs, rowsNaming } from "./support/personalDataActors.ts";
@@ -56,17 +57,21 @@ const makePair = Effect.fnUntraced(function* makePair(
 ) {
   const people = yield* PersonRepository;
 
-  const into = yield* people.create({
-    email: EmailAddress.make(`into.${round}@example.org`),
-    fieldOfStudyId: setting.fieldOfStudyId,
-    name: `Into ${round}`,
-  });
+  const into = yield* transactional(
+    people.create({
+      email: EmailAddress.make(`into.${round}@example.org`),
+      fieldOfStudyId: setting.fieldOfStudyId,
+      name: `Into ${round}`,
+    })
+  );
 
-  const from = yield* people.create({
-    email: EmailAddress.make(`from.${round}@example.org`),
-    fieldOfStudyId: setting.fieldOfStudyId,
-    name: `From ${round}`,
-  });
+  const from = yield* transactional(
+    people.create({
+      email: EmailAddress.make(`from.${round}@example.org`),
+      fieldOfStudyId: setting.fieldOfStudyId,
+      name: `From ${round}`,
+    })
+  );
 
   return { from, into };
 });

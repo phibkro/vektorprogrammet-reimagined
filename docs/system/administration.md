@@ -34,18 +34,23 @@ Vektorprogrammet is responsible for all personal data in the system. The privacy
 
 | Data | Kept for | At the end |
 | --- | --- | --- |
-| A test mailbox that the non-production deployments use instead of sending mail | 30 days after the mail was captured \* | deleted |
+| A test mailbox that the non-production deployments use instead of sending mail or Slack posts | 30 days after the mail was captured \* | deleted |
+| A test mailbox that the non-production deployments use instead of sending mail or Slack posts | 30 days after the post was captured \* | deleted |
 | Ask a person who leaves whether their details may be kept for 5 years and whether to send alumni news | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted |
 | Keep the historical record of who was a member or assistant, where and when (certificates, references) | 10 years after the term ends | deleted |
 | Keep the record of who held a place on the admin list | 3 years after the place ends \* | deleted |
+| Know that a scheduled job ran, when and with what result, so that each period runs once and a failed run can be found and fixed | 1 year after the run's lease ended \* | deleted |
+| Know who is a member or assistant, where and when, and what each may do | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted |
 | Know who is a member or assistant, where and when, and what each may do | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | anonymised |
 | Let a person sign in and keep them signed in | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted |
 | Let a person sign in and keep them signed in | when the session expires | deleted |
 | Let a person sign in and keep them signed in | 30 days after the code expires \* | deleted |
 | Record what a person agreed to, which text they saw and when (Art. 7(1)) | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted |
+| Send a new member one welcome message, once | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted |
 | Send each team leader one summary of the memberships that are about to end | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted |
 | Send the e-mail and Slack messages that the system makes | 30 days after the message was queued \* | deleted |
 | Show a member's photo, with their consent | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | anonymised |
+| Show an administrator what the Google Workspace accounts and groups should be, what they are and what would change, before writes are approved | 30 days after the report was started \* | deleted |
 | Show who did what and when, so that the organisation can account for its own use of the data (Art. 5(2) and 24) | 3 years after the row was written \* | deleted |
 | Show who published a public file | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | anonymised |
 
@@ -128,18 +133,23 @@ Two tests close the declaration. The first fails if a column of the migrated dat
 
 | Purpose | Legal basis | Data | Kept for | At the end | Approval |
 | --- | --- | --- | --- | --- | --- |
-| A test mailbox that the non-production deployments use instead of sending mail | Legitimate interest of the organisation (Art. 6(1)(f)) | `captured_mail`: recipient, sent_at, subject, text | 30 days after the mail was captured | deleted | period and legal basis: proposed, awaiting operator approval |
+| A test mailbox that the non-production deployments use instead of sending mail or Slack posts | Legitimate interest of the organisation (Art. 6(1)(f)) | `captured_mail`: recipient, sent_at, subject, text | 30 days after the mail was captured | deleted | period and legal basis: proposed, awaiting operator approval |
+| A test mailbox that the non-production deployments use instead of sending mail or Slack posts | Legitimate interest of the organisation (Art. 6(1)(f)) | `captured_slack`: channel, sent_at, text | 30 days after the post was captured | deleted | period and legal basis: proposed, awaiting operator approval |
 | Ask a person who leaves whether their details may be kept for 5 years and whether to send alumni news | Legitimate interest of the organisation (Art. 6(1)(f)) | `alumni_request`: engagement_end, person_id, requested_at | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted | legal basis: proposed, awaiting operator approval |
 | Keep the historical record of who was a member or assistant, where and when (certificates, references) | Legitimate interest of the organisation (Art. 6(1)(f)) | `membership`: end_ordinal, end_term, end_year, leader, person_id, position_id, start_ordinal, start_term, start_year, team_id | 10 years after the term ends | deleted | legal basis: proposed, awaiting operator approval |
 | Keep the record of who held a place on the admin list | Legitimate interest of the organisation (Art. 6(1)(f)) | `admin_grant`: granted_by, person_id, until | 3 years after the place ends | deleted | period and legal basis: proposed, awaiting operator approval |
+| Know that a scheduled job ran, when and with what result, so that each period runs once and a failed run can be found and fixed | Legitimate interest of the organisation (Art. 6(1)(f)) | `job_run`: last_error | 1 year after the run's lease ended | deleted | period and legal basis: proposed, awaiting operator approval |
+| Know who is a member or assistant, where and when, and what each may do | Agreement with the person (taking part as a member or assistant) (Art. 6(1)(b)) | `company_address`: address, person_id | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted | legal basis: proposed, awaiting operator approval |
 | Know who is a member or assistant, where and when, and what each may do | Agreement with the person (taking part as a member or assistant) (Art. 6(1)(b)) | `person`: company_email, email, email_verified, name | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | anonymised | legal basis: proposed, awaiting operator approval |
 | Let a person sign in and keep them signed in | Agreement with the person (taking part as a member or assistant) (Art. 6(1)(b)) | `account`: person_id, state<br>`auth_account`: access_token, access_token_expires_at, account_id, created_at, credential_version, id_token, password, provider_id, refresh_token, refresh_token_expires_at, scope, updated_at, user_id<br>`auth_user`: created_at, email, email_verified, image, name, person_id, updated_at | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted | legal basis: proposed, awaiting operator approval |
 | Let a person sign in and keep them signed in | Agreement with the person (taking part as a member or assistant) (Art. 6(1)(b)) | `auth_session`: created_at, expires_at, ip_address, token, updated_at, user_agent, user_id<br>`auth_verification`: created_at, expires_at, identifier, updated_at, value | when the session expires | deleted | legal basis: proposed, awaiting operator approval |
 | Let a person sign in and keep them signed in | Agreement with the person (taking part as a member or assistant) (Art. 6(1)(b)) | `code`: expires_at, hash, purpose, subject, used_at | 30 days after the code expires | deleted | period and legal basis: proposed, awaiting operator approval |
 | Record what a person agreed to, which text they saw and when (Art. 7(1)) | Legal obligation (Art. 6(1)(c)) | `consent`: decided_at, given_at, kind, person_id, text_version, withdrawn_at | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted | legal basis: proposed, awaiting operator approval |
+| Send a new member one welcome message, once | Legitimate interest of the organisation (Art. 6(1)(f)) | `welcome_ledger`: person_id, recorded_at | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted | legal basis: proposed, awaiting operator approval |
 | Send each team leader one summary of the memberships that are about to end | Legitimate interest of the organisation (Art. 6(1)(f)) | `ending_soon_digest`: person_id, recorded_at, term, year | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | deleted | legal basis: proposed, awaiting operator approval |
 | Send the e-mail and Slack messages that the system makes | Legitimate interest of the organisation (Art. 6(1)(f)) | `outbox`: last_error, payload | 30 days after the message was queued | deleted | period and legal basis: proposed, awaiting operator approval |
 | Show a member's photo, with their consent | Consent (Art. 6(1)(a)) | `person`: photo_key | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | anonymised | legal basis: proposed, awaiting operator approval |
+| Show an administrator what the Google Workspace accounts and groups should be, what they are and what would change, before writes are approved | Legitimate interest of the organisation (Art. 6(1)(f)) | `workspace_report`: accounts, department_lists, groups, issues, unmanaged | 30 days after the report was started | deleted | period and legal basis: proposed, awaiting operator approval |
 | Show who did what and when, so that the organisation can account for its own use of the data (Art. 5(2) and 24) | Legitimate interest of the organisation (Art. 6(1)(f)) | `audit_log`: action, at, client, entity, entity_key, person_id, session_id | 3 years after the row was written | deleted | period and legal basis: proposed, awaiting operator approval |
 | Show who published a public file | Legitimate interest of the organisation (Art. 6(1)(f)) | `public_file`: uploaded_by | 1 year after the person's last engagement or application ends, 5 years while the “keep my details” consent is current | anonymised | legal basis: proposed, awaiting operator approval |
 
@@ -199,13 +209,24 @@ A consent record names the version of the text that the person saw, when they ga
 
 ### Scheduled jobs
 
-| Job | Does |
-| --- | --- |
-| Semesters | Keeps the current and the next semester present |
-| Outbox sweep | Delivers e-mails that the request could not send |
-| Ending soon | Four weeks before semester end: memberships. Admin-grant reminders are a later slice. |
-| Alumni consent | When a person's last engagement ends, e-mails them two questions about their data, once for each end. It runs on the same cron as the sweep, every 10 minutes. |
-| Retention | Deletes or anonymises data at the end of its retention period. It runs once a night, on a cron of its own. |
+Every job is declared once, in `packages/domain/src/jobs/registry.ts` (spec 0008). The Worker's cron triggers, the scheduler and this table are generated from that registry. A job runs as its own `System` principal, through the commands that its grant names, in periods that `job_run` claims once: a run that is cut short resumes at its cursor on the next tick. The retention run's mode (apply, or count only) is not in the registry: the database layer that the Worker builds for the job fixes it (see Retention above).
+
+<!-- docgen:begin jobs -->
+
+| Job | Does | Due | Cron | Cadence |
+| --- | --- | --- | --- | --- |
+| `semesters` | Keeps the current and the next semester present. | once per semester | `*/10 * * * *` | approved |
+| `endingSoon` | In the last 4 weeks of the semester, e-mails each team leader the memberships that end. | every tick in the last 4 weeks of the semester | `*/10 * * * *` | approved |
+| `alumniConsent` | When a person's last engagement ends, queues the e-mail that asks them the two alumni questions, once for each end. | every tick | `*/10 * * * *` | approved |
+| `workspaceSync` | Compares the Google Workspace groups and accounts with the active memberships and records the changes it would make. | once a day from 02:00 (Europe/Oslo) | `*/10 * * * *` | proposed \* |
+| `outboxSweep` | Delivers e-mails, Slack posts and credential and Workspace intents that a request could not send. | every tick | `*/10 * * * *` | approved |
+| `retention` | Deletes or anonymises the data that has reached the end of its declared retention period. In production it only counts until every period that it applies is approved. | every tick | `17 2 * * *` | approved |
+
+<!-- docgen:end jobs -->
+
+\* Proposed, not yet decided by the operator. A proposed cadence does not run or install a cron trigger; explicit requests still run on the existing approved tick. Approving it is one word in the job's declaration.
+
+The admission alerts (spec 0009) join this table when their spec registers them.
 
 ### Processors
 

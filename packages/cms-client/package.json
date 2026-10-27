@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "check": "vp check",
     "generate": "bun scripts/generate.ts"
   },

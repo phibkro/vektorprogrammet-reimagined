@@ -10,7 +10,7 @@ Spec 0007d (ADR 0009). The kernel exports each domain as an effx `DomainDescript
 | --- | --- | --- |
 | `<domain>.description.json` | the export of a domain's declarations; a domain with nothing effx can state (`contact`) has none | `bun run description` |
 | `gaps.json` | what effx cannot state, as typed values (`Effx.Gap`) | `bun run description` |
-| `<domain>.vectors.json.gz` | effx's vectors of that description (128 MB of JSON for `teams`, 2 MB compressed; every other domain under 10 KB) | `bun run description:regenerate` |
+| `<domain>.vectors.json.gz` | effx's vectors of that description (`teams` is the large one: over 100 MB of JSON, a few MB compressed; every other domain is under 100 KB compressed) | `bun run description:regenerate` |
 | `provenance.json` | the effx commit, Alloy's version and executable, per domain the digest of its description and of its vectors, scope, steps, the rows compared, and effx's assertion results | `bun run description:regenerate` |
 | `effx.pin.json` | the effx commit and the Alloy version that the vectors are made with | by hand: moving it is a decision |
 

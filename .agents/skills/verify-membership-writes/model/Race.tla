@@ -24,7 +24,7 @@ Plan(kind, row, team, s, e, from, team2) ==
 
 Teams == {"x", "y"}
 
-\* createMembership: a term that starts now or later (declaration.ts:305-318).
+\* createMembership: a term that starts now or later (declaration.ts:301-314).
 AddMembers ==
     { p \in { Plan("createMembership", NoRow, tm, s, e, 0, "-") : tm \in Teams, s \in 2..4, e \in 2..4 } :
         p.s <= p.e }
@@ -37,10 +37,12 @@ Changes == { Plan("changeMembership", r0, "-", 0, 0, 2, tm) : tm \in Teams }
 
 Cancels == { Plan("deleteMembership", r1, "-", 0, 0, 0, "-") }
 
-\* They write admin_grant, not membership: what they add to the race is the
-\* locks they hold, the admin list's and then the person's.
+\* Admin commands take list then person; Workspace and profile writes take
+\* the person's lock. None of these commands writes membership.
 AdminCommands == { Plan("createAdminGrant", NoRow, "-", 0, 0, 0, "-"),
-                   Plan("deleteAdminGrant", NoRow, "-", 0, 0, 0, "-") }
+                   Plan("deleteAdminGrant", NoRow, "-", 0, 0, 0, "-"),
+                   Plan("syncWorkspace", NoRow, "-", 0, 0, 0, "-"),
+                   Plan("updatePerson", NoRow, "-", 0, 0, 0, "-") }
 
 RacePlans == AddMembers \cup Extends \cup EndsEarly \cup Changes \cup Cancels
                 \cup AdminCommands

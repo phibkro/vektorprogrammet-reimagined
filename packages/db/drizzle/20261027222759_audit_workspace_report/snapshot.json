@@ -1,0 +1,49 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "dc3d6956-f9d9-4c56-8ad4-70ccfc2acb4c",
+  "prevIds": ["c8669de1-d8ab-41ad-bcaf-bc77e0f73bb7"],
+  "footprints": [
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_action"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.action",
+        "e|col|public.audit_log.action"
+      ],
+      "sqlHash": "61bb076d667d4e62"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_entity"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.entity",
+        "e|col|public.audit_log.entity"
+      ],
+      "sqlHash": "4ef2c94f0dd4edb7"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_action\"]",
+      "set": {
+        "value": "\"action\" in ('department.created', 'department.updated', 'fieldOfStudy.created', 'fieldOfStudy.updated', 'socialEvent.created', 'publicFile.registered', 'person.registered', 'person.profileUpdated', 'account.invited', 'account.activated', 'account.deactivated', 'account.reactivated', 'account.passwordReset', 'team.created', 'team.updated', 'team.deactivated', 'membership.added', 'membership.extended', 'membership.changed', 'membership.endedEarly', 'membership.cancelled', 'adminGrant.granted', 'adminGrant.revoked', 'endingSoon.sent', 'consent.given', 'consent.withdrawn', 'person.exported', 'person.erased', 'person.merged', 'person.photoSet', 'person.photoRemoved', 'alumni.requested', 'retention.ran', 'retention.reported', 'workspaceReport.requested')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_entity\"]",
+      "set": {
+        "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'SocialEvent', 'PublicFile', 'Person', 'Account', 'Team', 'Position', 'Membership', 'AdminGrant', 'AdminList', 'Consent', 'Retention', 'WorkspaceReport')"
+      }
+    }
+  ]
+}

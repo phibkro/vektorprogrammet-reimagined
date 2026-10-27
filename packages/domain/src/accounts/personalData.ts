@@ -1,6 +1,6 @@
 /**
  * What the accounts domain declares about its stored columns (spec 0007b): the account, the codes, the four Better
- * Auth tables and the non-production mailbox.
+ * Auth tables and the non-production mailbox and Slack.
  */
 import {
   Rules,
@@ -154,6 +154,9 @@ const capturedMail = table({
       }),
       ["recipient", "sent_at", "subject", "text"]
     ),
+    delivery_key: notPersonal(
+      "The id of the outbox row that the capture records: a key that makes a delivery that is retried show once. It names a row, not a person"
+    ),
     id: notPersonal("A surrogate key"),
   },
   person: relation({
@@ -166,6 +169,29 @@ const capturedMail = table({
   }),
 });
 
+/** The non-production Slack beside the mailbox (spec 0008): a post has a channel and a text, and no addressee. */
+const capturedSlack = table({
+  columns: {
+    ...columns(
+      personal({
+        legalBasis: "legitimateInterest",
+        onExpiry: Rules.Delete,
+        purpose: "mailbox",
+        retention: afterColumn("sent_at", Periods.capturedSlack, {
+          en: "the post was captured",
+          no: "innlegget ble fanget",
+        }),
+      }),
+      ["channel", "sent_at", "text"]
+    ),
+    delivery_key: notPersonal(
+      "The id of the outbox row that the capture records: a key that makes a delivery that is retried show once. It names a row, not a person"
+    ),
+    id: notPersonal("A surrogate key"),
+  },
+  person: null,
+});
+
 export const AccountTables = {
   account,
   auth_account: authAccount,
@@ -173,5 +199,6 @@ export const AccountTables = {
   auth_user: authUser,
   auth_verification: authVerification,
   captured_mail: capturedMail,
+  captured_slack: capturedSlack,
   code,
 } as const;

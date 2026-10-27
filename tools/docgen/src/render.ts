@@ -1,13 +1,19 @@
-/** Pure renderers for the declaration-derived teams, accounts, commands-by-resource and personal data references. */
+/**
+ * Pure renderers for the declaration-derived teams, accounts, commands-by-resource, scheduled-jobs and personal data
+ * references.
+ */
 import {
   Commands,
   Domain,
+  Job,
+  JobRegistry,
   Subject,
   approvalWords,
   codePolicy,
   consentNames,
   consentTexts,
   draftNote,
+  jobProblems,
   privacyNotice,
   recordOfProcessing,
 } from "@vektorprogrammet/domain";
@@ -594,15 +600,35 @@ const consentTable = (): string =>
   );
 
 /**
- * The personal data parts of `administration.md`: the retention schedule, the record of processing, the privacy notices,
- * the consent texts and the commands of the personal data domain. The catalog and the declarations are what the runtime
- * uses (spec 0007b), so the document cannot say another period than the nightly job applies.
+ * The scheduled jobs of the registry (spec 0008): what each does, when it is due, its cron and whether it is approved.
+ * Wide, so Oxfmt keeps it compact (`table`); `alignedTable` is for the short tables that it aligns.
+ */
+const jobsTable = (jobs: readonly Job.Job[]): string =>
+  table(
+    ["Job", "Does", "Due", "Cron", "Cadence"],
+    Arr.map(jobs, (job) => [
+      `\`${job.name}\``,
+      job.summary,
+      Arr.join(Arr.map(job.dueWhen, Job.describeDueWhen), "; "),
+      `\`${job.schedule.cron}\``,
+      job.schedule.status === "proposed" ? "proposed \\*" : "approved",
+    ])
+  );
+
+/**
+ * The generated parts of `administration.md`: the retention schedule, the record of processing, the privacy notices, the
+ * consent texts and the commands of the personal data domain (spec 0007b), and the table of scheduled jobs (spec 0008).
+ * The catalog and the declarations are what the runtime uses, so the document cannot say another period than the nightly
+ * job applies; the jobs table is the registry, rendered, and the registry is checked against the declarations first
+ * (`jobProblems`), so a job without a declaration, a command or a name is refused here too. `jobs` is the real registry;
+ * the tests pass a changed one to show that a changed declaration changes the page.
  */
 export const renderAdministrationDocument = (
   document: string,
   domains: readonly Declaration[],
   grants: readonly GrantRow[],
-  sources: PersonalDataSources
+  sources: PersonalDataSources,
+  jobs: readonly Job.Job[] = JobRegistry.Jobs
 ): Result.Result<string, string> =>
   Result.flatMap(completeDomains(domains), (complete) => {
     const domain = Option.getOrUndefined(
@@ -613,22 +639,25 @@ export const renderAdministrationDocument = (
       return Result.fail("The personalData declaration is missing");
     }
 
+    const problems = jobProblems(jobs, complete);
+
+    if (problems.length > 0) {
+      return Result.fail(
+        `Incomplete job registry: ${Arr.join(problems, "; ")}`
+      );
+    }
+
     return replaceBlocks(document, [
       ["retention", retentionSchedule(sources.catalog)],
       ["personal-data-commands", commands(entriesOf(domain), grants)],
       ["record", processingRecord(sources.catalog)],
       ["notices", privacyNotices(sources.forms, sources.catalog)],
       ["consents", consentTable()],
+      ["jobs", jobsTable(jobs)],
     ]);
   });
 
 export const checkAdministrationDocument = (
-  document: string,
-  domains: readonly Declaration[],
-  grants: readonly GrantRow[],
-  sources: PersonalDataSources
+  ...inputs: Parameters<typeof renderAdministrationDocument>
 ): Result.Result<void, string> =>
-  checkRendered(
-    document,
-    renderAdministrationDocument(document, domains, grants, sources)
-  );
+  checkRendered(inputs[0], renderAdministrationDocument(...inputs));

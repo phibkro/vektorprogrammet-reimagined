@@ -10,7 +10,7 @@ legacy MySQL (SELECT-only legacy_reader, one snapshot)
   → reconciliation.json + reconciliation.md
 ```
 
-The importer refuses a target that contains accounts, codes or auth users. It cannot restore their credentials. Account migration belongs to spec 0013.
+The importer refuses a target containing accounts, codes, auth users, welcome claims, outbox or capture records, job runs or Workspace reports. It cannot restore credentials, sent-notification history or in-flight work. Account migration belongs to spec 0013.
 
 ## Authority
 

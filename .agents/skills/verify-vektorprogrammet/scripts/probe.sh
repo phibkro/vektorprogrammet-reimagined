@@ -6,7 +6,8 @@
 #
 # The session is read-only (default_transaction_read_only=on), so a probe can never be the cause of the state it
 # reports. Tables worth knowing: outbox (queued mail and Slack: kind, status, created_at, delivered_at, attempts),
-# audit_log, membership, person, team, position, department, semester, admin_grant (packages/db/src/schema.ts).
+# audit_log, membership, person, team, position, department, semester, admin_grant, and for spec 0008 job_run,
+# workspace_report, welcome_ledger, company_address, captured_mail and captured_slack (packages/db/src/schema.ts).
 set -euo pipefail
 # shellcheck disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

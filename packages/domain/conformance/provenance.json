@@ -35,21 +35,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "d4ec3f6478b9491ade82677b055d4147c4b9455a4d93feb71e6513415860337e",
-      "instances": 720,
+      "descriptionSha256": "e5b6e0adbe4778dcd07f3c628d2ce69a9f899af176e375999650c910bf48056d",
+      "instances": 842,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 9342,
+        "authorization": 10878,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "ac71400c877767be5ee50d2e3ac5a182c8c196763f43d4425cf47a5dfde05c55"
+      "vectorsSha256": "2b7192859d7b873919eede2ab8e013d57db8037a304dfd56d9ed7c4c1a842551"
     },
     "teams": {
       "assertions": [
@@ -90,21 +90,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "ad75d5df5afc26aaeeff2a45c3470635deb462dac74363fe5724f9988dca3def",
-      "instances": 34808,
+      "descriptionSha256": "5edc02251c9941d88607f64d670e9f44b337f0cb4b383830a48cf7973ad08d1a",
+      "instances": 38874,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 1146628,
-        "commands": 675840,
-        "transitions": 1351680
+        "authorization": 1281924,
+        "commands": 752640,
+        "transitions": 1505280
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "7d12c03d46999ea1d3e37c809bcd0c71570b998ae8211bffafc064a06ac8f83a"
+      "vectorsSha256": "d6a163724769cf75432e5909a6bc467eb26cdfdcf39e61df83bf22a2ab004ff5"
     },
     "accounts": {
       "assertions": [
@@ -137,21 +137,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "ae29327f883baa2a11bc77cd7d08d9678fdd474f3aae5e885933895e1a8b498a",
-      "instances": 720,
+      "descriptionSha256": "1f79c1dbffdf2cbdfe2f120b264b212c5641e9763035e1dc90d6cb9e93278391",
+      "instances": 842,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 6228,
+        "authorization": 7252,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "485af2ff72c02eb169f9b708eb0352b5c260cc6acc7c474be4fe73ae4418fb77"
+      "vectorsSha256": "fc89ea81e7a9d19ed375153301add705f7a8277475bfc5a20cd54a3f6fdbff94"
     },
     "content": {
       "assertions": [
@@ -184,21 +184,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "7f7ecc76472a3508de24f6b4c66fb7b09969baf4ba2ec5cd1a35a34075cfffa4",
-      "instances": 544,
+      "descriptionSha256": "0198f61d21d4958d31a7f4e1427475067a682441c795ee6f2109e134014ecbc5",
+      "instances": 646,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 1141,
+        "authorization": 1349,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "9680e3b72228b231c55c79319a999fc2c7bb4b36b2c12801ab7ccb12deefcd88"
+      "vectorsSha256": "913d73254a1c8e2c6b6ce303e97c5b58468ccc035f2093d7d6033237361f9b6b"
     },
     "files": {
       "assertions": [
@@ -231,21 +231,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "0d4518191feb5e14ebf2da5fcf57d216d0995ba8e3772bb2f80db81f65af81b4",
-      "instances": 544,
+      "descriptionSha256": "fefde1b75c2d81c6fdb544510f8dd853bb692332e1bf2d2563102a0151d7928c",
+      "instances": 646,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 1141,
+        "authorization": 1349,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "cd53bbd21ac07de0cc787c9462c339334de251662f382b4e6869b25d237f248c"
+      "vectorsSha256": "b7468de9cfafbf8995d2d958650c2147930310b9858812c0caffa92d0fce98a3"
     },
     "audit": {
       "assertions": [
@@ -278,21 +278,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "e7670521486918fb1c9457b0395762fb82ee0c6a015850636fa37a07aacb78e2",
-      "instances": 544,
+      "descriptionSha256": "5c867553d66280db341a9269e3959112f9963e1c6b88797b71e193bc69258acd",
+      "instances": 646,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 1141,
+        "authorization": 1349,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "14d247bf21d9894ba1a8f639f61ca3e9939ca476ca27af829657f48b6352a3af"
+      "vectorsSha256": "d25f4b10139a21542ade5606eeb38a92c38991d8686a1d44a26078dd31b9f315"
     },
     "outbox": {
       "assertions": [
@@ -325,19 +325,19 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "e5c2936e272665cb64589a88f53f3d4a757ff7eab9f234869015799dd4408930",
-      "instances": 544,
+      "descriptionSha256": "166760ac43c165c463f91edf2a4162e15e464839023cb53ddc1a2f3f2455488d",
+      "instances": 646,
       "nondeterministic": [],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 1141,
+        "authorization": 1349,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "b176d0adc5f6bd46e35810f9310f5ed790f931233c3ad22a382e8b7c59918737"
+      "vectorsSha256": "0bcf71aad8e3e04132a92a5e7f5e22a46d2e9550fe826937d61bc1e433d01ed2"
     },
     "personalData": {
       "assertions": [
@@ -370,21 +370,68 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "d71447eeba0ecb1cc10964a6de8c2b3a40a8479e598aeb5941854c905ef34f36",
-      "instances": 720,
+      "descriptionSha256": "e5b7c6d146fea5f888f827ddcfbf85eba63ffd1e0e096e29081ef78d5a7aa372",
+      "instances": 842,
       "nondeterministic": [
         "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
-        "authorization": 10899,
+        "authorization": 12691,
         "commands": 0,
         "transitions": 0
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "aa307cc5d10288aab02f1f3f7a395c1c4b7243a545fa3f37010c3ee0586b7b8d"
+      "vectorsSha256": "2a7bbe467ab2b16a9d18a1a7f0fb44f9c044669766c60a70007211d49912859f"
+    },
+    "workspace": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "d6d8b0651be991a8e3ea8161957da7ec5e0d33e3a7834f29dba48290c571f36c",
+      "instances": 646,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 4047,
+        "commands": 0,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "de15daecbc5e492ef5c2a12fb1938d65da90ab600dd7cb25ddefbe32bad9cf34"
     }
   },
   "effx": {

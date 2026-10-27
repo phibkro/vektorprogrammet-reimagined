@@ -1,3 +1,4 @@
+import { Job, JobRegistry } from "@vektorprogrammet/domain";
 import { Config, Effect } from "effect";
 
 /**
@@ -110,13 +111,18 @@ export const CONTACT_RATE_LIMIT = {
 } as const;
 
 /**
- * The tick (every 10 minutes): the outbox sweep (architecture §4: every 5–15 min), the semester job (spec 0003), the
- * "ending soon" digest (spec 0006) and the alumni consent job (spec 0007b).
+ * The Worker's cron triggers (spec 0008): the distinct crons of the job registry, in declaration order, generated and
+ * never listed by hand. Each job declares its own cron, so a job that needs another cadence adds its trigger by
+ * declaring it: the ten-minute tick (architecture §4: every 5–15 min) that the sweep, the semester job, the digest, the
+ * alumni consent job and the Workspace sync are due-checked at, and the nightly cron of the retention run (spec 0007b).
  */
-export const OUTBOX_SWEEP_CRON = "*/10 * * * *";
+export const CRON_TRIGGERS: readonly string[] = Job.cronTriggers(
+  JobRegistry.Jobs
+);
 
 /**
- * The nightly cron: the retention run (spec 0007b), as `System("retention")`. 02:17 UTC is 03:17 or 04:17 in Oslo: a
- * quiet hour, and not a minute that the tick also runs at. `scheduled` tells the two apart by `controller.cron`.
+ * The nightly cron of the retention run (spec 0007b): the retention job's own schedule in the registry, which is where
+ * the hour is chosen (02:17 UTC is 03:17 or 04:17 in Oslo: a quiet hour, and not a minute that the tick also runs at).
+ * The browser test triggers the Worker's `scheduled` handler with it.
  */
-export const RETENTION_CRON = "17 2 * * *";
+export const RETENTION_CRON: string = JobRegistry.retention.schedule.cron;

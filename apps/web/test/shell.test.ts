@@ -49,6 +49,7 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "teams",
   "people",
   "admins",
+  "integrations",
   "socialEvents",
 ];
 
@@ -124,10 +125,10 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
       ["people"]
     );
 
-    // The admin place is the only difference: the admin list is for administrators alone.
+    // The admin place is the only difference: the admin list and Integrations are for administrators.
     assert.deepStrictEqual(
       Arr.difference(sectionsOf(ADMIN), sectionsOf(leaderOf(1))),
-      ["admins"]
+      ["admins", "integrations"]
     );
 
     // The department is the only difference: the facts are the person's own department's, so the sections are the

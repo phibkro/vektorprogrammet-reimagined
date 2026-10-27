@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "devenv shell -- bunx vp test",
+    "test": "bunx vp test",
     "check": "vp check",
     "generate": "bun src/main.ts generate",
     "regenerate": "bun src/main.ts regenerate",

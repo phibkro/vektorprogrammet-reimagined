@@ -15,7 +15,7 @@ export {
 
 export { transactional } from "./transactional.ts";
 
-export { CapturedMailStore } from "./repositories/capturedMail.ts";
+export { CapturedMessageStore } from "./repositories/capturedMessages.ts";
 
 export {
   SessionDirectory,

@@ -250,6 +250,27 @@ export const builders = {
         start: WINTER,
       };
     }),
+  "captured_slack(channel,sent_at,text)": (fixture) =>
+    Effect.gen(function* buildCapturedSlack() {
+      const sql = yield* SqlClient;
+      yield* createdAt(fixture.personId, FAR_AHEAD);
+      yield* Effect.orDie(
+        sql`insert into captured_slack (channel, sent_at, text)
+          values (${fixture.tag}, ${at(WINTER)}, 'Tekst')`
+      );
+
+      return {
+        present: Effect.orDie(
+          Effect.map(
+            sql<{
+              present: boolean;
+            }>`select exists (select 1 from captured_slack where channel = ${fixture.tag}) as present`,
+            flag
+          )
+        ),
+        start: WINTER,
+      };
+    }),
   "code(expires_at,hash,purpose,subject,used_at)": (fixture) =>
     Effect.gen(function* buildCode() {
       const sql = yield* SqlClient;
@@ -271,6 +292,18 @@ export const builders = {
         start: WINTER,
       };
     }),
+  "company_address(address,person_id)": fromActivity(
+    (sql, { personId, tag }) =>
+      sql`insert into company_address (address, person_id)
+        values (${`${tag.toLowerCase()}@vektorprogrammet.no`}, ${personId})`,
+    (sql, { personId }) =>
+      Effect.map(
+        sql<{
+          present: boolean;
+        }>`select exists (select 1 from company_address where person_id = ${personId}) as present`,
+        flag
+      )
+  ),
   "consent(decided_at,given_at,kind,person_id,text_version,withdrawn_at)":
     fromActivity(
       (sql, { personId }) =>
@@ -296,6 +329,27 @@ export const builders = {
         flag
       )
   ),
+  "job_run(last_error)": (fixture) =>
+    Effect.gen(function* buildJobRun() {
+      const sql = yield* SqlClient;
+      yield* createdAt(fixture.personId, FAR_AHEAD);
+      yield* Effect.orDie(
+        sql`insert into job_run (job, lease_until, outcome, period)
+          values ('semesters', ${at(WINTER)}, 'failed', ${fixture.tag})`
+      );
+
+      return {
+        present: Effect.orDie(
+          Effect.map(
+            sql<{
+              present: boolean;
+            }>`select exists (select 1 from job_run where job = 'semesters' and period = ${fixture.tag}) as present`,
+            flag
+          )
+        ),
+        start: WINTER,
+      };
+    }),
   "membership(end_ordinal,end_term,end_year,leader,person_id,position_id,start_ordinal,start_term,start_year,team_id)":
     (fixture) =>
       Effect.gen(function* buildMembership() {
@@ -375,6 +429,41 @@ export const builders = {
         flag
       )
   ),
+  "welcome_ledger(person_id,recorded_at)": fromActivity(
+    (sql, { personId }) =>
+      sql`insert into welcome_ledger (person_id, recorded_at)
+        values (${personId}, ${at(WINTER)})`,
+    (sql, { personId }) =>
+      Effect.map(
+        sql<{
+          present: boolean;
+        }>`select exists (select 1 from welcome_ledger where person_id = ${personId}) as present`,
+        flag
+      )
+  ),
+  "workspace_report(accounts,department_lists,groups,issues,unmanaged)": (
+    fixture
+  ) =>
+    Effect.gen(function* buildWorkspaceReport() {
+      const sql = yield* SqlClient;
+      yield* createdAt(fixture.personId, FAR_AHEAD);
+      yield* Effect.orDie(
+        sql`insert into workspace_report (actual, mode, period, semester_term, semester_year, started_at, status)
+          values ('read', 'dry-run', ${fixture.tag}, 'HOST', 2026, ${at(WINTER)}, 'running')`
+      );
+
+      return {
+        present: Effect.orDie(
+          Effect.map(
+            sql<{
+              present: boolean;
+            }>`select exists (select 1 from workspace_report where period = ${fixture.tag}) as present`,
+            flag
+          )
+        ),
+        start: WINTER,
+      };
+    }),
 } satisfies Readonly<Record<string, Builder>>;
 
 /**

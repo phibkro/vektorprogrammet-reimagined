@@ -19,7 +19,6 @@ import {
 } from "../kernel/domain.ts";
 import * as Guard from "../kernel/guard.ts";
 import * as Machine from "../kernel/machine.ts";
-import { TeamFunction } from "../kernel/principal.ts";
 import { Semester } from "../organisation/semester.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import {
@@ -30,10 +29,8 @@ import {
   PositionId,
   TeamId,
 } from "../shared/ids.ts";
-import { requiredText } from "../shared/validation.ts";
 import {
   AdminGrant,
-  DefaultTerm,
   Membership,
   Person,
   PersonInput,
@@ -47,10 +44,8 @@ import { MembershipState } from "./term.ts";
 export const createTeam = Rpc.make("createTeam", {
   error: DomainErrorSchema,
   payload: {
-    defaultTerm: DefaultTerm,
     departmentId: DepartmentId,
-    function: TeamFunction,
-    name: requiredText({ maxLength: 250 }),
+    ...TeamDetails.fields,
   },
   success: Team,
 }).annotate(
@@ -73,7 +68,8 @@ export const updateTeam = Rpc.make("updateTeam", {
     method: "update",
     replaces: ["RULE-157", "RULE-321"],
     resource: "Team",
-    summary: "Change a team's name, function and default term.",
+    summary:
+      "Change a team's name, function, default term and Workspace group address.",
   })
 );
 
@@ -123,10 +119,10 @@ export const createMembership = Rpc.make("createMembership", {
   info({
     machine: "Membership",
     method: "create",
-    replaces: ["RULE-164", "RULE-206", "RULE-284"],
+    replaces: ["RULE-164", "RULE-206", "RULE-248", "RULE-284"],
     resource: "Membership",
     summary:
-      "Add a person to a team for a term. The end defaults to the team's default term.",
+      "Add a person to a team for a term and queue welcome messages for their first membership. The end defaults to the team's default term.",
   })
 );
 

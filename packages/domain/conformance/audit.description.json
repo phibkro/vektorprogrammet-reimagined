@@ -26,7 +26,8 @@
         "outboxSweep",
         "endingSoon",
         "retention",
-        "alumniConsent"
+        "alumniConsent",
+        "workspaceSync"
       ]
     }
   },

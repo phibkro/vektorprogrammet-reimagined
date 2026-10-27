@@ -96,6 +96,31 @@ export const auditEntryCount = countOf(
   (sql) => sql`select count(*)::int as n from audit_log`
 );
 
+/** Administrator-requested Workspace runs, waiting or completed. */
+export const workspaceRequestCount = countOf(
+  (sql) =>
+    sql`select count(*)::int as n from job_run where job = 'workspaceSync' and period like 'request:%'`
+);
+
+export const completedWorkspaceRequestCount = countOf(
+  (sql) =>
+    sql`select count(*)::int as n from job_run where job = 'workspaceSync' and period like 'request:%' and outcome = 'done'`
+);
+
+/** The runs that the ledger holds for one job: a job that the scheduler never ran has none. */
+export const jobRunCount = (job: string) =>
+  countOf(
+    (sql) =>
+      sql`select count(*)::int as n from job_run where job = ${job} and outcome = 'done'`
+  );
+
+/** Whether the capture sink persisted this outbox delivery. */
+export const capturedSlackFor = (key: string) =>
+  countOf(
+    (sql) =>
+      sql`select count(*)::int as n from captured_slack where delivery_key = ${key}`
+  );
+
 /** Every row of `statement`, decoded with `Row`. */
 const rowsOf = <S extends Schema.Constraint>(Row: S, statement: Statement) =>
   Effect.flatMap(SqlClient, (sql) =>
@@ -189,6 +214,7 @@ export const codeFor = (email: string, purpose: CodePurpose) =>
   }).pipe(Effect.provide(webCryptoLayer));
 
 const OutboxRow = Schema.Struct({
+  id: Schema.Int,
   kind: Schema.String,
   queuedAt: Schema.String,
 });
@@ -201,7 +227,7 @@ const OutboxRow = Schema.Struct({
 export const outboxRows = rowsOf(
   OutboxRow,
   (sql) =>
-    sql`select kind, created_at::text as "queuedAt" from outbox order by id`
+    sql`select id, kind, created_at::text as "queuedAt" from outbox order by id`
 );
 
 const ActiveDepartment = Schema.Struct({

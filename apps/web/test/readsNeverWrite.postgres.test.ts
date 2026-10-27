@@ -41,6 +41,7 @@ import {
   PositionId,
   SemesterRepository,
   TeamRepository,
+  WorkspaceFacts,
   anonymous,
   currentSemester,
   lockAdminList,
@@ -180,6 +181,18 @@ const NOT_ADMIN = [
   "person without team",
 ];
 
+/** The projection facts are reads even when no report has been requested. */
+const workspaceInputs = Effect.gen(function* projectionInputs() {
+  const facts = yield* WorkspaceFacts;
+  const semester = yield* currentSemester;
+  yield* facts.departments;
+  yield* facts.departmentEngagements(semester);
+  yield* facts.people(semester);
+  yield* facts.storedAddresses;
+  yield* facts.configuredGroupAddresses;
+  yield* facts.teamsAfter(semester, null, 10);
+});
+
 /** Every `runQuery` call site of the app, by the server function or entry point that holds it. */
 const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getHomePage", homePage),
@@ -247,6 +260,10 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("panel.functions getAdmins", panelReads.getAdmins, {
     refusedTo: NOT_ADMIN,
   }),
+  readPath("panel.functions getIntegrations", panelReads.getIntegrations, {
+    refusedTo: NOT_ADMIN,
+  }),
+  readPath("WorkspaceFacts projection inputs", workspaceInputs),
   readPath("account.functions getSignInDestination", signInDestination),
   readPath(
     "account.functions getMyPage (signed in)",
@@ -289,7 +306,7 @@ const READ_PATHS: readonly ReadPath[] = [
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
   "functions/account.functions.ts": 2,
-  "functions/panel.functions.ts": 10,
+  "functions/panel.functions.ts": 11,
   "functions/public.functions.ts": 11,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,
@@ -345,23 +362,29 @@ const seedTeams = Effect.gen(function* seedTeams() {
 
   const people = yield* PersonRepository;
   const memberships = yield* MembershipRepository;
+  const transactor = yield* Transactor;
 
   const person = (name: string, email: string) =>
-    people.create({
-      email: EmailAddress.make(email),
-      fieldOfStudyId: field.id,
-      name,
-    });
+    transactor.run(
+      people.create({
+        email: EmailAddress.make(email),
+        fieldOfStudyId: field.id,
+        name,
+      })
+    );
 
   const lise = yield* person(LOCAL_PERSON, "lise@alfa.example");
   const mats = yield* person("Mats Medlem", "mats@alfa.example");
 
-  const team = yield* (yield* TeamRepository).create({
-    defaultTerm: 2,
-    departmentId: field.departmentId,
-    function: "recruitment",
-    name: "Rekruttering",
-  });
+  const team = yield* transactor.run(
+    (yield* TeamRepository).create({
+      defaultTerm: 2,
+      departmentId: field.departmentId,
+      function: "recruitment",
+      groupEmail: null,
+      name: "Rekruttering",
+    })
+  );
 
   assert.strictEqual(team.id, TEAM_ID, "the registered read paths ask for it");
 
@@ -370,33 +393,31 @@ const seedTeams = Effect.gen(function* seedTeams() {
     start: { term: "VAR", year: 2020 },
   } as const;
 
-  yield* Transactor.use((transactor) =>
-    transactor.run(
-      Effect.gen(function* writeTeams() {
-        const adminList = yield* lockAdminList;
-        const locks = yield* AggregateLocks;
-        const liseLock = yield* locks.lock("Person", lise.id);
-        const matsLock = yield* locks.lock("Person", mats.id);
+  yield* transactor.run(
+    Effect.gen(function* writeTeams() {
+      const adminList = yield* lockAdminList;
+      const locks = yield* AggregateLocks;
+      const liseLock = yield* locks.lock("Person", lise.id);
+      const matsLock = yield* locks.lock("Person", mats.id);
 
-        yield* memberships.insert(liseLock, {
-          ...term,
-          leader: true,
-          positionId: PositionId.make(1),
-          teamId: team.id,
-        });
-        yield* memberships.insert(matsLock, {
-          ...term,
-          leader: false,
-          positionId: PositionId.make(2),
-          teamId: team.id,
-        });
+      yield* memberships.insert(liseLock, {
+        ...term,
+        leader: true,
+        positionId: PositionId.make(1),
+        teamId: team.id,
+      });
+      yield* memberships.insert(matsLock, {
+        ...term,
+        leader: false,
+        positionId: PositionId.make(2),
+        teamId: team.id,
+      });
 
-        yield* (yield* AdminGrantRepository).create(adminList, liseLock, {
-          grantedBy: null,
-          until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
-        });
-      })
-    )
+      yield* (yield* AdminGrantRepository).create(adminList, liseLock, {
+        grantedBy: null,
+        until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
+      });
+    })
   );
 });
 
@@ -576,7 +597,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
     assert.deepStrictEqual(sites, RUN_QUERY_CALL_SITES);
   });
 
-  it("falsifier 4: no semester create command or server function exists, and the Worker's job is the only caller of the semester job", () => {
+  it("falsifier 4: no semester create command or server function exists, and the registry's runner is the only caller of the semester job", () => {
     const files = Arr.map(
       Rec.toEntries(SOURCES),
       ([file, text]) => [file.replace("../src/", ""), text] as const
@@ -594,8 +615,9 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
       ),
       []
     );
-    assert.deepStrictEqual(naming(/semesterJob/u), ["server/runtime.ts"]);
-    assert.deepStrictEqual(Arr.sort(naming(/runSemesterJob/u), Order.String), [
+    // The Worker's `scheduled` handler runs the registry (`runTick`); only the runner table names the semester job.
+    assert.deepStrictEqual(naming(/semesterJob/u), ["server/jobRunners.ts"]);
+    assert.deepStrictEqual(Arr.sort(naming(/runTick/u), Order.String), [
       "server.ts",
       "server/runtime.ts",
     ]);

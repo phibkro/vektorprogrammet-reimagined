@@ -70,6 +70,13 @@ export const signIn = async (
 /** The Sheet that is open (a form, a record's details, or the phone's sidebar). */
 export const sheetOf = (page: Page) => page.getByRole("dialog");
 
+/** Open team creation in the seeded first department. */
+export const startNewTeam = async (page: Page) => {
+  await openPage(page, "/kontrollpanel/team");
+  await page.getByRole("button", { name: "Nytt team" }).click();
+  await sheetOf(page).getByLabel("Avdeling").selectOption("1");
+};
+
 /** The sidebar's list of sections (a landmark of the sidebar, not of the page header or footer). */
 export const sidebarOf = (page: Page) =>
   page.getByRole("navigation", { name: "Kontrollpanel" });

@@ -23,6 +23,8 @@ import type {
   SiteOrigin,
   SocialEventRepository,
   TeamRepository,
+  WelcomeLedger,
+  WorkspaceReports,
 } from "@vektorprogrammet/domain";
 import { Effect } from "effect";
 
@@ -51,7 +53,9 @@ export type ViewServices =
   | PrincipalDirectory
   | DigestLedger
   | Outbox
-  | AuditLog;
+  | AuditLog
+  | WelcomeLedger
+  | WorkspaceReports;
 
 /** Runs a command as `principal` exactly as a server function does: in a transaction, through the error table. */
 export const runAs = <

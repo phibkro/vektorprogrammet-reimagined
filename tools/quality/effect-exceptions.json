@@ -58,6 +58,7 @@
           "apps/web/e2e/teams.spec.ts",
           "apps/web/e2e/accounts.spec.ts",
           "apps/web/e2e/admins.spec.ts",
+          "apps/web/e2e/integrations.spec.ts",
           "apps/web/e2e/personalData.spec.ts"
         ],
         "symbols": [
@@ -265,6 +266,64 @@
     }
   ],
   "typeBridges": [
+    {
+      "id": "EX-0031",
+      "rules": ["FX012", "unicorn/throw-new-error", "max-classes-per-file"],
+      "scope": {
+        "files": [
+          "packages/domain/src/jobs/runs.ts",
+          "packages/domain/src/workspace/services.ts"
+        ],
+        "symbols": [
+          "LeaseLost",
+          "WorkspaceNotConfigured",
+          "WorkspaceProviderFailed",
+          "WorkspaceWriteRefused",
+          "job and Workspace services"
+        ]
+      },
+      "reason": "The domain groups related service contracts and native typed error constructors in their bounded contexts.",
+      "missingCapability": "The lint rules mistake Schema.TaggedError factories for throw sites and require unrelated service contracts to be fragmented.",
+      "nativeAlternativesExamined": [
+        "Schema.TaggedError and Context.Service are the native Effect constructs used here.",
+        "Throwing untyped errors would lose the typed error channel; splitting related ports would not change their ownership."
+      ],
+      "verification": ["devenv shell -- bun run ready"],
+      "owner": "packages/domain",
+      "versions": {
+        "effect": "4.0.6",
+        "vite-plus": "1.2.0",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Remove the overrides when the lint rules recognize the native error factories and grouped Effect services."
+    },
+    {
+      "id": "EX-0028",
+      "rules": [
+        "FX003",
+        "FX012",
+        "effecttsgo/async-function",
+        "typescript/promise-function-async"
+      ],
+      "scope": {
+        "files": ["apps/web/test/deliveryBoundary.postgres.test.ts"],
+        "symbols": ["runCommandOutcome Promise boundary"]
+      },
+      "reason": "The PostgreSQL delivery test exercises the actual Promise-returning request runtime inside an Effect test.",
+      "missingCapability": "The configured Promise lint requires an async thunk while the Effect diagnostic rejects async functions at that boundary.",
+      "nativeAlternativesExamined": [
+        "Effect.promise wraps the real runtime boundary and retains its Promise contract.",
+        "Replacing the runtime with a mock would not test the real post-commit boundary."
+      ],
+      "verification": ["devenv shell -- bun run ready"],
+      "owner": "apps/web",
+      "versions": {
+        "effect": "4.0.6",
+        "@effect/tsgo": "0.53.1",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Remove the override when diagnostics accept the Effect Promise thunk for this runtime boundary."
+    },
     {
       "id": "EX-0015",
       "rules": ["FX002", "FX012"],

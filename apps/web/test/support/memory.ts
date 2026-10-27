@@ -28,6 +28,7 @@ import {
   SiteOrigin,
   SocialEventId,
   SocialEventRepository,
+  WorkspaceReports,
   anonymous,
 } from "@vektorprogrammet/domain";
 import type {
@@ -514,6 +515,7 @@ export const memoryLayer = (
       Layer.mergeAll(
         repositories,
         transactor,
+        Layer.mock(WorkspaceReports, { latest: Effect.succeedNone }),
         Layer.succeed(CurrentPrincipal, principal),
         Layer.succeed(SiteOrigin, SITE_ORIGIN)
       ).pipe(Layer.provideMerge(Layer.succeed(Memory, tables)))

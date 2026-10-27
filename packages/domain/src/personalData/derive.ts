@@ -329,6 +329,7 @@ const mergeColumns = (rule: MergeRule): readonly string[] =>
   MergeRule.match(rule, {
     Drop: () => [],
     Follow: () => [],
+    Inherit: () => [],
     Move: ({ collisions }) => collisions,
     Newest: ({ by, decidedAt }) => [by, decidedAt],
     Single: () => [],

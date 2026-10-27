@@ -44,6 +44,7 @@ import {
   TEAM_EXISTS,
   TeamId,
   TeamRepository,
+  WelcomeLedger,
   membershipState,
   personPrincipal,
   semesterOrdinal,
@@ -81,6 +82,7 @@ export interface TeamTableRefs {
   readonly people: Ref.Ref<readonly Person[]>;
   readonly positions: Ref.Ref<readonly Position[]>;
   readonly teams: Ref.Ref<readonly Team[]>;
+  readonly welcomes: Ref.Ref<ReadonlySet<number>>;
 }
 
 /** Fresh, empty tables, with the seeded position list. */
@@ -97,6 +99,7 @@ export const makeTeamTables = (): TeamTableRefs => ({
     { id: MEMBER_POSITION, name: "Medlem" },
   ]),
   teams: Ref.makeUnsafe<readonly Team[]>([]),
+  welcomes: Ref.makeUnsafe<ReadonlySet<number>>(new Set()),
 });
 
 /** Puts the rows of every table back, as a rolled-back transaction does. */
@@ -115,6 +118,7 @@ export const snapshotTeamTables = (tables: TeamTableRefs) =>
     const people = yield* Ref.get(tables.people);
     const positions = yield* Ref.get(tables.positions);
     const teams = yield* Ref.get(tables.teams);
+    const welcomes = yield* Ref.get(tables.welcomes);
 
     const restore: RestoreTeamTables = () =>
       Effect.all(
@@ -126,6 +130,7 @@ export const snapshotTeamTables = (tables: TeamTableRefs) =>
           Ref.set(tables.people, people),
           Ref.set(tables.positions, positions),
           Ref.set(tables.teams, teams),
+          Ref.set(tables.welcomes, welcomes),
         ],
         { discard: true }
       );
@@ -219,11 +224,30 @@ const personRepository = Layer.effect(
             });
           }
 
+          const teams = yield* Ref.get(tables.teams);
+
+          if (
+            draft.companyEmail !== undefined &&
+            draft.companyEmail !== null &&
+            (Arr.some(
+              people,
+              (person) => person.companyEmail === draft.companyEmail
+            ) ||
+              Arr.some(teams, (team) => team.groupEmail === draft.companyEmail))
+          ) {
+            return yield* new Conflict({
+              entity: "Person",
+              key: draft.name,
+              message: "Vektor-adressen er allerede i bruk.",
+            });
+          }
+
           const field = yield* Effect.orDie(
             fields.findById(draft.fieldOfStudyId)
           );
 
           const person: Person = {
+            companyEmail: draft.companyEmail ?? null,
             departmentId: field.departmentId,
             email: draft.email,
             fieldOfStudyId: draft.fieldOfStudyId,
@@ -277,6 +301,33 @@ const teamRepository = Layer.effect(
           : Effect.void
       );
 
+    const groupTaken = (team: Team) =>
+      Effect.gen(function* checkGroup() {
+        const teams = yield* Ref.get(tables.teams);
+        const people = yield* Ref.get(tables.people);
+
+        if (
+          team.groupEmail !== null &&
+          (Arr.some(
+            teams,
+            (other) =>
+              other.id !== team.id && other.groupEmail === team.groupEmail
+          ) ||
+            Arr.some(
+              people,
+              (person) => person.companyEmail === team.groupEmail
+            ))
+        ) {
+          return yield* new Conflict({
+            entity: "Team",
+            key: String(team.id),
+            message: "Vektor-adressen er allerede i bruk.",
+          });
+        }
+
+        return yield* Effect.void;
+      });
+
     const replace = (team: Team) =>
       Ref.update(tables.teams, (rows) =>
         Arr.map(rows, (row) => (row.id === team.id ? team : row))
@@ -292,6 +343,7 @@ const teamRepository = Layer.effect(
           };
 
           yield* nameTaken(team);
+          yield* groupTaken(team);
           yield* Ref.update(tables.teams, (rows) => [...rows, team]);
 
           return team;
@@ -327,6 +379,7 @@ const teamRepository = Layer.effect(
           };
 
           yield* nameTaken(team);
+          yield* groupTaken(team);
           yield* replace(team);
 
           return team;
@@ -677,6 +730,22 @@ const digestLedger = Layer.effect(
   })
 );
 
+const welcomeLedger = Layer.effect(
+  WelcomeLedger,
+  Effect.gen(function* welcomeLedger() {
+    const tables = yield* TeamTables;
+
+    return WelcomeLedger.of({
+      claim: (locked) =>
+        Ref.modify(tables.welcomes, (claimed) =>
+          claimed.has(locked.id)
+            ? [false, claimed]
+            : [true, new Set([...claimed, locked.id])]
+        ),
+    });
+  })
+);
+
 const principalDirectory = Layer.effect(
   PrincipalDirectory,
   Effect.gen(function* principalDirectory() {
@@ -786,6 +855,7 @@ const teamsRepositories = Layer.mergeAll(
   membershipRepository,
   adminGrantRepository,
   digestLedger,
+  welcomeLedger,
   principalDirectory
 );
 

@@ -41,6 +41,7 @@ import { hashSync as bcryptHash } from "bcryptjs";
 import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { transactional } from "../../src/index.ts";
 import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "../../src/localPeople.ts";
 import { activateAccount } from "./accountsWorld.ts";
 import { asPerson, grantPlace } from "./teamsWorld.ts";
@@ -92,7 +93,7 @@ const teamNamed = Effect.fnUntraced(function* teamNamed(
   department: Department,
   name: string,
   teamFunction: TeamFunction
-): Effect.fn.Return<Team, never, TeamRepository> {
+): Effect.fn.Return<Team, never, TeamRepository | SqlClient> {
   const teams = yield* TeamRepository;
 
   const existing = Arr.findFirst(
@@ -103,19 +104,26 @@ const teamNamed = Effect.fnUntraced(function* teamNamed(
   return Option.isSome(existing)
     ? existing.value
     : yield* Effect.orDie(
-        teams.create({
-          defaultTerm: 2,
-          departmentId: department.id,
-          function: teamFunction,
-          name,
-        })
+        transactional(
+          teams.create({
+            defaultTerm: 2,
+            departmentId: department.id,
+            function: teamFunction,
+            groupEmail: null,
+            name,
+          })
+        )
       );
 });
 
 const personNamed = Effect.fnUntraced(function* personNamed(
   name: string,
   field: FieldOfStudy
-): Effect.fn.Return<Person, never, PersonRepository | PrincipalDirectory> {
+): Effect.fn.Return<
+  Person,
+  never,
+  PersonRepository | PrincipalDirectory | SqlClient
+> {
   const people = yield* PersonRepository;
   const directory = yield* PrincipalDirectory;
 
@@ -127,11 +135,13 @@ const personNamed = Effect.fnUntraced(function* personNamed(
   return Option.isSome(known)
     ? yield* Effect.orDie(people.findById(known.value.personId))
     : yield* Effect.orDie(
-        people.create({
-          email: emailOf(name),
-          fieldOfStudyId: field.id,
-          name,
-        })
+        transactional(
+          people.create({
+            email: emailOf(name),
+            fieldOfStudyId: field.id,
+            name,
+          })
+        )
       );
 });
 

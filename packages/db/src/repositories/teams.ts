@@ -12,10 +12,12 @@
 import {
   AdminGrant,
   AdminGrantRepository,
+  AggregateLocks,
   Conflict,
   DepartmentId,
   DigestLedger,
   EmailAddress,
+  InTransaction,
   MEMBERSHIP_CHANGED,
   Membership,
   MembershipFact,
@@ -29,6 +31,7 @@ import {
   PrincipalDirectory,
   Team,
   TeamRepository,
+  WelcomeLedger,
   personPrincipal,
   semesterOrdinal,
 } from "@vektorprogrammet/domain";
@@ -68,6 +71,11 @@ import {
   team,
 } from "../schema.ts";
 import { activeAdminPlaces } from "./adminPlaces.ts";
+import {
+  claimPersonAddress,
+  claimTeamAddress,
+  releaseTeamAddress,
+} from "./companyAddresses.ts";
 
 /** The tables that a person owns (spec 0006b): every write to one goes through the person's lock. */
 const { owned } = roots.Person;
@@ -88,6 +96,7 @@ export const PersonRepositoryLive = Layer.effect(
   Effect.gen(function* PersonRepositoryLive() {
     const db = yield* Drizzle;
     const aggregates = yield* Aggregates;
+    const locks = yield* AggregateLocks;
     const decode = decodeWith(Person);
     const decodeAll = decodeWith(Schema.Array(Person));
 
@@ -129,18 +138,34 @@ export const PersonRepositoryLive = Layer.effect(
     const create = Effect.fn("PersonRepository.create")(function* create(
       draft: PersonDraft
     ) {
+      yield* InTransaction;
+
       // The creation date is the Clock's, so that a retention run under a test clock sees the dates it expects.
       const createdAt = DateTime.toDateUtc(yield* DateTime.now);
 
       const rows = yield* db
         .insert(person)
-        .values({ ...draft, createdAt })
+        .values({ ...draft, companyEmail: null, createdAt })
         .returning({ id: person.id })
         .pipe(Effect.catch((error) => classifySqlFailure(error, draft.email)));
 
       const created = yield* single(rows);
 
-      return yield* Effect.orDie(findById(PersonId.make(created.id)));
+      const id = PersonId.make(created.id);
+
+      if (draft.companyEmail !== undefined && draft.companyEmail !== null) {
+        const locked = yield* Effect.orDie(locks.lock("Person", id));
+        yield* claimPersonAddress(aggregates, locked, draft.companyEmail);
+        yield* aggregates
+          .updateRoot(locked, roots.Person, {
+            companyEmail: draft.companyEmail,
+          })
+          .pipe(
+            Effect.catch((error) => classifySqlFailure(error, draft.email))
+          );
+      }
+
+      return yield* Effect.orDie(findById(id));
     });
 
     /** The person through the lock: the token is checked, then the row is read, and nobody else can change it. */
@@ -205,27 +230,86 @@ export const TeamRepositoryLive = Layer.effect(
     const create = Effect.fn("TeamRepository.create")(function* create(
       draft: TeamDraft
     ) {
+      yield* InTransaction;
+
       const rows = yield* db
         .insert(team)
-        .values(draft)
+        .values({ ...draft, groupEmail: null })
         .returning()
         .pipe(Effect.catch((error) => classifySqlFailure(error, draft.name)));
 
-      return yield* decode(yield* single(rows));
+      const created = yield* decode(yield* single(rows));
+
+      if (draft.groupEmail !== null) {
+        yield* claimTeamAddress(db, created.id, draft.groupEmail);
+
+        const assigned = yield* db
+          .update(team)
+          .set({ groupEmail: draft.groupEmail })
+          .where(eq(team.id, created.id))
+          .returning()
+          .pipe(Effect.catch((error) => classifySqlFailure(error, draft.name)));
+
+        return yield* decode(yield* single(assigned));
+      }
+
+      return created;
     });
 
     const update = Effect.fn("TeamRepository.update")(function* update(
       id: TeamId,
       details: TeamDetails
     ) {
+      yield* InTransaction;
+
+      const [current] = yield* db
+        .select({ groupEmail: team.groupEmail })
+        .from(team)
+        .where(eq(team.id, id))
+
+        .pipe(Effect.orDie);
+
+      if (current === undefined) {
+        return yield* new NotFound({ entity: "Team", key: String(id) });
+      }
+
+      if (
+        details.groupEmail !== current.groupEmail &&
+        details.groupEmail !== null
+      ) {
+        yield* claimTeamAddress(db, id, details.groupEmail);
+      }
+
       const rows = yield* db
         .update(team)
         .set(details)
-        .where(eq(team.id, id))
+        .where(
+          and(
+            eq(team.id, id),
+            sql`${team.groupEmail} is not distinct from ${current.groupEmail}`
+          )
+        )
         .returning()
         .pipe(Effect.catch((error) => classifySqlFailure(error, details.name)));
 
-      return yield* teamById(id, rows);
+      if (rows.length === 0) {
+        return yield* new Conflict({
+          entity: "Team",
+          key: String(id),
+          message: "Teamets gruppeadresse ble endret.",
+        });
+      }
+
+      const updated = yield* teamById(id, rows);
+
+      if (
+        details.groupEmail !== current.groupEmail &&
+        current.groupEmail !== null
+      ) {
+        yield* releaseTeamAddress(db, id, current.groupEmail);
+      }
+
+      return updated;
     });
 
     const deactivate = Effect.fn("TeamRepository.deactivate")(
@@ -719,6 +803,30 @@ export const DigestLedgerLive = Layer.effect(
     });
 
     return DigestLedger.of({ claim });
+  })
+);
+
+/** The claim is owned by the person; the lock and unique key fence concurrent first memberships. */
+export const WelcomeLedgerLive = Layer.effect(
+  WelcomeLedger,
+  Effect.gen(function* WelcomeLedgerLive() {
+    const aggregates = yield* Aggregates;
+
+    return WelcomeLedger.of({
+      claim: (locked) =>
+        Effect.gen(function* claimWelcome() {
+          const rows = yield* aggregates
+            .insert(
+              locked,
+              owned.welcomeLedger,
+              { recordedAt: DateTime.toDateUtc(yield* DateTime.now) },
+              { action: "ignore" }
+            )
+            .pipe(Effect.orDie);
+
+          return rows.length > 0;
+        }),
+    });
   })
 );
 

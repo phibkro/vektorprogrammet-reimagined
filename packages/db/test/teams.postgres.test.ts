@@ -555,11 +555,13 @@ layer(teamsDatabase, { excludeTestServices: true })(
             const found = yield* world("rev2");
 
             const other = yield* PersonRepository.use((people) =>
-              people.create({
-                email: EmailAddress.make("rev2.other@example.org"),
-                fieldOfStudyId: found.fieldOfStudy.id,
-                name: "Annen administrator",
-              })
+              transactional(
+                people.create({
+                  email: EmailAddress.make("rev2.other@example.org"),
+                  fieldOfStudyId: found.fieldOfStudy.id,
+                  name: "Annen administrator",
+                })
+              )
             );
 
             yield* asPerson(found.person.id, activateAccount);

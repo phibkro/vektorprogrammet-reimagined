@@ -18,19 +18,15 @@ import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
 import type {
-  CapturedMailStore,
+  CapturedMessageStore,
   OutboxDelivery,
   SessionDirectory,
 } from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
+  JobRegistry,
   Outbox,
   SiteOrigin,
-  alumniConsentJob,
-  endingSoonJob,
-  retentionJob,
-  semesterJob,
-  semesterLabel,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {
@@ -47,6 +43,7 @@ import type {
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  JobRun,
   LegalHolds,
   MembershipRepository,
   OutboxMessageId,
@@ -60,9 +57,23 @@ import type {
   SemesterRepository,
   SocialEventRepository,
   TeamRepository,
+  SystemJob,
+  WelcomeLedger,
+  WorkspaceAssignments,
+  WorkspaceFacts,
+  WorkspaceReports,
+  WorkspaceWriter,
   RetentionRun,
 } from "@vektorprogrammet/domain";
-import { Cause, Effect, Layer, Match, Predicate, Redacted, Ref } from "effect";
+import {
+  Cause,
+  DateTime,
+  Effect,
+  Layer,
+  Predicate,
+  Redacted,
+  Ref,
+} from "effect";
 import type { Crypto } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
@@ -77,7 +88,9 @@ import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
 import type { RequestError } from "./errors";
 import { r2FileStoreLayer } from "./fileStore";
-import { SWEEP_LIMIT } from "./outboxDelivery";
+import { runners } from "./jobRunners";
+import type { TickServices } from "./jobRunners";
+import { dispatchTick } from "./jobs";
 import { withOutbox } from "./outboxSweep";
 import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
@@ -90,6 +103,12 @@ import { Transactor, transactorLayer } from "./transactor";
 import { turnstileLiveLayer } from "./turnstile";
 import type { TurnstileVerifier } from "./turnstile";
 import { webCryptoLayer } from "./webCrypto";
+import {
+  workspaceConfigFromEnv,
+  workspaceDirectoryLayer,
+  workspaceModeLayer,
+  workspaceWriterLayer,
+} from "./workspace";
 
 /** Hyperdrive pools connections itself; one request needs very few. */
 const MAX_CONNECTIONS_PER_REQUEST = 2;
@@ -121,6 +140,7 @@ export type DatabaseServices =
   | MembershipRepository
   | AdminGrantRepository
   | DigestLedger
+  | WelcomeLedger
   | ConsentRepository
   | AlumniRequests
   | LegalHolds
@@ -129,7 +149,11 @@ export type DatabaseServices =
   | PrincipalDirectory
   | Outbox
   | AuditLog
-  | CapturedMailStore
+  | CapturedMessageStore
+  | JobRun.JobRuns
+  | WorkspaceAssignments
+  | WorkspaceFacts
+  | WorkspaceReports
   | OutboxDelivery
   | SessionDirectory
   | SqlClient.SqlClient;
@@ -148,7 +172,9 @@ export type RequestServices =
   | ContactRateLimiter
   | CmsClient;
 
-const databaseLayer = (env: WorkerEnv): Layer.Layer<DatabaseServices> =>
+const databaseLayer = (
+  env: Pick<TickEnv, "HYPERDRIVE">
+): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
     maxConnections: MAX_CONNECTIONS_PER_REQUEST,
     url: Redacted.make(env.HYPERDRIVE.connectionString),
@@ -162,6 +188,7 @@ export const liveRequestLayer = (
     Effect.map(decodeDeployment(scope.env.DEPLOYMENT), (deployment) =>
       Layer.mergeAll(
         transactorLayer,
+        workspaceModeLayer(workspaceConfigFromEnv(deployment, scope.env)),
         r2FileStoreLayer(scope.env.PUBLIC_FILES),
         Layer.effect(
           CurrentPrincipal,
@@ -286,12 +313,17 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
 ): Promise<Outcome<A>> =>
   runOutcome(liveRequestLayer(scope), program, scope.signal);
 
-/** Outbox delivery with its own connection: used by `waitUntil` and by the cron sweep. */
+/**
+ * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the
+ * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one.
+ */
 const deliveryLayer = (
-  env: WorkerEnv
+  env: TickEnv,
+  database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Layer.Layer<
   | AccountDelivery
   | MessageSender
+  | WorkspaceWriter
   | DatabaseServices
   | Auth
   | Crypto.Crypto
@@ -305,8 +337,9 @@ const deliveryLayer = (
             messageSenderLayer(senderConfigFromEnv(deployment, env)).pipe(
               Layer.provide(FetchHttpClient.layer),
               Layer.orDie,
-              Layer.provideMerge(databaseLayer(env))
+              Layer.provideMerge(database)
             ),
+            workspaceWriterLayer(workspaceConfigFromEnv(deployment, env)),
             authLayer(env).pipe(Layer.orDie),
             webCryptoLayer,
             Layer.succeed(SiteOrigin)(env.SITE_URL)
@@ -343,7 +376,9 @@ export const runDelivery = (
   runScheduled(
     deliveryLayer(env),
     withOutbox((client) =>
-      client.sweepOutbox(options ?? { limit: SWEEP_LIMIT })
+      client.sweepOutbox(
+        options ?? { limit: JobRegistry.outboxSweep.chunkSize }
+      )
     ).pipe(
       Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
       Effect.tap((results) =>
@@ -388,124 +423,78 @@ export const runSignInPerson = (
     { signal }
   );
 
-/** The Layer of the jobs that write: the database, the transaction runner and the site's origin. */
-const jobLayer = (
-  env: WorkerEnv
-): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
-  Layer.mergeAll(transactorLayer, Layer.succeed(SiteOrigin)(env.SITE_URL)).pipe(
-    Layer.provideMerge(databaseLayer(env))
-  );
-
 /**
- * What the retention job reads of the Worker's bindings: the deployment, the site's origin and the database's connection
- * string. A test runs the job without a Cloudflare binding.
+ * What a scheduled tick reads of the Worker's bindings: the deployment, the site's origin, the database's connection
+ * string, the Better Auth secret, the senders' production bindings and the Workspace mode. A test runs the tick without a
+ * Cloudflare binding (`WorkerEnv` satisfies it).
  */
-export type RetentionEnv = Pick<WorkerEnv, "DEPLOYMENT" | "SITE_URL"> & {
+export type TickEnv = Pick<
+  WorkerEnv,
+  | "BETTER_AUTH_SECRET"
+  | "DEPLOYMENT"
+  | "MAIL_FROM"
+  | "SEND_EMAIL"
+  | "SITE_URL"
+  | "SLACK_WEBHOOK_URL"
+  | "WORKSPACE_MODE"
+> & {
   readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
 };
 
 /**
- * The Layer of the nightly retention job: the job runtime over `JobDatabaseLive`, the only database layer that carries
- * the retention run, in the mode that `retentionModeFor` decides from the deployment and the approval of the periods.
+ * The database of every scheduled job: `JobDatabaseLive`, the only layer that carries a retention run that changes
+ * rows, in the mode that `retentionModeFor` decides from the deployment and the approval of the periods (spec 0007b
+ * R4). The mode is fixed here, so no job chooses it.
  */
-const retentionJobLayer = (
-  env: RetentionEnv
-): Layer.Layer<DatabaseServices | Transactor | SiteOrigin> =>
+const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
-      Layer.mergeAll(
-        transactorLayer,
-        Layer.succeed(SiteOrigin)(env.SITE_URL)
-      ).pipe(
-        Layer.provideMerge(
-          JobDatabaseLive({
-            maxConnections: MAX_CONNECTIONS_PER_REQUEST,
-            retention: retentionModeFor(deployment),
-            url: Redacted.make(env.HYPERDRIVE.connectionString),
-          }).pipe(Layer.orDie)
-        )
-      )
+      JobDatabaseLive({
+        maxConnections: MAX_CONNECTIONS_PER_REQUEST,
+        retention: retentionModeFor(deployment),
+        url: Redacted.make(env.HYPERDRIVE.connectionString),
+      }).pipe(Layer.orDie)
     )
   );
 
 /**
- * The semester job (spec 0003, RULE-237): the current and the next semester exist as rows. Runs from the
- * cron `scheduled` handler, and nowhere else, as `System("semesters")` through `authorize` (spec 0006, R1); no read
- * path writes a semester.
+ * The Layer of one scheduled tick (spec 0008): the delivery services, which hold the job database, the senders and the
+ * Workspace writer, the transaction runner, and the Workspace directory and mode by deployment.
  */
-export const runSemesterJob = (env: WorkerEnv): Promise<void> =>
-  runScheduled(
-    jobLayer(env),
-    Transactor.use((transactor) => transactor.run(semesterJob)).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("semesters")),
-      Effect.tap(({ current, next }) =>
-        Effect.logInfo("semester job finished").pipe(
-          Effect.annotateLogs({
-            current: semesterLabel(current),
-            next: semesterLabel(next),
-          })
+const tickLayer = (env: TickEnv): Layer.Layer<TickServices | Transactor> =>
+  Layer.unwrap(
+    Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) => {
+      const workspace = workspaceConfigFromEnv(deployment, env);
+
+      return Layer.mergeAll(
+        workspaceDirectoryLayer(workspace),
+        workspaceModeLayer(workspace),
+        transactorLayer.pipe(
+          Layer.provideMerge(deliveryLayer(env, jobDatabaseLayer(env)))
         )
-      )
-    )
+      );
+    })
   );
 
 /**
- * The "ending soon" digest (spec 0006, falsifier 7): from the cron tick, as `System("endingSoon")`, in one
- * transaction with its ledger rows and outbox rows. Outside the last four weeks of the semester it does nothing.
+ * One cron tick: every registered job of that cron that is due runs (spec 0008), each as its own `System` principal,
+ * in declaration order, and one that fails never stops the next. The platform always names the cron that fired; only a
+ * local trigger (`/cdn-cgi/handler/scheduled`) passes none, and it runs the ten-minute tick, so the nightly retention
+ * run needs its own cron string (spec 0007b). Never rejects, so `waitUntil` is safe; a run that failed or died is
+ * recorded in `job_run` and left for a later tick.
  */
-export const runEndingSoon = (env: WorkerEnv): Promise<void> =>
+export const runTick = (
+  env: TickEnv,
+  controller: { readonly scheduledTime: number; readonly cron: string },
+  only?: readonly SystemJob[]
+): Promise<void> =>
   runScheduled(
-    jobLayer(env),
-    Transactor.use((transactor) => transactor.run(endingSoonJob)).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("endingSoon")),
-      Effect.tap(({ sent }) =>
-        Effect.logInfo("ending-soon digest finished").pipe(
-          Effect.annotateLogs({ sent })
-        )
-      )
-    )
-  );
-
-/**
- * The alumni consent job (spec 0007b, falsifier 5): from the cron tick, as `System("alumniConsent")`, in one
- * transaction. It finds the people who have left, writes one request each and enqueues one `IssueCode` message each;
- * the sweep that follows mints the code and sends the mail.
- */
-export const runAlumniConsent = (env: WorkerEnv): Promise<void> =>
-  runScheduled(
-    jobLayer(env),
-    Transactor.use((transactor) => transactor.run(alumniConsentJob)).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("alumniConsent")),
-      Effect.tap(({ sent }) =>
-        Effect.logInfo("alumni consent job finished").pipe(
-          Effect.annotateLogs({ sent })
-        )
-      )
-    )
-  );
-
-/**
- * The nightly retention run (spec 0007b, falsifier 2): from the cron tick of `RETENTION_CRON`, as
- * `System("retention")`, in one transaction. The deployment and the approval of the periods decide what the run does
- * (`retentionModeFor`): in production, while a period is a proposal, it only counts and audits what it would change.
- * It logs the counts that its audit row holds, and never a value.
- */
-export const runRetention = (env: RetentionEnv): Promise<void> =>
-  runScheduled(
-    retentionJobLayer(env),
-    Transactor.use((transactor) => transactor.run(retentionJob)).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("retention")),
-      Effect.tap(({ counts, mode }) =>
-        Match.value(mode).pipe(
-          Match.when("Apply", () => Effect.logInfo("retention run finished")),
-          Match.when("ReportOnly", () =>
-            Effect.logInfo("retention report finished: nothing was changed")
-          ),
-          Match.exhaustive,
-          Effect.annotateLogs(counts)
-        )
-      )
-    )
+    tickLayer(env),
+    dispatchTick(JobRegistry.Jobs, runners, {
+      at: DateTime.makeUnsafe(controller.scheduledTime),
+      cron: controller.cron === "" ? JobRegistry.TICK_CRON : controller.cron,
+      only,
+    })
   );
 
 /**

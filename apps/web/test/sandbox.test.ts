@@ -4,7 +4,10 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, describe, it } from "@effect/vitest";
-import { CapturedMailStore, DEFAULT_LOCAL_PERSON } from "@vektorprogrammet/db";
+import {
+  CapturedMessageStore,
+  DEFAULT_LOCAL_PERSON,
+} from "@vektorprogrammet/db";
 import {
   DepartmentId,
   EmailAddress,
@@ -31,7 +34,6 @@ import { decodeDeployment } from "../src/server/deployment";
 import type { Deployment } from "../src/server/deployment";
 import { resolvePrincipal } from "../src/server/principal";
 import {
-  CapturedMessages,
   captureSenderLayer,
   MessageSender,
   messageSenderLayer,
@@ -89,16 +91,18 @@ const config = (
   slackWebhookUrl: Redacted.make("https://hooks.example.invalid/fake"),
 });
 
-const mailbox = Layer.effect(
-  CapturedMailStore,
-  Effect.gen(function* mailbox() {
-    const messages = yield* Ref.make<readonly TransportMessage[]>([]);
+/** What the fake mailbox kept: each message under the key it was given, as the real capture store keeps it. */
+type KeptRows = readonly (readonly [string, TransportMessage])[];
 
-    return CapturedMailStore.of({
-      record: (message) => Ref.update(messages, (all) => [...all, message]),
-    });
-  })
-);
+type Kept = Ref.Ref<KeptRows>;
+
+const mailboxOver = (kept: Kept) =>
+  Layer.succeed(CapturedMessageStore)(
+    CapturedMessageStore.of({
+      record: (message, key) =>
+        Ref.update(kept, (all) => [...all, [key, message] as const]),
+    })
+  );
 
 const noSession = Layer.mock(Auth, {
   session: () => Effect.succeed({ cookiePresent: false, value: null }),
@@ -106,12 +110,13 @@ const noSession = Layer.mock(Auth, {
 
 const sendMessages = Effect.gen(function* sendMessages() {
   const sender = yield* MessageSender;
-  yield* sender.send(email);
+  yield* sender.send(email, "outbox-1");
   yield* sender.send(
     OutboxMessageSchema.cases.SlackPost.make({
       target: SlackTarget.cases.Notifications.make({}),
       text: "Hei",
-    })
+    }),
+    "outbox-2"
   );
 });
 
@@ -119,15 +124,21 @@ const sendWithHttp = <E>(
   senderLayer: Layer.Layer<
     MessageSender,
     E,
-    HttpClient.HttpClient | CapturedMailStore
+    HttpClient.HttpClient | CapturedMessageStore
   >,
   urls: string[]
 ) =>
-  sendMessages.pipe(
-    Effect.provide(
-      senderLayer.pipe(Layer.provide(Layer.merge(fakeHttp(urls), mailbox)))
-    )
-  );
+  Effect.gen(function* sendKept() {
+    const kept: Kept = yield* Ref.make<KeptRows>([]);
+
+    yield* sendMessages.pipe(
+      Effect.provide(
+        senderLayer.pipe(
+          Layer.provide(Layer.merge(fakeHttp(urls), mailboxOver(kept)))
+        )
+      )
+    );
+  });
 
 const build = (
   layer: Layer.Layer<MessageSender, SenderConfigRejected, HttpClient.HttpClient>
@@ -182,17 +193,22 @@ describe("deliveries are sandboxed outside production (architecture §4, critic 
       })
   );
 
-  it.effect("the capture sink records each message in order", () =>
+  it.effect("the capture sink keeps each message in order, under its key", () =>
     Effect.gen(function* effectProgram() {
-      const captured = yield* Effect.gen(function* captured() {
-        yield* sendMessages;
+      const kept: Kept = yield* Ref.make<KeptRows>([]);
 
-        return yield* Ref.get(yield* CapturedMessages);
-      }).pipe(Effect.provide(captureSenderLayer.pipe(Layer.provide(mailbox))));
+      yield* sendMessages.pipe(
+        Effect.provide(
+          captureSenderLayer.pipe(Layer.provide(mailboxOver(kept)))
+        )
+      );
 
       assert.deepStrictEqual(
-        Arr.map(captured, (message) => message._tag),
-        ["Email", "SlackPost"]
+        Arr.map(yield* Ref.get(kept), ([key, message]) => [key, message._tag]),
+        [
+          ["outbox-1", "Email"],
+          ["outbox-2", "SlackPost"],
+        ]
       );
     })
   );

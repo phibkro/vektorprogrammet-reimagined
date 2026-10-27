@@ -1,9 +1,8 @@
 /**
  * The Worker entry (Cloudflare's documented custom-entry pattern for TanStack
  * Start): `fetch` answers legacy redirects, then delegates to TanStack's
- * server entry with `{ env, ctx }` as the request context; `scheduled` runs the
- * outbox sweep, the semester job (spec 0003), the "ending soon" digest (spec 0006) and the alumni consent job (spec 0007b)
- * on one cron every 10 minutes, and the retention run (spec 0007b) on its own nightly cron (see `alchemy.run.ts`).
+ * server entry with `{ env, ctx }` as the request context; `scheduled` runs the registered jobs that are due
+ * (`@vektorprogrammet/domain` `JobRegistry`, spec 0008), on the cron triggers that the registry generates (`worker.config.ts`).
  */
 import type {
   ExecutionContext,
@@ -13,7 +12,6 @@ import handler from "@tanstack/react-start/server-entry";
 import { env as workerBindings } from "cloudflare:workers";
 import { Effect, Match, Option, Predicate } from "effect";
 
-import { RETENTION_CRON } from "../worker.config";
 import { handleAccountPost } from "./server/accountPost";
 import { validateAuthStartup } from "./server/authStartup";
 import type { WorkerEnv } from "./server/env";
@@ -22,15 +20,7 @@ import {
   legacyFileLocation,
   permanentRedirect,
 } from "./server/redirects";
-import {
-  runAlumniConsent,
-  runAuthRequest,
-  runDelivery,
-  runEndingSoon,
-  runQuery,
-  runRetention,
-  runSemesterJob,
-} from "./server/runtime";
+import { runAuthRequest, runQuery, runTick } from "./server/runtime";
 
 validateAuthStartup(workerBindings.BETTER_AUTH_SECRET);
 
@@ -104,21 +94,9 @@ export default {
     env: WorkerEnv,
     ctx: ExecutionContext
   ): void {
-    if (controller.cron === RETENTION_CRON) {
-      ctx.waitUntil(runRetention(env));
-
-      return;
-    }
-
-    // Independent jobs on one cron: no promise rejects, so one failing never cancels the other. The digest's and the
-    // alumni job's outbox rows are delivered by the sweep that follows them, and the sweep also takes everything else
-    // that is due.
-    ctx.waitUntil(runSemesterJob(env));
-
-    ctx.waitUntil(
-      Promise.all([runEndingSoon(env), runAlumniConsent(env)]).then(() =>
-        runDelivery(env)
-      )
-    );
+    // Each due job runs as its own System principal in declaration order, and a failing job never cancels the next:
+    // no promise rejects. The tick's cron and the retention's own nightly cron are told apart by `controller.cron`
+    // inside the dispatcher, and the outbox sweep is declared last, so it delivers what the jobs before it queued.
+    ctx.waitUntil(runTick(env, controller));
   },
 };

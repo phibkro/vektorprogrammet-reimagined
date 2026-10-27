@@ -12,11 +12,11 @@ Volunteers do Vektorprogrammet's work in teams. A membership puts a person in a 
 
 | You are | You can | Scope |
 | --- | --- | --- |
-| A team leader in the department or A member of the board | Create a team in a department.<br>Change a team's name, function and default term.<br>Deactivate a team. A team is never deleted.<br>Register a person, with the field of study that gives them a department.<br>Add a person to a team for a term. The end defaults to the team's default term.<br>Extend a membership to a later end semester.<br>Change the position, team or leader flag from a semester: the old membership ends and a new one starts.<br>End a membership from a semester. A member can end their own.<br>Cancel a membership that has not started.<br>See the people of the department. | department |
+| A team leader in the department or A member of the board | Create a team in a department.<br>Change a team's name, function, default term and Workspace group address.<br>Deactivate a team. A team is never deleted.<br>Register a person, with the field of study that gives them a department.<br>Add a person to a team for a term and queue welcome messages for their first membership. The end defaults to the team's default term.<br>Extend a membership to a later end semester.<br>Change the position, team or leader flag from a semester: the old membership ends and a new one starts.<br>End a membership from a semester. A member can end their own.<br>Cancel a membership that has not started.<br>See the people of the department. | department |
 | The person the record belongs to | End a membership from a semester. A member can end their own. | own |
 | A member of a team in the department | See the teams of the department and their memberships. | department |
 | The endingSoon job | Four weeks before the semester ends, e-mail each team leader the memberships of the department that end. | all |
-| An admin | Create a team in a department.<br>Change a team's name, function and default term.<br>Deactivate a team. A team is never deleted.<br>Register a person, with the field of study that gives them a department.<br>Add a person to a team for a term. The end defaults to the team's default term.<br>Extend a membership to a later end semester.<br>Change the position, team or leader flag from a semester: the old membership ends and a new one starts.<br>End a membership from a semester. A member can end their own.<br>Cancel a membership that has not started.<br>Put a person on the admin list until a date.<br>Take a place off the admin list.<br>See the people of the department.<br>See the teams of the department and their memberships. | all |
+| An admin | Create a team in a department.<br>Change a team's name, function, default term and Workspace group address.<br>Deactivate a team. A team is never deleted.<br>Register a person, with the field of study that gives them a department.<br>Add a person to a team for a term and queue welcome messages for their first membership. The end defaults to the team's default term.<br>Extend a membership to a later end semester.<br>Change the position, team or leader flag from a semester: the old membership ends and a new one starts.<br>End a membership from a semester. A member can end their own.<br>Cancel a membership that has not started.<br>Put a person on the admin list until a date.<br>Take a place off the admin list.<br>See the people of the department.<br>See the teams of the department and their memberships. | all |
 
 <!-- docgen:end who -->
 
@@ -59,10 +59,10 @@ The system calculates this status from the person's engagements. It does not sto
 
 | Event | What the team leader does | What happens |
 | --- | --- | --- |
-| Joins a team | Add the member | A membership with the default term. The person gets a welcome e-mail and Google group access. |
+| Joins a team | Add the member | A membership with the default term. The first membership queues welcome and setup messages; the Workspace report shows desired group access. Real Google writes remain operator-gated (spec 0008). |
 | Stays another term | Extend | The same membership gets a later end. Its history stays. |
 | Promotion, demotion, change of position or team | Change | The old membership ends, and a new one starts in the chosen semester. History shows both. |
-| Leaves on time | Nothing | The term ends. The person loses access and Google group membership. |
+| Leaves on time | Nothing | The term ends and local access is recalculated. The Workspace report shows the desired group removal; real Google writes remain operator-gated. |
 | Leaves early | End early | The same, from the chosen semester. |
 | Comes back | Add again | A new membership for the same person. |
 
@@ -119,10 +119,10 @@ Active, Planned and Ended are calculated from the semester. They replace the leg
 | Command or read | Resource | Method | What it does | Granted to | Scope | Replaces |
 | --- | --- | --- | --- | --- | --- | --- |
 | `createTeam` | Team | `create` | Create a team in a department. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
-| `updateTeam` | Team | `update` | Change a team's name, function and default term. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
+| `updateTeam` | Team | `update` | Change a team's name, function, default term and Workspace group address. | Leader(d) ∪ Board; Admin | department, all | RULE-157, RULE-321 |
 | `deactivateTeam` | Team | `:deactivate` | Deactivate a team. A team is never deleted. | Leader(d) ∪ Board; Admin | department, all | RULE-233, RULE-329 |
 | `createPerson` | Person | `create` | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin | department, all | RULE-164 |
-| `createMembership` | Membership | `create` | Add a person to a team for a term. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin | department, all | RULE-164, RULE-206, RULE-284 |
+| `createMembership` | Membership | `create` | Add a person to a team for a term and queue welcome messages for their first membership. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin | department, all | RULE-164, RULE-206, RULE-248, RULE-284 |
 | `extendMembership` | Membership | `:extend` | Extend a membership to a later end semester. | Leader(d) ∪ Board; Admin | department, all | RULE-234, RULE-251, RULE-252 |
 | `changeMembership` | Membership | `:change` | Change the position, team or leader flag from a semester: the old membership ends and a new one starts. A move to a team in another department also needs the grant in the receiving department, in the same transaction. | Leader(d) ∪ Board; Admin | department, all |  |
 | `endEarlyMembership` | Membership | `:endEarly` | End a membership from a semester. A member can end their own. | Leader(d) ∪ Board; Self; Admin | department, own, all | RULE-298 |
@@ -149,7 +149,7 @@ Active, Planned and Ended are calculated from the semester. They replace the leg
 | `Fn(f, d)` | Has an active membership in a team of `d` whose function is `f` |
 | `Board` | `Fn(board, *)`: has an active membership in a board team |
 | `Admin` | Is on the admin list, and the place has not ended (`docs/system/administration.md`) |
-| `System(job)` | A scheduled job (`semesters`, `outboxSweep`, `endingSoon`), which runs as its own principal |
+| `System(job)` | A scheduled job (the registry in `docs/system/administration.md`), which runs as its own principal |
 
 <!-- docgen:end subjects -->
 
@@ -159,8 +159,8 @@ A grant is `(subject set, commands, scope)` with scope `own`, `department` or `a
 
 | Event | Effect | Replaces |
 | --- | --- | --- |
-| Membership becomes Active | Add to the team's Google group; create a company account on the first membership; welcome e-mail | 243–246, 248, 225 |
-| Membership becomes Ended | Remove from the Google group | 242 |
+| Membership becomes Active | Queue first-membership welcome; project the desired company account and team group membership (Google writes are operator-gated) | 243–246, 248, 225 |
+| Membership becomes Ended | Project removal from the Google group (Google writes are operator-gated) | 242 |
 | Four weeks before semester end | "Ending soon" list to each `Leader(d)`. Admin-grant reminders are a later slice. | new |
 | A person's last engagement ends | Alumni consent e-mail | new |
 

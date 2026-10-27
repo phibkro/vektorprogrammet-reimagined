@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "prepare": "vp config --no-agent && effect-tsgo patch --typescript --oxlint",
-    "ready": "vp check && bun run check:exceptions && bun run check:docs && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run check:cms",
+    "ready": "vp check && bun run check:exceptions && bun run check:docs && bun run test:all && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run check:cms",
+    "test:all": "vp run -r --no-cache test",
     "docs": "bun run --cwd tools/docgen generate",
     "check:docs": "bun run --cwd tools/docgen generate --check",
     "description": "bun run --cwd tools/effx-conformance generate",

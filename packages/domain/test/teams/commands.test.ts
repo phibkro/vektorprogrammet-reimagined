@@ -113,6 +113,7 @@ const newTeam = (
       defaultTerm,
       departmentId,
       function: "recruitment",
+      groupEmail: null,
       name,
     })
   );
@@ -169,6 +170,7 @@ const createTeamAs = (
         defaultTerm: 1,
         departmentId,
         function: "it",
+        groupEmail: null,
         name: `${name} team`,
       })
     )
@@ -180,6 +182,7 @@ const editTeamAs = (principal: Principal, id: TeamId) =>
       TeamsEndpoints.updateTeam({
         defaultTerm: 1,
         function: "economy",
+        groupEmail: null,
         id,
         name: "Økonomi",
       })
@@ -275,6 +278,72 @@ const cancelAsLeader = (id: MembershipId) =>
 
 describe("teams: who creates and edits a team (RULE-157, RULE-321, RULE-233)", () => {
   it.effect(
+    "RULE-179: team group addresses are normalized, validated and unique",
+    () =>
+      Effect.gen(function* teamGroups() {
+        yield* world;
+
+        const created = yield* asPrincipal(admin)(
+          TeamsEndpoints.createTeam({
+            defaultTerm: 1,
+            departmentId: TRONDHEIM,
+            function: "it",
+            groupEmail: "  TEAM@VEKTORPROGRAMMET.NO  ",
+            name: "IT",
+          })
+        );
+
+        assert.strictEqual(created.groupEmail, "team@vektorprogrammet.no");
+
+        const edited = yield* asPrincipal(admin)(
+          TeamsEndpoints.updateTeam({
+            defaultTerm: 1,
+            function: "it",
+            groupEmail: "new@vektorprogrammet.no",
+            id: created.id,
+            name: "IT",
+          })
+        );
+
+        assert.strictEqual(edited.groupEmail, "new@vektorprogrammet.no");
+
+        const duplicate = yield* Effect.flip(
+          asPrincipal(admin)(
+            TeamsEndpoints.createTeam({
+              defaultTerm: 1,
+              departmentId: BERGEN,
+              function: "it",
+              groupEmail: "new@vektorprogrammet.no",
+              name: "Other",
+            })
+          )
+        );
+
+        assert.strictEqual(duplicate._tag, "Conflict");
+
+        const invalid = yield* Effect.flip(
+          asPrincipal(admin)(
+            TeamsEndpoints.updateTeam({
+              defaultTerm: 1,
+              function: "it",
+              groupEmail: "team@example.org",
+              id: created.id,
+              name: "IT",
+            })
+          )
+        );
+
+        assert.deepStrictEqual(issuePaths(invalid), ["groupEmail"]);
+        const rows = yield* teamRows((tables) => tables.teams);
+        assert.strictEqual(
+          Arr.findFirst(rows, (team) => team.id === created.id).pipe(
+            Option.getOrThrow
+          ).groupEmail,
+          "new@vektorprogrammet.no"
+        );
+      }).pipe(Effect.provide(TestServices))
+  );
+  it.effect(
     "RULE-157: a team name is unique within a department; the same name in another department is fine",
     () =>
       Effect.gen(function* effectProgram() {
@@ -356,7 +425,89 @@ describe("teams: who creates and edits a team (RULE-157, RULE-321, RULE-233)", (
   );
 });
 
+it.effect(
+  "RULE-179: a new company address is normalized and another domain is refused",
+  () =>
+    Effect.gen(function* personCompanyAddress() {
+      yield* world;
+
+      const invalid = yield* Effect.flip(
+        asPrincipal(admin)(
+          TeamsEndpoints.createPerson({
+            companyEmail: "wrong@example.org",
+            email: "bad-fixture@example.org",
+            fieldOfStudyId: TRONDHEIM_FIELD,
+            name: "Invalid Address",
+          })
+        )
+      );
+
+      assert.deepStrictEqual(issuePaths(invalid), ["companyEmail"]);
+
+      const valid = yield* asPrincipal(admin)(
+        TeamsEndpoints.createPerson({
+          companyEmail: "  NY@VEKTORPROGRAMMET.NO  ",
+          email: "valid-fixture@example.org",
+          fieldOfStudyId: TRONDHEIM_FIELD,
+          name: "Valid Address",
+        })
+      );
+
+      assert.strictEqual(valid.companyEmail, "ny@vektorprogrammet.no");
+    }).pipe(Effect.provide(TestServices))
+);
+
 describe("teams: adding members (RULE-164, RULE-206, RULE-284, ADR 0002)", () => {
+  it.effect(
+    "RULE-248: only the first membership queues the welcome and setup messages, even after cancellation",
+    () =>
+      Effect.gen(function* welcomeOnce() {
+        const { ola, team } = yield* world;
+
+        const first = yield* addAs(
+          teamLeaderTrondheim,
+          team.id,
+          ola.id,
+          host(2027)
+        );
+
+        const messages = yield* table((db) => db.outbox);
+        assert.deepStrictEqual(
+          Arr.map(messages, (message) => message._tag),
+          ["Email", "Email"]
+        );
+
+        const emails = Arr.flatMap(messages, (message) =>
+          Predicate.isTagged(message, "Email") ? [message] : []
+        );
+
+        assert.deepStrictEqual(
+          Arr.map(emails, (message) => message.subject),
+          [
+            "Velkommen til Rekruttering",
+            "Fullfør oppsettet med din Vektor-epost",
+          ]
+        );
+        assert.deepStrictEqual(
+          Arr.map(emails, (message) => message.to),
+          [ola.email, ola.email]
+        );
+        assert.include(
+          emails[1]?.text ?? "",
+          "Systemet har ikke opprettet en Vektor-konto ennå"
+        );
+        assert.strictEqual(
+          (yield* teamRows((tables) => tables.welcomes)).size,
+          1
+        );
+        assert.strictEqual(
+          failureTag(yield* cancelAsLeader(first.id)),
+          "success"
+        );
+        yield* addAs(teamLeaderTrondheim, team.id, ola.id, host(2027));
+        assert.strictEqual((yield* table((db) => db.outbox)).length, 2);
+      }).pipe(Effect.provide(TestServices))
+  );
   it.effect(
     "RULE-164: a person joins a team of their own department only",
     () =>

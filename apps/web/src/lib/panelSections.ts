@@ -50,6 +50,12 @@ export const PANEL_SECTIONS = [
     to: "/kontrollpanel/administratorer",
   },
   {
+    group: "Administrasjon",
+    key: "integrations",
+    label: "Integrasjoner",
+    to: "/kontrollpanel/integrasjoner",
+  },
+  {
     group: "Innhold",
     key: "socialEvents",
     label: "Arrangementer",

@@ -37,10 +37,13 @@ export const Purpose = Schema.Literals([
   "engagementHistory",
   "engagements",
   "files",
+  "jobs",
   "login",
   "mailbox",
   "photo",
   "places",
+  "welcome",
+  "workspace",
 ]);
 
 export type Purpose = typeof Purpose.Type;
@@ -210,6 +213,11 @@ export const MergeRule = Schema.TaggedUnion({
   /** A reference that carries no lock: the column is rewritten to name the survivor. */
   Follow: {},
   /**
+   * The table holds one row per person, keyed by the person's id: the survivor's row stays, and a survivor with none
+   * takes the merged person's. A fact that either record had is kept, once.
+   */
+  Inherit: {},
+  /**
    * The rows move to the survivor. A moved row that would collide with one the survivor has (on `collisions`, the
    * other columns of a unique key) is dropped, and the survivor's row stays; a constraint that no key names (the
    * overlap of two memberships in one team) refuses the merge with `refusal`, a text for the person who asked.
@@ -302,6 +310,7 @@ export const Rules = {
   Delete: OnExpiry.cases.Delete.make({}),
   Drop: MergeRule.cases.Drop.make({}),
   Follow: MergeRule.cases.Follow.make({}),
+  Inherit: MergeRule.cases.Inherit.make({}),
   Move: (
     collisions: readonly string[] = [],
     refusal: string = MERGE_REFUSED

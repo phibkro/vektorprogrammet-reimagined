@@ -199,6 +199,7 @@ const team = table({
     "default_term",
     "department_id",
     "function",
+    "group_email",
     "id",
     "name",
   ]),
@@ -210,6 +211,25 @@ const position = table({
   person: null,
 });
 
+/**
+ * The claim of the first-membership welcome (spec 0008): one row per person, made in the transaction that creates the
+ * person's first membership, so the welcome goes once. A merge keeps one claim for the survivor: the survivor's own, or
+ * else the merged record's. The merged record may hold the only claim left (its one planned membership was cancelled),
+ * and a survivor without it would be welcomed a second time.
+ */
+const welcomeLedger = table({
+  columns: columns(
+    personal({
+      legalBasis: "legitimateInterest",
+      onExpiry: Rules.Delete,
+      purpose: "welcome",
+      retention: withThePersonCore,
+    }),
+    ["person_id", "recorded_at"]
+  ),
+  person: ofPerson("person_id", Rules.Inherit),
+});
+
 export const TeamsTables = {
   admin_grant: adminGrant,
   admin_list: adminList,
@@ -218,4 +238,5 @@ export const TeamsTables = {
   person,
   position,
   team,
+  welcome_ledger: welcomeLedger,
 } as const;

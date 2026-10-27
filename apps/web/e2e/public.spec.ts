@@ -27,6 +27,7 @@ import {
   LEGACY_FILE_KEY,
   activeDepartments,
   auditEntryCount,
+  capturedSlackFor,
   forgetLegacyFile,
   outboxRows,
   registerLegacyFile,
@@ -360,6 +361,17 @@ test("falsifier 3 (RULE-156, RULE-249): a valid post queues the notifications of
   );
   // One `enqueue` call, one INSERT, one instant for all of them: the command's rows are written together.
   expect(new Set(Arr.map(queued, ({ queuedAt }) => queuedAt)).size).toBe(1);
+
+  // The non-production sender persists each Slack delivery under its outbox key.
+  for (const row of Arr.filter(
+    queued,
+    (message) => message.kind === "SlackPost"
+  )) {
+    await expect
+      .poll(async () => await runDatabase(capturedSlackFor(String(row.id))))
+      .toBe(1);
+  }
+
   // The legacy ticket was never stored, and an anonymous visitor's post is not an audited staff write.
   expect(await runDatabase(auditEntryCount)).toBe(auditBefore);
 });

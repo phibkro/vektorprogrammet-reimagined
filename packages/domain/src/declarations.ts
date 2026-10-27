@@ -18,6 +18,7 @@ import { OrganisationDomain } from "./organisation/declaration.ts";
 import { OutboxDomain } from "./outbox/declaration.ts";
 import { PersonalDataDomain } from "./personalData/rpc.ts";
 import { TeamsDomain } from "./teams/declaration.ts";
+import { WorkspaceDomain } from "./workspace/declaration.ts";
 
 /** The domains, in the order the docs list them. */
 export const Declarations = [
@@ -30,6 +31,7 @@ export const Declarations = [
   AuditDomain,
   OutboxDomain,
   PersonalDataDomain,
+  WorkspaceDomain,
 ] as const;
 
 /** Every command and read that any domain declares. */

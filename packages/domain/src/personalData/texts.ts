@@ -58,13 +58,17 @@ export const purposes: Readonly<Record<Purpose, Words>> = {
     en: "Show who published a public file",
     no: "Vise hvem som har publisert en offentlig fil",
   },
+  jobs: {
+    en: "Know that a scheduled job ran, when and with what result, so that each period runs once and a failed run can be found and fixed",
+    no: "Vite at en planlagt jobb er kjørt, når og med hvilket resultat, slik at hver periode kjøres én gang og en mislykket kjøring kan finnes og rettes",
+  },
   login: {
     en: "Let a person sign in and keep them signed in",
     no: "La en person logge inn og holde dem innlogget",
   },
   mailbox: {
-    en: "A test mailbox that the non-production deployments use instead of sending mail",
-    no: "En testpostkasse som test- og utviklingsmiljøene bruker i stedet for å sende e-post",
+    en: "A test mailbox that the non-production deployments use instead of sending mail or Slack posts",
+    no: "En testpostkasse som test- og utviklingsmiljøene bruker i stedet for å sende e-post og Slack-meldinger",
   },
   photo: {
     en: "Show a member's photo, with their consent",
@@ -73,6 +77,14 @@ export const purposes: Readonly<Record<Purpose, Words>> = {
   places: {
     en: "Keep the record of who held a place on the admin list",
     no: "Ta vare på oversikten over hvem som har hatt en plass på administratorlisten",
+  },
+  welcome: {
+    en: "Send a new member one welcome message, once",
+    no: "Sende et nytt medlem én velkomstmelding, én gang",
+  },
+  workspace: {
+    en: "Show an administrator what the Google Workspace accounts and groups should be, what they are and what would change, before writes are approved",
+    no: "Vise en administrator hva Google Workspace-kontoene og -gruppene bør være, hva de er og hva som ville endres, før skriving er godkjent",
   },
 };
 

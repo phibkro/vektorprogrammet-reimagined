@@ -57,6 +57,10 @@ const uniqueOutcomes: Record<UniqueConstraint, UniqueOutcome> = {
     entity: "Semester",
     message: (key) => `Semesteret ${key} finnes allerede`,
   },
+  [UniqueConstraint.teamGroupEmail]: {
+    entity: "Team",
+    message: () => "Gruppeadressen er allerede brukt av et annet team.",
+  },
   [UniqueConstraint.teamName]: {
     entity: "Team",
     message: () => TEAM_EXISTS,

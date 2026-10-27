@@ -8,9 +8,11 @@ import { AuditTables } from "../audit/personalData.ts";
 import { ContactForm } from "../contact/personalData.ts";
 import { ContentTables } from "../content/personalData.ts";
 import { FilesTables } from "../files/personalData.ts";
+import { JobTables } from "../jobs/personalData.ts";
 import { OrganisationTables } from "../organisation/personalData.ts";
 import { OutboxTables } from "../outbox/personalData.ts";
 import { TeamsTables } from "../teams/personalData.ts";
+import { WorkspaceTables } from "../workspace/personalData.ts";
 import { ConsentTables } from "./consents.ts";
 import type { TableDeclaration } from "./declaration.ts";
 import type { FormDeclaration } from "./forms.ts";
@@ -22,9 +24,11 @@ export const Catalog = {
   ...ConsentTables,
   ...ContentTables,
   ...FilesTables,
+  ...JobTables,
   ...OrganisationTables,
   ...OutboxTables,
   ...TeamsTables,
+  ...WorkspaceTables,
 } as const satisfies Readonly<Record<string, TableDeclaration>>;
 
 export type TableName = keyof typeof Catalog;

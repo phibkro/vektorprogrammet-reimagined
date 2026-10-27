@@ -1,6 +1,7 @@
 /** Post-commit delivery: claim due rows, interpret each intent, and fence acknowledgements by claim token. */
 import { OutboxDelivery } from "@vektorprogrammet/db";
 import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
+import { WorkspaceWriter } from "@vektorprogrammet/domain";
 import type { OutboxMessageId } from "@vektorprogrammet/domain";
 import { DateTime, Duration, Effect, Predicate } from "effect";
 
@@ -11,7 +12,6 @@ export const MAX_ATTEMPTS = 8;
 export const BASE_RETRY_DELAY = Duration.minutes(5);
 export const MAX_RETRY_DELAY = Duration.hours(12);
 export const LEASE_SECONDS = 120;
-export const SWEEP_LIMIT = 50;
 
 /** When to retry, or `dead` after the final attempt. */
 export const nextAttemptAfterFailure = (
@@ -30,6 +30,11 @@ export const nextAttemptAfterFailure = (
   return DateTime.addDuration(failedAt, delay);
 };
 
+/**
+ * Hands one claimed row to whoever owns its kind: the account flows (`IssueCode`, `SetCredential`, their own
+ * transaction), the Workspace writer (`WorkspaceChange`) or the message transport (`Email`, `SlackPost`, with the
+ * row's id as the key that stays the same however often the row is claimed). Then it records the delivery.
+ */
 const deliverClaim = Effect.fnUntraced(function* deliverClaim(
   row: ClaimedOutboxMessage
 ) {
@@ -40,9 +45,13 @@ const deliverClaim = Effect.fnUntraced(function* deliverClaim(
     return yield* (yield* AccountDelivery).issueCode(row, message);
   }
 
-  yield* Predicate.isTagged(message, "SetCredential")
-    ? (yield* AccountDelivery).setCredential(row, message)
-    : (yield* MessageSender).send(message);
+  if (Predicate.isTagged(message, "SetCredential")) {
+    yield* (yield* AccountDelivery).setCredential(row, message);
+  } else if (Predicate.isTagged(message, "WorkspaceChange")) {
+    yield* (yield* WorkspaceWriter).apply(message.change);
+  } else {
+    yield* (yield* MessageSender).send(message, row.id);
+  }
 
   return yield* delivery.markDelivered(row.id, row.claimToken);
 });

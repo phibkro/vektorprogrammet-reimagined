@@ -69,14 +69,14 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
 | `createTeam` | `create` | teams | Create a team in a department. | Leader(d) ∪ Board; Admin |
-| `updateTeam` | `update` | teams | Change a team's name, function and default term. | Leader(d) ∪ Board; Admin |
+| `updateTeam` | `update` | teams | Change a team's name, function, default term and Workspace group address. | Leader(d) ∪ Board; Admin |
 | `deactivateTeam` | `:deactivate` | teams | Deactivate a team. A team is never deleted. | Leader(d) ∪ Board; Admin |
 
 ### Membership
 
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
-| `createMembership` | `create` | teams | Add a person to a team for a term. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin |
+| `createMembership` | `create` | teams | Add a person to a team for a term and queue welcome messages for their first membership. The end defaults to the team's default term. | Leader(d) ∪ Board; Admin |
 | `deleteMembership` | `delete` | teams | Cancel a membership that has not started. | Leader(d) ∪ Board; Admin |
 | `extendMembership` | `:extend` | teams | Extend a membership to a later end semester. | Leader(d) ∪ Board; Admin |
 | `changeMembership` | `:change` | teams | Change the position, team or leader flag from a semester: the old membership ends and a new one starts. A move to a team in another department also needs the grant in the receiving department, in the same transaction. | Leader(d) ∪ Board; Admin |
@@ -103,6 +103,13 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
 | `runRetention` | `:run` | personalData | Each night, delete or anonymise what has reached the end of its declared period. The audit row holds integer counts per table, never a value. A production run only counts what it would change (audited as `retention.reported`) while any period that it applies is still a proposal; local and preview runs change it (`retention.ran`). | System(retention) |
+
+### WorkspaceReport
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `createWorkspaceReport` | `create` | workspace | Ask for a Google Workspace dry-run. Writes a request that the next tick takes; it calls no provider. The report appears when the run is done. | Admin |
+| `syncWorkspace` | `:sync` | workspace | Compare the Google Workspace groups and accounts with the active memberships and record the changes. One chunk: records the accounts, or the next teams' groups, and the cursor. In write mode its last chunk queues the changes, unless the removals are over the cap. | System(workspaceSync) |
 
 ### AuditEntry
 

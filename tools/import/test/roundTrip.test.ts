@@ -478,6 +478,59 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
         read: (sql) =>
           sql`select p.email, c.kind from person p join consent c on c.person_id = p.id where p.email = 'protected@example.org'`,
       },
+      {
+        drop: (sql) =>
+          sql`delete from welcome_ledger where person_id in (select id from person where email = 'protected@example.org')`,
+        held: "a first-membership welcome claim",
+        make: (sql) =>
+          sql`insert into welcome_ledger (person_id, recorded_at) select id, now() from person where email = 'protected@example.org'`,
+        read: (sql) =>
+          sql`select p.email from person p join welcome_ledger w on w.person_id = p.id where p.email = 'protected@example.org'`,
+      },
+      {
+        drop: (sql) => sql`delete from job_run where period = 'test:import'`,
+        held: "a job run",
+        make: (sql) =>
+          sql`insert into job_run (job, period, lease_until, outcome) values ('semesters', 'test:import', now(), 'partial')`,
+        read: (sql) =>
+          sql`select period from job_run where period = 'test:import'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from workspace_report where period = 'test:import'`,
+        held: "a Workspace report",
+        make: (sql) =>
+          sql`insert into workspace_report (actual, completed_at, mode, period, semester_term, semester_year, started_at, status) values ('read', now(), 'dry-run', 'test:import', 'HOST', 2026, now(), 'complete')`,
+        read: (sql) =>
+          sql`select period from workspace_report where period = 'test:import'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from outbox where payload ->> 'text' = 'test:import'`,
+        held: "a queued message",
+        make: (sql) =>
+          sql`insert into outbox (created_at, kind, next_attempt_at, payload) values (now(), 'SlackPost', now(), '{"_tag":"SlackPost","channel":"test","text":"test:import"}'::jsonb)`,
+        read: (sql) =>
+          sql`select id from outbox where payload ->> 'text' = 'test:import'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from captured_mail where recipient = 'test-import@example.org'`,
+        held: "a captured mail",
+        make: (sql) =>
+          sql`insert into captured_mail (recipient, sent_at, subject, text) values ('test-import@example.org', now(), 'Emne', 'Tekst')`,
+        read: (sql) =>
+          sql`select id from captured_mail where recipient = 'test-import@example.org'`,
+      },
+      {
+        drop: (sql) =>
+          sql`delete from captured_slack where channel = 'test-import'`,
+        held: "a captured Slack post",
+        make: (sql) =>
+          sql`insert into captured_slack (channel, sent_at, text) values ('test-import', now(), 'Tekst')`,
+        read: (sql) =>
+          sql`select id from captured_slack where channel = 'test-import'`,
+      },
     ];
 
     for (const { drop, held, make, read } of unrestorable) {

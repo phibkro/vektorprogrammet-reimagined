@@ -194,6 +194,7 @@ const effectConfig: EffectConfigInput = {
         "tools/effx-conformance/test/conformance.test.ts",
         "packages/db/test/accounts.postgres.test.ts",
         "packages/db/test/adminList.postgres.test.ts",
+        "packages/db/test/companyAddressMigration.postgres.test.ts",
         "packages/db/test/personalDataAlumni.postgres.test.ts",
         "apps/web/test/support/workerRuntime.ts",
       ],
@@ -455,9 +456,13 @@ export default defineConfig({
         files: [
           "packages/domain/src/content/services.ts",
           "packages/domain/src/files/services.ts",
+          // EX-0031: related service contracts share their owning module.
+          "packages/domain/src/jobs/runs.ts",
           "packages/domain/src/organisation/services.ts",
           "packages/domain/src/personalData/services.ts",
           "packages/domain/src/teams/services.ts",
+          // EX-0031: related service contracts share their owning module.
+          "packages/domain/src/workspace/services.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
@@ -570,6 +575,8 @@ export default defineConfig({
         // Effect.promise takes a thunk. typescript/promise-function-async needs that thunk to be async, while effecttsgo/async-function rejects every async function, so the two rules cannot both hold at a Promise boundary. Test files only: they drive platform Promise surfaces (Response bodies, the SendEmail binding, AbortController, Playwright's browser API).
         files: [
           "apps/web/test/contact.test.ts",
+          // EX-0028: the delivery test calls the Promise-based command runtime.
+          "apps/web/test/deliveryBoundary.postgres.test.ts",
           "apps/web/test/errors.test.ts",
           "apps/web/test/organisationPanel.test.ts",
           "apps/web/test/support/run.ts",
@@ -581,6 +588,8 @@ export default defineConfig({
           "tools/db-path-spike/test/support/localWorker.ts",
           "tools/db-path-spike/test/worker.postgres.test.ts",
           "tools/db-path-spike/test/pure.test.ts",
+          // EX-0004: Playwright owns these browser callbacks.
+          "apps/web/e2e/integrations.spec.ts",
           "apps/web/e2e/journey.spec.ts",
           "apps/web/e2e/shell.spec.ts",
           "apps/web/e2e/support/panel.ts",
@@ -600,6 +609,9 @@ export default defineConfig({
           "apps/web/src/lib/outcome.ts",
           "apps/web/src/server/errors.ts",
           "apps/web/src/server/senders.ts",
+          // EX-0031: these Effect error constructors are not throw sites.
+          "packages/domain/src/jobs/runs.ts",
+          "packages/domain/src/workspace/services.ts",
         ],
         rules: { "unicorn/throw-new-error": "off" },
       },

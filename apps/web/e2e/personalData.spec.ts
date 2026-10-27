@@ -39,6 +39,7 @@ import {
   capturedMailTo,
   consentsOf,
   insertExpiredPerson,
+  jobRunCount,
   latestRetentionCounts,
   personCore,
   personIdOf,
@@ -371,9 +372,13 @@ test("the nightly retention cron anonymises an expired person, and its audit row
   const id = await runDatabase(insertExpiredPerson(NAME, EMAIL));
   expect(await isAnonymised(id)).toBe(false);
 
+  // The plain trigger that other tests pull runs the ten-minute tick, which has no retention job: only the retention
+  // cron string runs it, so the scheduler's ledger holds no run of it yet.
+  expect(await runDatabase(jobRunCount("retention"))).toBe(0);
+
   // The Worker's own `scheduled` handler, with the retention cron: the dispatch on `controller.cron` is what runs. This
   // stack is a local deployment, which applies the run (`retention.ran`); production only counts while a period is a
-  // proposal, which `apps/web/test/retentionJob.postgres.test.ts` runs through the same job in each deployment.
+  // proposal, which `apps/web/test/retentionJob.postgres.test.ts` runs through `runTick` with this cron in each deployment.
   const ran = await request.get(
     `${originOf()}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent(RETENTION_CRON)}`
   );
@@ -381,6 +386,11 @@ test("the nightly retention cron anonymises an expired person, and its audit row
   expect(ran.ok()).toBe(true);
 
   await expect.poll(async () => await isAnonymised(id)).toBe(true);
+
+  // The run is a registered job like the others: the ledger holds it, once.
+  await expect
+    .poll(async () => await runDatabase(jobRunCount("retention")))
+    .toBe(1);
 
   const after = await runDatabase(personCore(id));
   expect(after.email).toBe(`anonymisert-${id}@vektorprogrammet.invalid`);
