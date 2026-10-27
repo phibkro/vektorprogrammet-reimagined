@@ -29,6 +29,7 @@ import {
   PrincipalDirectory,
   Team,
   TeamRepository,
+  WelcomeLedger,
   personPrincipal,
   semesterOrdinal,
 } from "@vektorprogrammet/domain";
@@ -712,6 +713,30 @@ export const DigestLedgerLive = Layer.effect(
     });
 
     return DigestLedger.of({ claim });
+  })
+);
+
+/** The claim is owned by the person; the lock and unique key fence concurrent first memberships. */
+export const WelcomeLedgerLive = Layer.effect(
+  WelcomeLedger,
+  Effect.gen(function* WelcomeLedgerLive() {
+    const aggregates = yield* Aggregates;
+
+    return WelcomeLedger.of({
+      claim: (locked) =>
+        Effect.gen(function* claimWelcome() {
+          const rows = yield* aggregates
+            .insert(
+              locked,
+              owned.welcomeLedger,
+              { recordedAt: DateTime.toDateUtc(yield* DateTime.now) },
+              { action: "ignore" }
+            )
+            .pipe(Effect.orDie);
+
+          return rows.length > 0;
+        }),
+    });
   })
 );
 

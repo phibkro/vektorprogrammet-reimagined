@@ -44,6 +44,7 @@ export const Ownership = [
       adminGrant: { owner: "personId" },
       code: { owner: "subject" },
       membership: { owner: "personId" },
+      welcomeLedger: { owner: "personId" },
     },
     table: "person",
   },

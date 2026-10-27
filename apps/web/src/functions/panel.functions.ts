@@ -7,6 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { Effect, Schema } from "effect";
 
 import { decodeDeployment } from "../server/deployment";
+import { requestWorkspaceReportProgram } from "../server/integrations";
 import {
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
@@ -65,6 +66,10 @@ export const getFieldsOfStudy = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getFieldsOfStudy)
 );
 
+export const getIntegrations = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), panelReads.getIntegrations)
+);
+
 export const getSocialEvents = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getSocialEvents)
 );
@@ -88,6 +93,12 @@ export const getAdmins = createServerFn({ method: "GET" }).handler(
 );
 
 // ---------------------------------------------------------------- C1
+
+export const requestWorkspaceReport = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context }) =>
+    runCommand(requestScope(context), requestWorkspaceReportProgram)
+  );
 
 export const saveDepartment = createServerFn({ method: "POST" })
   .validator(formData)

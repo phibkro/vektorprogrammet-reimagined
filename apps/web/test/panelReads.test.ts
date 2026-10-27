@@ -37,6 +37,7 @@ import type { Outcome } from "../src/lib/outcome";
 import { PANEL_SECTIONS, sectionOfPath } from "../src/lib/panelSections";
 import type { SectionKey } from "../src/lib/panelSections";
 import type { RequestError } from "../src/server/errors";
+import { integrationsView } from "../src/server/integrations";
 import {
   dashboardView,
   departmentsView,
@@ -93,6 +94,7 @@ const BARE: Calls = {
   getDashboard: () => dashboardView,
   getDepartments: () => departmentsView,
   getFieldsOfStudy: () => fieldsOfStudyView,
+  getIntegrations: () => integrationsView,
   getPeople: () => peopleView,
   getSemesters: () => semestersView,
   getSocialEvents: () => socialEventsView,

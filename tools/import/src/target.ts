@@ -8,7 +8,7 @@
  * identity sequences past the kept legacy ids, and read the row counts back.
  * A failure anywhere, including a count that differs from the plan, rolls the
  * target back to its previous state. There is no `CASCADE`: an unlisted reference makes the truncate fail.
- * Account-bearing targets are refused before replacement: this importer does not import credentials (spec 0013).
+ * Targets with credentials or durable integration activity are refused before replacement: the importer cannot restore them.
  */
 import { PgClient } from "@effect/sql-pg";
 import { schema } from "@vektorprogrammet/db";
@@ -60,16 +60,19 @@ const TABLES = {
   social_event: schema.socialEvent,
 } as const;
 
-/**
- * The later-phase tables that reference imported rows. Account tables must be named for PostgreSQL even on an empty
- * target, but a non-empty account target is refused under an exclusive lock: this import cannot restore credentials.
- */
+/** Later-phase tables to lock. Durable credentials, messages and job records are never erased by replacement. */
 const BUILT_ON_TABLES = [
   schema.authSession,
   schema.authAccount,
   schema.authUser,
   schema.code,
   schema.account,
+  schema.welcomeLedger,
+  schema.outbox,
+  schema.capturedMail,
+  schema.capturedSlack,
+  schema.jobRun,
+  schema.workspaceReport,
   schema.endingSoonDigest,
   schema.adminGrant,
   schema.membership,
@@ -137,22 +140,32 @@ export class ImportTarget extends Context.Service<
             ...BUILT_ON_TABLES,
           ];
 
-          // Hold the locks through the check and truncate: concurrent account creation cannot slip between them.
+          // Hold the locks through the check and truncate so no protected row can slip between them.
           yield* db
             .execute(
               sql`lock table ${sql.join(tables, sql`, `)} in access exclusive mode`
             )
             .pipe(step("lock target"));
 
-          const accountRows = yield* Effect.forEach(
-            [schema.account, schema.code, schema.authUser],
+          const protectedRows = yield* Effect.forEach(
+            [
+              schema.account,
+              schema.code,
+              schema.authUser,
+              schema.welcomeLedger,
+              schema.outbox,
+              schema.capturedMail,
+              schema.capturedSlack,
+              schema.jobRun,
+              schema.workspaceReport,
+            ],
             (table) => db.$count(table).pipe(step("check accounts"))
           );
 
-          if (Arr.some(accountRows, (count) => count > 0)) {
+          if (Arr.some(protectedRows, (count) => count > 0)) {
             return yield* new TargetWriteError({
               cause:
-                "target contains accounts or credentials; replacing them is outside this importer",
+                "target contains accounts, credentials or durable integration activity; replacing them is outside this importer",
               step: "protect accounts",
             });
           }

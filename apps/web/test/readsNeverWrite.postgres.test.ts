@@ -41,6 +41,7 @@ import {
   PositionId,
   SemesterRepository,
   TeamRepository,
+  WorkspaceFacts,
   anonymous,
   currentSemester,
   lockAdminList,
@@ -180,6 +181,18 @@ const NOT_ADMIN = [
   "person without team",
 ];
 
+/** The projection facts are reads even when no report has been requested. */
+const workspaceInputs = Effect.gen(function* projectionInputs() {
+  const facts = yield* WorkspaceFacts;
+  const semester = yield* currentSemester;
+  yield* facts.departments;
+  yield* facts.departmentEngagements(semester);
+  yield* facts.people(semester);
+  yield* facts.storedAddresses;
+  yield* facts.configuredGroupAddresses;
+  yield* facts.teamsAfter(semester, null, 10);
+});
+
 /** Every `runQuery` call site of the app, by the server function or entry point that holds it. */
 const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getHomePage", homePage),
@@ -247,6 +260,10 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("panel.functions getAdmins", panelReads.getAdmins, {
     refusedTo: NOT_ADMIN,
   }),
+  readPath("panel.functions getIntegrations", panelReads.getIntegrations, {
+    refusedTo: NOT_ADMIN,
+  }),
+  readPath("WorkspaceFacts projection inputs", workspaceInputs),
   readPath("account.functions getSignInDestination", signInDestination),
   readPath(
     "account.functions getMyPage (signed in)",
@@ -289,7 +306,7 @@ const READ_PATHS: readonly ReadPath[] = [
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
   "functions/account.functions.ts": 2,
-  "functions/panel.functions.ts": 10,
+  "functions/panel.functions.ts": 11,
   "functions/public.functions.ts": 11,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,
@@ -360,6 +377,7 @@ const seedTeams = Effect.gen(function* seedTeams() {
     defaultTerm: 2,
     departmentId: field.departmentId,
     function: "recruitment",
+    groupEmail: null,
     name: "Rekruttering",
   });
 

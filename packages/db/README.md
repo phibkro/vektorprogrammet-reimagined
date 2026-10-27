@@ -7,13 +7,14 @@ PostgreSQL: the Drizzle schema (single source), the generated migrations, and th
 | Export | What it is |
 | --- | --- |
 | `schema` | Drizzle tables for organisation, teams, accounts, codes, outbox and audit. Better Auth owns `auth_user`, `auth_session`, `auth_account` and `auth_verification`. |
-| `UniqueConstraint` | The constraint names that map to `AlreadyExists`: `department_city_unique`, `semester_term_year_unique`, `person_email_unique`, `team_department_name_unique` and the exclusion constraint `membership_no_overlap`. |
+| `UniqueConstraint` | The constraint names that map to `AlreadyExists`, including the unique team group address and the membership overlap exclusion constraint. |
 | `DatabaseLive({ url, maxConnections? })` | `Layer<` every repository (`DepartmentRepository`, `AdmissionPeriodRepository`, `SemesterRepository`, `FieldOfStudyRepository`, `SocialEventRepository`, `PublicFileRepository`, `PersonRepository`, `TeamRepository`, `PositionRepository`, `MembershipRepository`, `AdminGrantRepository`, `AccountRepository`, `CodeRepository`, `DigestLedger`, `PrincipalDirectory`) `\| AggregateLocks \| Aggregates \| Outbox \| AuditLog \| OutboxDelivery \| SqlClient, SqlError>`. One pool per build. `PgClient` is not exposed. `AggregateLocks` is the domain's lock service; `Aggregates` is the writer (§ Aggregate locks and writes). |
 | `transactional(effect)` | Runs the effect in `SqlClient.withTransaction` (a savepoint when nested) and provides `InTransaction`. The only provider of `InTransaction`. A typed failure, a defect or an interruption rolls back every row, including audit and outbox rows. A failing BEGIN/COMMIT is a defect. It also opens the scope of the aggregate locks that the level takes (§ Aggregate locks and writes). |
 | `OutboxDelivery` | `claimDue({ limit, leaseSeconds, ids? })`, `markDelivered(id, claimToken)`, `markFailed(id, claimToken, error, nextAttemptAt \| "dead")`. Acknowledgements return `"recorded"` or `"claimLost"`. |
 | `ClaimedOutboxMessage`, `OutboxClaimToken`, `OutboxAck` | The delivery-side schemas and types. |
 | `classifySqlFailure(failure, key)` | `Exit.fail(AlreadyExists)` for a unique violation of a known constraint, `Exit.die(failure)` for anything else. It unwraps Drizzle's `EffectDrizzleQueryError` to the `SqlError`. |
 | `violatedUniqueConstraint(failure)` | The violated unique constraint name, if any (for the importer's quarantine report). |
+| `CapturedMessageStore` | Non-production e-mail and Slack capture, keyed by delivery. |
 
 ### Repository behaviour
 
@@ -24,6 +25,10 @@ PostgreSQL: the Drizzle schema (single source), the generated migrations, and th
 - The content tables (`article`, `article_department`, `static_content`, `sponsor` and the enum `sponsor_size`) were dropped by the migration `content_moved_to_the_cms` (spec 0005): the CMS owns that content. The migration also tightens the `audit_log` action and entity checks, so it fails if an audit row of a retired action exists (the importer's databases and Neon `dev` hold none).
 - `PublicFileRepository.register` is idempotent on `key`, and the stored row wins. Deleted files (`deleted_at`) never resolve.
 - Outbox delivery is at least once. Rows are claimed in id order with `FOR UPDATE SKIP LOCKED` inside one `UPDATE … RETURNING`. A claim token fences every acknowledgement. The caller chooses the retry schedule and when a row is dead. Every timestamp comes from Effect's `Clock`.
+- `DatabaseLive` also provides the domain's `JobRuns`, `WorkspaceFacts` and `WorkspaceReports`. `job_run` claims a job and period by primary key, fences a lease takeover by attempt, and commits a chunk with its cursor. `workspace_report` stores the projection report. Neither table owns Person rows.
+- `team.group_email` is nullable, unique among teams and restricted to lower-case `@vektorprogrammet.no` addresses. A duplicate is an `AlreadyExists` failure.
+- `captured_mail` and `captured_slack` retain non-production messages. A unique delivery key deduplicates a redelivery; production transports remain at-least-once unless their provider supports idempotency.
+- `welcome_ledger` has one Person-owned claim per person. First-membership history, claim and two outbox messages are committed under the same Person lock.
 
 ### People and teams (spec 0006)
 
@@ -44,7 +49,7 @@ PostgreSQL: the Drizzle schema (single source), the generated migrations, and th
 
 ### Aggregate locks and writes (spec 0006b)
 
-A person's own rows (`membership`, `admin_grant`, `account`, `code`) are written only by a transaction that holds the person's row lock, and the lock is a value: forgetting it is a type error, where R6's hand-placed lock was a convention that a single-attempt test did not notice.
+A person's own rows (`membership`, `admin_grant`, `account`, `code`, `welcome_ledger`) are written only by a transaction that holds the person's row lock, and the lock is a value: forgetting it is a type error, where R6's hand-placed lock was a convention that a single-attempt test did not notice.
 
 - **Declaration.** `src/aggregate/ownership.ts` is plain data: each root (`AdminList`, which owns nothing, and `Person`, in the order of the domain's `AggregateRoots`) and the tables it `owns`, with the owner column and, for a stored machine, the `state` column. `NotOwned` lists the tables that refer to a root and that no root owns (`auth_user`, `ending_soon_digest`), each with its reason. `declaration.ts` turns the data and `schema.ts` into typed handles: `Person.owned.membership`. The closure test `test/ownership.test.ts` fails when a table with a foreign key to `person` is neither owned nor `NotOwned`, or when an owner column is not a foreign key to the root.
 - **Lock.** The domain's `AggregateLocks`: `lock("Person", id)` runs `SELECT … FOR NO KEY UPDATE` on the root's row and returns `Locked<"Person">`; `lockAll("Person", ids)` locks several rows of one root in ascending id order in one statement. `lock("AdminList", ADMIN_LIST_ID)` does the same for the admin list's one row. Both need `InTransaction`, and the row lock ends with the transaction (it is not an advisory lock). A second `lock` of a held row sends no statement. A lock that would come before one the transaction holds (a lower id, or an earlier root: the admin list comes before every person) is a `LockOrderViolation` defect, found by the first run that reaches it, so a command locks everything it needs in one `lockAll` before its first decision read.

@@ -268,6 +268,7 @@ export const teamView = Effect.fnUntraced(function* teamView(id: number) {
       defaultTerm: team.defaultTerm,
       departmentName: nameOfDepartment(departments, departmentId),
       function: team.function,
+      groupEmail: team.groupEmail,
       id: team.id,
       name: team.name,
     },
@@ -416,6 +417,7 @@ export const saveTeamProgram = (form: FormData) => {
   const details = {
     defaultTerm: integer(text(form, "defaultTerm")),
     function: text(form, "function"),
+    groupEmail: optionalText(form, "groupEmail"),
     name: text(form, "name"),
   };
 

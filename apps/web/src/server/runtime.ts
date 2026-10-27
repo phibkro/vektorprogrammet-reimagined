@@ -54,6 +54,7 @@ import type {
   SocialEventRepository,
   TeamRepository,
   SystemJob,
+  WelcomeLedger,
   WorkspaceFacts,
   WorkspaceReports,
   WorkspaceWriter,
@@ -132,6 +133,7 @@ export type DatabaseServices =
   | MembershipRepository
   | AdminGrantRepository
   | DigestLedger
+  | WelcomeLedger
   | PrincipalDirectory
   | Outbox
   | AuditLog
@@ -171,6 +173,7 @@ export const liveRequestLayer = (
     Effect.map(decodeDeployment(scope.env.DEPLOYMENT), (deployment) =>
       Layer.mergeAll(
         transactorLayer,
+        workspaceModeLayer(workspaceConfigFromEnv(deployment, scope.env)),
         r2FileStoreLayer(scope.env.PUBLIC_FILES),
         Layer.effect(
           CurrentPrincipal,

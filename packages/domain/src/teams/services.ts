@@ -23,6 +23,7 @@ import type {
   PersonId,
   TeamId,
 } from "../shared/ids.ts";
+import type { InTransaction } from "../shared/transaction.ts";
 import type { EmailAddress } from "../shared/validation.ts";
 import type {
   AdminGrant,
@@ -214,6 +215,16 @@ export class DigestLedger extends Context.Service<
     ) => Effect.Effect<boolean>;
   }
 >()("@vektorprogrammet/domain/teams/DigestLedger") {}
+
+/** One durable first-membership notification claim per person, committed with membership and outbox rows. */
+export class WelcomeLedger extends Context.Service<
+  WelcomeLedger,
+  {
+    readonly claim: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<boolean, never, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/teams/WelcomeLedger") {}
 
 /** Loads the facts of a person's principal in one read (spec 0006: "loaded per request in one read"). */
 export class PrincipalDirectory extends Context.Service<

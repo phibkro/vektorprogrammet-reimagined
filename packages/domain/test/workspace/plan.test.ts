@@ -7,6 +7,7 @@ import { Array as Arr, Option, Predicate } from "effect";
 
 import {
   CompanyEmail,
+  DepartmentId,
   PersonId,
   TeamId,
   WorkspaceChange,
@@ -23,7 +24,7 @@ const person = (
   name: string,
   companyAddress: string | null = null
 ): WorkspacePlan.PersonFact => ({
-  companyAddress: companyAddress === null ? null : email(companyAddress),
+  companyAddress,
   name,
   personId: PersonId.make(id),
 });
@@ -102,6 +103,64 @@ describe("RULE-058, 178, 179: the company address", () => {
   });
 });
 
+describe("RULE-039/049: department mailing lists", () => {
+  it("uses department-scoped engagement facts and deduplicates by person id, not name", () => {
+    const a = DepartmentId.make(1);
+    const b = DepartmentId.make(2);
+
+    const accounts = WorkspacePlan.planAccounts(
+      [
+        person(1, "Ola Nordmann"),
+        person(2, "Ola Nordmann"),
+        person(3, "Kari Hansen"),
+      ],
+      new Set(),
+      emails(),
+      new Set()
+    );
+
+    const engagements: readonly WorkspacePlan.DepartmentEngagement[] = [
+      { departmentId: a, personId: PersonId.make(1) },
+      { departmentId: a, personId: PersonId.make(1) },
+      { departmentId: a, personId: PersonId.make(2) },
+      { departmentId: b, personId: PersonId.make(1) },
+      { departmentId: b, personId: PersonId.make(3) },
+    ];
+
+    const lists = WorkspacePlan.planDepartmentLists(
+      [
+        { departmentId: a, name: "A" },
+        { departmentId: b, name: "B" },
+      ],
+      engagements,
+      accounts.lines
+    );
+
+    assert.deepStrictEqual(
+      Arr.map(lists, (list) =>
+        Arr.map(list.members, (member) => member.personId)
+      ),
+      [
+        [1, 2],
+        [1, 3],
+      ]
+    );
+    assert.strictEqual(lists[0]?.members[0]?.name, lists[0]?.members[1]?.name);
+    // Negative controls: not deduplicating emits person 1 twice; deduplicating by name loses person 2.
+    assert.deepStrictEqual(
+      Arr.map(
+        Arr.filter(engagements, (engagement) => engagement.departmentId === a),
+        (engagement) => engagement.personId
+      ),
+      [1, 1, 2]
+    );
+    assert.strictEqual(
+      new Set(Arr.map(lists[0]?.members ?? [], (member) => member.name)).size,
+      1
+    );
+  });
+});
+
 describe("spec 0008 falsifier 4: the plan counts exactly", () => {
   const people = [
     person(1, "Ola Nordmann", "ola@vektorprogrammet.no"),
@@ -116,7 +175,8 @@ describe("spec 0008 falsifier 4: the plan counts exactly", () => {
       "ola@vektorprogrammet.no",
       "stray@vektorprogrammet.no",
       "other@vektorprogrammet.no"
-    )
+    ),
+    new Set()
   );
 
   it("keeps the address a person has, names one for a person without, and marks what the directory lacks", () => {
@@ -142,11 +202,28 @@ describe("spec 0008 falsifier 4: the plan counts exactly", () => {
     );
   });
 
+  it("a stored address outside the company domain is reported, never silently regenerated", () => {
+    const plan = WorkspacePlan.planAccounts(
+      [person(8, "Invalid Person", "invalid@example.org")],
+      new Set(["invalid@example.org"]),
+      emails(),
+      new Set()
+    );
+
+    assert.deepStrictEqual(plan.lines, []);
+    assert.deepStrictEqual(plan.issues, [
+      WorkspacePlan.Issue.cases.InvalidCompanyAddress.make({
+        personId: PersonId.make(8),
+      }),
+    ]);
+  });
+
   it("gives two people with one first name two addresses, not one", () => {
     const twins = WorkspacePlan.planAccounts(
       [person(5, "Ola Berg"), person(6, "Ola Strand")],
       new Set(),
-      emails()
+      emails(),
+      new Set()
     );
 
     assert.deepStrictEqual(
@@ -155,11 +232,37 @@ describe("spec 0008 falsifier 4: the plan counts exactly", () => {
     );
   });
 
+  it("RULE-058: generated account addresses cannot collide with configured or directory groups", () => {
+    const reserved = new Set([
+      "ola@vektorprogrammet.no",
+      "ola.berg@vektorprogrammet.no",
+    ]);
+
+    const plan = WorkspacePlan.planAccounts(
+      [person(5, "Ola Berg")],
+      new Set(),
+      emails(),
+      reserved
+    );
+
+    assert.strictEqual(plan.lines[0]?.address, "ola.berg2@vektorprogrammet.no");
+
+    const control = WorkspacePlan.planAccounts(
+      [person(5, "Ola Berg")],
+      new Set(),
+      emails(),
+      new Set()
+    );
+
+    assert.strictEqual(control.lines[0]?.address, "ola@vektorprogrammet.no");
+  });
+
   it("a name that gives no address is a typed issue, never a guess", () => {
     const plan = WorkspacePlan.planAccounts(
       [person(7, "?? --")],
       new Set(),
-      emails()
+      emails(),
+      new Set()
     );
 
     assert.deepStrictEqual(plan.lines, []);

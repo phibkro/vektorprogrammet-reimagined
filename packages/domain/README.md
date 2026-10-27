@@ -20,7 +20,7 @@ Domains are declared as data; the runtime, the control panel, the tests and `doc
 
 `declarations.ts` lists every domain and builds `GrantTable` (the rows of all domains, and the one `Admin` row that names everything a person may run) and the root `authorize` and `canAnywhere`. A domain that is not in that list has no permissions and no page.
 
-A principal is a person with facts, never a role (ADR 0001). The scheduled jobs run as their own `System` principal through the same `authorize`: `ensureSemesters` is granted only to `System("semesters")`, `sweepOutbox` only to `System("outboxSweep")` and `sendEndingSoon` only to `System("endingSoon")`. No person holds a job's command, an admin included.
+A principal is a person with facts, never a role (ADR 0001). Every scheduled job runs as its own `System` principal through the same `authorize`; the job registry and its grant checks are in `src/jobs`. No person holds a job's command, an admin included.
 
 **A command names its resource and method** (ADR 0010, spec 0007c): `info({ summary, resource: "Membership", method: ":extend" })`. `resource` is `EntityName` or one of the nouns in `NonEntityResources` (`kernel/commands.ts`); `method` is `get`, `list`, `create`, `update`, `delete`, or a custom verb with a colon. Both are required, so a command without them does not type-check. `Domain.problems` then checks what the types cannot: a standard method's name is its verb and resource (`createTeam`, `updatePerson`), a `list` and a custom method start with their verb (`listAuditEntries`, `extendMembership`), a `get` or `list` changes nothing (no machine, job or credential), a `create` starts every transition from `[*]`, a `delete` ends every transition in `[*]`, an `update` changes no state, and no two commands share a resource and method. There is no way to promise a `412`: no row version exists. `docs/system/commands.md` lists every command by resource.
 
@@ -39,6 +39,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |
 | `audit` | C12 | `AuditEntry` (it records the principal: a person id or a job name), `AuditLog`, `recordAudit`, the `listAuditEntries` query |
 | `outbox` | C12 | the `sweepOutbox` job command; its handler is in `apps/web` |
+| `jobs`, `workspace` | spec 0008 | The closed registry and due rules; Workspace projection, report, read/write ports and commands. |
 
 ## Services
 
@@ -60,8 +61,11 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | `SocialEventRepository` | `list({ departmentId, semesterId })`, `create` |
 | `PublicFileRepository` | `findByKey`, `findByLegacyPath`, idempotent `register` |
 | `FileStore` | R2 `put` and `get` by content-addressed key |
-| `Outbox` | Enqueues e-mail, Slack and account-delivery intents in the current transaction. |
+| `Outbox` | Enqueues e-mail, Slack, account-delivery and Workspace intents in the current transaction. |
 | `AuditLog` | `record` one `AuditEntry` per write in the current transaction, `latest` |
+| `JobRuns`, `WorkspaceFacts`, `WorkspaceReports` | Claim and fence job periods, read projection inputs, and persist report chunks. |
+| `WelcomeLedger` | Claims one first-membership notification under a Person token in the same transaction as membership and outbox. |
+| `WorkspaceDirectory`, `WorkspaceWriter` | Separate provider read and mutation capabilities. The production Google adapter is not configured. |
 | `SiteOrigin` | the origin that the links in messages carry |
 
 `storeUpload` also needs Effect's `Crypto.Crypto` (SHA-256); `apps/web` provides a Web Crypto implementation.

@@ -1,6 +1,6 @@
 # State
 
-**Lifecycle:** build (spec 0007, accounts and sessions, on the spec 0006 kernel)
+**Lifecycle:** build (spec 0008, integrations and scheduled jobs)
 
 ## Done
 
@@ -20,6 +20,8 @@
 - Spec 0007c (ADR 0010) makes every command declare the resource it acts on and the method it uses, as required fields of `info` over a closed set of resources, and renames 17 commands to follow (`editTeam` → `updateTeam`, `extend` → `extendMembership`, and so on: the table is in `docs/specs/0007c-command-resources.md`). `Domain.problems` checks the names, the kinds and the transitions against the pair, and `docs/system/commands.md` (generated) lists every command by resource. No `412` is promised: no row version exists yet.
 - Spec 0007d (ADR 0009) exports each domain as an effx `DomainDescription` (`Effx.describe`, a pure function of the declarations) and checks the kernel against the conformance vectors that effx makes from it: for `teams`, 877,800 authorization rows, 1,044,480 transition rows (the changes that time makes included: each calculated transition has a typed `guard`, and its label in the diagram is generated from it) and 522,240 `Machine.can` rows, none in disagreement. effx's packages are not published, so the vectors are committed with their provenance, which records how effx was asked, in `packages/domain/conformance` (`bun run description:regenerate`, with `EFFX_DIR` and Nix, about 2.5 minutes); `ready` reads files and starts no JVM. What effx cannot state (`Anyone` and `Holder` subjects, guards over ids and flags) is a typed gap in `gaps.json`, not a silent drop, and `Effx.closures` says what closes each kind. `docs/specs/0007d-kernel-domain-description.md` has the contract, R1 and R2. A weekly job (`.github/workflows/effx-drift.yml`) checks that effx's `main` still makes the vectors (G2, built; its schedule is the operator's to approve). Open: effx's publication (G3) and the retention of vectors (G4).
 - ADR 0011, “Units, roles and decisions,” is accepted (`docs/decisions/0011-units-roles-and-decisions.md`). Its open design questions are recorded at the end of the ADR.
+
+Spec 0008 is in build on its own branch: the job registry, resumable reports, capture sinks and guarded Integrations page are implemented locally. Production Workspace credentials, the real Google adapter, the schedule and write approval remain open; see [the spec](docs/specs/0008-integrations-and-jobs.md).
 
 ## Next
 

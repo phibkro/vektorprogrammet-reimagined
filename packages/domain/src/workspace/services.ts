@@ -18,6 +18,9 @@ import type { WorkspaceChange } from "./change.ts";
 import type { CompanyEmail } from "./companyEmail.ts";
 import type {
   AccountLine,
+  DepartmentEngagement,
+  DepartmentFact,
+  DepartmentList,
   GroupLine,
   Issue,
   PersonFact,
@@ -100,10 +103,15 @@ export const WorkspaceModeSetting = Context.Reference<WorkspaceMode>(
 export class WorkspaceFacts extends Context.Service<
   WorkspaceFacts,
   {
-    /** Everyone with an active membership in `semester` and an Active account. */
+    /** People with an active engagement in `semester` and an Active account. The current source is team memberships. */
     readonly people: (
       semester: Semester
     ) => Effect.Effect<readonly PersonFact[]>;
+    /** Active departments and active person/department engagements. Spec 0011 can add placements to the same contract. */
+    readonly departments: Effect.Effect<readonly DepartmentFact[]>;
+    readonly departmentEngagements: (
+      semester: Semester
+    ) => Effect.Effect<readonly DepartmentEngagement[]>;
     /** Every company address that any person has (the addresses that RULE-058 must not give out again). */
     readonly storedAddresses: Effect.Effect<ReadonlySet<string>>;
     /** Every group address that a team has configured, whatever the team's state. */
@@ -120,6 +128,7 @@ export class WorkspaceFacts extends Context.Service<
 /** What one chunk adds to a report. */
 export interface ReportPart {
   readonly accounts?: readonly AccountLine[];
+  readonly departmentLists?: readonly DepartmentList[];
   readonly groups?: readonly GroupLine[];
   readonly issues?: readonly Issue[];
   readonly unmanaged?: Unmanaged;

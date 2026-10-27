@@ -52,6 +52,8 @@ Each domain declares its commands as `Rpc.make` in one `RpcGroup` (`declaration.
 
 A job is provided `CurrentPrincipal` = `System(job)` by its runner (`apps/web`), and then passes through `authorize` like any command.
 
+Spec 0008's `prepareSync` reads the provider before the transaction; `syncWorkspace` writes the report chunk and the scheduler advances its cursor in the same transaction. An explicit report request always uses dry-run mode. Scheduled writes require both the mode recorded at the beginning of the run and the current setting to be `write`. The report also contains department-scoped mailing lists from active engagement facts. Spec 0011 can add placement facts without changing their projection contract. `createMembership` takes the Person lock before checking history, claiming `WelcomeLedger` and enqueuing the welcome and setup messages; all three persist together.
+
 The pure rules of the public pages (`selectFrontPageNews`, `paginate`, `sortSponsorsForFooter`, `slugify`) take already-read rows: the news, texts and sponsors come from the CMS (spec 0005), not from a repository.
 
 Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; pass it to `FilesEndpoints.createPublicFile` inside the runner. Keys are content hashes, so an orphaned or repeated put is harmless.

@@ -22,6 +22,7 @@ import type {
   WorkspaceWriter,
 } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect } from "effect";
+import type { Crypto } from "effect";
 
 import type { AccountDelivery } from "./accountDelivery";
 import type { Runner } from "./jobs";
@@ -36,6 +37,7 @@ export type TickServices =
   | MessageSender
   | WorkspaceDirectory
   | WorkspaceWriter
+  | Crypto.Crypto
   | SiteOrigin;
 
 /** One runner for each registered job: a job without one does not type-check. */

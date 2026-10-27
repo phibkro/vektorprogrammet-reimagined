@@ -1,0 +1,142 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "6d479ac8-e4ec-41ba-bcd8-99e3f89aec48",
+  "prevIds": ["addcc3e9-fb89-4f72-83f7-5ad31f4e2e56"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "welcome_ledger"],
+      "writes": [
+        "s|tbl|public.welcome_ledger",
+        "n|tbl|public.welcome_ledger",
+        "e|tbl|public.welcome_ledger",
+        "n|rel|public.welcome_ledger",
+        "n|type|public.welcome_ledger",
+        "n|rel|public.welcome_ledger_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "workspace_report",
+        "department_lists"
+      ],
+      "writes": [
+        "s|col|public.workspace_report.department_lists",
+        "n|col|public.workspace_report.department_lists",
+        "e|col|public.workspace_report.department_lists"
+      ],
+      "reads": ["n|tbl|public.workspace_report", "n|sch|public"]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "welcome_ledger"],
+      "writes": [
+        "s|fk|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey",
+        "n|fk|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey",
+        "e|fk|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey",
+        "n|con|public.welcome_ledger.welcome_ledger_person_id_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.welcome_ledger",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.welcome_ledger.person_id",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "welcome_ledger",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "person_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "recorded_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "workspace_report",
+        "name": "department_lists",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "welcome_ledger_person_id_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["person_id"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "welcome_ledger",
+        "name": "welcome_ledger_pkey",
+        "columns": ["person_id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

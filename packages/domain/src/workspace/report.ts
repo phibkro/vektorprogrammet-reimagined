@@ -11,6 +11,7 @@ import { Counts } from "../jobs/runs.ts";
 import { Semester } from "../organisation/semester.ts";
 import {
   AccountLine,
+  DepartmentList,
   GroupLine,
   Issue,
   Unmanaged,
@@ -22,7 +23,7 @@ export const WorkspaceMode = Schema.Literals(["dry-run", "write"]);
 
 export type WorkspaceMode = typeof WorkspaceMode.Type;
 
-/** `running`: chunks remain. `complete`: every team was compared. `refused`: the removals were over the cap. */
+/** `running`: chunks remain. `complete`: the report is recorded. `refused`: the cap or unresolved member addresses prevent writes. */
 export const ReportStatus = Schema.Literals(["running", "complete", "refused"]);
 
 export type ReportStatus = typeof ReportStatus.Type;
@@ -37,6 +38,7 @@ export const WorkspaceReport = Schema.Struct({
   actual: ActualState,
   completedAt: Schema.NullOr(Schema.DateTimeUtc),
   counts: Counts,
+  departmentLists: Schema.Array(DepartmentList),
   groups: Schema.Array(GroupLine),
   issues: Schema.Array(Issue),
   mode: WorkspaceMode,
@@ -51,7 +53,10 @@ export type WorkspaceReport = typeof WorkspaceReport.Type;
 
 /** The integer counts of a report, the only part of it that a log or a job's record may show. */
 export const summarise = (
-  report: Pick<WorkspaceReport, "accounts" | "groups" | "issues" | "unmanaged">
+  report: Pick<
+    WorkspaceReport,
+    "accounts" | "departmentLists" | "groups" | "issues" | "unmanaged"
+  >
 ): Counts => ({
   accountsToCreate: Arr.filter(
     report.accounts,
@@ -62,6 +67,12 @@ export const summarise = (
     report.groups,
     0,
     (total, group) => total + group.additions.length
+  ),
+  departmentLists: report.departmentLists.length,
+  departmentMembers: Arr.reduce(
+    report.departmentLists,
+    0,
+    (total, list) => total + list.members.length
   ),
   groups: report.groups.length,
   issues: report.issues.length,

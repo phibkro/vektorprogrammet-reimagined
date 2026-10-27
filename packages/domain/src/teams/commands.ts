@@ -21,6 +21,7 @@ import { FieldOfStudyRepository } from "../organisation/services.ts";
 import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import { Conflict, validationFailed } from "../shared/errors.ts";
 import type { MembershipId, TeamId } from "../shared/ids.ts";
+import { Outbox } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import {
   MembershipMachine,
@@ -46,6 +47,7 @@ import {
   PersonRepository,
   PositionRepository,
   TeamRepository,
+  WelcomeLedger,
 } from "./services.ts";
 import {
   defaultEnd,
@@ -53,6 +55,7 @@ import {
   membershipState,
   previousSemester,
 } from "./term.ts";
+import { welcomeMessages } from "./welcome.ts";
 
 /** Norwegian texts of the refusals, which are user-facing. */
 const TEAM_INACTIVE =
@@ -268,7 +271,7 @@ export const TeamsHandlers = TeamsRpc.toLayer({
         const team = yield* teamOf(input.teamId);
         const locked = yield* locks.lock("Person", input.personId);
         const person = yield* persons.findLocked(locked);
-        yield* positions.findById(input.positionId);
+        const position = yield* positions.findById(input.positionId);
 
         if (!team.active) {
           return yield* validationFailed(["teamId"], TEAM_INACTIVE);
@@ -302,6 +305,9 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* validationFailed(["start"], START_IN_THE_PAST);
         }
 
+        const firstMembership =
+          (yield* memberships.listLocked(locked)).length === 0;
+
         const created = yield* memberships.insert(locked, {
           ...term,
           leader: input.leader,
@@ -315,6 +321,12 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           "Membership",
           created.id
         );
+
+        if (firstMembership && (yield* (yield* WelcomeLedger).claim(locked))) {
+          yield* (yield* Outbox).enqueue(
+            welcomeMessages(person, team, position)
+          );
+        }
 
         return created;
       }),
@@ -420,6 +432,8 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           id,
           observed: { end: membership.end, start: membership.start },
         });
+        // A pre-existing planned membership may predate the welcome ledger; preserve that history before it disappears.
+        yield* (yield* WelcomeLedger).claim(locked);
 
         yield* recordAudit(principal, "membership.cancelled", "Membership", id);
       }),

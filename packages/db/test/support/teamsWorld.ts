@@ -65,6 +65,7 @@ export const world = Effect.fnUntraced(function* world(tag: string) {
     defaultTerm: 2,
     departmentId: department.id,
     function: "recruitment",
+    groupEmail: null,
     name: `Team ${tag}`,
   });
 

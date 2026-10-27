@@ -248,6 +248,45 @@ layer(postgresDatabase(), { excludeTestServices: true })(
       })
     );
 
+    it.effect(
+      "falsifier 8 negative control: a chunk committed separately from its cursor leaves an orphan after failure",
+      () =>
+        Effect.gen(function* splitCommit() {
+          const runs = yield* JobRun.JobRuns;
+          const sql = yield* SqlClient;
+          const value = period("split-control");
+          const held = yield* claimHeld(value);
+          yield* sql`create table if not exists job_run_probe (n integer)`;
+          yield* sql`delete from job_run_probe where n = 2`;
+          yield* sql`insert into job_run_probe (n) values (2)`;
+
+          const failed = yield* Effect.exit(
+            transactional(
+              Effect.gen(function* badCursor() {
+                yield* runs.advance(
+                  held,
+                  { counts: { rows: 1 }, cursor: { after: 2 } },
+                  LEASE
+                );
+
+                return yield* Effect.fail("crash before cursor commits");
+              })
+            )
+          );
+
+          assert.isTrue(Exit.isFailure(failed));
+          assert.strictEqual(
+            (yield* rowsOf("workspaceSync", value))[0]?.cursor,
+            null
+          );
+          assert.strictEqual(
+            (yield* sql`select count(*)::int as n from job_run_probe where n = 2`)[0]
+              ?.n,
+            1
+          );
+        })
+    );
+
     it.layer(TestClock.layer())((layerTest) => {
       layerTest.effect(
         "a live lease is Taken, an expired one is taken over, and the runner that lost it is fenced out",

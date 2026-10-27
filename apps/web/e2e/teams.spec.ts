@@ -14,9 +14,14 @@ import {
   sidebarOf,
   signInAs,
   submitSheet,
+  startNewTeam,
   textOf,
 } from "./support/panel.ts";
-import { membershipsNamed, runDatabase } from "./support/probes.ts";
+import {
+  capturedMailTo,
+  membershipsNamed,
+  runDatabase,
+} from "./support/probes.ts";
 
 const TEAM = "Dokumentasjonsteam";
 const EXTEND = "Emma Utvider";
@@ -51,9 +56,7 @@ test("falsifier 10: an admin and leader create a team and members, switch princi
   context,
 }) => {
   await signInAs(context, TEST_ADMIN);
-  await openPage(page, "/kontrollpanel/team");
-  await page.getByRole("button", { name: "Nytt team" }).click();
-  await sheetOf(page).getByLabel("Avdeling").selectOption("1");
+  await startNewTeam(page);
   await fillSheet(page, { Navn: TEAM });
   await sheetOf(page)
     .getByLabel("Funksjon")
@@ -81,6 +84,16 @@ test("falsifier 10: an admin and leader create a team and members, switch princi
   const teamPath = new URL(page.url()).pathname;
 
   await addMember(page, EXTEND);
+  // The first membership enqueues welcome and setup mail; the non-production sink persists both.
+  await expect
+    .poll(async () => {
+      const messages = await runDatabase(
+        capturedMailTo("emma.extend@example.org")
+      );
+
+      return messages.length;
+    })
+    .toBe(2);
   await addMember(page, CHANGE);
   await addMember(page, END);
   const beforeExtend = await runDatabase(membershipsNamed(TEAM, EXTEND));

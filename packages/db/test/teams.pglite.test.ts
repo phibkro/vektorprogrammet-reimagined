@@ -8,6 +8,7 @@ import {
   AccountRepository,
   AdminGrantRepository,
   DigestLedger,
+  CompanyEmail,
   EmailAddress,
   MembershipRepository,
   PersonRepository,
@@ -116,6 +117,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
             defaultTerm: 1,
             departmentId: department.id,
             function: "it",
+            groupEmail: null,
             name: team.name,
           })
         );
@@ -123,6 +125,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const renamedToItself = yield* teams.update(team.id, {
           defaultTerm: 1,
           function: "it",
+          groupEmail: null,
           name: team.name,
         });
 
@@ -134,6 +137,45 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         assert.deepStrictEqual(
           Arr.map(yield* teams.list(department.id), (found) => found.id),
           [team.id]
+        );
+      })
+  );
+
+  it.effect(
+    "team group addresses persist and a duplicate is a typed conflict",
+    () =>
+      Effect.gen(function* groupAddresses() {
+        const { department, team } = yield* world("workspace");
+        const teams = yield* TeamRepository;
+
+        const groupEmail = CompanyEmail.make(
+          "team-workspace@vektorprogrammet.no"
+        );
+
+        const assigned = yield* teams.update(team.id, {
+          defaultTerm: 2,
+          function: "recruitment",
+          groupEmail,
+          name: team.name,
+        });
+
+        assert.strictEqual(assigned.groupEmail, groupEmail);
+
+        const refused = yield* Effect.flip(
+          teams.create({
+            defaultTerm: 1,
+            departmentId: department.id,
+            function: "it",
+            groupEmail,
+            name: "Other group",
+          })
+        );
+
+        assert.strictEqual(refused._tag, "AlreadyExists");
+        assert.include(refused.message, "Gruppeadressen");
+        assert.strictEqual(
+          (yield* teams.findById(team.id)).groupEmail,
+          groupEmail
         );
       })
   );

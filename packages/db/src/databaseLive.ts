@@ -42,6 +42,7 @@ import {
   PositionRepositoryLive,
   PrincipalDirectoryLive,
   TeamRepositoryLive,
+  WelcomeLedgerLive,
 } from "./repositories/teams.ts";
 import {
   WorkspaceFactsLive,
@@ -79,6 +80,7 @@ export const RepositoriesLayer = Layer.mergeAll(
   MembershipRepositoryLive,
   AdminGrantRepositoryLive,
   DigestLedgerLive,
+  WelcomeLedgerLive,
   PrincipalDirectoryLive,
   OutboxLive,
   OutboxDeliveryLive,

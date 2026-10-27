@@ -9,6 +9,7 @@
  */
 import { Effect } from "effect";
 
+import { integrationsView } from "./integrations";
 import {
   dashboardView,
   departmentsView,
@@ -28,6 +29,7 @@ export const panelReads = {
   getDashboard: guarded("getDashboard", dashboardView),
   getDepartments: guarded("getDepartments", departmentsView),
   getFieldsOfStudy: guarded("getFieldsOfStudy", fieldsOfStudyView),
+  getIntegrations: guarded("getIntegrations", integrationsView),
   getPeople: guarded("getPeople", peopleView),
   getSemesters: guarded("getSemesters", semestersView),
   getSocialEvents: guarded("getSocialEvents", socialEventsView),

@@ -10,6 +10,7 @@
  */
 import {
   Array as Arr,
+  Crypto,
   DateTime,
   Effect,
   Match,
@@ -41,6 +42,7 @@ import {
   changesOf,
   memberAddresses,
   planAccounts,
+  planDepartmentLists,
   planGroup,
   unmanagedGroups,
 } from "./plan.ts";
@@ -179,13 +181,27 @@ const groupPart = (
     };
   }
 
-  const read: ActualGroup = Option.match(
-    Arr.findFirst(directory.members, (entry) => entry.group === address),
-    { onNone: () => null, onSome: (entry) => entry.members }
+  const knownPeople = new Set(Arr.map(accounts, (account) => account.personId));
+
+  const incomplete = Arr.some(
+    team.members,
+    (personId) => !knownPeople.has(personId)
   );
 
+  const read: ActualGroup = incomplete
+    ? null
+    : Option.match(
+        Arr.findFirst(directory.members, (entry) => entry.group === address),
+        {
+          onNone: () => null,
+          onSome: (entry) => entry.members,
+        }
+      );
+
   return {
-    issues: [],
+    issues: incomplete
+      ? [Issue.cases.IncompleteGroupMembers.make({ teamId: team.teamId })]
+      : [],
     lines: [planGroup(team, address, memberAddresses(team, accounts), read)],
   };
 };
@@ -227,8 +243,22 @@ const complete = Effect.fnUntraced(function* complete(period: JobPeriod) {
 
   const counts = summarise(report);
 
+  const unresolved = Arr.some(
+    report.issues,
+    (issue) =>
+      Predicate.isTagged(issue, "InvalidCompanyAddress") ||
+      Predicate.isTagged(issue, "NoCompanyAddress") ||
+      Predicate.isTagged(issue, "IncompleteGroupMembers")
+  );
+
+  if (report.mode === "write" && mode === "write" && unresolved) {
+    yield* reports.complete(period, "refused", counts);
+
+    return { ...counts, queued: 0 };
+  }
+
   const changes =
-    report.actual === "read" && mode === "write"
+    report.actual === "read" && report.mode === "write" && mode === "write"
       ? changesOf(report.accounts, report.groups)
       : [];
 
@@ -256,16 +286,26 @@ const accountsChunk = Effect.fnUntraced(function* accountsChunk(
   const people = yield* facts.people(semester);
   const stored = yield* facts.storedAddresses;
   const configured = yield* facts.configuredGroupAddresses;
-  const plan = planAccounts(people, stored, directory.accounts);
+  const groups = new Set<string>([...configured, ...(directory.groups ?? [])]);
+  const plan = planAccounts(people, stored, directory.accounts, groups);
+
+  const departmentLists = planDepartmentLists(
+    yield* facts.departments,
+    yield* facts.departmentEngagements(semester),
+    plan.lines
+  );
+
+  const configuredMode = yield* WorkspaceModeSetting;
 
   yield* reports.open({
     actual: directory.unavailable === null ? "read" : "unavailable",
-    mode: yield* WorkspaceModeSetting,
+    mode: period.startsWith("request:") ? "dry-run" : configuredMode,
     period,
     semester,
   });
   yield* reports.append(period, {
     accounts: plan.lines,
+    departmentLists,
     issues: [...plan.issues, ...unavailableIssues(directory)],
     unmanaged: {
       accounts: plan.unmanaged,
@@ -335,11 +375,24 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
         yield* InTransaction;
         const now = yield* DateTime.now;
 
-        const period = requestPeriod(
-          `${DateTime.toEpochMillis(now)}-${Predicate.isTagged(principal, "Person") ? principal.personId : principal._tag}`
+        const nonce = yield* Effect.orDie(
+          (yield* Crypto.Crypto).randomUUIDv4()
         );
 
-        yield* (yield* JobRuns).request("workspaceSync", period);
+        const period = requestPeriod(
+          `${DateTime.toEpochMillis(now)}-${Predicate.isTagged(principal, "Person") ? principal.personId : principal._tag}-${nonce}`
+        );
+
+        const inserted = yield* (yield* JobRuns).request(
+          "workspaceSync",
+          period
+        );
+
+        if (!inserted) {
+          return yield* Effect.die(
+            "a newly generated Workspace request period already exists"
+          );
+        }
 
         return { period };
       }),
@@ -371,4 +424,9 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
 export const withWorkspace = Commands.inProcess(
   WorkspaceRpc,
   WorkspaceHandlers
+);
+
+/** An administrator's request for a run, as the Integrations page sends it: a row that the next tick takes. */
+export const requestWorkspaceReport = withWorkspace((client) =>
+  client.createWorkspaceReport()
 );

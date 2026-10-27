@@ -88,6 +88,7 @@ const createTeam = (departmentId: DepartmentId, name: string) =>
       defaultTerm: 2,
       departmentId,
       function: "recruitment",
+      groupEmail: null,
       name,
     })
   );
@@ -160,7 +161,10 @@ const sentMail = Effect.map(
   table((db) => db.outbox),
   (messages) =>
     Arr.flatMap(messages, (message) =>
-      Predicate.isTagged(message, "Email") ? [message] : []
+      Predicate.isTagged(message, "Email") &&
+      message.subject.startsWith("Medlemskap som slutter")
+        ? [message]
+        : []
     )
 );
 

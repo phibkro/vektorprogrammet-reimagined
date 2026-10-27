@@ -10,15 +10,26 @@
  */
 import { Array as Arr, Option, Order, Schema } from "effect";
 
-import { PersonId, TeamId } from "../shared/ids.ts";
+import { DepartmentId, PersonId, TeamId } from "../shared/ids.ts";
 import { WorkspaceChange } from "./change.ts";
 import { CompanyEmail, companyEmailFor } from "./companyEmail.ts";
 
-/** A person with an active membership this semester and an Active account (RULE-202). */
+/** A person with an active engagement this semester and an Active account (RULE-202). */
 export interface PersonFact {
   readonly personId: PersonId;
   readonly name: string;
-  readonly companyAddress: CompanyEmail | null;
+  readonly companyAddress: string | null;
+}
+
+/** An active department and one of its active engagements, independent of the engagement's source. */
+export interface DepartmentFact {
+  readonly departmentId: DepartmentId;
+  readonly name: string;
+}
+
+export interface DepartmentEngagement {
+  readonly departmentId: DepartmentId;
+  readonly personId: PersonId;
 }
 
 /** An active team, the group address that someone configured for it, and who is active in it this semester. */
@@ -43,6 +54,78 @@ export const AccountLine = Schema.Struct({
 });
 
 export type AccountLine = typeof AccountLine.Type;
+
+/** The desired, identity-deduplicated mailing list. A provider group address is not guessed. */
+export const DepartmentList = Schema.Struct({
+  departmentId: DepartmentId,
+  members: Schema.Array(
+    Schema.Struct({
+      address: CompanyEmail,
+      name: Schema.String,
+      personId: PersonId,
+    })
+  ),
+  name: Schema.String,
+});
+
+export type DepartmentList = typeof DepartmentList.Type;
+
+/** RULE-039/049: one person once per department, regardless of how many teams or engagements they have. */
+export const planDepartmentLists = (
+  departments: readonly DepartmentFact[],
+  engagements: readonly DepartmentEngagement[],
+  accounts: readonly AccountLine[]
+): readonly DepartmentList[] => {
+  const accountsById = new Map(
+    Arr.map(accounts, (account) => [account.personId, account] as const)
+  );
+
+  const byDepartment = new Map<
+    DepartmentId,
+    Map<PersonId, DepartmentList["members"][number]>
+  >();
+
+  for (const engagement of engagements) {
+    const account = accountsById.get(engagement.personId);
+
+    if (account === undefined) {
+      continue;
+    }
+
+    let members = byDepartment.get(engagement.departmentId);
+
+    if (members === undefined) {
+      members = new Map();
+      byDepartment.set(engagement.departmentId, members);
+    }
+
+    members.set(account.personId, {
+      address: account.address,
+      name: account.name,
+      personId: account.personId,
+    });
+  }
+
+  return Arr.map(
+    Arr.sort(
+      departments,
+      Order.mapInput(
+        Order.Number,
+        (department: DepartmentFact) => department.departmentId
+      )
+    ),
+    (department) => ({
+      ...department,
+      members: Arr.sort(
+        [...(byDepartment.get(department.departmentId)?.values() ?? [])],
+        Order.mapInput(
+          Order.Number,
+          (member: DepartmentList["members"][number]) => member.personId
+        )
+      ),
+    })
+  );
+};
 
 /** One managed group: the members it should have, what it has, and the difference. */
 export const GroupLine = Schema.Struct({
@@ -71,6 +154,8 @@ export type Unmanaged = typeof Unmanaged.Type;
 /** A thing that the projection could not decide, shown instead of a guess. */
 export const Issue = Schema.TaggedUnion({
   ActualStateUnavailable: { reason: Schema.String },
+  IncompleteGroupMembers: { teamId: TeamId },
+  InvalidCompanyAddress: { personId: PersonId },
   NoCompanyAddress: { personId: PersonId },
   NoGroupAddress: { teamId: TeamId },
   RemovalCapExceeded: { cap: Schema.Int, removals: Schema.Int },
@@ -85,6 +170,8 @@ const byAddress = Order.mapInput(
 
 const sorted = (addresses: readonly CompanyEmail[]): readonly CompanyEmail[] =>
   Arr.sort(Arr.dedupe(addresses), byAddress);
+
+const isCompanyEmail = Schema.is(CompanyEmail);
 
 /** The accounts the projection wants, what it could not name, and what the directory holds that the system does not. */
 export interface AccountPlan {
@@ -101,10 +188,11 @@ export interface AccountPlan {
 export const planAccounts = (
   people: readonly PersonFact[],
   stored: ReadonlySet<string>,
-  directory: readonly CompanyEmail[] | null
+  directory: readonly CompanyEmail[] | null,
+  reservedGroups: ReadonlySet<string>
 ): AccountPlan => {
   const present = new Set<string>(directory);
-  const taken = new Set<string>([...stored, ...present]);
+  const taken = new Set<string>([...stored, ...present, ...reservedGroups]);
   const lines: AccountLine[] = [];
   const issues: Issue[] = [];
 
@@ -112,6 +200,16 @@ export const planAccounts = (
     people,
     Order.mapInput(Order.Number, (fact: PersonFact) => fact.personId)
   )) {
+    if (
+      person.companyAddress !== null &&
+      !isCompanyEmail(person.companyAddress)
+    ) {
+      issues.push(
+        Issue.cases.InvalidCompanyAddress.make({ personId: person.personId })
+      );
+      continue;
+    }
+
     const address =
       person.companyAddress === null
         ? companyEmailFor(person.name, taken)

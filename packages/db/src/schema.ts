@@ -84,6 +84,7 @@ export const UniqueConstraint = {
   personCompanyEmail: "person_company_email_unique",
   personEmail: "person_email_unique",
   semesterTermYear: "semester_term_year_unique",
+  teamGroupEmail: "team_group_email_unique",
   teamName: "team_department_name_unique",
 } as const;
 
@@ -207,6 +208,14 @@ export const person = pgTable(
     check("person_name", sql`length(${t.name}) > 0`),
   ]
 );
+
+/** One first-membership welcome claim per person; written only under that person's aggregate lock. */
+export const welcomeLedger = pgTable("welcome_ledger", {
+  personId: integer("person_id")
+    .primaryKey()
+    .references(() => person.id),
+  recordedAt: instant("recorded_at").notNull(),
+});
 
 /** The domain's account state is separate from Better Auth's credentials. */
 export const account = pgTable(
@@ -382,7 +391,7 @@ export const team = pgTable(
   },
   (t) => [
     unique(UniqueConstraint.teamName).on(t.departmentId, t.name),
-    uniqueIndex("team_group_email_unique")
+    uniqueIndex(UniqueConstraint.teamGroupEmail)
       .on(t.groupEmail)
       .where(sql`${t.groupEmail} is not null`),
     check("team_default_term", sql`${t.defaultTerm} in (1, 2)`),
@@ -677,6 +686,9 @@ export const workspaceReport = pgTable(
     counts: jsonb("counts")
       .notNull()
       .default(sql`'{}'::jsonb`),
+    departmentLists: jsonb("department_lists")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     groups: jsonb("groups")
       .notNull()
       .default(sql`'[]'::jsonb`),

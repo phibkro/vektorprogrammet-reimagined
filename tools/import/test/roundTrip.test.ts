@@ -74,6 +74,16 @@ const importOnce = Effect.fn("importOnce")(function* importOnce(
   };
 });
 
+/** The same refusal must protect every kind of durable target activity. */
+const expectProtected = Effect.gen(function* protectedTarget() {
+  const failed = yield* Effect.flip(importOnce(Option.none()));
+  assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
+
+  if (Predicate.isTagged(failed, "TargetWriteError")) {
+    assert.strictEqual(failed.step, "protect accounts");
+  }
+});
+
 interface DatabaseRecord {
   readonly [column: string]: DatabaseValue;
 }
@@ -451,6 +461,62 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
         })
     );
     it.effect(
+      "spec 0008: replacement refuses a target with a first-membership welcome claim",
+      () =>
+        Effect.gen(function* preserveWelcome() {
+          yield* importOnce(Option.none());
+
+          const inserted = yield* queryTarget(
+            (sql) =>
+              sql<{ readonly id: number }>`insert into person ${sql.insert({
+                email: "welcome-protected@example.org",
+                field_of_study_id: 1,
+                name: "Welcome fixture",
+              })} returning id`
+          );
+
+          const person = Option.getOrThrow(Arr.head(inserted));
+          yield* queryTarget(
+            (sql) =>
+              sql`insert into welcome_ledger (person_id, recorded_at) values (${person.id}, now())`
+          );
+          yield* expectProtected;
+
+          const claims = yield* queryTarget(
+            (sql) =>
+              sql`select person_id from welcome_ledger where person_id = ${person.id}`
+          );
+
+          assert.strictEqual(claims.length, 1);
+          yield* queryTarget(
+            (sql) =>
+              sql`delete from welcome_ledger where person_id = ${person.id}`
+          );
+          yield* queryTarget(
+            (sql) => sql`delete from person where id = ${person.id}`
+          );
+        })
+    );
+    it.effect("spec 0008: replacement refuses to erase a durable job run", () =>
+      Effect.gen(function* preserveJob() {
+        yield* importOnce(Option.none());
+        yield* queryTarget(
+          (sql) =>
+            sql`insert into job_run (job, period, lease_until, outcome) values ('semesters', 'test:import', now(), 'partial')`
+        );
+        yield* expectProtected;
+
+        const rows = yield* queryTarget(
+          (sql) => sql`select period from job_run where period = 'test:import'`
+        );
+
+        assert.strictEqual(rows.length, 1);
+        yield* queryTarget(
+          (sql) => sql`delete from job_run where period = 'test:import'`
+        );
+      })
+    );
+    it.effect(
       "spec 0007 R8: replacement refuses an account-bearing target without changing its rows",
       () =>
         Effect.gen(function* preserveAccounts() {
@@ -464,12 +530,7 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
               sql`insert into account (person_id, state) select id, 'Active' from person where email = 'protected@example.org'`
           );
           const before = yield* dumpTarget;
-          const failed = yield* Effect.flip(importOnce(Option.none()));
-          assert.isTrue(Predicate.isTagged(failed, "TargetWriteError"));
-
-          if (Predicate.isTagged(failed, "TargetWriteError")) {
-            assert.strictEqual(failed.step, "protect accounts");
-          }
+          yield* expectProtected;
 
           assert.strictEqual(yield* dumpTarget, before);
 

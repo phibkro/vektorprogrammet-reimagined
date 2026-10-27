@@ -30,6 +30,7 @@ interface TeamFieldValues {
   readonly name: string;
   readonly function: string;
   readonly defaultTerm: number;
+  readonly groupEmail: string | null;
 }
 
 /** The fields of a team, for create and for edit. */
@@ -37,6 +38,13 @@ export const TeamFields = ({ team }: { team?: TeamFieldValues }) => (
   <>
     <Field name="name" label="Navn">
       <Input name="name" defaultValue={team?.name} />
+    </Field>
+    <Field name="groupEmail" label="Google-gruppeadresse">
+      <Input
+        name="groupEmail"
+        type="email"
+        defaultValue={team?.groupEmail ?? ""}
+      />
     </Field>
     <Field name="function" label="Funksjon">
       <select

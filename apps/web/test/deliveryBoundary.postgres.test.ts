@@ -37,6 +37,7 @@ import {
   Predicate,
   Ref,
 } from "effect";
+import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
@@ -45,6 +46,7 @@ import { deliverOutbox } from "../src/server/outboxDelivery";
 import { runCommandOutcome } from "../src/server/runtime";
 import { MessageSender, captureSenderLayer } from "../src/server/senders";
 import { Transactor, transactorLayer } from "../src/server/transactor";
+import { rowsIn as countRows } from "./support/rowCount";
 import { refusingWriter } from "./support/workspaceWorld";
 
 const T0 = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
@@ -109,27 +111,48 @@ const noOtherServices = Layer.mergeAll(
   refusingWriter
 );
 
-const rows = (table: "outbox" | "captured_mail" | "captured_slack") =>
-  Effect.gen(function* rowCount() {
-    const sql = yield* SqlClient;
-
-    const [row] = yield* sql<{
-      readonly n: number;
-    }>`select count(*)::int as n from ${sql(table)}`;
-
-    return row?.n ?? -1;
-  });
-
 const reset = Effect.gen(function* reset() {
   const sql = yield* SqlClient;
 
   yield* sql`truncate outbox, captured_mail, captured_slack restart identity`;
 });
 
+const freshProbe = Effect.gen(function* probeFixture() {
+  yield* reset;
+
+  return {
+    seen: yield* Ref.make<readonly Observation[]>([]),
+    url: yield* TestDatabaseUrl,
+  };
+});
+
 /** A command that queues one message, as `contact` does, in the transaction that the runner opens. */
 const enqueueOne = Effect.gen(function* enqueueOne() {
   return yield* (yield* Outbox).enqueue([email]);
 });
+
+/** Exercises the actual request runtime, optionally failing after it queues the message. */
+const requestOutcome = (url: Redacted.Redacted, rollback: boolean) =>
+  Effect.promise(
+    async () =>
+      await runCommandOutcome(
+        transactorLayer.pipe(
+          Layer.provideMerge(DatabaseLive({ maxConnections: 4, url })),
+          Layer.orDie
+        ),
+        Effect.void,
+        () =>
+          rollback
+            ? Effect.andThen(
+                enqueueOne,
+                Effect.fail(
+                  validationFailed(["name"], "refused after queueing")
+                )
+              )
+            : enqueueOne,
+        new AbortController().signal
+      )
+  );
 
 layer(live, { excludeTestServices: true })(
   "the delivery boundary on PostgreSQL",
@@ -138,23 +161,9 @@ layer(live, { excludeTestServices: true })(
       "falsifier 2: no provider is called inside the command; after the commit the provider sees the committed row",
       () =>
         Effect.gen(function* afterCommit() {
-          yield* reset;
+          const { url, seen } = yield* freshProbe;
 
-          const url = yield* TestDatabaseUrl;
-          const seen = yield* Ref.make<readonly Observation[]>([]);
-
-          const outcome = yield* Effect.promise(
-            async () =>
-              await runCommandOutcome(
-                transactorLayer.pipe(
-                  Layer.provideMerge(DatabaseLive({ maxConnections: 4, url })),
-                  Layer.orDie
-                ),
-                Effect.void,
-                () => enqueueOne,
-                new AbortController().signal
-              )
-          );
+          const outcome = yield* requestOutcome(url, false);
 
           assert.isTrue(Predicate.isTagged(outcome, "Success"));
 
@@ -194,33 +203,13 @@ layer(live, { excludeTestServices: true })(
       "falsifier 2: a command that fails leaves neither a row nor a provider call",
       () =>
         Effect.gen(function* rolledBack() {
-          yield* reset;
+          const { url, seen } = yield* freshProbe;
 
-          const url = yield* TestDatabaseUrl;
-          const seen = yield* Ref.make<readonly Observation[]>([]);
-
-          const outcome = yield* Effect.promise(
-            async () =>
-              await runCommandOutcome(
-                transactorLayer.pipe(
-                  Layer.provideMerge(DatabaseLive({ maxConnections: 4, url })),
-                  Layer.orDie
-                ),
-                Effect.void,
-                () =>
-                  Effect.andThen(
-                    enqueueOne,
-                    Effect.fail(
-                      validationFailed(["name"], "refused after queueing")
-                    )
-                  ),
-                new AbortController().signal
-              )
-          );
+          const outcome = yield* requestOutcome(url, true);
 
           assert.isTrue(Predicate.isTagged(outcome, "Failure"));
           assert.strictEqual(
-            yield* rows("outbox"),
+            yield* countRows("outbox"),
             0,
             "the queued message rolled back"
           );
@@ -300,7 +289,7 @@ layer(live, { excludeTestServices: true })(
               "the first delivery crashed"
             );
             assert.strictEqual(
-              yield* rows("captured_mail"),
+              yield* countRows("captured_mail"),
               1,
               "the provider answered"
             );
@@ -319,12 +308,12 @@ layer(live, { excludeTestServices: true })(
               ["delivered", "delivered"]
             );
             assert.strictEqual(
-              yield* rows("captured_mail"),
+              yield* countRows("captured_mail"),
               1,
               "one e-mail, however often it was sent"
             );
             assert.strictEqual(
-              yield* rows("captured_slack"),
+              yield* countRows("captured_slack"),
               1,
               "and one Slack post, kept where a browser test can read it"
             );
@@ -392,7 +381,7 @@ layer(live, { excludeTestServices: true })(
             );
 
             assert.strictEqual(
-              yield* rows("captured_mail"),
+              yield* countRows("captured_mail"),
               2,
               "without a key the provider cannot tell the second send from a new message"
             );

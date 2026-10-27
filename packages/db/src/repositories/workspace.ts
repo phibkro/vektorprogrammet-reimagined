@@ -9,6 +9,7 @@
  */
 import {
   CompanyEmail,
+  DepartmentId,
   InTransaction,
   PersonId,
   TeamId,
@@ -41,6 +42,7 @@ import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
 import {
   account,
+  department,
   membership,
   person,
   team,
@@ -48,7 +50,7 @@ import {
 } from "../schema.ts";
 
 const PersonRow = Schema.Struct({
-  companyAddress: Schema.NullOr(CompanyEmail),
+  companyAddress: Schema.NullOr(Schema.String),
   name: Schema.String,
   personId: PersonId,
 });
@@ -61,6 +63,16 @@ const TeamRow = Schema.Struct({
 
 const MemberRow = Schema.Struct({ personId: PersonId, teamId: TeamId });
 
+const DepartmentRow = Schema.Struct({
+  departmentId: DepartmentId,
+  name: Schema.String,
+});
+
+const EngagementRow = Schema.Struct({
+  departmentId: DepartmentId,
+  personId: PersonId,
+});
+
 /** A membership that is active in the semester of `ordinal`, in a team that is active, of a person whose Account is Active. */
 const activeIn = (ordinal: number) =>
   and(
@@ -68,6 +80,17 @@ const activeIn = (ordinal: number) =>
     gte(membership.endOrdinal, ordinal),
     eq(team.active, true),
     eq(account.state, "Active")
+  );
+
+const addressSet = (
+  rows: readonly { readonly address: string | null }[],
+  decode: (value: readonly string[]) => Effect.Effect<readonly string[]>
+) =>
+  Effect.map(
+    decode(
+      Arr.flatMap(rows, (row) => (row.address === null ? [] : [row.address]))
+    ),
+    (addresses) => new Set<string>(addresses)
   );
 
 export const WorkspaceFactsLive = Layer.effect(
@@ -78,6 +101,39 @@ export const WorkspaceFactsLive = Layer.effect(
     const decodeTeams = decodeWith(Schema.Array(TeamRow));
     const decodeMembers = decodeWith(Schema.Array(MemberRow));
     const decodeAddresses = decodeWith(Schema.Array(CompanyEmail));
+    const decodeStoredAddresses = decodeWith(Schema.Array(Schema.String));
+
+    const decodeDepartments = decodeWith(Schema.Array(DepartmentRow));
+    const decodeEngagements = decodeWith(Schema.Array(EngagementRow));
+
+    const departments = db
+      .select({ departmentId: department.id, name: department.name })
+      .from(department)
+      .where(eq(department.active, true))
+      .orderBy(asc(department.id))
+      .pipe(Effect.orDie, Effect.flatMap(decodeDepartments));
+
+    // A placement can contribute the same (department, person) fact in spec 0011; the projection's input stays unchanged.
+    const departmentEngagements = Effect.fn(
+      "WorkspaceFacts.departmentEngagements"
+    )(function* departmentEngagements(semester: Semester) {
+      const rows = yield* db
+        .selectDistinct({
+          departmentId: team.departmentId,
+          personId: membership.personId,
+        })
+        .from(membership)
+        .innerJoin(team, eq(team.id, membership.teamId))
+        .innerJoin(department, eq(department.id, team.departmentId))
+        .innerJoin(account, eq(account.personId, membership.personId))
+        .where(
+          and(activeIn(semesterOrdinal(semester)), eq(department.active, true))
+        )
+        .orderBy(asc(team.departmentId), asc(membership.personId))
+        .pipe(Effect.orDie);
+
+      return yield* decodeEngagements(rows);
+    });
 
     const people = Effect.fn("WorkspaceFacts.people")(function* people(
       semester: Semester
@@ -114,13 +170,7 @@ export const WorkspaceFactsLive = Layer.effect(
         .where(isNotNull(person.companyEmail))
         .pipe(Effect.orDie);
 
-      return new Set<string>(
-        yield* decodeAddresses(
-          Arr.flatMap(rows, (row) =>
-            row.address === null ? [] : [row.address]
-          )
-        )
-      );
+      return yield* addressSet(rows, decodeStoredAddresses);
     }).pipe(Effect.withSpan("WorkspaceFacts.storedAddresses"));
 
     const configuredGroupAddresses = Effect.gen(
@@ -131,13 +181,7 @@ export const WorkspaceFactsLive = Layer.effect(
           .where(isNotNull(team.groupEmail))
           .pipe(Effect.orDie);
 
-        return new Set<string>(
-          yield* decodeAddresses(
-            Arr.flatMap(rows, (row) =>
-              row.address === null ? [] : [row.address]
-            )
-          )
-        );
+        return yield* addressSet(rows, decodeAddresses);
       }
     ).pipe(Effect.withSpan("WorkspaceFacts.configuredGroupAddresses"));
 
@@ -203,6 +247,8 @@ export const WorkspaceFactsLive = Layer.effect(
 
     return WorkspaceFacts.of({
       configuredGroupAddresses,
+      departmentEngagements,
+      departments,
       people,
       storedAddresses,
       teamsAfter,
@@ -217,6 +263,7 @@ const toRecord = (row: typeof workspaceReport.$inferSelect) => ({
   completedAt:
     row.completedAt === null ? null : DateTime.fromDateUnsafe(row.completedAt),
   counts: row.counts,
+  departmentLists: row.departmentLists,
   groups: row.groups,
   issues: row.issues,
   mode: row.mode,
@@ -238,6 +285,10 @@ export const WorkspaceReportsLive = Layer.effect(
 
     const encodeAccounts = Schema.encodeEffect(
       Schema.Array(WorkspacePlan.AccountLine)
+    );
+
+    const encodeDepartmentLists = Schema.encodeEffect(
+      Schema.Array(WorkspacePlan.DepartmentList)
     );
 
     const encodeGroups = Schema.encodeEffect(
@@ -312,6 +363,12 @@ export const WorkspaceReportsLive = Layer.effect(
               ...(part.accounts ?? []),
             ])
           ),
+          departmentLists:
+            part.departmentLists === undefined
+              ? undefined
+              : yield* Effect.orDie(
+                  encodeDepartmentLists(part.departmentLists)
+                ),
           groups: yield* Effect.orDie(
             encodeGroups([
               ...(yield* decodeGroups(row.groups)),

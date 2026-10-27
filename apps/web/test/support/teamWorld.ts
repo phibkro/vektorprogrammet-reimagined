@@ -110,6 +110,7 @@ const team = (id: TeamId, departmentId: number): Team => ({
   defaultTerm: 2,
   departmentId: DepartmentId.make(departmentId),
   function: "recruitment",
+  groupEmail: null,
   id,
   name: "Rekruttering",
 });

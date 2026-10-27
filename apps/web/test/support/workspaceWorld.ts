@@ -85,6 +85,12 @@ export interface DirectoryState {
   readonly groups: Readonly<Record<string, readonly string[]>>;
 }
 
+/** A fresh, empty non-production directory. */
+export const emptyDirectory = Ref.make<DirectoryState>({
+  accounts: [],
+  groups: {},
+});
+
 /** The directory as a service over a `Ref`, so that a writer fixture can change what the next read sees. */
 export const directoryOver = (state: Ref.Ref<DirectoryState>) =>
   Layer.succeed(WorkspaceDirectory)(

@@ -11,10 +11,12 @@ import {
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
 import {
+  CurrentPrincipal,
   JobRegistry,
   WorkspaceModeSetting,
   WorkspaceReports,
   WorkspaceWriter,
+  requestWorkspaceReport,
 } from "@vektorprogrammet/domain";
 import type {
   JobRun,
@@ -27,8 +29,11 @@ import type {
 } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
+  Cause,
+  Crypto,
   DateTime,
   Effect,
+  Exit,
   Layer,
   Logger,
   Option,
@@ -42,10 +47,14 @@ import { workspaceSyncRunner } from "../src/server/jobRunners";
 import { dispatchTick } from "../src/server/jobs";
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender } from "../src/server/senders";
-import { transactorLayer } from "../src/server/transactor";
+import { Transactor, transactorLayer } from "../src/server/transactor";
+import { webCryptoLayer } from "../src/server/webCrypto";
 import { workspaceDirectoryLayer } from "../src/server/workspace";
+import { ADMIN } from "./support/principals";
+import { rowsIn } from "./support/rowCount";
 import {
   directoryOver,
+  emptyDirectory,
   refusingWriter,
   seedWorld,
   writerOver,
@@ -61,7 +70,11 @@ const live = Layer.unwrap(
       Layer.provideMerge(DatabaseLive({ maxConnections: 10, url }))
     )
   )
-).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+).pipe(
+  Layer.provideMerge(migratedTestDatabase),
+  Layer.provideMerge(webCryptoLayer),
+  Layer.orDie
+);
 
 const reset = Effect.gen(function* reset() {
   const sql = yield* SqlClient;
@@ -75,6 +88,7 @@ type RunnerServices =
   | Outbox
   | WorkspaceDirectory
   | WorkspaceFacts
+  | Crypto.Crypto
   | WorkspaceReports;
 
 const tick = dispatchTick<"workspaceSync", RunnerServices>(
@@ -82,17 +96,6 @@ const tick = dispatchTick<"workspaceSync", RunnerServices>(
   { workspaceSync: workspaceSyncRunner },
   { at: NIGHT, only: ["workspaceSync"] }
 );
-
-const rowsIn = (table: "outbox" | "workspace_report") =>
-  Effect.gen(function* rowCount() {
-    const sql = yield* SqlClient;
-
-    const [row] = yield* sql<{
-      readonly n: number;
-    }>`select count(*)::int as n from ${sql(table)}`;
-
-    return row?.n ?? -1;
-  });
 
 const latest = Effect.gen(function* latest() {
   return Option.getOrThrow(yield* (yield* WorkspaceReports).latest);
@@ -132,6 +135,82 @@ layer(live, { excludeTestServices: true })(
   "the Workspace projection on PostgreSQL",
   (it) => {
     it.layer(TestClock.layer())((layerTest) => {
+      layerTest.effect(
+        "twenty same-instant report requests in 100 fresh rounds each get distinct durable periods",
+        () =>
+          Effect.gen(function* concurrentRequests() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
+            yield* reset;
+            const sql = yield* SqlClient;
+            const transactor = yield* Transactor;
+
+            for (const round of Arr.range(1, 100)) {
+              yield* sql`delete from job_run where job = 'workspaceSync'`;
+
+              const exits = yield* Effect.forEach(
+                Arr.range(1, 20),
+                () =>
+                  Effect.exit(
+                    transactor.run(
+                      requestWorkspaceReport.pipe(
+                        Effect.provideService(CurrentPrincipal, ADMIN)
+                      )
+                    )
+                  ),
+                { concurrency: "unbounded" }
+              );
+
+              const failures = Arr.flatMap(exits, (exit) =>
+                Exit.isFailure(exit) ? [Cause.pretty(exit.cause)] : []
+              );
+
+              const periods = Arr.flatMap(exits, (exit) =>
+                Exit.isSuccess(exit) ? [exit.value.period] : []
+              );
+
+              assert.deepStrictEqual(
+                failures,
+                [],
+                `round ${round}: ${Arr.join(failures, "\n")}`
+              );
+              assert.strictEqual(new Set(periods).size, 20, `round ${round}`);
+
+              const [row] = yield* sql<{
+                readonly n: number;
+              }>`select count(*)::int as n from job_run where job = 'workspaceSync'`;
+
+              assert.strictEqual(row?.n, 20, `round ${round}`);
+            }
+          }),
+        { timeout: 120_000 }
+      );
+
+      layerTest.effect(
+        "negative control: an identical nonce cannot be reported as a second successful request",
+        () =>
+          Effect.gen(function* collision() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
+            yield* reset;
+            const transactor = yield* Transactor;
+
+            const fixedCrypto = Crypto.make({
+              digest: (_algorithm, data) => Effect.succeed(data),
+              randomBytes: (size) => new Uint8Array(size),
+            });
+
+            const request = transactor
+              .run(
+                requestWorkspaceReport.pipe(
+                  Effect.provideService(CurrentPrincipal, ADMIN)
+                )
+              )
+              .pipe(Effect.provideService(Crypto.Crypto, fixedCrypto));
+
+            yield* request;
+            const second = yield* Effect.exit(request);
+            assert.isTrue(Exit.hasDies(second));
+          })
+      );
       layerTest.effect(
         "falsifier 4: a dry-run against a deterministic directory records exact counts and typed issues, makes no mutation call, queues nothing and logs no address",
         () =>
@@ -197,6 +276,8 @@ layer(live, { excludeTestServices: true })(
               accountsToCreate: 4,
               accountsWanted: 6,
               additions: 3,
+              departmentLists: 1,
+              departmentMembers: 6,
               groups: 2,
               issues: 1,
               removals: 1,
@@ -249,6 +330,82 @@ layer(live, { excludeTestServices: true })(
               Arr.some(lines, (line) => line.includes("vektorprogrammet.no")),
               "no address in a log line"
             );
+            // Negative control: the same logger detects an address if a faulty log includes it.
+            yield* Effect.logInfo("probe@vektorprogrammet.no").pipe(
+              Effect.provide(logs)
+            );
+            assert.isTrue(
+              Arr.some(lines, (line) => line.includes("vektorprogrammet.no"))
+            );
+          })
+      );
+
+      layerTest.effect(
+        "RULE-039/049: active memberships in two teams produce one entry per person in the department list",
+        () =>
+          Effect.gen(function* departmentMembers() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
+            yield* reset;
+            yield* seedWorld({ members: 1, teams: 2 });
+            const sql = yield* SqlClient;
+
+            const people = yield* sql<{
+              readonly id: number;
+            }>`select id from person order by id`;
+
+            const teams = yield* sql<{
+              readonly id: number;
+            }>`select id from team order by id`;
+
+            yield* sql`insert into membership (person_id, team_id, position_id, leader, start_term, start_year, end_term, end_year) values (${people[0]?.id}, ${teams[1]?.id}, 2, false, 'HOST'::semester_term, 2026, 'HOST'::semester_term, 2026)`;
+
+            const directory = yield* Ref.make<DirectoryState>({
+              accounts: [],
+              groups: {},
+            });
+
+            yield* runIn("dry-run", directory, refusingWriter);
+            const report = yield* latest;
+            assert.strictEqual(report.departmentLists.length, 1);
+            assert.deepStrictEqual(
+              Arr.map(
+                report.departmentLists[0]?.members ?? [],
+                (member) => member.personId
+              ),
+              Arr.map(people, (person) => person.id)
+            );
+            assert.strictEqual(report.counts.departmentMembers, 2);
+            assert.strictEqual(report.groups[1]?.desired.length, 2);
+          })
+      );
+
+      layerTest.effect(
+        "an invalid stored company address is visible and refuses all writes rather than removing a member",
+        () =>
+          Effect.gen(function* invalidStoredAddress() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
+            yield* reset;
+            yield* seedWorld({ members: 1, teams: 1 });
+            const sql = yield* SqlClient;
+            yield* sql`update person set company_email = 'invalid@example.org'`;
+            const directory = yield* Ref.make(worldOfStrays(1));
+            yield* runIn("write", directory, refusingWriter);
+            const report = yield* latest;
+            assert.strictEqual(report.status, "refused");
+            assert.deepStrictEqual(
+              Arr.map(report.issues, (issue) => issue._tag),
+              ["InvalidCompanyAddress", "IncompleteGroupMembers"]
+            );
+            assert.deepStrictEqual(report.accounts, []);
+            assert.strictEqual(report.groups[0]?.actual, null);
+            assert.deepStrictEqual(report.groups[0]?.removals, []);
+            assert.strictEqual(yield* rowsIn("outbox"), 0);
+
+            const [person] = yield* sql<{
+              readonly company_email: string;
+            }>`select company_email from person`;
+
+            assert.strictEqual(person?.company_email, "invalid@example.org");
           })
       );
 
@@ -297,6 +454,70 @@ layer(live, { excludeTestServices: true })(
               ],
               "the expected members of every team are there to compare, with no difference claimed"
             );
+          })
+      );
+
+      layerTest.effect(
+        "an administrator's requested dry-run never queues writes even when write mode is enabled",
+        () =>
+          Effect.gen(function* requestedDryRun() {
+            const early = DateTime.makeUnsafe("2026-10-27T00:00:00Z");
+            yield* TestClock.setTime(DateTime.toEpochMillis(early));
+            yield* reset;
+            yield* seedWorld({ members: 1, teams: 1 });
+
+            const transactor = yield* Transactor;
+
+            const request = yield* transactor.run(
+              requestWorkspaceReport.pipe(
+                Effect.provideService(CurrentPrincipal, ADMIN)
+              )
+            );
+
+            const directory = yield* Ref.make(worldOfStrays(1));
+            const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
+
+            const requestedTick = dispatchTick<"workspaceSync", RunnerServices>(
+              [JobRegistry.workspaceSync],
+              { workspaceSync: workspaceSyncRunner },
+              { at: early, only: ["workspaceSync"] }
+            );
+
+            yield* requestedTick.pipe(
+              Effect.provide(
+                Layer.mergeAll(
+                  directoryOver(directory),
+                  writerOver(directory, asked),
+                  Layer.succeed(WorkspaceModeSetting)("write")
+                )
+              )
+            );
+
+            const report = yield* latest;
+            assert.strictEqual(report.period, request.period);
+            assert.strictEqual(report.mode, "dry-run");
+            assert.strictEqual(report.counts.removals, 1);
+            assert.strictEqual(yield* rowsIn("outbox"), 0);
+            assert.deepStrictEqual(yield* Ref.get(asked), []);
+          })
+      );
+
+      layerTest.effect(
+        "switching writes on between chunks cannot turn an already opened dry-run into a write",
+        () =>
+          Effect.gen(function* modeChangedDuringRun() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
+            yield* reset;
+            yield* seedWorld({ members: 1, teams: 41 });
+            const directory = yield* emptyDirectory;
+            yield* runIn("dry-run", directory, refusingWriter);
+            assert.strictEqual((yield* latest).status, "running");
+            yield* runIn("write", directory, refusingWriter);
+            const report = yield* latest;
+            assert.strictEqual(report.status, "complete");
+            assert.strictEqual(report.mode, "dry-run");
+            assert.strictEqual(report.counts.groups, 41);
+            assert.strictEqual(yield* rowsIn("outbox"), 0);
           })
       );
 
@@ -409,7 +630,7 @@ layer(live, { excludeTestServices: true })(
       );
 
       layerTest.effect(
-        "a run that is killed before its last chunk leaves a running report, and the same period finishes it once",
+        "a 25-team run finishes within the declared chunk budget",
         () =>
           Effect.gen(function* resumed() {
             yield* TestClock.setTime(DateTime.toEpochMillis(NIGHT));
@@ -418,18 +639,8 @@ layer(live, { excludeTestServices: true })(
             // 25 teams: the accounts chunk, then three chunks of 10, 10 and 5 teams (the job's chunk size is 10).
             yield* seedWorld({ members: 1, teams: 25 });
 
-            const directory = yield* Ref.make<DirectoryState>({
-              accounts: [],
-              groups: {},
-            });
-
-            const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
-
-            const reports = yield* runIn(
-              "dry-run",
-              directory,
-              writerOver(directory, asked)
-            );
+            const directory = yield* emptyDirectory;
+            const reports = yield* runIn("dry-run", directory, refusingWriter);
 
             assert.deepStrictEqual(
               Arr.map(reports[0]?.periods ?? [], (period) => period.result),
@@ -448,6 +659,8 @@ layer(live, { excludeTestServices: true })(
                 accountsToCreate: 25,
                 accountsWanted: 25,
                 additions: 25,
+                departmentLists: 1,
+                departmentMembers: 25,
                 groups: 25,
                 issues: 0,
                 removals: 0,

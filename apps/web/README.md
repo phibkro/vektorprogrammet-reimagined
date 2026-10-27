@@ -1,6 +1,6 @@
 # @vektorprogrammet/web
 
-The public site and control panel run on one TanStack Start Cloudflare Worker. Its server functions call the domain commands. The Worker also runs the semester job, the ending-soon digest and the outbox sweep. The CMS runs in `apps/cms`.
+The public site and control panel run on one TanStack Start Cloudflare Worker. Its server functions call the domain commands. The Worker dispatches the job registry, including the semester job, ending-soon digest, Workspace projection and outbox sweep. The CMS runs in `apps/cms`.
 
 ## Runtime model
 
@@ -13,8 +13,7 @@ request ─► src/server.ts  fetch
                   ├─ server functions (src/functions/*.functions.ts)
                   ├─ server routes: /filer/$key (GET), /kontakt + /kontakt/$department (POST, no-JS form), /kontakt/avdeling/$id (GET → 301)
                   └─ SSR routes (loaders call server functions)
-cron ────► src/server.ts  scheduled → runSemesterJob(env)
-                                     → runEndingSoon(env) → runDelivery(env)
+cron ────► src/server.ts  scheduled → runTick(env) → declared jobs in order
 ```
 
 Each server function or server route:
@@ -51,6 +50,9 @@ Each server function or server route:
 
 - **Message senders** (`server/senders.ts`): only `production` can build the Cloudflare Email Service (`send_email`) and Slack-webhook senders. `productionSenderLayer` fails to build for any other deployment, or when a production binding is missing. `local` and `preview` get a capture sink that records each message and logs only its kind. `test/sandbox.test.ts` proves both.
 - **Principal:** A valid Better Auth session resolves to a person only while the domain account is Active. In `local` only, the `vp-test-actor` cookie can select a seeded person when no session cookie exists. Preview and production never accept that cookie.
+- **Workspace** (spec 0008): `WORKSPACE_MODE` is `dry-run` unless it is exactly `write`. An administrator may request a dry-run at `/kontrollpanel/integrasjoner`; it is processed on a later tick and remains a dry-run even when write mode is on. Team create/edit forms set each group's address. The production directory and writer refuse until the Google adapter and operator-held credentials exist; no Google call is made in this branch. Non-production uses an empty directory and captures write requests without contacting Google. The schedule and any production write remain operator gates.
+- **First-membership mail** (RULE-248): the first successful membership commits a Person-owned welcome claim and two messages to the outbox. Until the real Workspace adapter provisions an account, both messages go to the registered private address; see spec 0008 R2 for the operator-gated recipient change.
+- **Legacy company addresses:** an existing address outside the company domain is retained and shown as an issue. A group with an unresolved member is not compared, and a write-mode run refuses before queueing changes.
 
 ### Routes
 
@@ -65,6 +67,7 @@ Each server function or server route:
 | `/kontrollpanel` + `avdelinger`, `semestre`, `linjer` | C1, C2 | RULE-033/237, 084, 139 (spec 0001); `semestre` is a list only, no create form (spec 0003, RULE-144 and 190 retired) |
 | `/kontrollpanel/arrangementer` | C8 | RULE-085, 188 |
 | `/kontrollpanel/team`, `/kontrollpanel/team/{id}`, `/kontrollpanel/personer`, `/kontrollpanel/administratorer` | spec 0006 | Teams, people, membership terms and admin grants |
+| `/kontrollpanel/integrasjoner` | spec 0008 | Administrators request a dry-run and inspect the latest account and group report |
 | `/logg-inn`, `/aktiver`, `/glemt-passord`, `/tilbakestill-passord`, `/min-side` | spec 0007 | Sign-in, single-use codes, profile, sessions and password |
 
 `/filer/{key}` uses the domain's `servingHeaders` verbatim. Only JPEG, PNG, WebP, GIF and PDF are served inline; everything else is an attachment. Every response carries `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` and `Cache-Control: public, max-age=31536000, immutable`. Error responses also carry `nosniff` and the sandbox CSP.
@@ -120,7 +123,7 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 
 | Stage | What it is | Database | Deployed by |
 | --- | --- | --- | --- |
-| `main` | the base Worker, built from `main`; parent of every Preview; runs the cron (outbox sweep and semester job) | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
+| `main` | the base Worker, built from `main`; parent of every Preview; runs the registered jobs | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
 | `pr-<n>` | a [Cloudflare Worker Preview](https://developers.cloudflare.com/workers/previews/) of `main`: own URL, bindings, Hyperdrive config and R2 bucket; no crons | Neon `preview/pr-<n>`, forked from `dev` and migrated before the deploy; expires 14 days after the last push | the same workflow on every push to a pull request; destroyed when it closes |
 | `production` | the production deployment (not deployed yet) | Neon `production` | operator only |
 
@@ -160,7 +163,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 - **`vp dev` = the `local` deployment.** Hyperdrive's `localConnectionString` is `DATABASE_URL` (Miniflare needs a user and password in the URL; devenv's trust auth ignores the placeholder password). R2 and the rate limiter are simulated. There is no `send_email`, so outbox messages go to the capture sink and the Worker log. Set `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` to Cloudflare's published test keys to try the contact form. Without them, every contact post is rejected (RULE-167 fails closed).
 - **A standalone `vp build` is labelled `preview`** (no test actor, no secrets in `dist/server/wrangler.json`). Real deployments go through Alchemy, which injects its own Cloudflare plugin (`ALCHEMY_CLOUDFLARE_VITE_INJECTED=1`); this config's plugin then stands down.
 - Under `vp test`, most tests run in Node. The password and auth-startup Worker tests bundle their real modules and run in workerd through Miniflare.
-- **Scheduled jobs in `vp dev`.** Run `curl http://localhost:3000/cdn-cgi/handler/scheduled` once. This runs the semester job, the leader digest and the outbox sweep. The browser harness runs the scheduled handler for you.
+- **Scheduled jobs in `vp dev`.** Run `curl http://localhost:3000/cdn-cgi/handler/scheduled` once. This dispatches every registered job's due check, including queued Workspace reports. The browser harness runs the scheduled handler for you.
 - **The CMS in `vp dev`.** The content pages read the CMS named by `CMS_URL` with `CMS_TOKEN`. Start `apps/cms` first (`apps/cms/README.md`: `bun run dev` listens on 4321), take a token from `POST http://localhost:4321/_emdash/api/setup/dev-bypass?token=1`, and run `CMS_URL=http://localhost:4321 CMS_TOKEN=… bunx vp dev`. Without a reachable CMS the content pages answer 503 and the rest of the app works. `global_fetch_strictly_public` does not stop `vp dev` from fetching a `localhost` CMS (the browser tests rely on it).
 
 ## Tests
@@ -173,6 +176,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `test/redirects.test.ts` | legacy aliases → 301, legacy file paths → `/filer/{key}`, traversal never looked up |
 | `test/contact.test.ts` | RULE-167: no or invalid token → rejected, no outbox rows, no commit; RULE-156; RULE-249; rate limit |
 | `test/outboxDelivery.test.ts` | delivery, retry, and authorization of the sweep as its System principal |
+| `test/jobs.postgres.test.ts`, `test/workspace.postgres.test.ts`, `test/deliveryBoundary.postgres.test.ts` | spec 0008: durable job claims, recovery, dry-runs and post-commit delivery, with controls |
 | `test/organisationPanel.test.ts` | spec 0001: the departments, semesters and fields-of-study programs a server function runs: create, edit, refusals (repeated city, another department's field of study), what the views return; spec 0003: the semester views are reads (a missing row stays missing and is shown as such) |
 | `test/readsNeverWrite.postgres.test.ts` | specs 0003 and 0006: all registered reads run with a SELECT-only database role, including a negative control |
 | `test/auth.postgres.test.ts`, `test/codeDelivery.postgres.test.ts` | Real Better Auth and PostgreSQL, state and refresh negative controls, cancellation, sessions and the plaintext scan |
@@ -188,6 +192,7 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `e2e/shell.spec.ts` | spec 0004 in a real browser (below): falsifiers 1 to 5, per actor |
 | `e2e/teams.spec.ts` | spec 0006 falsifier 10: create a team and people, switch principals, and change membership terms against PostgreSQL |
 | `e2e/accounts.spec.ts` | Spec 0007 local browser journey over the real Worker, database and capture mailbox |
+| `e2e/integrations.spec.ts` | spec 0008: team group configuration, dry-run request, scheduled tick and guarded report |
 | `e2e/public.spec.ts` | spec 0005 in a real browser against the real CMS (below): every page, an edit published without a deploy, the contact form's transaction, the 301 redirects |
 
 Real-database behaviour (transactions, constraints, `FOR UPDATE SKIP LOCKED`) is tested in `packages/db`.
@@ -240,4 +245,4 @@ Slice 0000 did not need the architecture §4 fallback. Its verdict holds on one 
 | WEB-002 | `Effect.promise` around R2, `send_email` (`tryPromise`), Rate Limiting and Web Crypto | Boundary adapters for foreign Promise APIs. Effect has no Workers bindings of its own. R2 or rate-limit rejections are defects because the domain's `FileStore` contract has no error channel. | Alchemy's Effect-native binding clients become usable from a TanStack Start Worker entry |
 | WEB-003 | Server-function `.validator(formData)` throws `Error` on non-`FormData` input | TanStack's validator contract is throw-based; the domain decodes the fields. | TanStack Start accepts an Effect Schema (Standard Schema) for `FormData` input |
 
-No lint or type suppressions are used.
+Scoped lint exceptions are listed in `tools/quality/effect-exceptions.json`.

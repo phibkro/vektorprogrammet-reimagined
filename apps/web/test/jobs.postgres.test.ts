@@ -20,6 +20,7 @@ import {
   Effect,
   Fiber,
   Layer,
+  Logger,
   Option,
   Ref,
   Schema,
@@ -150,46 +151,70 @@ layer(live, { excludeTestServices: true })(
 
     it.layer(TestClock.layer())((layerTest) => {
       layerTest.effect(
-        "falsifier 7: twenty concurrent ticks of one job and period run it once and write one set of effects",
+        "falsifier 7: twenty concurrent ticks in each of 100 fresh rounds produce one job run and one effect",
         () =>
           Effect.gen(function* concurrentTicks() {
             yield* TestClock.setTime(DateTime.toEpochMillis(T0));
-
-            const prepared = yield* Ref.make<readonly string[]>([]);
+            const sql = yield* SqlClient;
             const job = declared("semesters", { chunksPerTick: 1 });
 
-            const tick = dispatchTick(
-              [job],
-              { semesters: probeRunner({ prepared, total: 1 }) },
-              { at: T0 }
-            );
+            for (const round of Arr.range(1, 100)) {
+              yield* sql`delete from job_effects`;
+              yield* sql`delete from job_run where job = 'semesters'`;
+              const prepared = yield* Ref.make<readonly string[]>([]);
 
-            const reports = yield* Effect.all(
-              Arr.makeBy(20, () => tick),
-              { concurrency: "unbounded" }
-            );
+              const tick = dispatchTick(
+                [job],
+                { semesters: probeRunner({ prepared, total: 1 }) },
+                { at: T0 }
+              ).pipe(Effect.provide(Logger.layer([])));
 
-            const outcomes = Arr.flatMap(reports, (jobs) =>
-              Arr.flatMap(jobs, (report) =>
-                Arr.map(report.periods, (period) => period.result)
-              )
-            );
+              const reports = yield* Effect.all(
+                Arr.makeBy(20, () => tick),
+                { concurrency: "unbounded" }
+              );
 
-            assert.strictEqual(
-              Arr.filter(outcomes, (result) => result === "done").length,
-              1,
-              `one tick ran it: ${Arr.join(outcomes, ", ")}`
-            );
-            assert.strictEqual((yield* Ref.get(prepared)).length, 1);
-            assert.deepStrictEqual(yield* probeRows, [
-              "2026-10-27T12:00:00.000Z#1",
-            ]);
-            assert.strictEqual(
-              Arr.filter(yield* jobRuns, (row) => row.job === "semesters")
-                .length,
-              1
-            );
-          })
+              const outcomes = Arr.flatMap(reports, (jobs) =>
+                Arr.flatMap(jobs, (report) =>
+                  Arr.map(report.periods, (period) => period.result)
+                )
+              );
+
+              const failures = Arr.flatMap(reports, (jobs) =>
+                Arr.flatMap(jobs, (report) =>
+                  report.failure === null ? [] : [report.failure]
+                )
+              );
+
+              assert.deepStrictEqual(
+                failures,
+                [],
+                `round ${round}: every failure's Cause`
+              );
+              assert.strictEqual(
+                Arr.filter(outcomes, (result) => result === "done").length,
+                1,
+                `round ${round}: ${Arr.join(outcomes, ", ")}`
+              );
+              assert.strictEqual(
+                (yield* Ref.get(prepared)).length,
+                1,
+                `round ${round}`
+              );
+              assert.deepStrictEqual(
+                yield* probeRows,
+                ["2026-10-27T12:00:00.000Z#1"],
+                `round ${round}`
+              );
+              assert.strictEqual(
+                Arr.filter(yield* jobRuns, (row) => row.job === "semesters")
+                  .length,
+                1,
+                `round ${round}`
+              );
+            }
+          }),
+        { timeout: 120_000 }
       );
 
       layerTest.effect(
@@ -352,6 +377,28 @@ layer(live, { excludeTestServices: true })(
           })
       );
 
+      layerTest.effect(
+        "falsifier 9 negative control: increasing a job's budget makes the two-chunk assertion fail",
+        () =>
+          Effect.gen(function* wrongBudget() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(tickAt(150)));
+            const sql = yield* SqlClient;
+            yield* sql`delete from job_run where job = 'semesters'`;
+            const prepared = yield* Ref.make<readonly string[]>([]);
+            const changed = declared("semesters", { chunksPerTick: 3 });
+            yield* dispatchTick(
+              [changed],
+              { semesters: probeRunner({ prepared, total: 5 }) },
+              { at: tickAt(150) }
+            );
+            const calls = (yield* Ref.get(prepared)).length;
+            assert.strictEqual(calls, 3);
+            assert.throws(() => {
+              assert.isAtMost(calls, 2);
+            });
+            yield* sql`delete from job_run where job = 'semesters' and period = ${Job.tickPeriod(tickAt(150))}`;
+          })
+      );
       layerTest.effect(
         "falsifier 9: one job's failure does not cancel another due job, and the failed attempt is recorded for a later tick",
         () =>

@@ -107,6 +107,7 @@ const teamNamed = Effect.fnUntraced(function* teamNamed(
           defaultTerm: 2,
           departmentId: department.id,
           function: teamFunction,
+          groupEmail: null,
           name,
         })
       );
