@@ -345,7 +345,7 @@ export const machineUnderTest = <
     Arr.map(table.transitions, ({ command }) => command)
   );
 
-  /** Every row of one context in one phase: each state against each transition, and each command. */
+  /** Every row of one context in one phase: each state against each transition, the changes of time too, and each command. */
   const ask = (
     world: WorldFile,
     instance: number,
@@ -371,8 +371,9 @@ export const machineUnderTest = <
       )
     );
 
-    const byTransition = Arr.flatMap(states, (state) =>
-      Arr.map(table.transitions, (transition, index) => {
+    // effx names a transition by its machine and its place in the list: the commands' first, then the changes of time.
+    const byTransition = Arr.flatMap(states, (state) => [
+      ...Arr.map(table.transitions, (transition, index) => {
         const name = `Transition${machineIndex}_${index}`;
 
         return {
@@ -384,8 +385,19 @@ export const machineUnderTest = <
           state,
           transition: name,
         };
-      })
-    );
+      }),
+      ...Arr.map(table.calculated, (change, index) => {
+        const name = `Transition${machineIndex}_${table.transitions.length + index}`;
+
+        return {
+          command: undefined,
+          effx: enabled.has(`${table.name}|${state}|${context.id}|${name}`),
+          kernel: change.from === state && change.accepts(moment.value),
+          state,
+          transition: name,
+        };
+      }),
+    ]);
 
     const byCommand = Arr.flatMap(states, (state) =>
       Arr.map(commands, (command) => ({

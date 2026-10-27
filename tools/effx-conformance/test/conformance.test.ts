@@ -567,7 +567,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
   );
 
   it.effect(
-    "falsifier 3, negative controls: a grant row, a scope and a guard of the kernel's changed each fail on exactly the rows they change",
+    "falsifier 3, negative controls: a grant row, a scope, a guard and a change of time of the kernel's changed each fail on exactly the rows they change",
     () =>
       Effect.gen(function* controls() {
         const leaderRow = Arr.findFirst(
@@ -670,6 +670,64 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           command: 19_584,
           transition: 19_584,
         });
+
+        // the end that has passed no longer has to have passed: the guard of the change to Ended removed
+        const alwaysEnds = yield* conform("teams", {
+          machines: [
+            machineUnderTest({
+              context: Teams.MembershipMoment,
+              table: {
+                ...Teams.MembershipMachine,
+                calculated: Arr.map(
+                  Teams.MembershipMachine.calculated,
+                  (change) =>
+                    change.to === "Ended"
+                      ? { ...change, accepts: () => true }
+                      : change
+                ),
+              },
+            }),
+          ],
+        });
+
+        assert.isTrue(
+          onlyThese(
+            alwaysEnds,
+            (row) =>
+              row.kind === "transition" &&
+              row.kernel &&
+              !row.effx &&
+              row.state === "Active" &&
+              row.transition === "Transition0_9"
+          )
+        );
+
+        // each row of state Active where the end has not passed
+        assert.deepStrictEqual(kinds(alwaysEnds), { transition: 17_408 });
+
+        // a table without its changes of time disagrees with nothing and compares fewer rows than the file asks for
+        const committed = yield* Committed;
+
+        const ignoring = yield* conform("teams", {
+          machines: [
+            machineUnderTest({
+              context: Teams.MembershipMoment,
+              table: { ...Teams.MembershipMachine, calculated: [] },
+            }),
+          ],
+        });
+
+        assert.deepStrictEqual(ignoring.disagreements, []);
+
+        // each of the machine's transitions is asked the same number of rows, so the two that time makes are missing
+        const perTransition =
+          ignoring.transitions / Teams.MembershipMachine.transitions.length;
+
+        assert.strictEqual(
+          committed.provenance.domains.teams?.rows.transitions,
+          ignoring.transitions +
+            Teams.MembershipMachine.calculated.length * perTransition
+        );
       }),
     { timeout: 900_000 }
   );

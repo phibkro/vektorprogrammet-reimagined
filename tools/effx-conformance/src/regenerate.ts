@@ -249,7 +249,8 @@ const make = Effect.fn("make")(function* make(effx: string, pin: PinFile) {
               vectors,
               Arr.map(
                 description.machines,
-                ({ name, states, transitions }) => ({
+                ({ calculated, name, states, transitions }) => ({
+                  calculated: calculated.length,
                   commands: Arr.dedupe(
                     Arr.map(transitions, ({ command }) => command)
                   ).length,

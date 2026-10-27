@@ -47,10 +47,28 @@ export interface Transition<
   readonly accepts?: (context: Context) => boolean;
 }
 
-/** A change of state that no command makes: time passes (a membership's start semester arrives, its end has passed). */
-export interface Calculated<State extends string> {
+/**
+ * A change of state that no command makes: time passes (a membership's start semester arrives, its end has passed). It
+ * happens in the first semester whose clock satisfies `guard`, a check over the machine's context like a transition's.
+ * The condition is required and typed: the formal model (effx spec 0032 R1) can only treat a sentence as a change that
+ * may happen at any tick, so `when` is the label of the change in the diagram and nothing more.
+ */
+export interface Calculated<State extends string, Context> {
   readonly from: State | Boundary;
   readonly to: State | Boundary;
+  /** Shown on the diagram beside the change; the description of the guard when left out. */
+  readonly when?: string;
+  readonly guard: SchemaAST.Check<Context>;
+}
+
+/** A calculated change as the table keeps it: its guard compiled once, as a transition's is. */
+export interface Calculation<State extends string, Context> extends Calculated<
+  State,
+  Context
+> {
+  /** Whether the change happens, for the context as the clock stands in the semester that is asked about. */
+  readonly accepts: (context: Context) => boolean;
+  readonly guardRepresentation: Schema.Json;
   readonly when: string;
 }
 
@@ -79,7 +97,7 @@ export interface Table<
   /** The semesters that its guards read, each with its kind. Empty for a machine whose guards read no semester. */
   readonly fields: readonly Field[];
   readonly transitions: readonly Transition<State, Command, Context>[];
-  readonly calculated: readonly Calculated<State>[];
+  readonly calculated: readonly Calculation<State, Context>[];
 }
 
 /**
@@ -102,7 +120,10 @@ export interface Description {
   readonly calculated: readonly {
     readonly from: string;
     readonly to: string;
+    /** The label of the change, as the diagram shows it. */
     readonly when: string;
+    /** JSON representation of the guard, as for a transition's. */
+    readonly guardRepresentation: Schema.Json;
   }[];
 }
 
@@ -117,6 +138,21 @@ const isTagOf =
   <States extends StateUnion>(states: States) =>
   (key: string): key is TagOf<States> =>
     Rec.has(states.cases, key);
+
+/** A guard against the machine's context, compiled once: whether a context passes, and the check as JSON. */
+const compiled = <Context>(
+  context: Schema.Schema<Context>,
+  guard: SchemaAST.Check<Context>
+) => {
+  const schema = context.check(guard);
+
+  return {
+    accepts: Schema.is(schema),
+    guardRepresentation: SchemaRepresentation.toJson(
+      SchemaRepresentation.toRepresentation(schema.ast)
+    ),
+  };
+};
 
 /**
  * Declares a machine. `commands` is the domain's `RpcGroup`: the only source of command names a transition
@@ -143,9 +179,13 @@ export const make = <
     Rpcs["_tag"],
     Context
   >[];
-  readonly calculated?: readonly Calculated<TagOf<States>>[];
+  readonly calculated?: readonly Calculated<TagOf<States>, Context>[];
 }): Table<TagOf<States>, Rpcs["_tag"], Context> => ({
-  calculated: definition.calculated ?? [],
+  calculated: Arr.map(definition.calculated ?? [], (change) => ({
+    ...change,
+    ...compiled(definition.context, change.guard),
+    when: change.when ?? Guard.describe(change.guard),
+  })),
   fields: definition.fields ?? [],
   name: definition.name,
   states: Arr.filter(
@@ -153,25 +193,15 @@ export const make = <
     isTagOf(definition.states)
   ),
   terminal: definition.terminal,
-  transitions: Arr.map(definition.transitions, (transition) => {
-    if (transition.guard === undefined) {
-      return transition;
-    }
-
-    const schema = definition.context.check(transition.guard);
-
-    const compiled = {
-      ...transition,
-      accepts: Schema.is(schema),
-      guardRepresentation: SchemaRepresentation.toJson(
-        SchemaRepresentation.toRepresentation(schema.ast)
-      ),
-    };
-
-    const when = transition.when ?? Guard.describe(transition.guard);
-
-    return { ...compiled, when };
-  }),
+  transitions: Arr.map(definition.transitions, (transition) =>
+    transition.guard === undefined
+      ? transition
+      : {
+          ...transition,
+          ...compiled(definition.context, transition.guard),
+          when: transition.when ?? Guard.describe(transition.guard),
+        }
+  ),
 });
 
 /**

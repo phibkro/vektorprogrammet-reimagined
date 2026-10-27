@@ -108,8 +108,9 @@ export const Vectors = Schema.Struct({
 
 export type VectorsFile = typeof Vectors.Type;
 
-/** How many states, transitions and distinct commands a machine of a description has. */
+/** How many states, transitions, calculated transitions and distinct commands a machine of a description has. */
 export interface MachineCounts {
+  readonly calculated: number;
   readonly commands: number;
   readonly name: string;
   readonly states: number;
@@ -147,9 +148,9 @@ const rowsOf = (
 /**
  * The rows that a vectors file asks the kernel about, counted from its structure alone: every principal, permission
  * and target of an instance (`authorization`), and for every context, state (and the boundary) and available phase of
- * each machine, every transition (`transitions`) and every command (`commands`, the `Machine.can` rows). The
- * conformance run counts what it compares and the two must be the same number, so a truncated file, or a run that
- * skips a loop, cannot pass.
+ * each machine, every transition, those of commands and the changes of time alike (`transitions`), and every command
+ * (`commands`, the `Machine.can` rows). The conformance run counts what it compares and the two must be the same
+ * number, so a truncated file, or a run that skips a loop, cannot pass.
  */
 export const countRows = (
   vectors: VectorsFile,
@@ -165,5 +166,9 @@ export const countRows = (
         instance.targets.length
   ),
   commands: rowsOf(vectors, machines, ({ commands }) => commands),
-  transitions: rowsOf(vectors, machines, ({ transitions }) => transitions),
+  transitions: rowsOf(
+    vectors,
+    machines,
+    ({ calculated, transitions }) => transitions + calculated
+  ),
 });

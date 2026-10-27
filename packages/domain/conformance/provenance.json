@@ -90,23 +90,21 @@
           "result": "PASS"
         }
       ],
-      "descriptionSha256": "ca368dbd3a051516f6877e5bc2c6c1ad7dea23747ff9392430ae97328c2193ef",
+      "descriptionSha256": "b0d19edfaa03f2427e3e912b584347fe1bdcfcf6a63f2c36c7d949a951976003",
       "instances": 26742,
       "nondeterministic": [
-        "admin expiry cannot be determined from stored fields and clock",
-        "machine Membership calculated transition 0 cannot be determined from stored fields and clock",
-        "machine Membership calculated transition 1 cannot be determined from stored fields and clock"
+        "admin expiry cannot be determined from stored fields and clock"
       ],
       "orderedAtoms": 2,
       "rows": {
         "authorization": 877800,
         "commands": 522240,
-        "transitions": 835584
+        "transitions": 1044480
       },
       "scope": 1,
       "steps": 4,
       "unknownGuards": [],
-      "vectorsSha256": "cdb82cad9250f4e767a7b7a8cc32cb3de2307164db28e3341738d619b7d22c4b"
+      "vectorsSha256": "2172146483782cb0b495c91148e40c6aea62f9123ea6330752b491baf812f773"
     },
     "accounts": {
       "assertions": [

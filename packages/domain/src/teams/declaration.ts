@@ -277,8 +277,18 @@ const endsBefore = Schema.makeFilterGroup([
 
 export const MembershipMachine = Machine.make({
   calculated: [
-    { from: "Planned", to: "Active", when: "the start semester arrives" },
-    { from: "Active", to: "Ended", when: "the end semester has passed" },
+    {
+      from: "Planned",
+      guard: guard.not(guard.after(["term", "start"], ["current"])),
+      to: "Active",
+      when: "the start semester arrives",
+    },
+    {
+      from: "Active",
+      guard: guard.after(["current"], ["term", "end"]),
+      to: "Ended",
+      when: "the end semester has passed",
+    },
   ],
   commands: TeamsRpc,
   context: MembershipMoment,
