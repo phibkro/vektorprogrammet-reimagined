@@ -122,3 +122,27 @@ A name that was already a verb and its object (`createTeam`, `requestPasswordRes
 - **The names of the web's server functions**, which are the control panel's own vocabulary (`saveTeam`, `cancelMembership`); they call the renamed commands.
 
 ## Revisions
+
+### R1 (2026-10-27): how the contract was built
+
+The contract stands. These are the places where building it showed a fact that the text did not have.
+
+1. **Where the checks are.** `Domain.problems` holds the checks of one declaration (`malformedMethods`, `misnamed`, `queriesThatChange` and `contradictedByTransitions`, beside the existing ones), and `Domain.allProblems` adds what only the list of domains shows (`sharedNames`: a tag, or a resource and a method, twice). `tools/docgen` and the test of `Declarations` call `allProblems`. The tests are `packages/domain/test/kernel/resourceMethod.test.ts` (falsifiers 1 to 3; the type tests use `expectTypeOf` and need no suppression) and `tools/docgen/test/render.test.ts` (falsifier 5).
+2. **The kernel's sample is about `Article`.** The sample domain of `test/kernel/sample.ts` is a note that is created, published and swept. It stands in as the `Article` resource (`createArticle`, `publishArticle`, `sweepArticle`), so that the sample is complete under the new checks and the negative controls change one line of it.
+3. **A renamed command left behind as a string compiled.** `Machine.can`, `available`, `startsFrom` and `next` took any string beside the table's tags, so ten stale command names in tests compiled and failed only when the tests ran; and `codePolicy`, which sits below the declarations and cannot name their tags, held `"activate"` until `credentialGrants` reported it. The machine queries now infer `command` from the table alone (`Question`, `NoInfer`), so a name that the group lacks does not compile (`machine.types.test.ts`, one registered `@ts-expect-error`, EX-0026). `codePolicy` stays a string, and `credentialGrants` is its check.
+4. **The membership-writes model.** The covered files changed (the renames, and the handlers of `teams/commands.ts` and `accounts/commands.ts` in the alphabetical order that the key-sorting lint rule asks for), so `.agents/skills/verify-membership-writes` was read against them: the same statements in the same order. Its command kinds, its line references and the labels of its PostgreSQL tests follow the new names; the model was run (every property holds, every broken variant is caught, 51 PostgreSQL tests of `--code` pass) and its digest is recorded. Its property names (`NeverChangeCommits`) are the model's own words and stay.
+5. **Each negative control fails when its check is removed.** One line of the check was taken out, the controls ran, the line was put back:
+
+   | Mutation | What fails |
+   | --- | --- |
+   | `malformedMethods` out of `problems` | "a custom verb that is not lowerCamelCase is reported" |
+   | `misnamed` out of `problems` | the three naming controls (standard, custom, list) |
+   | `queriesThatChange` out of `problems` | the query control |
+   | `contradictedByTransitions` out of `problems` | the `create`, `delete` and `update` controls |
+   | `sharedNames` out of `allProblems` | the shared pair and shared tag control |
+   | `unannotated` out of `problems` | "a command without its Info annotation is reported" |
+   | `resource` optional in `info` | two type tests (`vp check`) |
+   | machine queries take `command: Command` again | two unused `@ts-expect-error` (`vp check`) |
+   | `docgen` skips the first resource | "lists every command once, under the resource it declares" |
+
+6. **What still names an old command.** A search of the repository for each old name finds the frozen specs (history), ADR 0010's own examples, `STATE.md`'s mapping, the repository methods `AccountRepository.invite` and `updateProfile` (a repository, not a command), the control panel's own names (`addMember`, `grantAdmin` and the other server functions, the `/api/account/activate` path) and the model's property names.
