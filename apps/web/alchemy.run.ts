@@ -8,7 +8,7 @@
  * - `production`: the production deployment, the only one with real mail, Slack and Turnstile keys.
  * - `main` (`BASE_STAGE`): long-lived Workers built from `main`, on Neon `dev` with fake data.
  * - any other stage (`pr-<n>`): a Cloudflare Worker Preview of each `main` Worker, on its own Neon
- *   branch. A Preview cannot own crons, so the outbox sweep and the semester job (spec 0003) run on
+ *   branch. A Preview cannot own crons, so the outbox sweep, the semester job (spec 0003) and the retention run (spec 0007b) run on
  *   `main` and `production` only; a Preview's semester rows come from its Neon fork of `dev`. A `Web` Preview
  *   reads the `Cms` Preview of the same pull request.
  *
@@ -32,6 +32,7 @@ import {
   COMPATIBILITY_FLAGS,
   CONTACT_RATE_LIMIT,
   OUTBOX_SWEEP_CRON,
+  RETENTION_CRON,
   TURNSTILE_TEST_KEYS,
   WORKER_MAIN,
   cmsMediaBucket,
@@ -216,7 +217,10 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
       env,
       main: WORKER_MAIN,
       observability: OBSERVABILITY,
-      ...(yield* placementOf("Web", stage, [OUTBOX_SWEEP_CRON])),
+      ...(yield* placementOf("Web", stage, [
+        OUTBOX_SWEEP_CRON,
+        RETENTION_CRON,
+      ])),
     });
 
     // One comment per pull request, updated in place on every push (stable logical id).

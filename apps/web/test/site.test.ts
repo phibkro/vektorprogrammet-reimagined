@@ -536,6 +536,24 @@ describe("the contact page (/kontakt)", () => {
   );
 
   it.effect(
+    "spec 0007b falsifier 1: the page carries a notice that lists the form's personal fields, and only those",
+    () =>
+      Effect.gen(function* notice() {
+        const { privacy } = yield* contact(null, false);
+
+        // `departmentId` is the organisation's, not the visitor's: the notice leaves it out.
+        assert.deepStrictEqual(
+          Arr.map(privacy.entries, (entry) => entry.field),
+          ["email", "message", "name", "subject"]
+        );
+        assert.strictEqual(privacy.form, "contact");
+        // The periods and the text await the operator: the page says it is a draft until they are decided.
+        assert.strictEqual(privacy.approval, "proposed");
+        assert.match(privacy.controller.no, /Vektorprogrammet/u);
+      })
+  );
+
+  it.effect(
     "selects the first department when the URL names none; an unknown department is NotFound",
     () =>
       Effect.gen(function* selection() {

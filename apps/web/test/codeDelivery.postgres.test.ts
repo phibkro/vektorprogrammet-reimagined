@@ -1,10 +1,6 @@
 /** Spec 0007 R1/falsifier 4: scan every database text/json column except the fake mailbox. */
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive, transactional } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
+import { transactional } from "@vektorprogrammet/db";
 import {
   AccountEndpoints,
   CodeToken,
@@ -13,7 +9,6 @@ import {
   OutboxMessageId,
   PersonId,
   Principal,
-  SiteOrigin,
   TeamId,
   authorize,
   codePrincipal,
@@ -23,43 +18,15 @@ import {
   Cause,
   Effect,
   Exit,
-  Layer,
   Option,
   Predicate,
-  Redacted,
   Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { accountDeliveryLayer } from "../src/server/accountDelivery";
-import { authLayer } from "../src/server/auth";
 import { deliverOutbox } from "../src/server/outboxDelivery";
-import { passwordHasherLayer } from "../src/server/password";
-import { captureSenderLayer } from "../src/server/senders";
-import { webCryptoLayer } from "../src/server/webCrypto";
-
-const origin = "https://mail.example";
-
-const live = Layer.unwrap(
-  Effect.map(Effect.service(TestDatabaseUrl), (url) => {
-    const infrastructure = Layer.mergeAll(
-      DatabaseLive({ maxConnections: 8, url }),
-      authLayer({
-        BETTER_AUTH_SECRET: "local-fake-signing-secret-only-123456789",
-        HYPERDRIVE: { connectionString: Redacted.value(url) },
-        SITE_URL: origin,
-      }),
-      passwordHasherLayer,
-      webCryptoLayer,
-      Layer.succeed(SiteOrigin)(origin)
-    );
-
-    const capture = captureSenderLayer.pipe(Layer.provideMerge(infrastructure));
-
-    return accountDeliveryLayer.pipe(Layer.provideMerge(capture));
-  })
-).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+import { live } from "./support/deliveryLive";
 
 const columns = Schema.Array(
   Schema.Struct({

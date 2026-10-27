@@ -26,7 +26,9 @@ import {
   CurrentPrincipal,
   Outbox,
   SiteOrigin,
+  alumniConsentJob,
   endingSoonJob,
+  retentionJob,
   semesterJob,
   semesterLabel,
   systemPrincipal,
@@ -36,18 +38,22 @@ import type {
   AdminGrantRepository,
   AggregateLocks,
   AdmissionPeriodRepository,
+  AlumniRequests,
   AuditLog,
   CodeRepository,
+  ConsentRepository,
   DepartmentRepository,
   DigestLedger,
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  LegalHolds,
   MembershipRepository,
   OutboxMessageId,
   PasswordHasher,
   PersonId,
   PersonRepository,
+  PersonalDataStore,
   PositionRepository,
   PrincipalDirectory,
   PublicFileRepository,
@@ -113,6 +119,10 @@ export type DatabaseServices =
   | MembershipRepository
   | AdminGrantRepository
   | DigestLedger
+  | ConsentRepository
+  | AlumniRequests
+  | LegalHolds
+  | PersonalDataStore
   | PrincipalDirectory
   | Outbox
   | AuditLog
@@ -416,6 +426,41 @@ export const runEndingSoon = (env: WorkerEnv): Promise<void> =>
       Effect.tap(({ sent }) =>
         Effect.logInfo("ending-soon digest finished").pipe(
           Effect.annotateLogs({ sent })
+        )
+      )
+    )
+  );
+
+/**
+ * The alumni consent job (spec 0007b, falsifier 5): from the cron tick, as `System("alumniConsent")`, in one
+ * transaction. It finds the people who have left, writes one request each and enqueues one `IssueCode` message each;
+ * the sweep that follows mints the code and sends the mail.
+ */
+export const runAlumniConsent = (env: WorkerEnv): Promise<void> =>
+  runScheduled(
+    jobLayer(env),
+    Transactor.use((transactor) => transactor.run(alumniConsentJob)).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("alumniConsent")),
+      Effect.tap(({ sent }) =>
+        Effect.logInfo("alumni consent job finished").pipe(
+          Effect.annotateLogs({ sent })
+        )
+      )
+    )
+  );
+
+/**
+ * The nightly retention run (spec 0007b, falsifier 2): from the cron tick of `RETENTION_CRON`, as
+ * `System("retention")`, in one transaction. It logs the counts that its audit row holds, and never a value.
+ */
+export const runRetention = (env: WorkerEnv): Promise<void> =>
+  runScheduled(
+    jobLayer(env),
+    Transactor.use((transactor) => transactor.run(retentionJob)).pipe(
+      Effect.provideService(CurrentPrincipal, systemPrincipal("retention")),
+      Effect.tap(({ counts }) =>
+        Effect.logInfo("retention run finished").pipe(
+          Effect.annotateLogs(counts)
         )
       )
     )

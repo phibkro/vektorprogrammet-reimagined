@@ -26,7 +26,7 @@ export const SECTION_COMMANDS: Readonly<
   departments: ["createDepartment", "updateDepartment"],
   fieldsOfStudy: ["createFieldOfStudy", "updateFieldOfStudy"],
   overview: ["openControlPanel"],
-  people: ["viewPeople", "createPerson"],
+  people: ["viewPeople", "createPerson", "mergePersons"],
   semesters: ["openControlPanel"],
   socialEvents: ["createSocialEvent"],
   teams: ["viewTeams", "createTeam"],

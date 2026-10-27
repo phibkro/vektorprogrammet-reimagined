@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AktiverRouteImport } from './routes/aktiver'
+import { Route as AlumniRouteImport } from './routes/alumni'
 import { Route as AssistenterRouteImport } from './routes/assistenter'
 import { Route as EtterInnloggingRouteImport } from './routes/etter-innlogging'
 import { Route as ForeldreRouteImport } from './routes/foreldre'
@@ -20,7 +21,9 @@ import { Route as LoggInnRouteImport } from './routes/logg-inn'
 import { Route as MinSideRouteImport } from './routes/min-side'
 import { Route as OmOssRouteImport } from './routes/om-oss'
 import { Route as SkolerRouteImport } from './routes/skoler'
+import { Route as SlettetRouteImport } from './routes/slettet'
 import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-passord'
+import { Route as ApiEksportRouteImport } from './routes/api/eksport'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
@@ -47,6 +50,11 @@ const IndexRoute = IndexRouteImport.update({
 const AktiverRoute = AktiverRouteImport.update({
   id: '/aktiver',
   path: '/aktiver',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlumniRoute = AlumniRouteImport.update({
+  id: '/alumni',
+  path: '/alumni',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssistenterRoute = AssistenterRouteImport.update({
@@ -94,9 +102,19 @@ const SkolerRoute = SkolerRouteImport.update({
   path: '/skoler',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SlettetRoute = SlettetRouteImport.update({
+  id: '/slettet',
+  path: '/slettet',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TilbakestillPassordRoute = TilbakestillPassordRouteImport.update({
   id: '/tilbakestill-passord',
   path: '/tilbakestill-passord',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEksportRoute = ApiEksportRouteImport.update({
+  id: '/api/eksport',
+  path: '/api/eksport',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FilerKeyRoute = FilerKeyRouteImport.update({
@@ -191,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/kontrollpanel': typeof KontrollpanelRouteRouteWithChildren
   '/aktiver': typeof AktiverRoute
+  '/alumni': typeof AlumniRoute
   '/assistenter': typeof AssistenterRoute
   '/etter-innlogging': typeof EtterInnloggingRoute
   '/foreldre': typeof ForeldreRoute
@@ -199,7 +218,9 @@ export interface FileRoutesByFullPath {
   '/min-side': typeof MinSideRoute
   '/om-oss': typeof OmOssRoute
   '/skoler': typeof SkolerRoute
+  '/slettet': typeof SlettetRoute
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
+  '/api/eksport': typeof ApiEksportRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -221,6 +242,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/aktiver': typeof AktiverRoute
+  '/alumni': typeof AlumniRoute
   '/assistenter': typeof AssistenterRoute
   '/etter-innlogging': typeof EtterInnloggingRoute
   '/foreldre': typeof ForeldreRoute
@@ -229,7 +251,9 @@ export interface FileRoutesByTo {
   '/min-side': typeof MinSideRoute
   '/om-oss': typeof OmOssRoute
   '/skoler': typeof SkolerRoute
+  '/slettet': typeof SlettetRoute
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
+  '/api/eksport': typeof ApiEksportRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -253,6 +277,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/kontrollpanel': typeof KontrollpanelRouteRouteWithChildren
   '/aktiver': typeof AktiverRoute
+  '/alumni': typeof AlumniRoute
   '/assistenter': typeof AssistenterRoute
   '/etter-innlogging': typeof EtterInnloggingRoute
   '/foreldre': typeof ForeldreRoute
@@ -261,7 +286,9 @@ export interface FileRoutesById {
   '/min-side': typeof MinSideRoute
   '/om-oss': typeof OmOssRoute
   '/skoler': typeof SkolerRoute
+  '/slettet': typeof SlettetRoute
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
+  '/api/eksport': typeof ApiEksportRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -286,6 +313,7 @@ export interface FileRouteTypes {
     | '/'
     | '/kontrollpanel'
     | '/aktiver'
+    | '/alumni'
     | '/assistenter'
     | '/etter-innlogging'
     | '/foreldre'
@@ -294,7 +322,9 @@ export interface FileRouteTypes {
     | '/min-side'
     | '/om-oss'
     | '/skoler'
+    | '/slettet'
     | '/tilbakestill-passord'
+    | '/api/eksport'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -316,6 +346,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/aktiver'
+    | '/alumni'
     | '/assistenter'
     | '/etter-innlogging'
     | '/foreldre'
@@ -324,7 +355,9 @@ export interface FileRouteTypes {
     | '/min-side'
     | '/om-oss'
     | '/skoler'
+    | '/slettet'
     | '/tilbakestill-passord'
+    | '/api/eksport'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -347,6 +380,7 @@ export interface FileRouteTypes {
     | '/'
     | '/kontrollpanel'
     | '/aktiver'
+    | '/alumni'
     | '/assistenter'
     | '/etter-innlogging'
     | '/foreldre'
@@ -355,7 +389,9 @@ export interface FileRouteTypes {
     | '/min-side'
     | '/om-oss'
     | '/skoler'
+    | '/slettet'
     | '/tilbakestill-passord'
+    | '/api/eksport'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -379,6 +415,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   KontrollpanelRouteRoute: typeof KontrollpanelRouteRouteWithChildren
   AktiverRoute: typeof AktiverRoute
+  AlumniRoute: typeof AlumniRoute
   AssistenterRoute: typeof AssistenterRoute
   EtterInnloggingRoute: typeof EtterInnloggingRoute
   ForeldreRoute: typeof ForeldreRoute
@@ -387,7 +424,9 @@ export interface RootRouteChildren {
   MinSideRoute: typeof MinSideRoute
   OmOssRoute: typeof OmOssRoute
   SkolerRoute: typeof SkolerRoute
+  SlettetRoute: typeof SlettetRoute
   TilbakestillPassordRoute: typeof TilbakestillPassordRoute
+  ApiEksportRoute: typeof ApiEksportRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
   NyhetSlugRoute: typeof NyhetSlugRoute
@@ -412,6 +451,13 @@ declare module '@tanstack/react-router' {
       path: '/aktiver'
       fullPath: '/aktiver'
       preLoaderRoute: typeof AktiverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alumni': {
+      id: '/alumni'
+      path: '/alumni'
+      fullPath: '/alumni'
+      preLoaderRoute: typeof AlumniRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assistenter': {
@@ -477,11 +523,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkolerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/slettet': {
+      id: '/slettet'
+      path: '/slettet'
+      fullPath: '/slettet'
+      preLoaderRoute: typeof SlettetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tilbakestill-passord': {
       id: '/tilbakestill-passord'
       path: '/tilbakestill-passord'
       fullPath: '/tilbakestill-passord'
       preLoaderRoute: typeof TilbakestillPassordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/eksport': {
+      id: '/api/eksport'
+      path: '/api/eksport'
+      fullPath: '/api/eksport'
+      preLoaderRoute: typeof ApiEksportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/filer/$key': {
@@ -637,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   KontrollpanelRouteRoute: KontrollpanelRouteRouteWithChildren,
   AktiverRoute: AktiverRoute,
+  AlumniRoute: AlumniRoute,
   AssistenterRoute: AssistenterRoute,
   EtterInnloggingRoute: EtterInnloggingRoute,
   ForeldreRoute: ForeldreRoute,
@@ -645,7 +706,9 @@ const rootRouteChildren: RootRouteChildren = {
   MinSideRoute: MinSideRoute,
   OmOssRoute: OmOssRoute,
   SkolerRoute: SkolerRoute,
+  SlettetRoute: SlettetRoute,
   TilbakestillPassordRoute: TilbakestillPassordRoute,
+  ApiEksportRoute: ApiEksportRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,
   NyhetSlugRoute: NyhetSlugRoute,
@@ -658,13 +721,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

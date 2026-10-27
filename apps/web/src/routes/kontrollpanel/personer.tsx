@@ -3,6 +3,7 @@ import { Array as Arr } from "effect";
 
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
+import { EraseSheet, MergeSheet } from "@/components/panel/personalDataSheets";
 import { ProfileFields } from "@/components/profileFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +27,8 @@ import { pageData } from "@/lib/outcome";
 const routeApi = getRouteApi("/kontrollpanel/personer");
 
 const PeoplePage = () => {
-  const { canRegister, fieldsOfStudy, people } = routeApi.useLoaderData();
+  const { canMerge, canRegister, fieldsOfStudy, people } =
+    routeApi.useLoaderData();
 
   return (
     <>
@@ -34,21 +36,24 @@ const PeoplePage = () => {
         title="Personer"
         description="Personene i avdelingene dine. Avdelingen følger linjen personen studerer."
         actions={
-          canRegister ? (
-            <CommandSheet
-              trigger={<Button size="sm" />}
-              triggerLabel="Registrer person"
-              title="Registrer person"
-              description="Linjen bestemmer hvilken avdeling personen hører til."
-              action={registerPerson}
-              submitLabel="Registrer"
-            >
-              <ProfileFields
-                emailLabel="E-post"
-                fieldsOfStudy={fieldsOfStudy}
-              />
-            </CommandSheet>
-          ) : undefined
+          <>
+            {canRegister && (
+              <CommandSheet
+                trigger={<Button size="sm" />}
+                triggerLabel="Registrer person"
+                title="Registrer person"
+                description="Linjen bestemmer hvilken avdeling personen hører til."
+                action={registerPerson}
+                submitLabel="Registrer"
+              >
+                <ProfileFields
+                  emailLabel="E-post"
+                  fieldsOfStudy={fieldsOfStudy}
+                />
+              </CommandSheet>
+            )}
+            {canMerge && <MergeSheet people={people} />}
+          </>
         }
       />
       <Card>
@@ -169,6 +174,7 @@ const PeoplePage = () => {
                         />
                       </CommandSheet>
                     )}
+                    {person.canErase && <EraseSheet person={person} />}
                   </TableCell>
                 </TableRow>
               ))}
