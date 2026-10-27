@@ -83,10 +83,10 @@ export const neonOrigin = neonOriginAs("NEON_USER", "NEON_APP_PASSWORD");
 export const NEON_REGION = "aws-eu-central-1";
 
 /**
- * Targeted placement next to the database (spec 0000c). Every statement is a round trip between the Worker and
- * Neon; slice 0000's placement run measured a median of 1014 ms of database time for 17 sequential statements from
- * Cloudflare's default placement and 216 ms from Frankfurt (`docs/specs/0000-placement-results.md`). Neon's
- * `aws-<region>` is Cloudflare's `aws:<region>`.
+ * Targeted placement next to the database (spec 0000c, which links the measurements). Every statement is a round
+ * trip between the Worker and Neon; slice 0000's placement run measured a median of 1014 ms of database time for 17
+ * sequential statements from Cloudflare's default placement and 216 ms from Frankfurt. Neon's `aws-<region>` is
+ * Cloudflare's `aws:<region>`.
  */
 export const WORKER_PLACEMENT = {
   mode: "targeted",

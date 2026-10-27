@@ -12,15 +12,17 @@ The Neon project was created outside Alchemy. Its region was a fact in the docum
 
 1. `NEON_REGION` in `apps/web/worker.config.ts` is the one declaration of the database's region.
 2. `WORKER_PLACEMENT` is derived from it (`{ mode: "targeted", region: "aws:<region>" }`); no other code writes a region.
-3. Both Workers (`Web`, `Cms`) of the long-lived stages (`main`, `production`) carry it. A Preview is a version of its base stage's Worker script: Cloudflare applies the script's placement to its Previews ([Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/), [Placement](https://developers.cloudflare.com/workers/configuration/placement/)), and Alchemy's Preview upload carries no placement of its own (`WorkerProvider.ts` in `alchemy@2.0.0-beta.83`). So a pull request's Preview runs with the placement that `main` has, and this change takes effect on Previews after it merges and `main` is redeployed.
+3. Both Workers (`Web`, `Cms`) of the long-lived stages (`main`, `production`) carry it. **Previews do not.** "Previews do not inherit production settings" ([Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/)): placement is set per Preview deployment, and the page's "top-level placement applies to Previews" is Wrangler copying the top-level value into each Preview it creates. Alchemy `2.0.0-beta.83` creates Previews with `ignoreBaseConfig: true` and sends no `placement` in the Preview deployment (`WorkerProvider.ts`), so Previews run at Cloudflare's default placement, before and after this change. A Preview is therefore slower to Neon than `main` and `production`; its latency is not a measure of theirs.
 4. The Preview workflow reads the live Neon project's `region_id` and fails when it differs from `NEON_REGION`.
 
 ## Falsifiers
 
 1. Declaring another region in `NEON_REGION` fails the Preview workflow's region check (checked locally: the live project reports `aws-eu-central-1`, which matches, and a different declared value does not).
-2. After merge and the redeploy of `main`, a request to the `main` Web Worker (or any later Preview) returns a `cf-placement` header naming a Frankfurt location (`remote-FRA` in slice 0000's run), and the Worker's settings in Cloudflare show targeted placement in `aws:eu-central-1`.
+2. After merge and the redeploy of `main`, a request to the `main` Web Worker returns a `cf-placement` header naming a Frankfurt location (`remote-FRA` in slice 0000's run), and the Worker's settings in Cloudflare show targeted placement in `aws:eu-central-1`.
 3. `vp check` and `ready` pass.
 
 ## Not in this change
 
 Managing the Neon project itself in Alchemy (`Neon.Project` with `region`). Its `delete` deletes the project, so adopting the production database needs a retain policy first; a region cannot change on an existing Neon project, so the region check covers the drift that matters.
+
+Placement for Previews: Alchemy would have to forward the Worker's `placement` into its Preview deployment (the Cloudflare API accepts it there). That is an upstream change to Alchemy.

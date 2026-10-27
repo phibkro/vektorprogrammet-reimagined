@@ -73,8 +73,9 @@ const reachableAt = (worker: {
 
 /**
  * Where a Worker lives: a Preview belongs to its base stage's Worker script, and the script-level settings
- * (crons and placement) stay on that parent. Cloudflare applies a script's placement to its Previews, and
- * Alchemy's Preview upload carries no placement of its own (spec 0000c).
+ * (crons and placement) stay on that parent. A Preview does not inherit the parent's placement: Cloudflare sets
+ * placement per Preview deployment, and Alchemy's Preview upload sends none, so Previews run at the default
+ * placement and are slower to Neon than `main` and `production` (spec 0000c).
  */
 const placementOf = (id: "Web" | "Cms", stage: string, crons: string[]) =>
   Effect.gen(function* placeWorker() {
