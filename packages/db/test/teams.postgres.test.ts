@@ -28,8 +28,10 @@ import {
   Array as Arr,
   Cause,
   DateTime,
+  Deferred,
   Effect,
   Exit,
+  Fiber,
   Layer,
   Option,
   Order,
@@ -56,6 +58,11 @@ const NOW = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
 const LATER = DateTime.makeUnsafe("2099-12-31T23:59:59Z");
 
 const CALLERS = 20;
+
+/** Rounds of the overlap race. Before the person's row lock, about 6 rounds in 1,000 ended in a deadlock. */
+const OVERLAP_ROUNDS = 300;
+
+const STRESS_TIMEOUT_MS = 120_000;
 
 /** The database, and the origin that the teams handlers' layer asks for (the links of the digest). */
 const teamsDatabase = Layer.merge(
@@ -210,6 +217,98 @@ const round = Effect.fnUntraced(function* round(tag: string) {
   };
 });
 
+/** How the two overlapping writes of one person differ: two inserts, or an extension of one term and an insert. */
+type OverlapMode = "insertAndInsert" | "extendAndInsert";
+
+/** A write whose success value does not matter, with its typed error widened to the tag, so that both kinds of write race together. */
+const asWrite = <E extends { readonly _tag: string }, R>(
+  write: Effect.Effect<unknown, E, R>
+) =>
+  Effect.mapError(
+    Effect.asVoid(write),
+    (failure): { readonly _tag: string } => failure
+  );
+
+/**
+ * One round of the overlap race, in a world of its own: two writes of one person that overlap, released together.
+ * The result lists what is wrong with the outcome, so a failing test prints each loser's full cause (SQLSTATE and
+ * the SqlError reason). The contract (spec 0006): exactly one write wins and the other is `AlreadyExists`.
+ */
+const overlapRound = Effect.fnUntraced(function* overlapRound(
+  tag: string,
+  mode: OverlapMode
+) {
+  const { memberPosition, person, team } = yield* world(tag);
+
+  const who = {
+    personId: person.id,
+    positionId: memberPosition,
+    teamId: team.id,
+  };
+
+  const earlier =
+    mode === "insertAndInsert"
+      ? asWrite(
+          transactional(
+            insertMembership(who, { end: VAR_2027, start: HOST_2026 })
+          )
+        )
+      : asWrite(
+          transactional(
+            Effect.flatMap(
+              insertMembership(who, { end: HOST_2026, start: HOST_2026 }),
+              (first) =>
+                MembershipRepository.use((memberships) =>
+                  memberships.setEnd({
+                    activeIn: HOST_2026,
+                    id: first.id,
+                    newEnd: VAR_2027,
+                    observedEnd: HOST_2026,
+                  })
+                )
+            )
+          )
+        );
+
+  const exits = yield* race([
+    earlier,
+    asWrite(
+      transactional(insertMembership(who, { end: VAR_2027, start: VAR_2027 }))
+    ),
+  ]);
+
+  const wins = Arr.filter(exits, Exit.isSuccess).length;
+
+  return [
+    ...(wins === 1 ? [] : [`${tag}: ${wins} writes succeeded, not one`]),
+    ...Arr.flatMap(exits, (exit) =>
+      Exit.isSuccess(exit) ||
+      Option.exists(
+        Exit.findErrorOption(exit),
+        Predicate.isTagged("AlreadyExists")
+      )
+        ? []
+        : [
+            `${tag}: the loser was not AlreadyExists: ${Cause.pretty(exit.cause)}`,
+          ]
+    ),
+  ];
+});
+
+/** `OVERLAP_ROUNDS` rounds, one after the other, each in a world of its own. */
+const overlapRounds = Effect.fnUntraced(function* overlapRounds(
+  prefix: string,
+  mode: OverlapMode
+) {
+  const problems = yield* Effect.forEach(
+    Arr.range(1, OVERLAP_ROUNDS),
+    (number) => overlapRound(`${prefix}${number}`, mode),
+    { concurrency: 1 }
+  );
+
+  return Arr.flatten(problems);
+});
+
 layer(teamsDatabase, { excludeTestServices: true })(
   "falsifier 3: concurrent extend and endEarly on PostgreSQL",
   (outerTest) => {
@@ -290,33 +389,105 @@ layer(teamsDatabase, { excludeTestServices: true })(
         "two overlapping inserts at once: exactly one wins, the other is refused by the exclusion constraint as AlreadyExists",
         () =>
           Effect.gen(function* effectProgram() {
-            const { memberPosition, person, team } = yield* world("olap");
+            assert.deepStrictEqual(
+              yield* overlapRound("olap", "insertAndInsert"),
+              []
+            );
+          })
+      );
 
-            const who = {
-              personId: person.id,
-              positionId: memberPosition,
-              teamId: team.id,
-            };
+      it.effect(
+        `${OVERLAP_ROUNDS} rounds of two overlapping inserts at once: every loser is AlreadyExists, never a deadlock (spec 0006 R6)`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            assert.deepStrictEqual(
+              yield* overlapRounds("insert", "insertAndInsert"),
+              []
+            );
+          }),
+        STRESS_TIMEOUT_MS
+      );
 
-            const exits = yield* race([
+      it.effect(
+        `${OVERLAP_ROUNDS} rounds of an extension and an overlapping insert at once: every loser is AlreadyExists, never a deadlock (spec 0006 R6)`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            assert.deepStrictEqual(
+              yield* overlapRounds("extend", "extendAndInsert"),
+              []
+            );
+          }),
+        STRESS_TIMEOUT_MS
+      );
+
+      it.effect(
+        "an insert waits for the person's row lock before it writes anything (the order that keeps overlapping writes from deadlocking)",
+        () =>
+          Effect.gen(function* effectProgram() {
+            const { memberPosition, person, team } = yield* world("lockwait");
+            const db = yield* Drizzle;
+            const sql = yield* SqlClient;
+            const held = yield* Deferred.make<null>();
+            const release = yield* Deferred.make<null>();
+            const finished = yield* Deferred.make<null>();
+
+            yield* Effect.forkChild(
               transactional(
-                insertMembership(who, { end: VAR_2027, start: HOST_2026 })
-              ),
-              transactional(
-                insertMembership(who, { end: VAR_2027, start: VAR_2027 })
-              ),
-            ]);
-
-            assert.strictEqual(Arr.filter(exits, Exit.isSuccess).length, 1);
-
-            const loser = Arr.findFirst(exits, Exit.isFailure);
-
-            assert.isTrue(
-              Option.exists(
-                Option.flatMap(loser, Exit.findErrorOption),
-                Predicate.isTagged("AlreadyExists")
+                Effect.gen(function* holder() {
+                  yield* db
+                    .select({ id: schema.person.id })
+                    .from(schema.person)
+                    .where(eq(schema.person.id, person.id))
+                    .for("no key update");
+                  yield* Deferred.succeed(held, null);
+                  yield* Deferred.await(release);
+                })
               )
             );
+
+            yield* Deferred.await(held);
+
+            const insertion = yield* Effect.forkChild(
+              Effect.ensuring(
+                transactional(
+                  insertMembership(
+                    {
+                      personId: person.id,
+                      positionId: memberPosition,
+                      teamId: team.id,
+                    },
+                    { end: VAR_2027, start: HOST_2026 }
+                  )
+                ),
+                Deferred.succeed(finished, null)
+              )
+            );
+
+            let waiting = 0;
+
+            for (const _ of Arr.range(1, 5000)) {
+              const rows = yield* sql<{
+                readonly waiting: number;
+              }>`select count(*)::int as waiting from pg_stat_activity
+                where datname = current_database() and wait_event_type = 'Lock'
+                and query ilike '%for no key update%' and pid <> pg_backend_pid()`;
+
+              waiting = rows[0]?.waiting ?? 0;
+
+              if (waiting > 0 || (yield* Deferred.isDone(finished))) {
+                break;
+              }
+            }
+
+            assert.strictEqual(
+              waiting,
+              1,
+              "the insert was not waiting for the person's row lock"
+            );
+            assert.isFalse(yield* Deferred.isDone(finished));
+
+            yield* Deferred.succeed(release, null);
+            yield* Fiber.join(insertion);
           })
       );
 
