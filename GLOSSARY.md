@@ -24,7 +24,7 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Link** (lenke): A single-use credential for a purpose. Any person status may present it; it is not a role.
 
-**Renewal plan** (fornyelsesplan): The approved interval, latest end date and on/off setting for automatic extensions of a role assignment. The same decision approves the plan and role assignment.
+**Renewal plan** (fornyelsesplan): The approved interval, latest end date and on/off setting for automatic extensions of a role assignment. The same unit decision or Admin grant approves the plan and assignment; its cap comes from the role-kind declaration.
 
 **Semester** (semester): A half-year: spring (vår, January to July) or autumn (høst, August to December). Every workflow in the system belongs to one semester. _Avoid_: term (used for something else below)
 
