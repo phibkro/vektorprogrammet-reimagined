@@ -24,41 +24,41 @@ export class AccountRepository extends Context.Service<
     ) => Effect.Effect<Option.Option<Account>>;
     /** The locked person's account: a decision read, which runs after the lock and which nobody else can change. */
     readonly findLocked: (
-      locked: Locked
+      locked: Locked<"Person">
     ) => Effect.Effect<Option.Option<Account>>;
     readonly list: Effect.Effect<readonly Account[]>;
     /** Whom to lock for a password reset; the caller rechecks through the lock. */
     readonly findActiveByPrivateEmail: (
       email: EmailAddress
     ) => Effect.Effect<Option.Option<Account>>;
-    /** The people who hold an admin place that is valid at `now`: whom to lock for the last-active-admin rule. */
-    readonly adminHolders: (
-      now: DateTime.Utc
-    ) => Effect.Effect<readonly PersonId[]>;
-    readonly invite: (locked: Locked) => Effect.Effect<Account, AlreadyExists>;
+    readonly invite: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<Account, AlreadyExists>;
     /**
      * Applies one transition of the Account machine to the locked person's account:
      * `UPDATE … SET state = to WHERE person = $locked AND state = ANY(from)`. An account that is not in a state the
      * transition starts from (any more) is a `Conflict`.
      */
     readonly transition: (
-      locked: Locked,
+      locked: Locked<"Person">,
       transition: AccountMachineTransition
     ) => Effect.Effect<Account, Conflict>;
     /**
-     * Whether `personId` is the only person with a valid admin place and an Active account among the locked people.
-     * The caller locked the person and every holder in one `lockAll`, so nobody else can change what this reads.
+     * Whether `personId` is the only Active administrator: the only person who holds a place that is valid at `now`
+     * and whose account is Active. The decision spans every administrator, so it is read through the admin list's
+     * token: every command that can change who is an Active administrator holds that lock first, and nobody else can
+     * change what this reads before this transaction ends.
      */
     readonly isLastActiveAdmin: (
-      locks: readonly Locked[],
+      adminList: Locked<"AdminList">,
       personId: PersonId,
       now: DateTime.Utc
     ) => Effect.Effect<boolean>;
     readonly verifyEmail: (
-      locked: Locked
+      locked: Locked<"Person">
     ) => Effect.Effect<void, AlreadyExists>;
     readonly updateProfile: (
-      locked: Locked,
+      locked: Locked<"Person">,
       profile: PersonDraft
     ) => Effect.Effect<Person, AlreadyExists>;
   }

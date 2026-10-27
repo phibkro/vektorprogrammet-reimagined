@@ -77,14 +77,14 @@ describe("spec 0006b falsifier 5: ownership is closed over the schema", () => {
   });
 
   it("negative control: an owner column that is not a foreign key to the root is reported", () => {
-    const [person] = Ownership;
-
-    const wrongOwner: readonly RootOwnership[] = [
-      {
-        ...person,
-        owns: { ...person.owns, membership: { owner: "positionId" } },
-      },
-    ];
+    const wrongOwner = Arr.map(Ownership, (root) =>
+      root.name === "Person"
+        ? {
+            ...root,
+            owns: { ...root.owns, membership: { owner: "positionId" } },
+          }
+        : root
+    );
 
     assert.deepStrictEqual(reported({ ownership: wrongOwner }), [
       "Person owns `membership` by `positionId`, which is not a foreign key to person",

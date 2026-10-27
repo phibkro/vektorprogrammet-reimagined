@@ -43,6 +43,7 @@ import {
   TeamRepository,
   anonymous,
   currentSemester,
+  lockAdminList,
   semesterJob,
   servePublicFile,
   systemPrincipal,
@@ -372,6 +373,7 @@ const seedTeams = Effect.gen(function* seedTeams() {
   yield* Transactor.use((transactor) =>
     transactor.run(
       Effect.gen(function* writeTeams() {
+        const adminList = yield* lockAdminList;
         const locks = yield* AggregateLocks;
         const liseLock = yield* locks.lock("Person", lise.id);
         const matsLock = yield* locks.lock("Person", mats.id);
@@ -389,7 +391,7 @@ const seedTeams = Effect.gen(function* seedTeams() {
           teamId: team.id,
         });
 
-        yield* (yield* AdminGrantRepository).create(liseLock, {
+        yield* (yield* AdminGrantRepository).create(adminList, liseLock, {
           grantedBy: null,
           until: DateTime.makeUnsafe("2099-12-31T00:00:00Z"),
         });

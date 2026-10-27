@@ -16,14 +16,16 @@ import type {
   Locked,
   PersonDraft,
 } from "@vektorprogrammet/domain";
-import { and, eq, gt, inArray } from "drizzle-orm";
-import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
+import { and, eq } from "drizzle-orm";
+import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
+import type { DateTime } from "effect";
 
 import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots as aggregateRoots } from "../aggregate/declaration.ts";
 import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
-import { account, adminGrant, fieldOfStudy, person } from "../schema.ts";
+import { account, fieldOfStudy, person } from "../schema.ts";
+import { activeAdminPlaces } from "./adminPlaces.ts";
 
 const StoredAccount = Schema.Struct({
   personId: PersonId,
@@ -32,7 +34,6 @@ const StoredAccount = Schema.Struct({
 
 const decodeAccount = decodeWith(StoredAccount);
 const decodePerson = decodeWith(Person);
-const decodePersonIds = decodeWith(Schema.Array(PersonId));
 
 /** The tables that a person owns: every write to one goes through the person's lock. */
 const { owned } = aggregateRoots.Person;
@@ -81,7 +82,7 @@ export const AccountRepositoryLive = Layer.effect(
     });
 
     const findLocked = Effect.fn("AccountRepository.findLocked")(
-      function* findLocked(locked: Locked) {
+      function* findLocked(locked: Locked<"Person">) {
         const rows = yield* aggregates
           .select(locked, owned.account)
           .pipe(Effect.orDie);
@@ -109,20 +110,8 @@ export const AccountRepositoryLive = Layer.effect(
       );
     });
 
-    const adminHolders = Effect.fn("AccountRepository.adminHolders")(
-      function* adminHolders(now: DateTime.Utc) {
-        const rows = yield* db
-          .selectDistinct({ personId: adminGrant.personId })
-          .from(adminGrant)
-          .where(gt(adminGrant.until, DateTime.toDateUtc(now)))
-          .pipe(Effect.orDie);
-
-        return yield* decodePersonIds(Arr.map(rows, (row) => row.personId));
-      }
-    );
-
     const invite = Effect.fn("AccountRepository.invite")(function* invite(
-      locked: Locked
+      locked: Locked<"Person">
     ) {
       const rows = yield* aggregates
         .insert(
@@ -146,7 +135,7 @@ export const AccountRepositoryLive = Layer.effect(
 
     const transition = Effect.fn("AccountRepository.transition")(
       function* transition(
-        locked: Locked,
+        locked: Locked<"Person">,
         change: Parameters<AccountRepository["Service"]["transition"]>[1]
       ) {
         const row = yield* aggregates
@@ -167,38 +156,28 @@ export const AccountRepositoryLive = Layer.effect(
     );
 
     /**
-     * The people among `locks` who hold an admin place that is valid at `now`, and have an Active account: both are
-     * read through the tokens, so nobody else can change them before this transaction ends. The caller locked the
-     * person and every holder in one `lockAll`, so the person is the last one exactly when no other active
-     * administrator is among the locked.
+     * Whether `personId` is the only Active administrator: no one else holds a place that is valid at `now` and has an
+     * Active account. It reads the whole list, through the admin list's token, because every command that can change
+     * who counts holds that lock first.
      */
     const isLastActiveAdmin = Effect.fn("AccountRepository.isLastActiveAdmin")(
       function* isLastActiveAdmin(
-        locks: readonly Locked[],
+        adminList: Locked<"AdminList">,
         personId: PersonId,
         now: DateTime.Utc
       ) {
-        const grants = yield* aggregates.select(
-          locks,
-          owned.adminGrant,
-          gt(adminGrant.until, DateTime.toDateUtc(now))
+        yield* aggregates.assertHeld(aggregateRoots.AdminList, adminList);
+        const places = yield* activeAdminPlaces(db, now);
+
+        return (
+          Arr.isReadonlyArrayNonEmpty(places) &&
+          Arr.every(places, (place) => place.personId === personId)
         );
-
-        const holders = Arr.dedupe(Arr.map(grants, (grant) => grant.personId));
-
-        const active = yield* aggregates.select(
-          locks,
-          owned.account,
-          and(inArray(account.personId, holders), eq(account.state, "Active"))
-        );
-
-        return active.length === 1 && active[0]?.personId === personId;
-      },
-      Effect.orDie
+      }
     );
 
     const verifyEmail = Effect.fn("AccountRepository.verifyEmail")(
-      function* verifyEmail(locked: Locked) {
+      function* verifyEmail(locked: Locked<"Person">) {
         yield* aggregates
           .updateRoot(locked, aggregateRoots.Person, { emailVerified: true })
           .pipe(
@@ -210,7 +189,7 @@ export const AccountRepositoryLive = Layer.effect(
     );
 
     const updateProfile = Effect.fn("AccountRepository.updateProfile")(
-      function* updateProfile(locked: Locked, profile: PersonDraft) {
+      function* updateProfile(locked: Locked<"Person">, profile: PersonDraft) {
         yield* aggregates.assertHeld(aggregateRoots.Person, locked);
 
         const [current] = yield* db
@@ -250,7 +229,6 @@ export const AccountRepositoryLive = Layer.effect(
     );
 
     return AccountRepository.of({
-      adminHolders,
       find,
       findActiveByPrivateEmail,
       findLocked,

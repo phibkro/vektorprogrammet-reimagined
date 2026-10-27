@@ -55,7 +55,7 @@ export const CodeRepositoryLive = Layer.effect(
     );
 
     const replace = Effect.fn("CodeRepository.replace")(function* replace(
-      locked: Locked,
+      locked: Locked<"Person">,
       value: Pick<Code, "expiresAt" | "hash" | "purpose">
     ) {
       const expiresAt = DateTime.toDateUtc(value.expiresAt);
@@ -75,7 +75,7 @@ export const CodeRepositoryLive = Layer.effect(
     });
 
     const consume = Effect.fn("CodeRepository.consume")(function* consume(
-      locked: Locked,
+      locked: Locked<"Person">,
       request: Parameters<CodeRepository["Service"]["consume"]>[1]
     ) {
       const now = DateTime.toDateUtc(request.now);

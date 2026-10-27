@@ -190,6 +190,7 @@ const effectConfig: EffectConfigInput = {
         "apps/web/test/textSlots.test.ts",
         "tools/docgen/test/render.test.ts",
         "packages/db/test/accounts.postgres.test.ts",
+        "packages/db/test/adminList.postgres.test.ts",
         "apps/web/test/support/workerRuntime.ts",
       ],
       platform: "node",

@@ -43,7 +43,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "../../src/localPeople.ts";
 import { activateAccount } from "./accountsWorld.ts";
-import { asPerson } from "./teamsWorld.ts";
+import { asPerson, grantPlace } from "./teamsWorld.ts";
 
 const byId = Order.mapInput(
   Order.Number,
@@ -232,12 +232,10 @@ export const seedLocal = Effect.gen(function* seedLocal() {
   const grants = yield* AdminGrantRepository;
 
   if (!Arr.some(yield* grants.list, (grant) => grant.personId === ada.id)) {
-    yield* asPerson(ada.id, (locked) =>
-      grants.create(locked, {
-        grantedBy: null,
-        until: DateTime.makeUnsafe("2099-12-31T23:59:59Z"),
-      })
-    );
+    yield* grantPlace(ada.id, {
+      grantedBy: null,
+      until: DateTime.makeUnsafe("2099-12-31T23:59:59Z"),
+    });
   }
 
   yield* join(lise, recruitment, "Leder", thisTerm);

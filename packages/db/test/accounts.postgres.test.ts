@@ -4,7 +4,6 @@ import { assert, layer } from "@effect/vitest";
 import {
   AccountEndpoints,
   AccountRepository,
-  AdminGrantRepository,
   CodeRepository,
   CurrentPrincipal,
   EmailAddress,
@@ -32,7 +31,7 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
-import { activateAccount, moveAccount } from "./support/accountsWorld.ts";
+import { activeAdmin, moveAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { raceReport } from "./support/race.ts";
 import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
@@ -323,7 +322,6 @@ layer(
       Effect.gen(function* lastAdminRace() {
         const fixture = yield* world("admin-race");
         const accounts = yield* AccountRepository;
-        const grants = yield* AdminGrantRepository;
         const people = yield* PersonRepository;
         const sql = yield* SqlClient;
 
@@ -345,16 +343,7 @@ layer(
           );
 
           for (const person of pair) {
-            yield* asPerson(person.id, (locked) =>
-              Effect.gen(function* activateAdmin() {
-                yield* activateAccount(locked);
-
-                yield* grants.create(locked, {
-                  grantedBy: null,
-                  until: expiresAt,
-                });
-              })
-            );
+            yield* activeAdmin(person.id, expiresAt);
           }
 
           const outcomes = yield* Effect.all(

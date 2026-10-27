@@ -1,0 +1,89 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "2cc91eb1-4fb6-4b90-ad49-6fcf7b930152",
+  "prevIds": ["0015c641-e0d4-4ac1-809d-3c9fe5a99a59"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "admin_list"],
+      "writes": [
+        "s|tbl|public.admin_list",
+        "n|tbl|public.admin_list",
+        "e|tbl|public.admin_list",
+        "n|rel|public.admin_list",
+        "n|type|public.admin_list",
+        "n|rel|public.admin_list_pkey"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_entity"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.entity",
+        "e|col|public.audit_log.entity"
+      ],
+      "sqlHash": "2d24c1ccbc6fb8b3"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "admin_list",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_list",
+        "name": "id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_list",
+        "name": "admin_list_pkey",
+        "columns": ["id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_list",
+        "name": "admin_list_singleton",
+        "value": "\"id\" = 1",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_entity\"]",
+      "set": {
+        "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'SocialEvent', 'PublicFile', 'Person', 'Account', 'Team', 'Position', 'Membership', 'AdminGrant', 'AdminList')"
+      }
+    }
+  ]
+}

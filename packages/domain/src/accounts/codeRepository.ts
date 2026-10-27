@@ -19,12 +19,12 @@ export class CodeRepository extends Context.Service<
     }) => Effect.Effect<Option.Option<Code>>;
     /** Invalidate the older code for the same purpose and the locked person, then store only this hash. */
     readonly replace: (
-      locked: Locked,
+      locked: Locked<"Person">,
       code: Pick<Code, "expiresAt" | "hash" | "purpose">
     ) => Effect.Effect<void>;
     /** One conditional update; a missing, expired, used, wrong-purpose or wrong-subject code loses. */
     readonly consume: (
-      locked: Locked,
+      locked: Locked<"Person">,
       request: {
         readonly hash: CodeHash;
         readonly purpose: CodePurpose;

@@ -6,7 +6,8 @@
  * A table that an aggregate root owns (spec 0006b: a person owns its memberships and its admin places) is written only
  * through the owner's lock. A method that writes one takes the `Locked` token of the owner, and so does a read that
  * decides a write (`findLocked`): the command takes the lock first (`AggregateLocks`), then reads and writes through
- * the token. A read for display takes no token and locks nothing.
+ * the token. A read for display takes no token and locks nothing. A fact that spans every administrator (the last
+ * Active administrator) is decided through the admin list's token instead.
  */
 import { Context } from "effect";
 import type { DateTime, Effect, Option } from "effect";
@@ -22,7 +23,6 @@ import type {
   PersonId,
   TeamId,
 } from "../shared/ids.ts";
-import type { InTransaction } from "../shared/transaction.ts";
 import type { EmailAddress } from "../shared/validation.ts";
 import type {
   AdminGrant,
@@ -63,7 +63,7 @@ export class PersonRepository extends Context.Service<
   {
     readonly findById: (id: PersonId) => Effect.Effect<Person, NotFound>;
     /** The locked person: a decision read, which runs after the lock and sees what no other transaction can change. */
-    readonly findLocked: (locked: Locked) => Effect.Effect<Person>;
+    readonly findLocked: (locked: Locked<"Person">) => Effect.Effect<Person>;
     /** The people of one department, or of all of them (`null`), by name. */
     readonly list: (
       departmentId: DepartmentId | null
@@ -112,12 +112,12 @@ export class MembershipRepository extends Context.Service<
     ) => Effect.Effect<Membership, NotFound>;
     /** A membership of the locked person: a decision read, which runs after the lock. `NotFound` when it is not theirs. */
     readonly findLocked: (
-      locked: Locked,
+      locked: Locked<"Person">,
       id: MembershipId
     ) => Effect.Effect<Membership, NotFound>;
     /** Every membership of the locked person: a decision read, which runs after the lock. */
     readonly listLocked: (
-      locked: Locked
+      locked: Locked<"Person">
     ) => Effect.Effect<readonly Membership[]>;
     /** Every membership of the team, the ended ones too (history shows both rows of a change), by start. */
     readonly listByTeam: (
@@ -136,7 +136,7 @@ export class MembershipRepository extends Context.Service<
      * overlap: the database's exclusion constraint refuses an overlap, and that is `AlreadyExists`.
      */
     readonly insert: (
-      locked: Locked,
+      locked: Locked<"Person">,
       draft: Omit<MembershipDraft, "personId">
     ) => Effect.Effect<Membership, AlreadyExists>;
     /**
@@ -146,7 +146,7 @@ export class MembershipRepository extends Context.Service<
      * `Conflict`. A new end that overlaps another membership of the person in the team is `AlreadyExists`.
      */
     readonly setEnd: (
-      locked: Locked,
+      locked: Locked<"Person">,
       change: {
         readonly id: MembershipId;
         readonly observedEnd: Semester;
@@ -160,7 +160,7 @@ export class MembershipRepository extends Context.Service<
      * `Conflict`.
      */
     readonly remove: (
-      locked: Locked,
+      locked: Locked<"Person">,
       removal: {
         readonly id: MembershipId;
         readonly observed: MembershipTerm;
@@ -178,21 +178,28 @@ export class AdminGrantRepository extends Context.Service<
     readonly findById: (
       id: AdminGrantId
     ) => Effect.Effect<AdminGrant, NotFound>;
-    /** Puts the locked person on the list (the holder is the lock's). */
+    /**
+     * Puts the locked person on the list (the holder is the lock's). A place changes who is on the list, so the
+     * command holds the admin list's lock too, and the method takes its token.
+     */
     readonly create: (
-      locked: Locked,
+      adminList: Locked<"AdminList">,
+      locked: Locked<"Person">,
       draft: Omit<AdminGrantDraft, "personId">
     ) => Effect.Effect<AdminGrant>;
     /**
-     * Removes a place, unless it is the last one that ends after `validAfter` (the end of the current semester). The
-     * check and the delete are one atomic step: the people who hold a place that ends after `validAfter` are locked
-     * first (`lockAll`, in id order), and the check reads the places of the locked people, which nobody else can
-     * change before this transaction ends. Two revocations at once queue, and the second one is told it is the last.
+     * Removes the place `id` of the locked holder, unless it is the last place that ends after `validAfter` (the end of
+     * the current semester) and that an Active account holds: the list would be left with no Active administrator. The
+     * decision reads the whole list through the admin list's token, which nobody else can change before this
+     * transaction ends, and the delete goes through the holder's token. Two revocations at once queue, and the second
+     * one is told it is the last.
      */
     readonly revoke: (
+      adminList: Locked<"AdminList">,
+      locked: Locked<"Person">,
       id: AdminGrantId,
       validAfter: DateTime.Utc
-    ) => Effect.Effect<"revoked" | "last", NotFound, InTransaction>;
+    ) => Effect.Effect<"revoked" | "last", NotFound>;
   }
 >()("@vektorprogrammet/domain/teams/AdminGrantRepository") {}
 

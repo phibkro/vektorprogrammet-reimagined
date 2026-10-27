@@ -9,27 +9,39 @@
  * commands on one person then queue instead of interleaving, and a decision is never made on a fact that another
  * transaction could change before the write.
  *
+ * The admin list is the other root, and it owns no table: it is the one row (`ADMIN_LIST_ID`) that the commands queue
+ * on when the fact they decide on spans every administrator, as the rule that there is always an Active administrator
+ * with a valid place does. No person's lock can stand for that fact, so `deactivate`, `reactivate`, `grantAdmin` and
+ * `revokeAdmin` lock the list first, and the two decision reads of the rule (`AccountRepository.isLastActiveAdmin` and
+ * `AdminGrantRepository.revoke`) take its token (spec 0006b R2).
+ *
  * `packages/db` declares which tables each root owns, implements `AggregateLocks` with `SELECT … FOR NO KEY UPDATE`,
  * and is the only place that makes a token. This module declares only what the domain needs: the roots in their
  * global lock order, the token, and the service that takes the lock.
  *
- * The order is a rule. A transaction that locks several rows takes them in ascending order (all of one root at once, in
- * ascending id order, with `lockAll`; the roots in the order below), so two transactions cannot wait for each other in
- * a cycle. A command therefore locks everything it needs before its first decision read.
+ * The order is a rule. A transaction that locks several rows takes them in ascending order (the roots in the order
+ * below, and all rows of one root at once, in ascending id order, with `lockAll`), so two transactions cannot wait for
+ * each other in a cycle. A command therefore locks everything it needs before its first decision read.
  */
-import { Context } from "effect";
-import type { Effect } from "effect";
+import { Context, Effect } from "effect";
 
 import type { NotFound } from "./errors.ts";
 import type { EntityName } from "./ids.ts";
 import type { InTransaction } from "./transaction.ts";
 
-/** The entities that are aggregate roots, in the order that a transaction locks different roots. */
+/**
+ * The entities that are aggregate roots, in the order that a transaction locks different roots: the admin list comes
+ * before every person.
+ */
 export const AggregateRoots = [
+  "AdminList",
   "Person",
 ] as const satisfies readonly EntityName[];
 
 export type AggregateRoot = (typeof AggregateRoots)[number];
+
+/** The one row of the admin list. */
+export const ADMIN_LIST_ID = 1;
 
 declare const lockedBrand: unique symbol;
 
@@ -39,7 +51,7 @@ declare const lockedBrand: unique symbol;
  * transaction holds each time it is used: a token from another transaction, or from a savepoint that was rolled back,
  * never reads or writes. A token of one root does not stand for another.
  */
-export interface Locked<Root extends EntityName = AggregateRoot> {
+export interface Locked<Root extends EntityName> {
   readonly [lockedBrand]: Root;
   readonly id: number;
   readonly root: Root;
@@ -66,3 +78,12 @@ export class AggregateLocks extends Context.Service<
     ) => Effect.Effect<readonly Locked<Root>[], NotFound, InTransaction>;
   }
 >()("@vektorprogrammet/domain/shared/AggregateLocks") {}
+
+/**
+ * The lock of the admin list: the first lock of every command that can change who counts as an Active administrator
+ * (`deactivate`, `reactivate`, `grantAdmin`, `revokeAdmin`). It comes before the lock of any person. The row is part of
+ * the schema (a migration inserts it), so a missing row is a defect and not a `NotFound`.
+ */
+export const lockAdminList = AggregateLocks.use((locks) =>
+  locks.lock("AdminList", ADMIN_LIST_ID)
+).pipe(Effect.orDie);

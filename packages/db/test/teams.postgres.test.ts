@@ -11,7 +11,6 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  AdminGrantRepository,
   EmailAddress,
   PersonRepository,
   SiteOrigin,
@@ -30,10 +29,8 @@ import {
   Array as Arr,
   Cause,
   DateTime,
-  Deferred,
   Effect,
   Exit,
-  Fiber,
   Layer,
   Option,
   Order,
@@ -47,13 +44,16 @@ import {
   transactional,
   violatedUniqueConstraint,
 } from "../src/index.ts";
+import { activateAccount } from "./support/accountsWorld.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
-import { race, raceReport } from "./support/race.ts";
+import { meetsHeldLock, race, raceReport } from "./support/race.ts";
 import {
   asPerson,
+  grantPlace,
   insertMembership,
   lockPerson,
   placeMembership,
+  revokePlace,
   semester,
   world,
 } from "./support/teamsWorld.ts";
@@ -324,30 +324,29 @@ const overlapRounds = Effect.fnUntraced(function* overlapRounds(
 });
 
 /**
- * One round of two revocations at once, in fresh state: each owner has one valid place, and the two places are revoked
- * together. One succeeds and the other is told it is the last valid place, and one place is left.
+ * One round of two revocations at once, in fresh state: each owner is an Active administrator with one valid place,
+ * and the two places are revoked together. One succeeds and the other is told it is the last valid place, and one place
+ * is left. The owners have Active accounts already: only a place that an Active account holds counts.
  */
 const revokeRound = Effect.fnUntraced(function* revokeRound(
   attempt: number,
   owners: readonly [PersonId, PersonId]
 ) {
-  const grants = yield* AdminGrantRepository;
   const db = yield* Drizzle;
   const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
 
   yield* db.delete(schema.adminGrant);
 
-  const place = (owner: PersonId) =>
-    asPerson(owner, (locked) =>
-      grants.create(locked, { grantedBy: null, until: LATER })
-    );
+  const first = yield* grantPlace(owners[0], { grantedBy: null, until: LATER });
 
-  const first = yield* place(owners[0]);
-  const second = yield* place(owners[1]);
+  const second = yield* grantPlace(owners[1], {
+    grantedBy: null,
+    until: LATER,
+  });
 
   const exits = yield* race([
-    transactional(grants.revoke(first.id, cutoff)),
-    transactional(grants.revoke(second.id, cutoff)),
+    revokePlace(owners[0], first.id, cutoff),
+    revokePlace(owners[1], second.id, cutoff),
   ]);
 
   const outcomes = Arr.flatMap(exits, (exit) =>
@@ -485,68 +484,33 @@ layer(teamsDatabase, { excludeTestServices: true })(
           Effect.gen(function* effectProgram() {
             const { memberPosition, person, team } = yield* world("lockwait");
             const db = yield* Drizzle;
-            const sql = yield* SqlClient;
-            const held = yield* Deferred.make<null>();
-            const release = yield* Deferred.make<null>();
-            const finished = yield* Deferred.make<null>();
 
-            yield* Effect.forkChild(
+            const meeting = yield* meetsHeldLock(
+              db
+                .select({ id: schema.person.id })
+                .from(schema.person)
+                .where(eq(schema.person.id, person.id))
+                .for("no key update"),
+              "%for no key update%",
               transactional(
-                Effect.gen(function* holder() {
-                  yield* db
-                    .select({ id: schema.person.id })
-                    .from(schema.person)
-                    .where(eq(schema.person.id, person.id))
-                    .for("no key update");
-                  yield* Deferred.succeed(held, null);
-                  yield* Deferred.await(release);
-                })
+                insertMembership(
+                  {
+                    personId: person.id,
+                    positionId: memberPosition,
+                    teamId: team.id,
+                  },
+                  { end: VAR_2027, start: HOST_2026 }
+                )
               )
             );
-
-            yield* Deferred.await(held);
-
-            const insertion = yield* Effect.forkChild(
-              Effect.ensuring(
-                transactional(
-                  insertMembership(
-                    {
-                      personId: person.id,
-                      positionId: memberPosition,
-                      teamId: team.id,
-                    },
-                    { end: VAR_2027, start: HOST_2026 }
-                  )
-                ),
-                Deferred.succeed(finished, null)
-              )
-            );
-
-            let waiting = 0;
-
-            for (const _ of Arr.range(1, 5000)) {
-              const rows = yield* sql<{
-                readonly waiting: number;
-              }>`select count(*)::int as waiting from pg_stat_activity
-                where datname = current_database() and wait_event_type = 'Lock'
-                and query ilike '%for no key update%' and pid <> pg_backend_pid()`;
-
-              waiting = rows[0]?.waiting ?? 0;
-
-              if (waiting > 0 || (yield* Deferred.isDone(finished))) {
-                break;
-              }
-            }
 
             assert.strictEqual(
-              waiting,
+              meeting.waiting,
               1,
               "the insert was not waiting for the person's row lock"
             );
-            assert.isFalse(yield* Deferred.isDone(finished));
-
-            yield* Deferred.succeed(release, null);
-            yield* Fiber.join(insertion);
+            assert.isTrue(meeting.stillRunning);
+            assert.isTrue(Exit.isSuccess(meeting.exit));
           })
       );
 
@@ -555,6 +519,8 @@ layer(teamsDatabase, { excludeTestServices: true })(
         () =>
           Effect.gen(function* effectProgram() {
             const { person } = yield* world("rev");
+
+            yield* asPerson(person.id, activateAccount);
 
             for (const attempt of Arr.range(1, OVERLAP_ROUNDS)) {
               yield* revokeRound(attempt, [person.id, person.id]);
@@ -576,6 +542,9 @@ layer(teamsDatabase, { excludeTestServices: true })(
                 name: "Annen administrator",
               })
             );
+
+            yield* asPerson(found.person.id, activateAccount);
+            yield* asPerson(other.id, activateAccount);
 
             for (const attempt of Arr.range(1, OVERLAP_ROUNDS)) {
               yield* revokeRound(attempt, [found.person.id, other.id]);

@@ -29,8 +29,14 @@ export interface RootOwnership {
   readonly owns: Readonly<Record<string, OwnedTable>>;
 }
 
-/** The tables of each root. A person owns the rows that are about that person alone. */
+/**
+ * The roots, in the order that a transaction locks them, and the tables of each. A person owns the rows that are about
+ * that person alone. The admin list owns no table: its one row is the lock that a command queues on when the fact it
+ * decides spans every administrator (whether an Active administrator is left), and the token of that lock is what the
+ * decision reads take. Its table holds no data, so the writer never writes it.
+ */
 export const Ownership = [
+  { name: "AdminList", owns: {}, table: "adminList" },
   {
     name: "Person",
     owns: {

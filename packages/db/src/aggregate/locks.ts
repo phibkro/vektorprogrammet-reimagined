@@ -54,7 +54,7 @@ const mint = <Name extends AggregateRoot>(
 /** A token is used only while this transaction holds its lock, and only for the root that it is a token of. */
 export const assertHeld = Effect.fnUntraced(function* assertHeld(
   root: Root,
-  tokens: readonly Locked[]
+  tokens: readonly Locked<AggregateRoot>[]
 ) {
   const { held } = yield* transactionLocks;
 

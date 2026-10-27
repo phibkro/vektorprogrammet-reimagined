@@ -14,6 +14,7 @@
  * - Constraint names are explicit; `classifySqlFailure` maps the unique ones.
  */
 import {
+  ADMIN_LIST_ID,
   AccountState,
   AuditAction,
   AuditClient,
@@ -412,6 +413,22 @@ export const membership = pgTable(
     check("membership_term_order", sql`${t.startOrdinal} <= ${t.endOrdinal}`),
     check("membership_start_year", sql`${t.startYear} between 1900 and 9999`),
     check("membership_end_year", sql`${t.endYear} between 1900 and 9999`),
+  ]
+);
+
+/**
+ * The admin list as one row (spec 0006b): the row that `deactivate`, `reactivate`, `grantAdmin` and `revokeAdmin` lock
+ * first, because whether an Active administrator is left spans every administrator. It holds no data; a migration
+ * inserts it (`admin_list_seeded`), and `ADMIN_LIST_ID` names it.
+ */
+export const adminList = pgTable(
+  "admin_list",
+  { id: integer("id").primaryKey() },
+  (t) => [
+    check(
+      "admin_list_singleton",
+      sql`${t.id} = ${sql.raw(String(ADMIN_LIST_ID))}`
+    ),
   ]
 );
 

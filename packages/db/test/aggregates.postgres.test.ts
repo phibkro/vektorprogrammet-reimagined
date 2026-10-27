@@ -9,13 +9,12 @@ import {
   AccountRepository,
   AggregateLocks,
   Accounts,
-  EmailAddress,
   InTransaction,
   Machine,
   PersonId,
-  PersonRepository,
+  lockAdminList,
 } from "@vektorprogrammet/domain";
-import type { FieldOfStudyId, Locked } from "@vektorprogrammet/domain";
+import type { Locked } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -34,12 +33,13 @@ import { transactional } from "../src/index.ts";
 import { activateAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
-import { race, raceReport } from "./support/race.ts";
+import { describeExit, race, raceReport } from "./support/race.ts";
 import {
   asPerson,
   lockPerson,
   placeMembership,
   semester,
+  twoPeople,
   world,
 } from "./support/teamsWorld.ts";
 
@@ -50,28 +50,6 @@ const STRESS_TIMEOUT_MS = 120_000;
 
 /** How long a transaction keeps its locks, so that the other one meets them. */
 const HOLD = "2 millis";
-
-/** Two people of one field of study, the first created having the lower id. */
-const twoPeople = Effect.fnUntraced(function* twoPeople(
-  fieldOfStudyId: FieldOfStudyId,
-  tag: string
-) {
-  const people = yield* PersonRepository;
-
-  const first = yield* people.create({
-    email: EmailAddress.make(`${tag}.a@example.org`),
-    fieldOfStudyId,
-    name: `A ${tag}`,
-  });
-
-  const second = yield* people.create({
-    email: EmailAddress.make(`${tag}.b@example.org`),
-    fieldOfStudyId,
-    name: `B ${tag}`,
-  });
-
-  return [first, second] as const;
-});
 
 /** The construct: both rows in one statement, whatever the order of the arguments. */
 const lockTogether = (ids: readonly number[]) =>
@@ -108,17 +86,13 @@ const isDeadlock = (exit: Exit.Exit<unknown, unknown>) =>
 const diedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) =>
   Exit.hasDies(exit) && Predicate.isTagged(tag)(Cause.squash(exit.cause));
 
-/** What an exit says when an assertion about it fails. */
-const describeExit = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.isSuccess(exit) ? "it was allowed" : Cause.pretty(exit.cause);
-
 /** A token that no lock made: what a caller would have to forge. The compiler refuses it; the registry must too. */
-const forged = (id: number, root: "Person" | "Team") =>
+const forged = (id: number, root: "AdminList" | "Person") =>
   // SAFETY: this is the forgery under test (EX-0023).
-  cast<{ id: number; root: string }, Locked>({ id, root });
+  cast<{ id: number; root: string }, Locked<"Person">>({ id, root });
 
 /** A decision read of the membership rows, through a token. */
-const readMemberships = (token: Locked) =>
+const readMemberships = (token: Locked<"Person">) =>
   Aggregates.use((aggregates) =>
     aggregates.select(token, Person.owned.membership)
   );
@@ -387,6 +361,44 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         })
     );
 
+    it.effect(
+      "the admin list comes before every person: the list after a person is a defect, the person after the list is not",
+      () =>
+        Effect.gen(function* acrossRoots() {
+          const { fieldOfStudy } = yield* world("acrossroots");
+          const [subject] = yield* twoPeople(fieldOfStudy.id, "acrossroots");
+
+          const personThenList = yield* Effect.exit(
+            transactional(
+              Effect.gen(function* lockPersonThenList() {
+                yield* lockPerson(subject.id);
+                yield* lockAdminList;
+              })
+            )
+          );
+
+          const listThenPerson = yield* Effect.exit(
+            transactional(
+              Effect.gen(function* lockListThenPerson() {
+                const adminList = yield* lockAdminList;
+                const person = yield* lockPerson(subject.id);
+
+                return { adminList, person };
+              })
+            )
+          );
+
+          assert.isTrue(
+            diedWith(personThenList, "LockOrderViolation"),
+            describeExit(personThenList)
+          );
+          assert.isTrue(
+            Exit.isSuccess(listThenPerson),
+            describeExit(listThenPerson)
+          );
+        })
+    );
+
     it.effect("a root that is not there is NotFound, not a token", () =>
       Effect.gen(function* missingRoot() {
         const exit = yield* Effect.exit(
@@ -447,7 +459,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
               return {
                 anotherRoot: yield* Effect.exit(
-                  readMemberships(forged(held.id, "Team"))
+                  readMemberships(forged(held.id, "AdminList"))
                 ),
                 finished: yield* Effect.exit(
                   readMemberships(tokenOfFinishedTransaction)
@@ -508,7 +520,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           const outcome = yield* transactional(
             Effect.gen(function* levels() {
-              const leaked = yield* Ref.make<Option.Option<Locked>>(
+              const leaked = yield* Ref.make<Option.Option<Locked<"Person">>>(
                 Option.none()
               );
 

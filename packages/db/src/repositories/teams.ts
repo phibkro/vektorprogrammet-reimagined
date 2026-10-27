@@ -12,7 +12,6 @@
 import {
   AdminGrant,
   AdminGrantRepository,
-  AggregateLocks,
   Conflict,
   DepartmentId,
   DigestLedger,
@@ -68,6 +67,7 @@ import {
   position,
   team,
 } from "../schema.ts";
+import { activeAdminPlaces } from "./adminPlaces.ts";
 
 /** The tables that a person owns (spec 0006b): every write to one goes through the person's lock. */
 const { owned } = roots.Person;
@@ -138,7 +138,7 @@ export const PersonRepositoryLive = Layer.effect(
 
     /** The person through the lock: the token is checked, then the row is read, and nobody else can change it. */
     const findLocked = Effect.fn("PersonRepository.findLocked")(
-      function* findLocked(locked: Locked) {
+      function* findLocked(locked: Locked<"Person">) {
         yield* aggregates.assertHeld(roots.Person, locked);
 
         return yield* Effect.orDie(findById(PersonId.make(locked.id)));
@@ -391,7 +391,7 @@ export const MembershipRepositoryLive = Layer.effect(
     );
 
     const findLocked = Effect.fn("MembershipRepository.findLocked")(
-      function* findLocked(locked: Locked, id: MembershipId) {
+      function* findLocked(locked: Locked<"Person">, id: MembershipId) {
         const [row] = yield* aggregates
           .select(locked, owned.membership, eq(membership.id, id))
           .pipe(Effect.orDie);
@@ -401,7 +401,7 @@ export const MembershipRepositoryLive = Layer.effect(
     );
 
     const listLocked = Effect.fn("MembershipRepository.listLocked")(
-      function* listLocked(locked: Locked) {
+      function* listLocked(locked: Locked<"Person">) {
         const rows = yield* aggregates
           .select(locked, owned.membership)
           .pipe(Effect.orDie);
@@ -472,7 +472,7 @@ export const MembershipRepositoryLive = Layer.effect(
     );
 
     const insert = Effect.fn("MembershipRepository.insert")(function* insert(
-      locked: Locked,
+      locked: Locked<"Person">,
       draft: Omit<MembershipDraft, "personId">
     ) {
       const rows = yield* aggregates
@@ -498,7 +498,7 @@ export const MembershipRepositoryLive = Layer.effect(
      * read it, or the update matches nothing.
      */
     const setEnd = Effect.fn("MembershipRepository.setEnd")(function* setEnd(
-      locked: Locked,
+      locked: Locked<"Person">,
       change: {
         readonly id: MembershipId;
         readonly observedEnd: Semester;
@@ -534,7 +534,7 @@ export const MembershipRepositoryLive = Layer.effect(
      * locked person that has not started.
      */
     const remove = Effect.fn("MembershipRepository.remove")(function* remove(
-      locked: Locked,
+      locked: Locked<"Person">,
       removal: {
         readonly id: MembershipId;
         readonly observed: Pick<Membership, "end" | "start">;
@@ -595,7 +595,6 @@ export const AdminGrantRepositoryLive = Layer.effect(
   Effect.gen(function* AdminGrantRepositoryLive() {
     const db = yield* Drizzle;
     const aggregates = yield* Aggregates;
-    const locking = yield* AggregateLocks;
     const decode = decodeWith(StoredAdminGrant);
     const decodeViews = decodeWith(Schema.Array(StoredAdminGrantView));
 
@@ -614,9 +613,12 @@ export const AdminGrantRepositoryLive = Layer.effect(
     );
 
     const create = Effect.fn("AdminGrantRepository.create")(function* create(
-      locked: Locked,
+      adminList: Locked<"AdminList">,
+      locked: Locked<"Person">,
       draft: Omit<AdminGrantDraft, "personId">
     ) {
+      yield* aggregates.assertHeld(roots.AdminList, adminList);
+
       const rows = yield* aggregates
         .insert(locked, owned.adminGrant, {
           grantedBy: draft.grantedBy,
@@ -628,48 +630,29 @@ export const AdminGrantRepositoryLive = Layer.effect(
     });
 
     /**
-     * The people who hold a place that ends after `validAfter` are locked first, with the owner of the place, in id
-     * order (`lockAll`). The check reads the places of the locked people through their tokens, and nobody else can
-     * change one of those places before this transaction ends, so two revocations at once queue up and the second one
-     * sees the first one's result: the last valid place is never removed. A place that is granted after the holders
-     * were read is not counted, which can only refuse a revocation that would have been allowed.
+     * The decision reads the whole list through the admin list's token: the place is the last one when it is the only
+     * place that ends after `validAfter` and that an Active account holds. Every command that changes a place or an
+     * account's state holds that lock first, so nobody else can change what this reads, two revocations at once
+     * queue, and the second one sees the first one's result. The delete goes through the holder's token.
      */
     const revoke = Effect.fn("AdminGrantRepository.revoke")(function* revoke(
+      adminList: Locked<"AdminList">,
+      locked: Locked<"Person">,
       id: AdminGrantId,
       validAfter: DateTime.Utc
     ) {
-      const target = yield* findById(id);
-      const cutoff = DateTime.toDateUtc(validAfter);
-
-      const holders = yield* db
-        .selectDistinct({ personId: adminGrant.personId })
-        .from(adminGrant)
-        .where(gt(adminGrant.until, cutoff))
-        .pipe(Effect.orDie);
-
-      const locks = yield* locking.lockAll("Person", [
-        target.personId,
-        ...Arr.map(holders, (holder) => holder.personId),
-      ]);
-
-      const places = yield* aggregates
-        .select(locks, owned.adminGrant, gt(adminGrant.until, cutoff))
-        .pipe(Effect.orDie);
+      yield* aggregates.assertHeld(roots.AdminList, adminList);
+      const counting = yield* activeAdminPlaces(db, validAfter);
 
       if (
-        DateTime.isGreaterThan(target.until, validAfter) &&
-        places.length === 1 &&
-        places[0]?.id === id
+        Arr.some(counting, (place) => place.id === id) &&
+        Arr.every(counting, (place) => place.id === id)
       ) {
         return "last" as const;
       }
 
       const removed = yield* aggregates
-        .remove(
-          yield* locking.lock("Person", target.personId),
-          owned.adminGrant,
-          eq(adminGrant.id, id)
-        )
+        .remove(locked, owned.adminGrant, eq(adminGrant.id, id))
         .pipe(Effect.orDie);
 
       return removed.length === 0

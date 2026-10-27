@@ -198,7 +198,7 @@ export const revokeAdmin = Rpc.make("revokeAdmin", {
 }).annotate(
   Info,
   info({
-    note: "Never one's own, and never the last place that ends after the current semester.",
+    note: "Never one's own, and never the last place that ends after the current semester and that an Active account holds.",
     replaces: ["RULE-113", "RULE-308"],
     summary: "Take a place off the admin list.",
   })

@@ -17,11 +17,18 @@ import {
 } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Exit, Option } from "effect";
 
-import { transactional } from "../src/index.ts";
+import {
+  activateAccount,
+  activeAdmin,
+  moveAccount,
+  noAdmins,
+} from "./support/accountsWorld.ts";
 import { pgliteDatabase } from "./support/database.ts";
 import {
   asPerson,
+  grantPlace,
   placeMembership,
+  revokePlace,
   semester,
   world,
 } from "./support/teamsWorld.ts";
@@ -376,25 +383,28 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
     () =>
       Effect.gen(function* effectProgram() {
         const { person } = yield* world("iota");
+        yield* noAdmins;
         const grants = yield* AdminGrantRepository;
         const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
 
-        const expired = yield* asPerson(person.id, (locked) =>
-          grants.create(locked, {
-            grantedBy: null,
-            until: DateTime.makeUnsafe("2026-08-31T00:00:00Z"),
-          })
-        );
+        // Only a place that an Active account holds counts as the last one.
+        yield* asPerson(person.id, activateAccount);
 
-        const only = yield* asPerson(person.id, (locked) =>
-          grants.create(locked, { grantedBy: null, until: LATER })
-        );
+        const expired = yield* grantPlace(person.id, {
+          grantedBy: null,
+          until: DateTime.makeUnsafe("2026-08-31T00:00:00Z"),
+        });
 
-        const last = yield* transactional(grants.revoke(only.id, cutoff));
-        const dropped = yield* transactional(grants.revoke(expired.id, cutoff));
+        const only = yield* grantPlace(person.id, {
+          grantedBy: null,
+          until: LATER,
+        });
+
+        const last = yield* revokePlace(person.id, only.id, cutoff);
+        const dropped = yield* revokePlace(person.id, expired.id, cutoff);
 
         const missing = yield* Effect.flip(
-          transactional(grants.revoke(expired.id, cutoff))
+          revokePlace(person.id, expired.id, cutoff)
         );
 
         assert.strictEqual(last, "last");
@@ -404,6 +414,37 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
           Arr.map(yield* grants.list, (grant) => grant.id),
           [only.id]
         );
+      })
+  );
+
+  it.effect(
+    "a place that a deactivated account holds does not count: the list is never left with no Active administrator",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { fieldOfStudy, person } = yield* world("iota2");
+        yield* noAdmins;
+        const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
+
+        const other = yield* PersonRepository.use((people) =>
+          people.create({
+            email: EmailAddress.make("iota2.other@example.org"),
+            fieldOfStudyId: fieldOfStudy.id,
+            name: "Annen administrator",
+          })
+        );
+
+        const mine = yield* activeAdmin(person.id, LATER);
+        const theirs = yield* activeAdmin(other.id, LATER);
+
+        yield* asPerson(other.id, (locked) =>
+          moveAccount(locked, "deactivate", "Active")
+        );
+
+        const refused = yield* revokePlace(person.id, mine.id, cutoff);
+        const allowed = yield* revokePlace(other.id, theirs.id, cutoff);
+
+        assert.strictEqual(refused, "last");
+        assert.strictEqual(allowed, "revoked");
       })
   );
 
@@ -436,11 +477,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
           true
         );
 
-        yield* asPerson(person.id, (locked) =>
-          AdminGrantRepository.use((grants) =>
-            grants.create(locked, { grantedBy: null, until: LATER })
-          )
-        );
+        yield* grantPlace(person.id, { grantedBy: null, until: LATER });
 
         const directory = yield* PrincipalDirectory;
 

@@ -2,8 +2,9 @@
  * Account commands run inside the caller's transaction; auth writes are outbox deliveries after commit.
  *
  * A command about one person takes that person's lock first (`AggregateLocks`, spec 0006b), reads what it decides on
- * through the token and writes through it. `deactivate` decides on the other administrators too, so it locks them
- * with the person, in one `lockAll`, before its first decision read.
+ * through the token and writes through it. `deactivate` and `reactivate` can change who is an Active administrator,
+ * which spans every administrator, so they lock the admin list before the person; `deactivate` decides through its
+ * token whether the person is the last Active administrator.
  */
 import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
 
@@ -12,7 +13,7 @@ import * as Commands from "../kernel/commands.ts";
 import * as Machine from "../kernel/machine.ts";
 import { CurrentPrincipal } from "../kernel/principal.ts";
 import type { Principal } from "../kernel/principal.ts";
-import { AggregateLocks } from "../shared/aggregate.ts";
+import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import type { Locked } from "../shared/aggregate.ts";
 import { Conflict, Forbidden } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
@@ -121,7 +122,7 @@ const lockAccount = Effect.fn("Account.lock")(function* lockAccount(
 });
 
 const consumeCode = Effect.fn("Account.consumeCode")(function* consumeCode(
-  locked: Locked,
+  locked: Locked<"Person">,
   purpose: CodePurpose,
   token: CodeToken,
   now: DateTime.Utc
@@ -142,7 +143,7 @@ const consumeCode = Effect.fn("Account.consumeCode")(function* consumeCode(
  * changed since is a `Conflict`.
  */
 const changeState = Effect.fn("Account.changeState")(function* changeState(
-  locked: Locked,
+  locked: Locked<"Person">,
   account: Account,
   principal: Principal,
   command: "activate" | "deactivate" | "reactivate",
@@ -224,30 +225,17 @@ export const AccountHandlers = AccountRpc.toLayer({
         const accounts = yield* AccountRepository;
         const now = yield* DateTime.now;
 
-        // The last-active-admin rule decides on the other administrators too: lock them with the person, in one
-        // statement and in id order, before the first decision read.
-        const holders = yield* accounts.adminHolders(now);
-
-        const locks = yield* (yield* AggregateLocks)
-          .lockAll("Person", [personId, ...holders])
-          .pipe(Effect.catchTag("NotFound", () => conflict(personId)));
-
-        const locked = Arr.findFirst(locks, (token) => token.id === personId);
-
-        const found = Option.isSome(locked)
-          ? yield* accounts.findLocked(locked.value)
-          : Option.none();
-
-        if (Option.isNone(locked) || Option.isNone(found)) {
-          return yield* conflict(personId);
-        }
+        // Whether an Active administrator is left spans every administrator, so the list is locked first, and the
+        // decision reads through its token.
+        const adminList = yield* lockAdminList;
+        const { account, locked } = yield* lockAccount(personId);
 
         const updated = yield* changeState(
-          locked.value,
-          found.value,
+          locked,
+          account,
           principal,
           "deactivate",
-          yield* accounts.isLastActiveAdmin(locks, personId, now)
+          yield* accounts.isLastActiveAdmin(adminList, personId, now)
         );
 
         yield* recordAudit(
@@ -286,6 +274,7 @@ export const AccountHandlers = AccountRpc.toLayer({
     run: ({ personId }, principal) =>
       Effect.gen(function* reactivateAccount() {
         yield* InTransaction;
+        yield* lockAdminList;
         const { account, locked } = yield* lockAccount(personId);
 
         const updated = yield* changeState(

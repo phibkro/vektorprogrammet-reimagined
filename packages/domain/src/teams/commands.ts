@@ -18,7 +18,7 @@ import { currentSemester } from "../organisation/commands.ts";
 import { semesterWindow } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
 import { FieldOfStudyRepository } from "../organisation/services.ts";
-import { AggregateLocks } from "../shared/aggregate.ts";
+import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import { Conflict, Forbidden, validationFailed } from "../shared/errors.ts";
 import type { MembershipId, TeamId } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
@@ -395,9 +395,11 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* validationFailed(["until"], UNTIL_PAST);
         }
 
+        // The list comes before every person: a place changes who is on it.
+        const adminList = yield* lockAdminList;
         const locked = yield* locks.lock("Person", personId);
 
-        const created = yield* grants.create(locked, {
+        const created = yield* grants.create(adminList, locked, {
           grantedBy: granter,
           until,
         });
@@ -441,7 +443,12 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     run: ({ id }, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;
+        const locks = yield* AggregateLocks;
         const grants = yield* AdminGrantRepository;
+
+        // Whether an Active administrator is left spans every administrator, so the list is locked before the
+        // holder of the place, and the place cannot change while it is held.
+        const adminList = yield* lockAdminList;
         const grant = yield* grants.findById(id);
 
         if (
@@ -451,8 +458,15 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* new Forbidden({ command: "revokeAdmin" });
         }
 
+        const holder = yield* locks.lock("Person", grant.personId);
         const current = yield* currentSemester;
-        const outcome = yield* grants.revoke(id, semesterWindow(current).end);
+
+        const outcome = yield* grants.revoke(
+          adminList,
+          holder,
+          id,
+          semesterWindow(current).end
+        );
 
         if (outcome === "last") {
           return yield* validationFailed(["id"], LAST_ADMIN);

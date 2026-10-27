@@ -128,7 +128,7 @@ Active, Planned and Ended are calculated from the semester. They replace the leg
 | `endEarly` | End a membership from a semester. A member can end their own. | Leader(d) ∪ Board; Self; Admin | department, own, all | RULE-298 |
 | `cancel` | Cancel a membership that has not started. | Leader(d) ∪ Board; Admin | department, all |  |
 | `grantAdmin` | Put a person on the admin list until a date. Never for oneself. | Admin | all | RULE-113, RULE-308 |
-| `revokeAdmin` | Take a place off the admin list. Never one's own, and never the last place that ends after the current semester. | Admin | all | RULE-113, RULE-308 |
+| `revokeAdmin` | Take a place off the admin list. Never one's own, and never the last place that ends after the current semester and that an Active account holds. | Admin | all | RULE-113, RULE-308 |
 | `sendEndingSoon` | Four weeks before the semester ends, e-mail each team leader the memberships of the department that end. | System(endingSoon) | all |  |
 | `viewPeople` | See the people of the department. | Leader(d) ∪ Board; Admin | department, all |  |
 | `viewTeams` | See the teams of the department and their memberships. | Member(d); Admin | department, all |  |

@@ -11,10 +11,14 @@ import {
 } from "@vektorprogrammet/domain";
 import type { Locked } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect } from "effect";
+import type { DateTime } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
+
+import { asPerson, grantPlace } from "./teamsWorld.ts";
 
 /** Applies the Account machine's transition `command` from `state` to the locked person's account. */
 export const moveAccount = Effect.fnUntraced(function* moveAccount(
-  locked: Locked,
+  locked: Locked<"Person">,
   command: "activate" | "deactivate" | "reactivate",
   state: "Active" | "Deactivated" | "Invited"
 ) {
@@ -35,11 +39,34 @@ export const moveAccount = Effect.fnUntraced(function* moveAccount(
 
 /** Invites the locked person and activates the account. It needs a transaction. */
 export const activateAccount = Effect.fnUntraced(function* activateAccount(
-  locked: Locked
+  locked: Locked<"Person">
 ) {
   yield* AccountRepository.use((accounts) => accounts.invite(locked)).pipe(
     Effect.orDie
   );
 
   return yield* moveAccount(locked, "activate", "Invited");
+});
+
+/**
+ * An Active administrator: an Active account and a place on the admin list, each in a transaction of its own, as the
+ * commands that make them would be. `until` ends the place.
+ */
+export const activeAdmin = Effect.fnUntraced(function* activeAdmin(
+  personId: PersonId,
+  until: DateTime.Utc
+) {
+  yield* asPerson(personId, activateAccount);
+
+  return yield* grantPlace(personId, { grantedBy: null, until });
+});
+
+/**
+ * Fresh state for a test of the admin list: no place and no account but the ones that the test makes. Every test of a
+ * file shares one database, and an Active administrator that an earlier test left behind changes who is the last one.
+ */
+export const noAdmins = Effect.gen(function* noAdmins() {
+  const sql = yield* SqlClient;
+  yield* sql`delete from admin_grant`;
+  yield* sql`delete from account`;
 });
