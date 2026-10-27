@@ -107,6 +107,13 @@ export const completedWorkspaceRequestCount = countOf(
     sql`select count(*)::int as n from job_run where job = 'workspaceSync' and period like 'request:%' and outcome = 'done'`
 );
 
+/** The runs that the ledger holds for one job: a job that the scheduler never ran has none. */
+export const jobRunCount = (job: string) =>
+  countOf(
+    (sql) =>
+      sql`select count(*)::int as n from job_run where job = ${job} and outcome = 'done'`
+  );
+
 /** Whether the capture sink persisted this outbox delivery. */
 export const capturedSlackFor = (key: string) =>
   countOf(
