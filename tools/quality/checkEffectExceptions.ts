@@ -3,6 +3,8 @@ import { Array as Arr, Effect, FileSystem, Option, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { parseSync } from "oxc-parser";
 
+import { unstablePolicy } from "./unstablePolicy.ts";
+
 const common = {
   id: Schema.NonEmptyString,
   nativeAlternativesExamined: Schema.NonEmptyArray(Schema.NonEmptyString),
@@ -26,10 +28,38 @@ const TypeBridge = Schema.Struct({
   versions: Schema.Record(Schema.NonEmptyString, Schema.NonEmptyString),
 });
 
+const UnstableApi = Schema.Struct({
+  ...common,
+  missingCapability: Schema.NonEmptyString,
+  name: Schema.NonEmptyString,
+  scope: Schema.Struct({
+    files: Schema.NonEmptyArray(Schema.NonEmptyString),
+    modules: Schema.NonEmptyArray(Schema.NonEmptyString),
+  }),
+  verification: Schema.NonEmptyArray(Schema.NonEmptyString),
+  versions: Schema.Record(Schema.NonEmptyString, Schema.NonEmptyString),
+});
+
+const Config = Schema.Struct({
+  compilerOptions: Schema.Struct({
+    plugins: Schema.Array(
+      Schema.Struct({
+        allowedUnstableApis: Schema.Array(Schema.String),
+        name: Schema.String,
+        overrides: Schema.Array(Schema.Unknown),
+      })
+    ),
+  }),
+});
+
+const decodeConfig = Schema.decodeUnknownEffect(Schema.fromJsonString(Config));
+const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
+
 const Registry = Schema.Struct({
   description: Schema.NonEmptyString,
   exceptions: Schema.Array(Exception),
   typeBridges: Schema.Array(TypeBridge),
+  unstableApis: Schema.Array(UnstableApi),
 });
 
 const decodeRegistry = Schema.decodeUnknownEffect(
@@ -85,6 +115,26 @@ const main = Effect.gen(function* main() {
   const registry = yield* decodeRegistry(
     yield* fs.readFileString(registryPath)
   );
+
+  const config = yield* decodeConfig(yield* fs.readFileString("tsconfig.json"));
+
+  const plugin = Arr.findFirst(
+    config.compilerOptions.plugins,
+    (item) => item.name === "@effect/language-service"
+  );
+
+  const policyMatches =
+    Option.isSome(plugin) &&
+    (yield* encodeJson(plugin.value.allowedUnstableApis)) ===
+      (yield* encodeJson(unstablePolicy.allowedUnstableApis)) &&
+    (yield* encodeJson(plugin.value.overrides)) ===
+      (yield* encodeJson(unstablePolicy.overrides));
+
+  const policyFindings = policyMatches
+    ? []
+    : [
+        "tsconfig.json: unstable API policy differs from the exception registry",
+      ];
 
   const sitesPerFile = yield* Effect.forEach(
     Arr.filter(paths, isScannable),
@@ -157,11 +207,24 @@ const main = Effect.gen(function* main() {
       : []),
   ]);
 
+  const unstableIds = Arr.map(registry.unstableApis, (entry) => entry.id);
+
+  const unstableDuplicates = Arr.flatMap(unstableIds, (id, index) =>
+    Arr.contains(
+      [...exceptionIds, ...bridgeIds, ...Arr.take(unstableIds, index)],
+      id
+    )
+      ? [`${registryPath}: duplicate id ${id}`]
+      : []
+  );
+
   const findings = [
     ...unregistered,
     ...exceptionFindings,
     ...exceptionDuplicates,
     ...bridgeFindings,
+    ...policyFindings,
+    ...unstableDuplicates,
   ];
 
   if (Arr.isReadonlyArrayNonEmpty(findings)) {
@@ -173,7 +236,7 @@ const main = Effect.gen(function* main() {
   }
 
   return yield* Effect.log(
-    `Effect registry clean (${registry.exceptions.length} suppression exceptions, ${registry.typeBridges.length} type bridges).`
+    `Effect registry clean (${registry.exceptions.length} suppression exceptions, ${registry.typeBridges.length} type bridges, ${registry.unstableApis.length} unstable API exceptions).`
   );
 });
 

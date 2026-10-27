@@ -92,6 +92,322 @@
         "typescript": "7.0.2"
       },
       "retirementTrigger": "Retire the bridge when an approved Drizzle release imports effect/sql/SqlError instead, then verify the package typechecks and the runtime tests pass without the alias."
+    },
+    {
+      "id": "EX-0015",
+      "rules": ["FX002", "FX012"],
+      "scope": {
+        "files": ["packages/cms-client/scripts/finiteNumbers.ts"],
+        "symbols": ["finiteNumbers"]
+      },
+      "reason": "Replace emitted schema identifiers without changing string literals or comments.",
+      "missingCapability": "Effect does not provide a TypeScript syntax parser.",
+      "nativeAlternativesExamined": [
+        "The Effect Schema modules model data schemas, not TypeScript source syntax.",
+        "Text replacement cannot distinguish code from string literals."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C packages/cms-client test test/finiteNumbers.test.ts"
+      ],
+      "owner": "packages/cms-client",
+      "versions": {
+        "effect": "4.0.5",
+        "oxc-parser": "0.153.0"
+      },
+      "retirementTrigger": "Retire when the upstream generator emits finite schemas directly or Effect provides a suitable TypeScript parser."
+    }
+  ],
+  "unstableApis": [
+    {
+      "id": "EX-0005",
+      "name": "platform",
+      "scope": {
+        "files": ["**"],
+        "modules": [
+          "effect/FileSystem",
+          "effect/Path",
+          "effect/Crypto",
+          "effect/PlatformError",
+          "effect/Stdio"
+        ]
+      },
+      "reason": "Platform services lack stable markings.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0006",
+      "name": "runtimes",
+      "scope": {
+        "files": [
+          "tools/**",
+          "packages/*/scripts/**",
+          "apps/*/scripts/**",
+          "apps/*/e2e/**",
+          "apps/cms/build/**",
+          "**/test/**"
+        ],
+        "modules": [
+          "@effect/platform-bun/BunRuntime",
+          "@effect/platform-bun/BunServices",
+          "@effect/platform-node/NodeRuntime",
+          "@effect/platform-node/NodeServices"
+        ]
+      },
+      "reason": "Process roots and test platform services.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0007",
+      "name": "tests",
+      "scope": {
+        "files": ["**/test/**", "apps/*/e2e/**"],
+        "modules": [
+          "@effect/vitest",
+          "effect/Arbitrary",
+          "effect/rpc/RpcTest",
+          "@effect/sql-pglite"
+        ]
+      },
+      "reason": "Test infrastructure.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0008",
+      "name": "rpc",
+      "scope": {
+        "files": ["**"],
+        "modules": [
+          "effect/rpc/Rpc",
+          "effect/rpc/RpcGroup",
+          "effect/rpc/RpcClient",
+          "effect/rpc/RpcServer"
+        ]
+      },
+      "reason": "Command definitions and in-process client (ADR 0006).",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0009",
+      "name": "sql",
+      "scope": {
+        "files": [
+          "packages/db/**",
+          "apps/web/src/server/**",
+          "**/test/**",
+          "tools/**",
+          "packages/*/scripts/**",
+          "apps/*/scripts/**",
+          "apps/*/e2e/**",
+          "apps/cms/build/**"
+        ],
+        "modules": ["effect/sql", "@effect/sql-pg"]
+      },
+      "reason": "Database path from spec 0000.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0010",
+      "name": "mysql",
+      "scope": {
+        "files": ["tools/import/**"],
+        "modules": ["@effect/sql-mysql2"]
+      },
+      "reason": "Legacy import.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0011",
+      "name": "http",
+      "scope": {
+        "files": [
+          "packages/cms-client/src/**",
+          "apps/web/src/server/**",
+          "packages/cms-client/test/client.test.ts",
+          "apps/web/test/sandbox.test.ts",
+          "tools/**",
+          "apps/*/scripts/**",
+          "apps/*/e2e/**"
+        ],
+        "modules": [
+          "effect/http/FetchHttpClient",
+          "effect/http/Headers",
+          "effect/http/HttpClient",
+          "effect/http/HttpClientError",
+          "effect/http/HttpClientRequest",
+          "effect/http/HttpClientResponse"
+        ]
+      },
+      "reason": "Outbound HTTP for the CMS and Turnstile.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0012",
+      "name": "tools",
+      "scope": {
+        "files": [
+          "tools/**",
+          "packages/*/scripts/**",
+          "apps/*/scripts/**",
+          "apps/*/e2e/**",
+          "apps/cms/build/**"
+        ],
+        "modules": ["effect/process", "effect/cli"]
+      },
+      "reason": "Build and process tools.",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0013",
+      "name": "reactivity",
+      "scope": {
+        "files": [
+          "packages/db/test/support/disposableDatabase.ts",
+          "tools/db-path-spike/test/support/localWorker.ts"
+        ],
+        "modules": ["effect/reactivity/Reactivity"]
+      },
+      "reason": "Derived reactivity keys (ADR 0009).",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+    },
+    {
+      "id": "EX-0014",
+      "name": "openapi",
+      "scope": {
+        "files": ["packages/cms-client/scripts/**"],
+        "modules": ["effect/http-api/OpenApi"]
+      },
+      "reason": "CMS client generation from EmDash OpenAPI (spec 0005).",
+      "missingCapability": "The native module is not marked stable in Effect 4.0.5.",
+      "nativeAlternativesExamined": [
+        "The native module is the required Effect capability; no stable equivalent provides the same contract."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bun run e2e"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.0.5",
+        "@effect/tsgo": "0.53.1"
+      },
+      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
     }
   ]
 }

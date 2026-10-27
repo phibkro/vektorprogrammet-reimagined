@@ -96,7 +96,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 
 - Hooks are installed by `vp config` (the `prepare` script, which also runs `effect-tsgo patch`). Never use `--no-verify`.
 - Fix the code, not the rule. A rule that is wrong for a file class gets a narrow `overrides` entry with a one-line reason. Two presets that contradict each other get one global switch with a comment naming both rules.
-- Editor diagnostics use the TypeScript 7 native language server patched by `effect-tsgo patch`; it reads the `@effect/language-service` tsconfig plugin options. CLI probe: `devenv shell -- bunx effect-tsgo diagnostics --file <f> --lspconfig '{"diagnostics":true}' --format text`.
+- Editor diagnostics use the TypeScript 7 native language server patched by `effect-tsgo patch`; it reads the `@effect/language-service` tsconfig options. Run `devenv shell -- bunx effect-tsgo diagnostics --project <absolute-tsconfig> --format text` to check the project config. After editing unstable API exceptions, run `devenv shell -- bun run sync:effect-policy`.
 
 ## Conventions
 
