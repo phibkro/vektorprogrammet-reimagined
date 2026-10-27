@@ -48,16 +48,16 @@ CurrentCode == [
         createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:241-242
         deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:393, 403
         syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:236, one person
-        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:65, 376
+        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:323, 373
     ],
     \* The statements of each call, in order.
     repo |-> [
         \* beginTransition: the unlocked read that finds the owner, the lock
         \* of that person, the read through its token, on which the machine
-        \* decides (teams/commands.ts:115-145).
-        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 123, 124, 125, 126-142
-        find     |-> <<"find">>,                       \* teams.ts:388-398
-        read     |-> <<"read">>,                       \* teams.ts:400-408
+        \* decides (teams/commands.ts:118-148).
+        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 126, 127, 128, 129-145
+        find     |-> <<"find">>,                       \* teams.ts:472-482
+        read     |-> <<"read">>,                       \* teams.ts:484-492
         \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
         \* FOR NO KEY UPDATE (db/aggregate/locks.ts:105-117, 142-148). A row
         \* that the transaction holds sends no statement (87-90).
@@ -65,9 +65,9 @@ CurrentCode == [
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
         \* (domain/shared/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
-        insert   |-> <<"insertRow">>,                  \* teams.ts:481-500, Aggregates.insert (aggregates.ts:304-343)
-        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:502-537, Aggregates.update (aggregates.ts:370-390, onHeld :144-162)
-        remove   |-> <<"deleteRow">>                   \* teams.ts:539-572, Aggregates.remove (aggregates.ts:360-364, onHeld :144-162)
+        insert   |-> <<"insertRow">>,                  \* teams.ts:565-584, Aggregates.insert (aggregates.ts:304-343)
+        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:591-621, Aggregates.update (aggregates.ts:370-390, onHeld :144-162)
+        remove   |-> <<"deleteRow">>                   \* teams.ts:627-656, Aggregates.remove (aggregates.ts:360-364, onHeld :144-162)
     ],
     \* A lock that would come before one that the transaction holds is a defect
     \* before any statement is sent (db/aggregate/locks.ts:92-103,
@@ -75,14 +75,14 @@ CurrentCode == [
     \* (domain/shared/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:336-341, 532-536, 567-569).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:521-526
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:555-563
+    \* row is `lostRace`, the typed Conflict (teams.ts:420-425, 616-620, 651-653).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:605-610
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:639-647
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
     \* What the caller is told for each SQLSTATE that a write can meet.
-    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:95-120, 135-154
+    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:99-124, 139-158
     on40P01 |-> "defect"                            \* classifySqlFailure.ts: no case; test classifySqlFailure.test.ts:51
 ]
 
