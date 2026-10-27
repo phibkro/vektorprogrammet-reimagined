@@ -2,9 +2,11 @@
  * The PostgreSQL behaviour that the model of `.agents/skills/verify-membership-writes` assumes, each claim shown on
  * real PostgreSQL (devenv) in a disposable database. The model (`model/MembershipWrites.tla`) runs the statements of
  * the code against rules that PostgreSQL, not this code, defines: how an exclusion constraint is checked, what a row
- * lock waits for, what the deadlock detector does. A model of those rules is worth what the rules are worth, so each
- * one is pinned here, and a PostgreSQL release that changes one fails this file instead of leaving the model true to
- * a database that no longer exists. Every test names the model action it stands behind.
+ * lock waits for, in which order `SELECT … ORDER BY id FOR NO KEY UPDATE` takes its rows, what the deadlock detector
+ * does. A model of those rules is worth what the rules are worth, so each one is pinned here, and a PostgreSQL release
+ * that changes one fails this file instead of leaving the model true to a database that no longer exists. Every test
+ * names the model action it stands behind. The last block runs the real commands: each takes the person's lock before
+ * it writes (`compose` in `model/Shapes.tla`).
  *
  * A session is one transaction on its own connection, driven statement by statement. A statement that has to wait for
  * another session does not block the test: the test asks PostgreSQL who is blocked (`pg_blocking_pids`) and only then
@@ -12,13 +14,17 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  MembershipRepository,
+  AggregateLocks,
+  CurrentPrincipal,
+  PersonId,
+  Principal,
+  SiteOrigin,
+  TeamsEndpoints,
   advanceSemester,
   semesterOrdinal,
 } from "@vektorprogrammet/domain";
 import type {
   MembershipId,
-  PersonId,
   PositionId,
   Semester,
   TeamId,
@@ -26,10 +32,12 @@ import type {
 import {
   Array as Arr,
   Cause,
+  DateTime,
   Deferred,
   Effect,
   Exit,
   Fiber,
+  Layer,
   Option,
   Order,
   Predicate,
@@ -37,10 +45,12 @@ import {
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
+import { TestClock } from "effect/testing";
 
 import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
-import { insertMembership, world } from "./support/teamsWorld.ts";
+import { lockableElsewhere, meetsHeldLock } from "./support/race.ts";
+import { placeMembership, semester, world } from "./support/teamsWorld.ts";
 
 type Statement = Effect.Effect<unknown, SqlError, SqlClient>;
 
@@ -56,7 +66,7 @@ interface Who {
   readonly teamId: TeamId;
 }
 
-/** `SELECT ... FOR NO KEY UPDATE` on the person's row: the lock of `MembershipRepository.insert`. */
+/** `SELECT ... FOR NO KEY UPDATE` on the person's row: the statement of `AggregateLocks.lock`, as raw SQL for a session. */
 const lockPerson = (personId: PersonId): Statement =>
   Effect.gen(function* lockPersonStatement() {
     const sql = yield* SqlClient;
@@ -294,7 +304,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           Effect.gen(function* effectProgram() {
             const who = yield* fresh(`del${ending}`);
 
-            const base = yield* insertMembership(who, {
+            const base = yield* placeMembership(who, {
               end: at(21),
               start: at(20),
             });
@@ -316,7 +326,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           Effect.gen(function* effectProgram() {
             const who = yield* fresh(`upd${ending}`);
 
-            const base = yield* insertMembership(who, {
+            const base = yield* placeMembership(who, {
               end: at(31),
               start: at(30),
             });
@@ -411,49 +421,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         })
     );
 
-    it.effect(
-      "the join form of setEnd's lock takes the person's row and not the membership's row",
-      () =>
-        Effect.gen(function* effectProgram() {
-          const who = yield* fresh("join");
-          const sql = yield* SqlClient;
-
-          const base = yield* insertMembership(who, {
-            end: at(71),
-            start: at(70),
-          });
-
-          const holder = yield* session();
-
-          yield* Deferred.await(
-            yield* holder.start(
-              sql`select person.id from person inner join membership on membership.person_id = person.id
-                where membership.id = ${base.id} for no key update of person`
-            )
-          );
-
-          const writer = yield* session();
-
-          assert.strictEqual(
-            sqlstateOf(
-              yield* Deferred.await(
-                yield* writer.start(moveEnd(base.id, 72, 71, 70))
-              )
-            ),
-            "ok",
-            "the membership row is not locked: its UPDATE does not wait"
-          );
-
-          const locked = yield* writer.start(lockPerson(who.personId));
-          assert.isTrue(yield* untilBlocked(1), "the person's row is locked");
-          yield* holder.end("commit");
-          assert.strictEqual(sqlstateOf(yield* Deferred.await(locked)), "ok");
-          yield* writer.end("rollback");
-          yield* Fiber.join(holder.fiber);
-          yield* Fiber.join(writer.fiber);
-        })
-    );
-
     // ------------------------------------------------ the conditional UPDATE (UpdateEnd)
 
     for (const ending of ["commit", "rollback"] as const) {
@@ -463,7 +430,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           Effect.gen(function* effectProgram() {
             const who = yield* fresh(`cond${ending}`);
 
-            const base = yield* insertMembership(who, {
+            const base = yield* placeMembership(who, {
               end: at(61),
               start: at(60),
             });
@@ -491,7 +458,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         Effect.gen(function* effectProgram() {
           const who = yield* fresh("replace");
 
-          const planned = yield* insertMembership(who, {
+          const planned = yield* placeMembership(who, {
             end: at(91),
             start: at(91),
           });
@@ -555,57 +522,243 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         })
     );
 
-    // ------------------------------------------------ the repository's own lock order (Shapes.tla `repo`)
+    // ------------------------------------------------ the lock construct (Shapes.tla `repo.lock`, Pair `LockAll`)
 
     it.effect(
-      "setEnd waits for the person's row lock before it writes anything (the order that keeps an extension and an insert from deadlocking)",
+      "lockAll is one statement ordered by id that takes its rows lowest first, one at a time: asked for [high, low] it holds the low row while it waits for the high one, and nothing of the high row while it waits for the low one",
       () =>
         Effect.gen(function* effectProgram() {
-          const who = yield* fresh("setend");
-          const sql = yield* SqlClient;
+          const low = (yield* fresh("lockalllow")).personId;
+          const between = (yield* fresh("lockallmid")).personId;
+          const high = (yield* fresh("lockallhigh")).personId;
 
-          const base = yield* insertMembership(who, {
-            end: at(81),
-            start: at(80),
-          });
-
-          const holder = yield* session();
-          yield* Deferred.await(yield* holder.start(lockPerson(who.personId)));
-
-          const extension = yield* Effect.forkChild(
-            Effect.exit(
-              transactional(
-                MembershipRepository.use((memberships) =>
-                  memberships.setEnd({
-                    activeIn: at(80),
-                    id: base.id,
-                    newEnd: at(82),
-                    observedEnd: at(81),
-                  })
-                )
-              )
-            )
+          const lockAll = transactional(
+            AggregateLocks.use((locks) => locks.lockAll("Person", [high, low]))
           );
 
-          assert.isTrue(
-            yield* untilBlocked(1),
-            "setEnd waits for the person's lock"
+          // Another session holds the high row: the statement has locked the low row and waits for this one.
+          const waitingForHigh = yield* meetsHeldLock(
+            lockPerson(high),
+            "%order by%for no key update%",
+            lockAll,
+            Effect.all({
+              between: lockableElsewhere(between),
+              low: lockableElsewhere(low),
+            })
           );
-
-          const unchanged = yield* sql<{
-            readonly endOrdinal: number;
-          }>`select end_ordinal as "endOrdinal" from membership where id = ${base.id}`;
 
           assert.strictEqual(
-            unchanged[0]?.endOrdinal,
-            semesterOrdinal(at(81)),
-            "and has written nothing yet"
+            waitingForHigh.waiting,
+            1,
+            "lockAll's statement is ordered by id, and it waits for a row that another session holds"
           );
 
-          yield* holder.end("commit");
-          assert.isTrue(Exit.isSuccess(yield* Fiber.join(extension)));
-          yield* Fiber.join(holder.fiber);
+          assert.deepStrictEqual(
+            waitingForHigh.during,
+            { between: true, low: false },
+            "it holds the low row while it waits, and a row that is not in its list is free"
+          );
+
+          // Another session holds the low row: the statement waits for it before it takes the high one.
+          const waitingForLow = yield* meetsHeldLock(
+            lockPerson(low),
+            "%order by%for no key update%",
+            lockAll,
+            Effect.all({
+              high: lockableElsewhere(high),
+              low: lockableElsewhere(low),
+            })
+          );
+
+          assert.strictEqual(waitingForLow.waiting, 1);
+
+          assert.deepStrictEqual(
+            waitingForLow.during,
+            { high: true, low: false },
+            "the high row is free while the statement waits for the low one"
+          );
+
+          for (const meeting of [waitingForHigh, waitingForLow]) {
+            assert.deepStrictEqual(
+              Exit.isSuccess(meeting.exit)
+                ? Arr.map(meeting.exit.value, (token) => token.id)
+                : [],
+              [low, high],
+              "the tokens come back in ascending id order"
+            );
+          }
         })
     );
+  }
+);
+
+// ---------------------------------------------------- the commands (Shapes.tla `compose`)
+
+const NOW = DateTime.makeUnsafe("2026-10-15T10:00:00Z");
+
+const LATER = DateTime.makeUnsafe("2099-12-31T23:59:59Z");
+
+const HOST_2026 = semester("HOST", 2026);
+
+const VAR_2027 = semester("VAR", 2027);
+
+/** The database, and the origin that the teams handlers' layer asks for (the links of the digest). */
+const teamsDatabase = Layer.merge(
+  postgresDatabase(),
+  Layer.succeed(SiteOrigin)("https://vektorprogrammet.test")
+);
+
+/** An administrator, so that every command is allowed. */
+const admin = Principal.cases.Person.make({
+  adminUntil: LATER,
+  memberships: [],
+  personId: PersonId.make(9001),
+});
+
+/** The person's memberships as the table has them: what a command that wrote something would change. */
+const membershipsOf = (personId: PersonId) =>
+  Effect.flatMap(
+    SqlClient,
+    (sql) =>
+      sql<{
+        readonly id: number;
+        readonly end_ordinal: number;
+        readonly start_ordinal: number;
+        readonly team_id: number;
+      }>`select id, team_id, start_ordinal, end_ordinal from membership where person_id = ${personId} order by id`
+  );
+
+/**
+ * Runs `command` as an administrator while another session holds the person's row lock, and shows what `compose` in
+ * `Shapes.tla` says of it: PostgreSQL shows the command waiting on a lock, it has written no membership by then, and
+ * once the lock is let go it succeeds and writes.
+ */
+const waitsForThePersonsLock = Effect.fnUntraced(
+  function* waitsForThePersonsLock<A, E, R>(
+    name: string,
+    who: Who,
+    command: Effect.Effect<A, E, R>
+  ) {
+    const before = yield* membershipsOf(who.personId);
+
+    const meeting = yield* meetsHeldLock(
+      lockPerson(who.personId),
+      "%for no key update%",
+      transactional(Effect.provideService(command, CurrentPrincipal, admin)),
+      membershipsOf(who.personId)
+    );
+
+    assert.strictEqual(
+      meeting.waiting,
+      1,
+      `${name} waits for the person's row lock`
+    );
+    assert.isTrue(meeting.stillRunning);
+
+    assert.deepStrictEqual(
+      meeting.during,
+      before,
+      `${name} has written no membership while it waits`
+    );
+
+    assert.isTrue(Exit.isSuccess(meeting.exit), `${name} succeeds`);
+
+    assert.notDeepEqual(
+      yield* membershipsOf(who.personId),
+      before,
+      `${name} writes a membership once the lock is let go`
+    );
+  }
+);
+
+layer(teamsDatabase, { excludeTestServices: true })(
+  "the membership commands of the model take the person's row lock before they write",
+  (outer) => {
+    outer.layer(TestClock.layer())((it) => {
+      // The current semester is Høst 2026. An Active membership runs from it to Vår 2027.
+      const active = { end: VAR_2027, start: HOST_2026 };
+
+      it.effect("addMember", () =>
+        Effect.gen(function* effectProgram() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
+          const who = yield* fresh("cmdadd");
+
+          yield* waitsForThePersonsLock(
+            "addMember",
+            who,
+            TeamsEndpoints.addMember({
+              leader: false,
+              personId: who.personId,
+              positionId: who.positionId,
+              start: HOST_2026,
+              teamId: who.teamId,
+            })
+          );
+        })
+      );
+
+      it.effect("extend", () =>
+        Effect.gen(function* effectProgram() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
+          const who = yield* fresh("cmdextend");
+          const base = yield* placeMembership(who, active);
+
+          yield* waitsForThePersonsLock(
+            "extend",
+            who,
+            TeamsEndpoints.extend({
+              end: advanceSemester(VAR_2027, 1),
+              id: base.id,
+            })
+          );
+        })
+      );
+
+      it.effect("endEarly", () =>
+        Effect.gen(function* effectProgram() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
+          const who = yield* fresh("cmdend");
+          const base = yield* placeMembership(who, active);
+
+          yield* waitsForThePersonsLock(
+            "endEarly",
+            who,
+            TeamsEndpoints.endEarly({ id: base.id, semester: VAR_2027 })
+          );
+        })
+      );
+
+      it.effect("change", () =>
+        Effect.gen(function* effectProgram() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
+          const who = yield* fresh("cmdchange");
+          const base = yield* placeMembership(who, active);
+
+          yield* waitsForThePersonsLock(
+            "change",
+            who,
+            TeamsEndpoints.change({ from: VAR_2027, id: base.id })
+          );
+        })
+      );
+
+      it.effect("cancel", () =>
+        Effect.gen(function* effectProgram() {
+          yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
+          const who = yield* fresh("cmdcancel");
+
+          const planned = yield* placeMembership(who, {
+            end: VAR_2027,
+            start: VAR_2027,
+          });
+
+          yield* waitsForThePersonsLock(
+            "cancel",
+            who,
+            TeamsEndpoints.cancel({ id: planned.id })
+          );
+        })
+      );
+    });
   }
 );

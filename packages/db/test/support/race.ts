@@ -2,6 +2,7 @@ import { Array as Arr, Cause, Deferred, Effect, Exit, Fiber } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/index.ts";
+import { TestDatabaseUrl, withClient } from "./disposableDatabase.ts";
 
 /** The effect, held at the gate until it opens, then run to its exit. */
 const atGate = <A, E, R>(
@@ -51,7 +52,8 @@ export const raceTwo = <A, EA, RA, B, EB, RB>(
  * Holds `lock` in a transaction of its own (so the lock holds until the transaction ends), starts `command`, and
  * reports whether the command was waiting on a lock whose query matches `waitingQuery` (an `ilike` pattern) before it
  * wrote anything, whether it was still running then, and how it ended once the lock was let go. A command that does not
- * take the lock does not wait, and finishes while the lock is held.
+ * take the lock does not wait, and finishes while the lock is held. `whileWaiting` runs once the command is seen
+ * waiting, with the lock still held: what it returns is `during`.
  */
 export const meetsHeldLock = Effect.fnUntraced(function* meetsHeldLock<
   A,
@@ -59,10 +61,14 @@ export const meetsHeldLock = Effect.fnUntraced(function* meetsHeldLock<
   R,
   LE,
   LR,
+  W = undefined,
+  WE = never,
+  WR = never,
 >(
   lock: Effect.Effect<unknown, LE, LR>,
   waitingQuery: string,
-  command: Effect.Effect<A, E, R>
+  command: Effect.Effect<A, E, R>,
+  whileWaiting?: Effect.Effect<W, WE, WR>
 ) {
   const sql = yield* SqlClient;
   const held = yield* Deferred.make<null>();
@@ -102,10 +108,29 @@ export const meetsHeldLock = Effect.fnUntraced(function* meetsHeldLock<
   }
 
   const stillRunning = !(yield* Deferred.isDone(finished));
+  const during = whileWaiting === undefined ? undefined : yield* whileWaiting;
   yield* Deferred.succeed(release, null);
   yield* Fiber.join(holder);
 
-  return { exit: yield* Fiber.join(running), stillRunning, waiting };
+  return { during, exit: yield* Fiber.join(running), stillRunning, waiting };
+});
+
+/** Whether another connection could lock the person's row right now (`FOR NO KEY UPDATE NOWAIT`). */
+export const lockableElsewhere = Effect.fnUntraced(function* lockableElsewhere(
+  personId: number
+) {
+  const url = yield* TestDatabaseUrl;
+
+  return yield* withClient(url, (client) =>
+    client
+      .unsafe(
+        `select id from person where id = ${personId} for no key update nowait`
+      )
+      .pipe(
+        Effect.as(true),
+        Effect.orElseSucceed(() => false)
+      )
+  );
 });
 
 /** What a failed race prints: each loser's full Cause, with the SQLSTATE and the reason of a SQL defect. */

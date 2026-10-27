@@ -33,8 +33,12 @@ import { Person } from "../src/aggregate/declaration.ts";
 import { schema, transactional } from "../src/index.ts";
 import { activateAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
-import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
-import { describeExit, race, raceReport } from "./support/race.ts";
+import {
+  describeExit,
+  lockableElsewhere,
+  race,
+  raceReport,
+} from "./support/race.ts";
 import {
   asPerson,
   lockPerson,
@@ -100,24 +104,6 @@ const readMemberships = (token: Locked<"Person">) =>
 
 const ownersOf = (rows: readonly { readonly personId: number }[]) =>
   Arr.map(rows, (row) => row.personId);
-
-/** Whether another connection could lock the person's row right now (`FOR NO KEY UPDATE NOWAIT`). */
-const lockableElsewhere = Effect.fnUntraced(function* lockableElsewhere(
-  personId: number
-) {
-  const url = yield* TestDatabaseUrl;
-
-  return yield* withClient(url, (client) =>
-    client
-      .unsafe(
-        `select id from person where id = ${personId} for no key update nowait`
-      )
-      .pipe(
-        Effect.as(true),
-        Effect.orElseSucceed(() => false)
-      )
-  );
-});
 
 layer(postgresDatabase(), { excludeTestServices: true })(
   "spec 0006b: the lock construct on PostgreSQL",
