@@ -302,6 +302,15 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
       Effect.gen(function* control() {
         const committed = yield* Committed;
 
+        // The committed texts stand for the export, so that this control goes red for its own edit and for nothing else.
+        const asExported = Arr.map(
+          Rec.toEntries(committed.texts),
+          ([domain, text]) => ({
+            domain,
+            text,
+          })
+        );
+
         const edited = {
           ...committed.texts,
           accounts: (committed.texts.accounts ?? "").replace(
@@ -310,7 +319,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           ),
         };
 
-        const found = drift(edited, committed.derived.descriptions);
+        const found = drift(edited, asExported);
 
         assert.lengthOf(found, 1);
         assert.match(found[0] ?? "", /^accounts: line \d+ of the committed/u);
