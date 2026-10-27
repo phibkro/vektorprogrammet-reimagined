@@ -32,7 +32,7 @@ ADR 0011 has three decision rules. **Leader decides** and **leader veto** are au
 
 One rule decides the electorate of every election type:
 
-> The electorate is every person with a current team membership in the subtree of the position's unit, frozen at the nomination cut-off.
+> The electorate is the people with current `member`/`leader` assignments in **Team** units in the subtree of the scope unit, frozen at nomination cut-off.
 
 "Team membership" means a current role assignment of kind `member` or `leader` in a unit of kind Team (ADR 0011). The **scope unit** of a position is the unit that the position leads: a team leads itself, a department board leads its department, and the national board leads Vektorprogrammet.
 
@@ -53,28 +53,31 @@ This resolves question 1 of ADR 0011 (who is "members" when terms start and end 
 
 Each instance fixes these at announcement. None changes after voting starts.
 
-- **Ballot: secret or open.** Both are available. A secret ballot keeps no link from a voter to a choice. An open ballot records who voted for what, like a show of hands.
+- **Ballot: secret or open.** Both are available. A secret ballot has no voter-choice link in the election database; in SlackDM the Slack processor receives the user's identity and choice together (see Residual trust). An open ballot records who voted for what, like a show of hands.
 - **Mode: meeting, remote, or both.**
-  - _Meeting_: members check in (the check-ins count toward the quorum) and vote on their phones in the room. The chair opens and closes each round.
+  - _Meeting_: only a person in the frozen `Elector(e)` may check in; check-in and attendance quorum count that set, then the person votes on a phone in the room. The chair opens and closes each round. This election-specific check-in is not ADR 0013's live `Audience(a)` check-in.
   - _Remote_: voting is open in a window that has a start and an end. A scheduled job closes it.
-  - _Both_: a person votes in either way, once per round.
+  - _Both_: the person must be in `Elector(e)` and can vote in either way, once per round.
+- **Ballot channel: `SlackDM` or `Web`.** Each instance sets one channel. The channel is fixed at announcement and cannot be changed. ADR 0013 owns the Activity delivery frame; this ADR owns the election's ballot channel and its secrecy properties.
 
 ## Lifecycle
 
-An election is a machine with a transition table (ADR 0007). A passed or failed decision never goes back; here, no state goes back, except the runoff, which opens a new voting round.
+The Activity lifecycle owns planning, announcement and participant notices; the election machine owns nominations, ballots, counting, certification and seating. createElection creates a Planned Activity. announceElection also runs announceActivity, moving it to Announced. During election phases the Activity remains Announced. After announcement, generic updateActivity is unavailable; cancellation is only through the election-specific voidElection transition before voting. No Activity command may change the ballot, ballotChannel, voting mode, dates or electorate of an announced election.
 
 | From | Command | To | Notes |
 | --- | --- | --- | --- |
-| `[*]` | `createElection` | Announced | Type, unit, positions, seats, ballot, mode, dates. The type fixes the allowed voting-system choices and certifier method; the system itself is frozen at `openNominations`. An open required value blocks creation. |
-| Announced | `openNominations` | Nominations | At the announced date. |
-| Nominations | `startVoting` | Voting | At nomination cut-off. Writes the frozen electorate rows. A contested count needs enough eligible candidates for its seats. |
-| Voting | `closeVoting` | Counting or Void | Closes at the announced deadline (or by the chair in meeting mode). Ballot casting checks `Voting` and the time is before the deadline. If quorum is met, enter Counting; otherwise record the failed quorum and enter Void. |
-| Counting | `countElection` (job) | Voting | The count says **runoff**: a new round among the tied or remaining candidates, same electorate. |
-| Counting | `countElection`, `settleTie` | Counting | The typed tie-break chain selects the next step; committee may fail to decide, then the chain continues to lot. |
-| Counting | `certifyElection` | Certified | A decision of the certifiers. Writes the result. No command changes it afterwards. |
-| Certified | `seatElected` (job) | Seated | At the term start. `System(elections)` creates the role assignments. |
+| [*] | createElection | Planned | Creates an Activity in Planned state and an election record. Stores the election type, unit, positions, seats, ballot type, ballotChannel, mode and dates. An open required value blocks creation. |
+| Planned | announceElection (announceActivity) | Announced | Announces the Activity and sends notices. This freezes ballot type, channel, mode, dates and certifier method. Generic updateActivity is no longer available. The voting-system preset and permitted parameters are frozen when nominations open. |
+| Announced | openNominations | Nominations | Opens at the announced date. |
+| Planned, Announced or Nominations | voidElection | Void | Before voting only. Records a reason, sends a notice and prevents further changes. This is the election's cancellation path; generic cancelActivity is not available after announcement. |
+| Nominations | startVoting | Voting or Void | At cut-off, writes the frozen electorate. If there are too few eligible candidates for the seats, records the reason and enters Void instead. |
+| Voting | closeVoting | Counting or Void | At the announced deadline (or chair action in meeting mode). Casting checks Voting and that the deadline has not passed. If quorum is met, enter Counting; otherwise record failed quorum and enter Void. |
+| Counting | countElection (job) | Voting | A preset runoff opens a new round among its declared candidates with the same electorate. A majority-with-runoff preset's own second round is not a tie-break-chain runoff. |
+| Counting | settleTie | Counting | Applies the next tie-break-chain rule. A committee may fail to decide; then the chain proceeds to its terminal lot. |
+| Counting | certifyElection | Certified or Void | A passing certification writes the immutable result. A no or deadline outcome of no enters Void with the refusal reason. If all declared certifiers are candidates, escalate to the nearest parent-unit certifier subject set with an eligible certifier; continue up the tree as needed. At the root use Admin (audited). If no fallback certifier can decide, enter Void with that reason. |
+| Certified | seatElected (job) | Seated | At term start, System(elections) creates role assignments whose origin is the certification. |
 
-- **Certification** is the election's final decision, using ADR 0011's decision record: certifiers propose, the declared certifier subject set is the electorate, the declared passing rule decides, and failure to pass means no certification. The election type declares the subject set and rule; the announcer cannot choose certifiers. One option is `ElectionCommittee(u)`, a role kind in the unit whose members the unit appoints by its own decision before the election is announced. Another is the meeting chair, elected by motion vote at the meeting. The committee passes by majority by default; a chair certifies alone. A candidate cannot certify their own election. Certification grants each elected role and is recorded as the origin of each role assignment.
+- **Certification** is the election's final decision in ADR 0011's decision-record construct. The election type declares a certifier subject set and decision rule; the announcer cannot choose certifiers. The chosen committee method is a motion vote of the unit before announcement, not an authority decision of its leader. A person is not excluded merely because a candidate nominated them for the committee; appointment is collective and only a candidate is recused from their own certification. A meeting chair may instead be selected by a motion vote at the meeting and certifies alone. The committee passes by majority of its eligible, non-candidate certifiers; a tie or no is failure. Failure or deadline outcome no means no certification and transitions to Void. If every declared certifier is a candidate, escalate to the parent unit's declared certifier subject set; continue up the unit tree as needed and use Admin at the root. Admin fallback is audited. If no eligible fallback certifier can decide, the election enters Void with a reason.
 - `System(elections)` is its own principal (ADR 0008). Its grants cover scheduled lifecycle steps, counting, seating and retention; it cannot nominate, certify or decide a tie for the committee.
 - **Elected positions cannot bypass elections.** An election type declares each elected position by unit kind and role kind. Only a certified election may create or extend a role assignment in that position. `createMembership`, `extendMembership` and leader-flag changes do not grant elected positions. Admin is the explicit exception: an Admin may make an audited assignment for a vacancy, with no automatic renewal. A unit that does not elect a position keeps ADR 0011's authority decisions for it.
 
@@ -133,14 +136,15 @@ A threshold is a fraction with a preset default. Its denominator is selected fro
 | Preset | Ballot | Aggregation | Win condition | Seats |
 | --- | --- | --- | --- | --- |
 | Plurality | Single choice | Count | Plurality | 1 |
-| Majority with runoff | Single choice | Count | More than half; if absent, top two by first-choice count advance (all tied at second place advance) | 1 |
+| Majority with runoff | Single choice | Count | First round: more than half; otherwise the top two advance (all tied at second place advance). Second round: plurality; a tie uses the tie-break chain. The preset's second round does not use the tie-break-chain runoff allowance. | 1 |
 | Instant runoff (IRV) | Ranked | Elimination rounds | Majority of the continuing ballots | 1 |
-| Single transferable vote (STV) | Ranked | Elimination rounds | Droop quota `floor(V/(s+1))+1`; Gregory surplus transfer | 1 or more |
+| Single transferable vote (STV) | Ranked | Elimination rounds | Droop quota floor(V/(s+1))+1 (V = valid ballots); WIGM surplus transfer, truncated to five decimal places | 1 or more |
 | Approval | Approval | Count | Highest sum | 1 or more |
 | Score | Score | Sum or mean | Highest sum or mean | 1 or more |
-| Majority judgment | Grade | Median with iterative median-grade removal (majority gauge) | Highest median grade, then majority gauge | 1 |
+| Majority judgment | Grade | Median grade | Highest median grade, then majority value (iterative median-grade removal) | 1 |
 | Schulze | Ranked | Pairwise matrix | Schulze winner | 1 |
 | Motion | Yes/no/abstain | Count | Threshold | n/a |
+| **Exact STV preset.** V is the number of valid ballots, and the Droop quota is fixed for the count: floor(V/(s+1))+1. This preset uses WIGM as specified by rules 48–50 of the [Scottish Local Government Elections Order 2011](https://www.legislation.gov.uk/ssi/2011/399/made): transfer value = truncate to five decimal places (surplus × the ballot's current value / the candidate's total vote). The linked order is the source for the transfer variant and rounding precision. |
 
 **No system meets every fairness criterion.** Arrow's theorem (1951) shows that no ranked system for three or more candidates is at once unanimous, free of a dictator and independent of irrelevant alternatives. The Gibbard–Satterthwaite theorem (Gibbard 1973, Satterthwaite 1975) shows that every deterministic ranked system for three or more candidates, where any candidate can win, is dictatorial or open to tactical voting. Score and approval ballots lie outside Arrow's frame, because they carry more than a ranking. They still allow tactical voting. So each preset declares the criteria it meets and the criteria it fails. The choice of preset is a choice of which failures the organisation accepts.
 
@@ -174,14 +178,14 @@ Two records stay apart:
 | Secret ballot | Random id, election, round, choice | A person, a participation key, a time, a running number |
 | Open vote | Election, round, person, choice | (Used only when the instance is open) |
 
-- **Casting** (a secret instance) checks the state and the round, inserts the participation row (a second ballot in the round fails on the unique key), and inserts the secret ballot. A secret instance never writes an open vote.
+- **Casting.** On Web, an authenticated Elector(e) uses castBallot. On SlackDM, castVote uses a single-use Link with purpose "ballot", bound to that elector, election and round. Both check the Voting state, deadline, frozen Elector(e) membership and one-vote-per-round record before storing a ballot. A secret instance never writes an open vote.
 - **Counting** reads the ballots in shuffled order. When voting closes, the job writes the ballots again in one new transaction, in random order, and deletes the first copies. The stored ballots then carry no order of arrival and one shared transaction id.
 - **No tally** is readable before voting closes, for either kind.
 - The payload of a ballot never enters the audit log or any application log. This follows the audit rule that the log keeps no changed values (`docs/system/administration.md`). No command reads a secret ballot, except the count.
 - **Unlinkability is a schema property.** No column of the secret-ballot table references a person or a participation row, and the table has no time column and no running number. A generated schema check fails when one appears.
 - **An open ballot** records the voter and the choice. It is the same as a show of hands, with a record.
 
-**Residual trust in operators.** This is a new trust grant, not the Emergency reset risk in ADR 0011. An authorized operator with database, platform, deployment, request-log or managed-database history access may link secret ballots to voters during voting and while pre-shuffle state remains in WAL, backups, PITR or logs; an operator may also alter the counting code. Voters cannot verify their ballots. The people with this access may themselves be electors or candidates. The duration of that exposure depends on retention policies that this ADR does not verify. Accepting this risk is an explicit operator choice; it is not removed by the schema unlinkability property.
+**Residual trust in operators and processors.** An authorized operator with database, platform, deployment, request-log or managed-database history access may link ballots to voters during voting and while pre-shuffle state remains in WAL, backups, PITR or logs; an operator may also alter the counting code. Voters cannot verify their ballots. The people with this access may themselves be electors or candidates. The duration of that exposure depends on retention policies that this ADR does not verify. In SlackDM mode, Slack receives the Slack user identity together with the ballot choice; workspace owners may access or export both, and Slack may retain them under its processor policies. The Web schema unlinkability property does not hide a SlackDM vote from Slack. These are explicit trust limits, not covered by ADR 0011's Emergency reset decision.
 
 ## Personal data
 
@@ -191,6 +195,7 @@ Each field below is declared in `packages/domain` with its purpose, legal basis 
 | --- | --- | --- |
 | Electorate rows, check-ins, participation | Check who may vote and who has voted; the quorum | Until the appeal window ends, then deleted |
 | Secret ballots and open votes | Count the ballots; a recount in the appeal window | Until the appeal window ends, then deleted |
+| SlackDM delivery and ballot data (Slack processor) | Deliver and accept a Slack ballot | Delete the Slack message at the end of the appeal window where the API permits; workspace exports and provider-retained copies may remain. Confirm terms, deletion limits and legal basis under ADR 0004. |
 | Candidacy of a person who is not elected | Show the candidates; count their ballots | Until the appeal window ends, then deleted |
 | Result: the elected persons, the certification decision | Record who holds a position and why | With the role assignment history (10 years) |
 | Turnout and the size of the electorate | Show that the election was valid | Counts, not personal data; not deleted |
@@ -207,7 +212,7 @@ The generated models (ADR 0009: Alloy 6 first, TLA+ for the lifecycle when enabl
 4. **A certified result cannot change.** No transition leaves Certified except to Seated, and no command writes the result again.
 5. **Unlinkability.** No column of a secret ballot links it to a voter (see the secret ballot).
 6. **The preset criteria hold or fail as declared** (see the voting system).
-7. **Authority and no escalation.** Each elected role assignment has a passed certification as its origin. A passed election certification is an explicit exception to ADR 0011's no-escalation check, like an Admin grant; certification authority comes from the declared certifier set and decision rule, not one certifier's personal role. This resolves ADR 0011 question 2 for elections only.
+7. **Authority and no escalation.** Each role assignment in an elected position has either a passed certification or an audited Admin vacancy grant as its origin. An Admin vacancy grant has no renewal plan. A passed election certification is an explicit exception to ADR 0011's no-escalation check, like an Admin grant; this resolves ADR 0011 question 2 for elections only.
 
 ## Values that depend on the bylaws
 
@@ -222,7 +227,8 @@ The bylaws (vedtekter) are not available. All values below are in one declaratio
 | Seats of a board, and their bounds | open | none |
 | Term length | assumed | Two semesters (one year) for each type; one semester is allowed by the declaration |
 | Holdover until a successor is seated | open | none |
-| Election committee, or the chair | open | none |
+| Election committee or chair | open | The bylaws select the declared certifier subject set. Committee appointment by unit motion vote before announcement and chair election by meeting motion vote are the available methods. |
+| Certification deadline | open | The deadline duration is set by the bylaws; the rule's deadline outcome is no, which moves the instance to Void with a recorded reason. |
 | Denominator choices | assumed | Valid ballots (default), all ballots cast including blank, checked-in attendees, or whole frozen electorate. A blank ballot is invalid; an abstention is valid. |
 | Abstention treatment | open | The bylaws decide whether an abstention counts in the denominator for a motion threshold. |
 | Tie-break chain and runoff cap | assumed | One runoff, then committee, then lot |
@@ -273,7 +279,7 @@ The table of presets above shows examples, not an exhaustive closed set. Each pr
 ## Open questions
 
 1. **Holdover.** Does the outgoing leader stay in the role until a successor is seated? Without it, a unit with no seated leader has no leader, and ADR 0011 question 6 applies.
-2. **Vacancy.** A leader or board member resigns during a term. Is there a by-election? May an Admin put a person in an elected role directly (ADR 0011 allows it)?
+2. **Vacancy.** A leader or board member resigns during a term. Does the unit require a by-election, or use the audited Admin vacancy exception defined above? The Admin exception itself is decided.
 3. **Failed elections.** No candidates, too few eligible candidates for the seats, or failed quorum moves the instance to `Void` and records the reason. May a void instance be reopened, or must the unit announce a new instance?
 4. **Appeals.** A certified result cannot change. What does an upheld appeal do? Proposal: a decision of the certifiers voids the election, and a new election follows.
 5. **Electors without an Active account.** A member with no way to sign in is in the frozen electorate. May the chair record a vote for them?
