@@ -33,7 +33,8 @@
 7. Redeploy `main` and confirm that the CMS answers (`GET /_emdash/api/setup/status` is 200 on its `workers.dev` URL). `bun run check:cms` proves the bundle in workerd against a local PostgreSQL, so the first deploy after the R3 fix is the proof against Hyperdrive and Neon.
 8. ADR 0011, “Units, roles and decisions,” is accepted (operator, 2026-10-27), including Emergency's least-privilege grants. Its remaining design questions are listed at the end of `docs/decisions/0011-units-roles-and-decisions.md`; the kernel change is a later spec.
 9. ADR 0012, “Elections,” is accepted (operator, 2026-10-27). Its open questions and bylaw assumptions are listed at the end of `docs/decisions/0012-elections.md`; the build is a later spec.
-10. Check the spec 0007b pull request's Worker Preview: the contact form shows the privacy notice with its draft label, Min side answers both consents and downloads the file, and `scheduled` runs the retention cron on `main` (`17 2 * * *`, once a night). `main` is a preview deployment, so look for "retention run finished" in its log; production logs "retention report finished: nothing was changed" until its periods are approved.
+10. ADR 0013, “Activities,” is accepted (operator, 2026-10-27). Its open questions are listed at the end of `docs/decisions/0013-activities.md`; the build is a later spec.
+11. Check the spec 0007b pull request's Worker Preview: the contact form shows the privacy notice with its draft label, Min side answers both consents and downloads the file, and `scheduled` runs the retention cron on `main` (`17 2 * * *`, once a night). `main` is a preview deployment, so look for "retention run finished" in its log; production logs "retention report finished: nothing was changed" until its periods are approved.
 
 ## Blocked on the operator
 
