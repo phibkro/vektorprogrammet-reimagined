@@ -176,6 +176,26 @@
         "vite-plus": "catalog:",
       },
     },
+    "spikes/alchemy-workflows": {
+      "name": "@vektorprogrammet/spike-alchemy-workflows",
+      "version": "0.0.0",
+      "dependencies": {
+        "@effect/sql-pg": "catalog:",
+        "@vektorprogrammet/db": "workspace:*",
+        "@vektorprogrammet/domain": "workspace:*",
+        "alchemy": "catalog:",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "catalog:",
+        "@effect/platform-bun": "catalog:",
+        "@effect/platform-node": "catalog:",
+        "@effect/vitest": "catalog:",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+        "vite-plus": "catalog:",
+      },
+    },
     "tools/db-path-spike": {
       "name": "@vektorprogrammet/db-path-spike",
       "version": "0.0.0",
@@ -1559,6 +1579,8 @@
     "@vektorprogrammet/quality": ["@vektorprogrammet/quality@workspace:tools/quality"],
 
     "@vektorprogrammet/spike-alchemy-domain": ["@vektorprogrammet/spike-alchemy-domain@workspace:spikes/alchemy-domain"],
+
+    "@vektorprogrammet/spike-alchemy-workflows": ["@vektorprogrammet/spike-alchemy-workflows@workspace:spikes/alchemy-workflows"],
 
     "@vektorprogrammet/web": ["@vektorprogrammet/web@workspace:apps/web"],
 
