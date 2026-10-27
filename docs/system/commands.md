@@ -104,4 +104,11 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | --- | --- | --- | --- | --- |
 | `submitContact` | `:submit` | contact | Send a message to a department's contact address. | Anyone; Admin |
 
+### WorkspaceReport
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `createWorkspaceReport` | `create` | workspace | Ask for a Google Workspace dry-run. Writes a request that the next tick takes; it calls no provider. The report appears when the run is done. | Admin |
+| `syncWorkspace` | `:sync` | workspace | Compare the Google Workspace groups and accounts with the active memberships and record the changes. One chunk: records the accounts, or the next teams' groups, and the cursor. In write mode its last chunk queues the changes, unless the removals are over the cap. | System(workspaceSync) |
+
 <!-- docgen:end resources -->

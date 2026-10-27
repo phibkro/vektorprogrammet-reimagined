@@ -6,9 +6,11 @@ import { Command, Flag } from "effect/cli";
 
 import {
   checkAccountsDocument,
+  checkAdministrationDocument,
   checkCommandsDocument,
   checkDocument,
   renderAccountsDocument,
+  renderAdministrationDocument,
   renderCommandsDocument,
   renderDocument,
 } from "./render.ts";
@@ -28,6 +30,11 @@ const DOCUMENTS = [
     check: checkCommandsDocument,
     file: "../../docs/system/commands.md",
     render: renderCommandsDocument,
+  },
+  {
+    check: checkAdministrationDocument,
+    file: "../../docs/system/administration.md",
+    render: renderAdministrationDocument,
   },
 ] as const;
 

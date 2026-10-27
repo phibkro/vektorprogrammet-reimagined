@@ -106,12 +106,22 @@ A test fails if a personal column has no declaration.
 
 ### Scheduled jobs
 
-| Job | Does |
-| --- | --- |
-| Semesters | Keeps the current and the next semester present |
-| Outbox sweep | Delivers e-mails that the request could not send |
-| Ending soon | Four weeks before semester end: memberships. Admin-grant reminders are a later slice. |
-| Retention | Deletes or anonymises data at the end of its retention period |
+Every job is declared once, in `packages/domain/src/jobs/registry.ts` (spec 0008). The Worker's cron triggers, the scheduler and this table are generated from that registry. A job runs as its own `System` principal, through the commands that its grant names, in periods that `job_run` claims once: a run that is cut short resumes at its cursor on the next tick.
+
+<!-- docgen:begin jobs -->
+
+| Job | Does | Due | Cron | Cadence |
+| --- | --- | --- | --- | --- |
+| `semesters` | Keeps the current and the next semester present. | once per semester | `*/10 * * * *` | approved |
+| `endingSoon` | In the last 4 weeks of the semester, e-mails each team leader the memberships that end. | every tick in the last 4 weeks of the semester | `*/10 * * * *` | approved |
+| `workspaceSync` | Compares the Google Workspace groups and accounts with the active memberships and records the changes it would make. | once a day from 02:00 (Europe/Oslo) | `*/10 * * * *` | proposed \* |
+| `outboxSweep` | Delivers e-mails, Slack posts and credential and Workspace intents that a request could not send. | every tick | `*/10 * * * *` | approved |
+
+<!-- docgen:end jobs -->
+
+\* Proposed, not yet decided by the operator. A proposed cadence runs like an approved one; approving it is one word in the job's declaration.
+
+The retention job and the alumni consent mail (spec 0007b) and the admission alerts (spec 0009) join this table when their specs register them. Until then, retention is as described above and nothing runs it.
 
 ### Processors
 

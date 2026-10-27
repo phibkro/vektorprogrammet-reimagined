@@ -149,7 +149,7 @@ Active, Planned and Ended are calculated from the semester. They replace the leg
 | `Fn(f, d)` | Has an active membership in a team of `d` whose function is `f` |
 | `Board` | `Fn(board, *)`: has an active membership in a board team |
 | `Admin` | Is on the admin list, and the place has not ended (`docs/system/administration.md`) |
-| `System(job)` | A scheduled job (`semesters`, `outboxSweep`, `endingSoon`), which runs as its own principal |
+| `System(job)` | A scheduled job (the registry in `docs/system/administration.md`), which runs as its own principal |
 
 <!-- docgen:end subjects -->
 

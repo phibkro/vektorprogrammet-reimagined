@@ -1,9 +1,12 @@
-/** Pure renderers for the declaration-derived teams, accounts and commands-by-resource references. */
+/** Pure renderers for the declaration-derived teams, accounts, commands-by-resource and scheduled-jobs references. */
 import {
   Commands,
   Domain,
+  Job,
+  JobRegistry,
   Subject,
   codePolicy,
+  jobProblems,
 } from "@vektorprogrammet/domain";
 import type { Grant, Machine } from "@vektorprogrammet/domain";
 import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
@@ -463,3 +466,49 @@ export const checkCommandsDocument = (
   grants: readonly GrantRow[]
 ): Result.Result<void, string> =>
   checkRendered(document, renderCommandsDocument(document, domains, grants));
+
+/**
+ * The scheduled jobs of the registry (spec 0008): what each does, when it is due, its cron and whether it is approved.
+ * Wide, so Oxfmt keeps it compact (`table`); `alignedTable` is for the short tables that it aligns.
+ */
+const jobsTable = (jobs: readonly Job.Job[]): string =>
+  table(
+    ["Job", "Does", "Due", "Cron", "Cadence"],
+    Arr.map(jobs, (job) => [
+      `\`${job.name}\``,
+      job.summary,
+      Arr.join(Arr.map(job.dueWhen, Job.describeDueWhen), "; "),
+      `\`${job.schedule.cron}\``,
+      job.schedule.status === "proposed" ? "proposed \\*" : "approved",
+    ])
+  );
+
+/**
+ * `administration.md`: the table of scheduled jobs is the registry, rendered. The registry is checked against the
+ * declarations first (`jobProblems`), so a job without a declaration, a command or a name is refused here too. `jobs`
+ * is the real registry; the tests pass a changed one to show that a changed declaration changes the page.
+ */
+export const renderAdministrationDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  _grants: readonly GrantRow[],
+  jobs: readonly Job.Job[] = JobRegistry.Jobs
+): Result.Result<string, string> =>
+  Result.flatMap(completeDomains(domains), (complete) => {
+    const problems = jobProblems(jobs, complete);
+
+    return problems.length > 0
+      ? Result.fail(`Incomplete job registry: ${Arr.join(problems, "; ")}`)
+      : replaceBlocks(document, [["jobs", jobsTable(jobs)]]);
+  });
+
+export const checkAdministrationDocument = (
+  document: string,
+  domains: readonly Declaration[],
+  grants: readonly GrantRow[],
+  jobs: readonly Job.Job[] = JobRegistry.Jobs
+): Result.Result<void, string> =>
+  checkRendered(
+    document,
+    renderAdministrationDocument(document, domains, grants, jobs)
+  );

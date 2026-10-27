@@ -6,6 +6,8 @@ import {
   Declarations,
   Domain,
   GrantTable,
+  Job,
+  JobRegistry,
   Teams,
 } from "@vektorprogrammet/domain";
 import {
@@ -19,8 +21,10 @@ import {
 
 import {
   checkAccountsDocument,
+  checkAdministrationDocument,
   checkCommandsDocument,
   checkDocument,
+  renderAdministrationDocument,
   renderCommandsDocument,
   renderDocument,
 } from "../src/render.ts";
@@ -299,6 +303,136 @@ describe("spec 0007c falsifier 5: every command by resource", () => {
                 "<!-- docgen:end resources -->",
                 "<!-- docgen:begin inner -->\n<!-- docgen:end resources -->"
               ),
+              Declarations,
+              GrantTable
+            )
+          )
+        );
+      })
+  );
+});
+
+const administrationSource = Effect.gen(function* administrationSource() {
+  const fs = yield* FileSystem.FileSystem;
+
+  return yield* fs.readFileString("../../docs/system/administration.md");
+}).pipe(Effect.provide(NodeServices.layer));
+
+describe("spec 0008 falsifier 6: the scheduled jobs are the registry, rendered", () => {
+  it.effect(
+    "the committed page matches the registry, and lists every registered job and its due rule",
+    () =>
+      Effect.gen(function* listsEveryJob() {
+        const document = yield* administrationSource;
+
+        assert.isTrue(
+          Result.isSuccess(
+            checkAdministrationDocument(document, Declarations, GrantTable)
+          )
+        );
+
+        for (const job of JobRegistry.Jobs) {
+          assert.include(
+            document,
+            `| \`${job.name}\` |`,
+            `${job.name} is listed`
+          );
+
+          for (const rule of job.dueWhen) {
+            assert.include(document, Job.describeDueWhen(rule));
+          }
+        }
+      })
+  );
+
+  it.effect(
+    "negative control: changing one declaration without regenerating fails the check",
+    () =>
+      Effect.gen(function* changedDeclaration() {
+        const document = yield* administrationSource;
+
+        const approved = Arr.map(JobRegistry.Jobs, (job) =>
+          job.name === "workspaceSync"
+            ? Job.make({
+                ...job,
+                name: job.name,
+                schedule: { ...job.schedule, status: "approved" },
+              })
+            : job
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            checkAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              approved
+            )
+          )
+        );
+
+        const later = Arr.map(JobRegistry.Jobs, (job) =>
+          job.name === "workspaceSync"
+            ? Job.make({
+                ...job,
+                dueWhen: [Job.DueWhen.cases.Daily.make({ hour: 3 })],
+                name: job.name,
+              })
+            : job
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            checkAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              later
+            )
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "negative control: one changed character in the generated block fails the check",
+    () =>
+      Effect.gen(function* changedCharacter() {
+        const document = yield* administrationSource;
+        const changed = document.replace("| Cadence", "| Cadenze");
+
+        assert.notStrictEqual(changed, document);
+        assert.isTrue(
+          Result.isFailure(
+            checkAdministrationDocument(changed, Declarations, GrantTable)
+          )
+        );
+      })
+  );
+
+  it.effect(
+    "negative control: an incomplete registry, or invalid markers, are refused",
+    () =>
+      Effect.gen(function* refused() {
+        const document = yield* administrationSource;
+
+        // A System principal without a declaration.
+        assert.isTrue(
+          Result.isFailure(
+            renderAdministrationDocument(
+              document,
+              Declarations,
+              GrantTable,
+              Arr.filter(JobRegistry.Jobs, (job) => job.name !== "endingSoon")
+            )
+          )
+        );
+
+        assert.isTrue(
+          Result.isFailure(
+            renderAdministrationDocument(
+              document.replace("<!-- docgen:end jobs -->", ""),
               Declarations,
               GrantTable
             )
