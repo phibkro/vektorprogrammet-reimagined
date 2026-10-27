@@ -1,0 +1,37 @@
+/**
+ * The stack the browser tests run against, built once by whoever needs it: `run.ts` (the tests) and `serve.ts` (the
+ * verification skill's long-lived instance). Everything is owned by the caller's scope and released in reverse order:
+ *
+ *   disposable PostgreSQL database (migrated, seeded by the importer and the local seed)
+ *     →  the CMS (`astro dev` on the database's schema `emdash`, its default copy, the importer's fixture, twice)
+ *     →  `vp dev` on a free port, reading that database and that CMS
+ */
+import { Effect, Random } from "effect";
+
+import { importFixtureTwice, startCms } from "./cms.ts";
+import { disposableDatabase } from "./database.ts";
+import { startDevServer } from "./devServer.ts";
+
+export const startStack = Effect.fn("startStack")(function* startStack(
+  webDirectory: string
+) {
+  const databaseUrl = yield* disposableDatabase;
+  // Two ranges, so the two servers can never draw the same port.
+  const cmsPort = yield* Random.nextIntBetween(30_000, 40_000);
+  const cms = yield* startCms({ databaseUrl, port: cmsPort });
+  yield* Effect.log(`the CMS answers on ${cms.origin}; importing the fixture`);
+  yield* importFixtureTwice(cms);
+
+  const port = yield* Random.nextIntBetween(40_000, 50_000);
+
+  const origin = yield* startDevServer({
+    cms,
+    databaseUrl,
+    port,
+    webDirectory,
+  });
+
+  yield* Effect.log(`vp dev answers on ${origin}`);
+
+  return { cms, databaseUrl, origin };
+});
