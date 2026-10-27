@@ -14,31 +14,31 @@ const NOBODY = "NoTxn";
 
 function command(plan) {
   switch (plan.kind) {
-    case "addMember": {
+    case "createMembership": {
       const span =
         plan.s === plan.e ? sem(plan.s) : `${sem(plan.s)} to ${plan.e}`;
 
       return `adds the person to team ${plan.team} for ${span}`;
     }
-    case "extend": {
+    case "extendMembership": {
       return `extends a membership to semester ${plan.e}`;
     }
-    case "endEarly": {
+    case "endEarlyMembership": {
       return `ends a membership from semester ${plan.from}`;
     }
-    case "change": {
+    case "changeMembership": {
       return `moves a membership to team ${plan.team2} from semester ${plan.from}`;
     }
-    case "cancel": {
+    case "deleteMembership": {
       return "cancels a planned membership";
     }
     case "replace": {
       return "cancels a planned membership and adds another in its place";
     }
-    case "grantAdmin": {
+    case "createAdminGrant": {
       return "grants an admin place (locks the admin list, then the person)";
     }
-    case "revokeAdmin": {
+    case "deleteAdminGrant": {
       return "revokes an admin place (locks the admin list, then the person)";
     }
     case "lockBoth": {

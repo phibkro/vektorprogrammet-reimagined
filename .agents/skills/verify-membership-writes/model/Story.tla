@@ -11,6 +11,6 @@ EXTENDS Race
 
 StoryRows == {}
 
-StoryPlans == { Plan("addMember", NoRow, "x", 2, 2, 0, "-") }
+StoryPlans == { Plan("createMembership", NoRow, "x", 2, 2, 0, "-") }
 
 =============================================================================
