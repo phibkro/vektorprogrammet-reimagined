@@ -4,4 +4,5 @@ set -eu
 if [ -z "${DEVENV_ROOT:-}" ]; then
   exec devenv shell -- sh "$0" "$@"
 fi
-bunx vp run -r test
+# Package scripts re-enter devenv; serialize them to prevent concurrent cleanup of .devenv/load-exports.
+bunx vp run -r --concurrency-limit 1 test
