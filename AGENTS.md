@@ -11,6 +11,9 @@ A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organ
 | Architecture, decisions and their sources | `../../analysis/vektorprogrammet/REIMAGINED_ARCHITECTURE.md` |
 | Business rules (RULE-nnn) with legacy citations | `../../analysis/vektorprogrammet/BUSINESS_RULES.md` |
 | Slice specs | `docs/specs/` (`0000-database-path-spike.md` with its `0000-results.md`, `0001-departments-and-semesters.md`, `0002-worker-previews.md`, `0003-semesters-by-schedule.md`, `0004-dashboard-shell.md` with its screenshots, `0005-homepage-emdash.md` with its screenshots) |
+| The information system: domains, who does what, commands, grants, state machines, personal data (proposed) | `docs/system/` (`README.md` first); analysis in `../../analysis/vektorprogrammet/INFORMATION_MODEL.md` |
+| Names of domain concepts, with Norwegian terms | `GLOSSARY.md` |
+| Hard-to-reverse decisions | `docs/decisions/` |
 | Mission state | `STATE.md` |
 | Package details | each package's `README.md` |
 
