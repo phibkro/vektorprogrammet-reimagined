@@ -130,7 +130,7 @@ Correctness by construction: a description that is a function of the declaration
 5. **effx's own assertions.** Regeneration runs A1 to A7 on every description (`provenance.json` has the results: `teams` passes all nine runs; a domain without machines, a clock, an admin list or memberships reports A1, A4, A5 and A7 as NOT APPLICABLE, never PASS) and stops on a failing one. C4 and C5 below.
 6. **Reproducible.** Two regenerations on one commit write byte-identical descriptions, vectors and provenance: after the second run, on the rebased tree, `git status` showed no changed file in `packages/domain/conformance` (1 m 38 s; the first run took 2 m 16 s).
 7. **No dependency.** `bun.lock` changes by the new workspace and nothing else (17 lines, every dependency from the catalog); no catalog entry and no effx package. The tool's 11 tests pass with no directory that holds `nix`, `java` or `alloy6` on `PATH`.
-8. **Repository gates.** `bun run ready` exits 0.
+8. **Repository gates.** `bun run ready` exits 0. `teams/declaration.ts` gains `fields`, `terminal` and `memberships`, and `verify-membership-writes` covers that file, so CI runs its model on this change. The covered diff is 10 added lines and no state, transition or guard, so the model needed a new digest and no new shape: `run.sh --code` exits 0 on the committed tree (26 of 26 runs as expected, 51 code tests on PostgreSQL), and the digest is re-confirmed in its own commit.
 
 ### Negative controls against the real source
 
