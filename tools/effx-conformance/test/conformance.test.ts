@@ -651,7 +651,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         );
 
         // the `viewTeams` rows that only the removed row granted
-        assert.deepStrictEqual(kinds(withoutMember), { authorize: 1344 });
+        assert.deepStrictEqual(kinds(withoutMember), { authorize: 1536 });
 
         // the leaders' scope widened from their department to all
         const widened = yield* conform("teams", {
@@ -676,7 +676,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         );
 
         // the rows of the leaders' commands that the wider scope grants and the vectors do not
-        assert.deepStrictEqual(kinds(widened), { authorize: 9648 });
+        assert.deepStrictEqual(kinds(widened), { authorize: 11_016 });
 
         // the guard of extendMembership removed
         const unguarded = yield* conform("teams", {
@@ -715,8 +715,8 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
 
         // each row of state Active where the guard was false is both a transition row and a `Machine.can` row
         assert.deepStrictEqual(kinds(unguarded), {
-          command: 19_584,
-          transition: 19_584,
+          command: 22_464,
+          transition: 22_464,
         });
 
         // the end that has passed no longer has to have passed: the guard of the change to Ended removed
@@ -751,7 +751,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         );
 
         // each row of state Active where the end has not passed
-        assert.deepStrictEqual(kinds(alwaysEnds), { transition: 17_408 });
+        assert.deepStrictEqual(kinds(alwaysEnds), { transition: 19_968 });
 
         // a table without its changes of time disagrees with nothing and compares fewer rows than the file asks for
         const committed = yield* Committed;

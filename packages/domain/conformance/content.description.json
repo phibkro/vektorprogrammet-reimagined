@@ -31,7 +31,8 @@
       "jobs": [
         "semesters",
         "outboxSweep",
-        "endingSoon"
+        "endingSoon",
+        "workspaceSync"
       ]
     }
   },

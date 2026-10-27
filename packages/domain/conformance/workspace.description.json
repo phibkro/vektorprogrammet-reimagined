@@ -1,0 +1,67 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createWorkspaceReport"
+    },
+    {
+      "kind": "Command",
+      "name": "syncWorkspace",
+      "runBy": {
+        "job": "workspaceSync"
+      }
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "syncWorkspace"
+      ],
+      "scope": "all",
+      "subject": "System(workspaceSync)@all"
+    },
+    {
+      "permits": [
+        "createWorkspaceReport",
+        "viewIntegrations"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "workspace",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon",
+        "workspaceSync"
+      ]
+    }
+  },
+  "reads": [
+    {
+      "name": "viewIntegrations"
+    }
+  ],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "workspaceSync"
+      },
+      "name": "System(workspaceSync)@all"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}
