@@ -47,7 +47,7 @@ jobs:
         run: devenv shell -- bun run check:docs
       - name: Workspace tests
         shell: bash
-        run: devenv shell -- bunx vp run -r test
+        run: devenv shell -- bun run test:all
       - name: Browser tests
         shell: bash
         # A run takes 2 to 3 minutes. The limit makes a run that passes its tests and then never exits fail the

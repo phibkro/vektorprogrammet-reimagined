@@ -72,7 +72,7 @@ devenv up -d                                   # PostgreSQL + MySQL; stop with: 
 devenv shell -- bun install
 devenv shell -- bash -c 'cd packages/db && bun run db:migrate'   # local schema
 devenv shell -- bash -c 'cd packages/db && bun run db:seed:local' # seeded local people
-devenv shell -- bunx vp run -r test            # every unit's tests
+devenv shell -- bun run test:all               # every unit's tests, with the live service environment
 devenv shell -- bun run e2e                    # browser tests: Playwright + devenv's Chromium, the CMS and the web app; check CPU and memory first
 devenv shell -- bunx vp check                  # format, lint, type check
 devenv shell -- bash -c 'cd apps/web && bunx vp dev --port 3000'  # http://localhost:3000
@@ -98,14 +98,14 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 | Everything at once | check, generated docs, tests, web build, knip, jscpd, gitleaks, exception registry (browser tests are separate) | `devenv shell -- bun run ready` |
 | Pre-commit | `vp staged` (`vp check --fix` on staged files) + gitleaks on staged changes (secrets, Norwegian national ids, SQL user dumps) | automatic (`.vite-hooks/pre-commit`) |
 | Commit message | commitlint, Conventional Commits | automatic (`.vite-hooks/commit-msg`) |
-| Pre-push | `vp run -r test` | automatic (`.vite-hooks/pre-push`) |
+| Pre-push | `bun run test:all` | automatic (`.vite-hooks/pre-push`) |
 | Suppressions | every `oxlint-disable` / `@ts-expect-error` needs an entry in `tools/quality/effect-exceptions.json` | `devenv shell -- bun run check:exceptions` |
 | Effect family | every `@effect/*` package in `bun.lock` except `@effect/tsgo` is the version of `effect` | `devenv shell -- bunx vp -C tools/quality test test/effectFamily.test.ts` |
 | Browser tests | Playwright 1.63.0 (pinned to nixpkgs' `playwright-driver`) on devenv's Chromium, against `vp dev`, the real CMS (`astro dev` on the database's `emdash` schema, its seed copy and the importer's fixture, imported twice) and a disposable migrated database that the real importer fills from its fake fixture; one Effect program owns the lifecycle (`apps/web/e2e/run.ts`) | `devenv shell -- bun run e2e` |
 | CI | the same gates, including the browser tests (that step is limited to 15 minutes; a run takes a few minutes) and the CMS bundle check, on every pull request | `.github/workflows/checks.yml` |
 
 - PostgreSQL test files share one local server. The db suite runs one file at a time and the web suite at most two; the concurrent callers within each race are unchanged. This keeps their pools below PostgreSQL's connection limit.
-- Enter devenv once for the workspace task graph. Package test scripts use the already-active shell; concurrent nested `devenv shell` calls race while cleaning and recreating `.devenv/load-exports`.
+- Enter devenv once for the workspace test graph. `bun run test:all` passes `--no-cache`: uncached Vite+ scripts retain the live service environment. Package test scripts use that shell; concurrent nested `devenv shell` calls race on `.devenv/load-exports`.
 - Hooks are installed by `vp config` (the `prepare` script, which also runs `effect-tsgo patch`). Never use `--no-verify`.
 - Fix the code, not the rule. A rule that is wrong for a file class gets a narrow `overrides` entry with a one-line reason. Two presets that contradict each other get one global switch with a comment naming both rules.
 - Editor diagnostics use the TypeScript 7 native language server patched by `effect-tsgo patch`; it reads the `@effect/language-service` tsconfig options. Run `devenv shell -- bunx effect-tsgo diagnostics --project <absolute-tsconfig> --format text` to check the project config. After editing unstable API exceptions, run `devenv shell -- bun run sync:effect-policy`.
