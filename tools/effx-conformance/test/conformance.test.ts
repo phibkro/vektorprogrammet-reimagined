@@ -32,8 +32,11 @@ import {
   Pin,
   Provenance,
   descriptionFile,
+  differences,
   directory,
+  firstDifference,
   gapsFile,
+  generator,
   gunzip,
   pinFile,
   provenanceFile,
@@ -162,7 +165,15 @@ const isLeader = Predicate.isTagged("Leader");
 
 const isMember = Predicate.isTagged("Member");
 
-const lines = (text: string | undefined) => (text ?? "").split("\n");
+const must = <A>(value: A | undefined, what: string): A =>
+  value ?? assert.fail(`${what} is missing`);
+
+/** How many disagreements of each kind a report has. */
+const kinds = (report: Report): Readonly<Record<string, number>> =>
+  Rec.map(
+    Arr.groupBy(report.disagreements, ({ kind }): string => kind),
+    (rows) => rows.length
+  );
 
 /**
  * What differs between the committed descriptions and the export: a line for each domain whose text differs, naming
@@ -172,23 +183,14 @@ const drift = (
   committed: Readonly<Record<string, string>>,
   exported: readonly { readonly domain: string; readonly text: string }[]
 ): readonly string[] =>
-  Arr.flatMap(exported, ({ domain, text }) => {
-    const have = lines(committed[domain]);
-    const want = lines(text);
-
-    return Option.match(
-      Arr.findFirst(
-        Arr.range(0, Math.max(have.length, want.length) - 1),
-        (line) => have[line] !== want[line]
-      ),
-      {
-        onNone: () => [],
-        onSome: (line) => [
-          `${domain}: line ${line + 1} of the committed description is ${JSON.stringify(have[line])}, the export says ${JSON.stringify(want[line])}`,
-        ],
-      }
-    );
-  });
+  Arr.flatMap(exported, ({ domain, text }) =>
+    Option.match(firstDifference(committed[domain] ?? "", text), {
+      onNone: () => [],
+      onSome: ({ have, line, want }) => [
+        `${domain}: line ${line} of the committed description is ${JSON.stringify(have)}, the export says ${JSON.stringify(want)}`,
+      ],
+    })
+  );
 
 const isViewTeams = (row: Domain.Declaration["table"][number]) =>
   Arr.contains(row.commands, "viewTeams") && Arr.some(row.subjects, isMember);
@@ -386,6 +388,12 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         });
         assert.strictEqual(committed.provenance.alloy.version, pin.alloy);
 
+        assert.deepStrictEqual(
+          committed.provenance.generator,
+          generator,
+          "the provenance records another way of making the vectors than this tool's: make them again"
+        );
+
         for (const [domain, entry] of Rec.toEntries(
           committed.provenance.domains
         )) {
@@ -433,6 +441,78 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
   );
 
   it.effect(
+    "falsifier 2, negative control: another way of making the vectors is not the one that the provenance records",
+    () =>
+      Effect.gen(function* control() {
+        const committed = yield* Committed;
+
+        const config = must(
+          generator.project["effx.config.ts"],
+          "the config of the generator"
+        );
+
+        const another = {
+          ...generator,
+          project: {
+            ...generator.project,
+            "effx.config.ts": config.replace("alloy: true", "alloy: false"),
+          },
+        };
+
+        assert.notStrictEqual(another.project["effx.config.ts"], config);
+        assert.notDeepEqual(committed.provenance.generator, another);
+      })
+  );
+
+  it.effect(
+    "gate G2: the drift check is silent for what is committed, and names the domain and the line of what effx made differently",
+    () =>
+      Effect.gen(function* check() {
+        const { domains } = (yield* Committed).provenance;
+        const teams = must(domains.teams, "the teams provenance");
+
+        assert.deepStrictEqual(yield* differences(domains, domains), []);
+
+        const other = yield* differences(domains, {
+          ...domains,
+          teams: { ...teams, vectorsSha256: "0".repeat(64) },
+        });
+
+        assert.lengthOf(other, 1);
+        assert.match(
+          other[0] ?? "",
+          /^teams: line \d+ of its committed provenance is ".*vectorsSha256.*", effx made ".*vectorsSha256/u
+        );
+
+        const failing = yield* differences(domains, {
+          ...domains,
+          teams: {
+            ...teams,
+            assertions: Arr.map(teams.assertions, (assertion) => ({
+              ...assertion,
+              result:
+                assertion.result === "PASS"
+                  ? ("NOT APPLICABLE" as const)
+                  : ("PASS" as const),
+            })),
+          },
+        });
+
+        assert.lengthOf(failing, 1);
+
+        assert.deepStrictEqual(
+          yield* differences(domains, Rec.remove(domains, "teams")),
+          ["teams: effx made no vectors for a committed domain"]
+        );
+
+        assert.deepStrictEqual(
+          yield* differences(Rec.remove(domains, "teams"), domains),
+          ["teams: effx made vectors for a domain with none committed"]
+        );
+      })
+  );
+
+  it.effect(
     "falsifier 3: the kernel answers every row of every vectors file as effx's vectors say",
     () =>
       Effect.gen(function* conformance() {
@@ -457,6 +537,11 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
             report.transitions,
             entry.rows.transitions,
             `${domain}: transition rows compared`
+          );
+          assert.strictEqual(
+            report.commands,
+            entry.rows.commands,
+            `${domain}: command rows compared`
           );
           assert.isAbove(report.authorization, 0);
         }
@@ -517,6 +602,9 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           )
         );
 
+        // the `viewTeams` rows that only the removed row granted
+        assert.deepStrictEqual(kinds(withoutMember), { authorize: 1344 });
+
         // the leaders' scope widened from their department to all
         const widened = yield* conform("teams", {
           table: Arr.map(GrantTable, (row) =>
@@ -538,6 +626,9 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
               )
           )
         );
+
+        // the rows of the leaders' commands that the wider scope grants and the vectors do not
+        assert.deepStrictEqual(kinds(widened), { authorize: 9648 });
 
         // the guard of extendMembership removed
         const unguarded = yield* conform("teams", {
@@ -573,6 +664,12 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
                 row.transition === "Transition0_2")
           )
         );
+
+        // each row of state Active where the guard was false is both a transition row and a `Machine.can` row
+        assert.deepStrictEqual(kinds(unguarded), {
+          command: 19_584,
+          transition: 19_584,
+        });
       }),
     { timeout: 900_000 }
   );

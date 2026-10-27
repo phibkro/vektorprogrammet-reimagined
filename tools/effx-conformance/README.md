@@ -30,15 +30,19 @@ git clone https://github.com/phibkro/effx "$EFFX_DIR" && git -C "$EFFX_DIR" chec
 (cd "$EFFX_DIR" && bun install --frozen-lockfile --ignore-scripts)
 ```
 
-`description:regenerate` runs effx's `build` and `models check` on each description in a scratch project (pinned Alloy 6.2.0 through `nix shell "$EFFX_DIR#alloy6"`), and writes the committed files only when effx accepts every description and every assertion passes (A1 to A7, effx spec 0032); a failing run leaves them as they were. It refuses an `EFFX_DIR` whose `HEAD` is not the pin, or that has local changes. Measured on 32 threads in two runs: 2 minutes 16 seconds and 7 CPU-minutes, then 1 minute 38 seconds and 4 CPU-minutes; check the machine's headroom first. Two runs on one commit write byte-identical files. Commit the regenerated files with the declaration that changed them.
+`description:regenerate` makes a scratch project for each description from the `generator` of `src/artefacts.ts` (a config module around the description, and the checkout's `node_modules`), runs effx's `build` and `models check` in it (pinned Alloy 6.2.0 through `nix shell "$EFFX_DIR#alloy6"`), and writes the committed files only when effx accepts every description and every assertion passes (A1 to A7, effx spec 0032); a failing run leaves them as they were. The `generator`, files and commands, is recorded in `provenance.json`, so the way that the vectors were made can be read and replayed from the committed files, and a change to it fails a test until they are made again. It refuses an `EFFX_DIR` whose `HEAD` is not the pin, or that has local changes. Measured on 32 threads in three runs: 2 minutes 16 seconds and 7 CPU-minutes, 1 minute 38 seconds and 4 CPU-minutes, then 1 minute 46 seconds and 7 CPU-minutes; check the machine's headroom first. Runs on one commit write byte-identical files. Commit the regenerated files with the declaration that changed them.
+
+## Does effx still make these vectors? (gate G2)
+
+effx moves on its own. `bun run description:drift` makes the vectors again with the checkout that `EFFX_DIR` names, which may be any commit (effx's `main`, say), writes nothing, and fails when anything in the provenance of a domain differs: the vectors' digest, the instances, the assertion results. It names the first differing line per domain. `.github/workflows/effx-drift.yml` runs it every Monday against `phibkro/effx` `main`, and by hand from the Actions tab. When it fails, set the commit of `effx.pin.json` to effx's `main`, run `description:regenerate` with `EFFX_DIR` at it, read the diff and commit the files; or leave the pin where it is and let the check go red.
 
 ## What the tests check (`vp run -r test`)
 
 `test/conformance.test.ts`, spec 0007d falsifiers 1 to 4. No Nix, no JVM and no network: they read files.
 
 1. Every committed description is the export of the declarations now. The failure names the domain and the first line that differs. Negative controls: a grant row deleted, a scope changed and a state renamed in a declaration; a hand edit of a description.
-2. The digests and the pin in `provenance.json` are those of the committed files. Negative control: one changed character, one flipped byte.
-3. The kernel's `authorize` and machine tables answer every row of every vectors file as the vectors say, and the number of rows compared is the number that the file's own structure asks for. Negative controls, each failing on exactly the rows it changes: a grant row removed, a scope widened, a guard removed; an empty vectors file.
+2. The digests and the pin in `provenance.json` are those of the committed files, and the way that the vectors were made (`generator`) is the one that this tool makes them in. Negative controls: one changed character, one flipped byte, another config for effx.
+3. The kernel's `authorize` and machine tables answer every row of every vectors file as the vectors say, and the number of rows compared, of each of the three kinds (authorization, transitions, `Machine.can` per command), is the number that the file's own structure asks for. Negative controls, each failing on exactly the rows it changes, and the number of them counted: a grant row removed (1,344 rows), a scope widened (9,648), a guard removed (19,584 transition rows and as many command rows); an empty vectors file.
 4. The register of gaps is the export's. Negative control: a subject that effx cannot state adds a gap.
 
 ## What the vectors do not cover

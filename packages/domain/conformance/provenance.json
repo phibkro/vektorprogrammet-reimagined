@@ -43,6 +43,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 6540,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -99,6 +100,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 877800,
+        "commands": 522240,
         "transitions": 835584
       },
       "scope": 1,
@@ -145,6 +147,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 4360,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -191,6 +194,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -237,6 +241,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -283,6 +288,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -327,6 +333,7 @@
       "orderedAtoms": 2,
       "rows": {
         "authorization": 770,
+        "commands": 0,
         "transitions": 0
       },
       "scope": 1,
@@ -339,5 +346,37 @@
     "commit": "ce9c164d07909cfd99fbbb439f0f3ac26054e5c7",
     "nixpkgs": "1f607aa79b6356ed45d3cd3c8079c196e79efa2c",
     "repository": "https://github.com/phibkro/effx"
+  },
+  "generator": {
+    "commands": [
+      [
+        "nix",
+        "shell",
+        "<effx>#alloy6",
+        "-c",
+        "bun",
+        "<effx>/scripts/effx.ts",
+        "build"
+      ],
+      [
+        "nix",
+        "shell",
+        "<effx>#alloy6",
+        "-c",
+        "bun",
+        "<effx>/scripts/effx.ts",
+        "models",
+        "check"
+      ]
+    ],
+    "links": {
+      "node_modules": "<effx>/node_modules"
+    },
+    "project": {
+      "effx.config.ts": "import { defineConfig } from \"@effx/cli/config\";\nimport { domainModel } from \"@effx/domain-model\";\nimport description from \"./description.json\" with { type: \"json\" };\n\nexport default defineConfig({\n  models: { alloy: true },\n  extensions: [domainModel(description as never)],\n});\n",
+      "entry.ts": "export const fixture = true;\n",
+      "package.json": "{ \"type\": \"module\" }\n",
+      "tsconfig.json": "{ \"extends\": \"<effx>/tsconfig.json\", \"include\": [\"entry.ts\"], \"exclude\": [] }\n"
+    }
   }
 }
