@@ -94,7 +94,7 @@ One source: the root `vite.config.ts` (`lint`, `fmt`, `staged`). Nested lint con
 
 | Gate | What enforces it | Run it |
 | --- | --- | --- |
-| Format, lint, type check | Oxfmt; Oxlint with Ultracite (`core`, `anti-slop`, `shadcn`), `@effect/tsgo` (`strict`, `effectNative`), the Effect plugin (all rules), mono-web's anti-slop plugins (`tools/oxlint/anti-slop/`) and our own `no-owned-table-write` (spec 0006b), cognitive complexity ≤ 15, import boundaries; type-aware via tsgolint. The `RuleTester` tests of the rules that have them (`node --test`, because Bun lacks raw transfer) are the `test` script of `tools/oxlint`, so `vp run -r test` runs them, in the pre-push hook and in CI | `devenv shell -- bunx vp check` |
+| Format, lint, type check | Oxfmt; Oxlint with Ultracite (`core`, `anti-slop`, `shadcn`), `@effect/tsgo` (`strict`, `effectNative`), the Effect plugin (all rules), mono-web's anti-slop plugins (`tools/oxlint/anti-slop/`) and our own `no-owned-table-write` (spec 0006b), cognitive complexity ≤ 15, import boundaries; type-aware via tsgolint. The `RuleTester` tests of the rules that have them (`node --test`, because Bun lacks raw transfer) are the `test` script of `tools/oxlint`, so `bun run test:all` runs them, in the pre-push hook and in CI | `devenv shell -- bunx vp check` |
 | Everything at once | check, generated docs, tests, web build, knip, jscpd, gitleaks, exception registry (browser tests are separate) | `devenv shell -- bun run ready` |
 | Pre-commit | `vp staged` (`vp check --fix` on staged files) + gitleaks on staged changes (secrets, Norwegian national ids, SQL user dumps) | automatic (`.vite-hooks/pre-commit`) |
 | Commit message | commitlint, Conventional Commits | automatic (`.vite-hooks/commit-msg`) |
