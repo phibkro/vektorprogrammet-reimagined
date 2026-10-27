@@ -484,7 +484,7 @@ export interface PersonalDataSources {
 }
 
 /** The mark beside a value that the operator has not decided: the document's footnote explains it. */
-const proposedMark = (approval: RecordRow["approval"]): string =>
+const proposedMark = (approval: RecordRow["periodApproval"]): string =>
   approval === "proposed" ? " \\*" : "";
 
 /** How long each kind of data is kept, and what happens then: the record of processing, without its legal columns. */
@@ -493,7 +493,7 @@ const retentionSchedule = (catalog: CatalogOf): string =>
     ["Data", "Kept for", "At the end"],
     Arr.map(recordOfProcessing(catalog), (row) => [
       row.purpose.en,
-      `${row.kept.en}${proposedMark(row.approval)}`,
+      `${row.kept.en}${proposedMark(row.periodApproval)}`,
       row.atEnd.en,
     ])
   );
@@ -514,6 +514,24 @@ const columnsByTable = (names: readonly string[]): string =>
     "<br>"
   );
 
+/**
+ * The approval cell of a row of the record: which of its two decisions, the period and the legal basis, the operator has
+ * not made. Both are named, so approving the periods of a row does not read as approving its basis.
+ */
+export const approvalCell = (row: RecordRow): string => {
+  const open = Arr.flatMap(
+    [
+      { approval: row.periodApproval, name: "period" },
+      { approval: row.basisApproval, name: "legal basis" },
+    ],
+    ({ approval, name }) => (approval === "proposed" ? [name] : [])
+  );
+
+  return open.length === 0
+    ? "decided"
+    : `${Arr.join(open, " and ")}: ${approvalWords.proposed?.en ?? "proposed"}`;
+};
+
 /** The record of processing activities (GDPR Art. 30): every personal column, by what it is for. */
 const processingRecord = (catalog: CatalogOf): string =>
   table(
@@ -524,7 +542,7 @@ const processingRecord = (catalog: CatalogOf): string =>
       columnsByTable(row.data),
       row.kept.en,
       row.atEnd.en,
-      approvalWords[row.approval]?.en ?? "decided",
+      approvalCell(row),
     ])
   );
 

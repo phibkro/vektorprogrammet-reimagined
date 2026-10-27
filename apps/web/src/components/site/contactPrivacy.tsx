@@ -2,8 +2,8 @@
  * The privacy notice of the contact form (spec 0007b, GDPR Art. 13): what the form collects, why, on which basis, who
  * gets it and how long it is kept. The domain generates it from the declarations of the form's fields and of the columns
  * that hold them, so the notice lists exactly the personal fields of the form and cannot say another period than the
- * retention job applies. Fields that share a purpose, a basis, recipients and a period read as one entry. While the text
- * or a period awaits the operator's approval, the notice says it is a draft.
+ * retention job applies. Fields that share a purpose, a basis, recipients and a period read as one entry. While the text,
+ * a legal basis or a period awaits the operator's approval, the notice says it is a draft.
  */
 import type { PrivacyNotice } from "@vektorprogrammet/domain";
 import { Array as Arr, Record as Rec } from "effect";
@@ -36,7 +36,8 @@ export const ContactPrivacy = ({
     </h3>
     {notice.approval === "proposed" && (
       <p className="text-muted-foreground" role="note">
-        Utkast: teksten og periodene venter på godkjenning.
+        Utkast: teksten, de rettslige grunnlagene og periodene venter på
+        godkjenning.
       </p>
     )}
     <p>{notice.controller.no}</p>

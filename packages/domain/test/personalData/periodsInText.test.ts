@@ -12,6 +12,7 @@
  * must not change under a period by themselves: it is written out, and the last tests fail when a period that it states
  * is not the declared one, which is the reminder to write the next version of the text.
  */
+// oxlint-disable anti-slop/no-module-mocking -- EX-0027: the guard evaluates the declarations a second time with their periods replaced, and they reach every text only through modules.
 import { assert, describe, it } from "@effect/vitest";
 import {
   Array as Arr,

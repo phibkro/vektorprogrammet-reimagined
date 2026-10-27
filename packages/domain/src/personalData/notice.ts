@@ -11,7 +11,7 @@ import type { CatalogOf } from "./catalog.ts";
 import type { Approval, PersonalData, Words } from "./declaration.ts";
 import { expiryWords, personalColumns, retentionWordsBoth } from "./derive.ts";
 import type { FormDeclaration } from "./forms.ts";
-import { legalBases, privacyText, purposes } from "./texts.ts";
+import { basesApproval, legalBases, privacyText, purposes } from "./texts.ts";
 import type { LegalBasisText } from "./texts.ts";
 
 export interface NoticeEntry {
@@ -30,7 +30,7 @@ export interface PrivacyNotice {
   readonly controller: Words;
   readonly rights: Words;
   readonly entries: readonly NoticeEntry[];
-  /** `proposed` while the text, or any period that it states, awaits the operator's approval. */
+  /** `proposed` while the text, a legal basis or a period that it states awaits the operator's approval. */
   readonly approval: Approval;
 }
 
@@ -76,6 +76,7 @@ export const privacyNotice = (
 
   const draft =
     privacyText.approval === "proposed" ||
+    basesApproval === "proposed" ||
     Arr.some(found, (entry) => entry.stored.approval === "proposed");
 
   return {
@@ -95,7 +96,12 @@ export const privacyNotice = (
   };
 };
 
-/** One line of the record of processing: what a set of columns is for, and how long it is kept. */
+/**
+ * One line of the record of processing: what a set of columns is for, and how long it is kept. The two approvals are
+ * separate because the operator decides them separately: `periodApproval` is the period's (the brief's decisions fix
+ * periods, one by one), `basisApproval` is the legal basis's (`basesApproval` in `texts.ts`, one declaration for the
+ * whole record).
+ */
 export interface RecordRow {
   readonly purpose: Words;
   readonly basis: LegalBasisText;
@@ -103,7 +109,8 @@ export interface RecordRow {
   readonly data: readonly string[];
   readonly kept: Words;
   readonly atEnd: Words;
-  readonly approval: Approval;
+  readonly periodApproval: Approval;
+  readonly basisApproval: Approval;
 }
 
 /** The record of processing activities: every personal column of the catalog, grouped by purpose, basis and retention. */
@@ -132,17 +139,18 @@ export const recordOfProcessing = (
       const [{ data }] = members;
 
       return {
-        approval: approvalOf(data),
         atEnd: {
           en: expiryWords(data.onExpiry, "en"),
           no: expiryWords(data.onExpiry, "no"),
         },
         basis: legalBases[data.legalBasis],
+        basisApproval: basesApproval,
         data: Arr.sort(
           Arr.map(members, ({ name }) => name),
           Order.String
         ),
         kept: retentionWordsBoth(data.retention, false),
+        periodApproval: approvalOf(data),
         purpose: purposes[data.purpose],
       };
     }),

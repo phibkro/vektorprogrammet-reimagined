@@ -109,6 +109,16 @@ export const legalBases: Readonly<Record<LegalBasis, LegalBasisText>> = {
   },
 };
 
+/**
+ * Whether the privacy owner has approved the legal bases that the catalog declares, each with its purpose. The operator's
+ * decisions of 2026-10-26 fix the periods and name no basis (`INFORMATION_MODEL.md` §11.3 heads its column "Purpose and
+ * basis (proposal)"), and several of the bases are this slice's own choice (a consent record rests on a legal obligation,
+ * a login on an agreement), so every basis is a proposal until this says `decided`. The record of processing marks each
+ * basis while it is proposed, apart from the approval of each period, and approving is a one-line change here (spec 0007b
+ * R3 item 32).
+ */
+export const basesApproval: Approval = "proposed";
+
 /** One consent's declared text. A record names a version, and can name only the current one. */
 export interface ConsentText extends Words {
   readonly approval: Approval;

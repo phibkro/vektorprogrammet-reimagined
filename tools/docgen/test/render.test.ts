@@ -9,6 +9,7 @@ import {
   Forms,
   GrantTable,
   Teams,
+  approvalWords,
   codePolicy,
   personalColumns,
   recordOfProcessing,
@@ -24,6 +25,7 @@ import {
 } from "effect";
 
 import {
+  approvalCell,
   checkAccountsDocument,
   checkAdministrationDocument,
   checkCommandsDocument,
@@ -325,6 +327,9 @@ const administrationSource = Effect.gen(function* administrationSource() {
 
 const SOURCES: PersonalDataSources = { catalog: Catalog, forms: Forms };
 
+/** The two answers of a decision, for a test over every combination of the period's and the basis's. */
+const APPROVALS = ["decided", "proposed"] as const;
+
 /** The text between a block's markers. */
 const blockOf = (document: string, id: string): string => {
   const begin = `<!-- docgen:begin ${id} -->`;
@@ -399,13 +404,97 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
       Effect.gen(function* marks() {
         const document = yield* administrationSource;
         const rows = recordOfProcessing(Catalog);
-        const proposed = Arr.filter(rows, (row) => row.approval === "proposed");
+
+        const proposed = Arr.filter(
+          rows,
+          (row) => row.periodApproval === "proposed"
+        );
+
         const lines = blockOf(document, "retention").split("\n");
         const marked = Arr.filter(lines, (line) => line.includes(" \\* |"));
 
         assert.isAbove(proposed.length, 0);
         assert.isBelow(proposed.length, rows.length);
         assert.strictEqual(marked.length, proposed.length);
+      })
+  );
+
+  it("the record's approval cell names the open decisions: the period, the legal basis, both, and nothing once both are made", () => {
+    const sample = Option.getOrThrow(Arr.head(recordOfProcessing(Catalog)));
+
+    const words = Option.getOrThrow(
+      Option.fromNullishOr(approvalWords.proposed)
+    ).en;
+
+    for (const period of APPROVALS) {
+      for (const basis of APPROVALS) {
+        const cell = approvalCell({
+          ...sample,
+          basisApproval: basis,
+          periodApproval: period,
+        });
+
+        const said = `${period} period, ${basis} basis: "${cell}"`;
+
+        assert.strictEqual(
+          cell.includes("period"),
+          period === "proposed",
+          said
+        );
+        assert.strictEqual(
+          cell.includes("legal basis"),
+          basis === "proposed",
+          said
+        );
+        assert.strictEqual(
+          cell.includes(words),
+          period === "proposed" || basis === "proposed",
+          said
+        );
+        assert.strictEqual(
+          cell === "decided",
+          period === "decided" && basis === "decided",
+          said
+        );
+      }
+    }
+  });
+
+  it.effect(
+    "the committed record says, row by row, which decisions the declarations leave open: every row has one of the four cells, in the numbers that the declarations give",
+    () =>
+      Effect.gen(function* rowsSay() {
+        const document = yield* administrationSource;
+        const lines = blockOf(document, "record").split("\n");
+        const rows = recordOfProcessing(Catalog);
+        const sample = Option.getOrThrow(Arr.head(rows));
+        let found = 0;
+
+        for (const period of APPROVALS) {
+          for (const basis of APPROVALS) {
+            const cell = approvalCell({
+              ...sample,
+              basisApproval: basis,
+              periodApproval: period,
+            });
+
+            const expected = Arr.filter(
+              rows,
+              (row) =>
+                row.periodApproval === period && row.basisApproval === basis
+            ).length;
+
+            const listed = Arr.filter(lines, (line) =>
+              line.endsWith(`| ${cell} |`)
+            ).length;
+
+            assert.strictEqual(listed, expected, cell);
+            found += listed;
+          }
+        }
+
+        assert.isAbove(rows.length, 0);
+        assert.strictEqual(found, rows.length);
       })
   );
 
