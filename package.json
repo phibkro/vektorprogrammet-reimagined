@@ -15,6 +15,7 @@
     "check:docs": "bun run --cwd tools/docgen generate --check",
     "check:cms": "bun run --cwd apps/cms check:bundle",
     "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
+    "sync:effect-policy": "bun tools/quality/syncEffectPolicy.ts",
     "knip": "knip",
     "cpd": "jscpd --config .jscpd.json apps packages tools",
     "secrets": "gitleaks git --config .gitleaks.toml --redact",
