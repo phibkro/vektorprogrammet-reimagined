@@ -13,6 +13,8 @@
     "ready": "vp check && bun run check:exceptions && bun run check:docs && vp run -r test && bun run knip && bun run cpd && bun run secrets && vp -C apps/web build && bun run check:cms",
     "docs": "bun run --cwd tools/docgen generate",
     "check:docs": "bun run --cwd tools/docgen generate --check",
+    "description": "bun run --cwd tools/effx-conformance generate",
+    "description:regenerate": "bun run --cwd tools/effx-conformance regenerate",
     "check:cms": "bun run --cwd apps/cms check:bundle",
     "check:exceptions": "bun tools/quality/checkEffectExceptions.ts",
     "sync:effect-policy": "bun tools/quality/syncEffectPolicy.ts",

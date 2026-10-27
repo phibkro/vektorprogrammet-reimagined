@@ -1,0 +1,343 @@
+{
+  "alloy": {
+    "executable": "/nix/store/gbcs9zpyrxyzs9gzay561p9cy3rn2q63-alloy6-6.2.0/bin/alloy6",
+    "version": "6.2.0"
+  },
+  "domains": {
+    "organisation": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "56bdef83bef266733a7cda1893a64041cf55ee834c1c28532b743dca5cf10bf2",
+      "instances": 500,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 6540,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "62765041299310786abd823244d628680dc42057d36b1dac1261a36c076cc60c"
+    },
+    "teams": {
+      "assertions": [
+        {
+          "name": "A1_Reachability Membership:Active",
+          "result": "PASS"
+        },
+        {
+          "name": "A1_Reachability Membership:Ended",
+          "result": "PASS"
+        },
+        {
+          "name": "A1_Reachability Membership:Planned",
+          "result": "PASS"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "PASS"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "PASS"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "PASS"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "ca368dbd3a051516f6877e5bc2c6c1ad7dea23747ff9392430ae97328c2193ef",
+      "instances": 26742,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock",
+        "machine Membership calculated transition 0 cannot be determined from stored fields and clock",
+        "machine Membership calculated transition 1 cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 877800,
+        "transitions": 835584
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "cdb82cad9250f4e767a7b7a8cc32cb3de2307164db28e3341738d619b7d22c4b"
+    },
+    "accounts": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "6642bf10aa550c5b0714178a90913e562c6f61f4214bf6937142c1536faa128e",
+      "instances": 500,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 4360,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "25125e62541bbaae8ddee448591b064927e9402f8b26e49a08dc8ab9d62adc13"
+    },
+    "content": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "dfdc7f9965470c2c521712e575a6606fe8621a0ad38d3be9e85c2af1d5f2206f",
+      "instances": 364,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 770,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "5cc5e5ad7eb0c160c11599d95e46308ebfe26e56cd5725cacab0dc58ae8706d5"
+    },
+    "files": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "536bcebd1b3653c52b63dd90f2099b45642ec7f36bb44b038853f7f360d5943b",
+      "instances": 364,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 770,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "95f9547ab00983de3faa17b856870fe82f4991db6aaaa77c8b6afcbff4c0ce1c"
+    },
+    "audit": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "ef40ea00bf86dfa80cfcc7d465b771cd4d9dd8177d2aa0fcb2beda3abe0e7be9",
+      "instances": 364,
+      "nondeterministic": [
+        "admin expiry cannot be determined from stored fields and clock"
+      ],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 770,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "554e9387ce7c248144e0b7772a77a2e6ca03ebeeec3e6d6064a634866269ac95"
+    },
+    "outbox": {
+      "assertions": [
+        {
+          "name": "A1_Reachability",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A7_TimeMonotonic",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A2_NonterminalExit",
+          "result": "PASS"
+        },
+        {
+          "name": "A3_CommandGrant",
+          "result": "PASS"
+        },
+        {
+          "name": "A4_AdminSelfChange",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A5_EndedMembership",
+          "result": "NOT APPLICABLE"
+        },
+        {
+          "name": "A6_SystemJob",
+          "result": "PASS"
+        }
+      ],
+      "descriptionSha256": "a2d5dfdeee56131835e5c92187f45e30691f21aab6a24401e02cd7830c9b5ff6",
+      "instances": 364,
+      "nondeterministic": [],
+      "orderedAtoms": 2,
+      "rows": {
+        "authorization": 770,
+        "transitions": 0
+      },
+      "scope": 1,
+      "steps": 4,
+      "unknownGuards": [],
+      "vectorsSha256": "3d346fa60089fd5cdb6e73f26f707e9d9c988e723f7ee2aa7c361604db60b944"
+    }
+  },
+  "effx": {
+    "commit": "ce9c164d07909cfd99fbbb439f0f3ac26054e5c7",
+    "nixpkgs": "1f607aa79b6356ed45d3cd3c8079c196e79efa2c",
+    "repository": "https://github.com/phibkro/effx"
+  }
+}

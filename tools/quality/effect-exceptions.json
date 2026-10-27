@@ -206,6 +206,32 @@
       "owner": "packages/domain",
       "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
+    },
+    {
+      "id": "EX-0030",
+      "rules": ["FX012", "unicorn/throw-new-error"],
+      "scope": {
+        "files": ["tools/effx-conformance/src/artefacts.ts"],
+        "symbols": ["ArtefactFailed"],
+        "directives": ["oxlint-disable"]
+      },
+      "reason": "The rule mistakes the native Schema.TaggedError class declaration for a throw site (as for EX-0003); the tool needs a typed failure for a missing or unacceptable artefact and for an effx run that fails.",
+      "missingCapability": "The installed rule cannot distinguish this Effect error declaration from a throw statement.",
+      "nativeAlternativesExamined": [
+        "Schema.TaggedError is the native typed error; the check is disabled only around its declaration, not its uses.",
+        "Throwing a native error or using an untyped failure would lose the tool's typed error channel."
+      ],
+      "verification": [
+        "devenv shell -- bun run ready",
+        "devenv shell -- bunx vp -C tools/effx-conformance test"
+      ],
+      "owner": "tools/effx-conformance",
+      "versions": {
+        "effect": "4.0.6",
+        "vite-plus": "1.2.0",
+        "typescript": "7.0.2"
+      },
+      "retirementTrigger": "Remove this exception when the rule accepts Schema.TaggedError declarations (EX-0003's trigger), then run the tool's tests."
     }
   ],
   "typeBridges": [

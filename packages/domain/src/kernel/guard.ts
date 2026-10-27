@@ -20,6 +20,12 @@ const SAME = "vektorprogrammet/semester/same";
 const NOT = "vektorprogrammet/semester/not";
 const OR = "vektorprogrammet/semester/or";
 
+/**
+ * The ids of the checks that this module builds: the closed vocabulary of a machine's guards. The effx export
+ * (`description.ts`) translates exactly these, so a new id is a decision there and not a silent default.
+ */
+export const ids = { after: AFTER, not: NOT, or: OR, same: SAME } as const;
+
 /** Paths to semesters in this context, including semesters nested in one struct. */
 export type SemesterPath<Context> = {
   readonly [Key in keyof Context & string]: Context[Key] extends SemesterValue

@@ -17,5 +17,6 @@ Grants (ADR 0001) stay the declaration of who may do what. Cedar policies, if wa
 - Queries and commands declare which entities they read and write, so the client's `reactivityKeys` can be derived.
 - Until the move, no slice here depends on an unpublished effx package.
 - effx builds the declaration IR, the emitters and the checks in parallel (effx specs 0031, 0032). The runtime kernel (`authorize`, `Machine.can`, the guard revivers) stays here until the move, so there is one `authorize`. The kernel exports each domain as an effx `DomainDescription`, and its tests check `authorize` and `Machine.can` against the conformance vectors that effx generates.
+- Spec 0007d does this without a dependency on effx: the description is a function of the declarations in `packages/domain`, effx's own tooling makes the vectors from it at a pinned commit, and the vectors are committed with their provenance (the effx commit, Alloy's version, digests). What crosses the boundary is files, so the previous consequence holds until effx publishes its packages.
 
 Source: operator decision, 2026-10-26.

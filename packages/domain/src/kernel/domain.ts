@@ -69,6 +69,16 @@ export type CommandOf<Rpcs extends Rpc.Any, Reads extends string> =
   | Rpcs["_tag"]
   | Reads;
 
+/**
+ * Which machine's states say that a membership grants authority: a membership is a row of that machine, and only a
+ * row in one of `grantingStates` counts as a membership when a subject set (`Member`, `Leader`, `Fn`) asks (ADR 0001,
+ * ADR 0002). The formal model reads it to check that no permission comes from a membership outside those states.
+ */
+export interface Memberships {
+  readonly machine: string;
+  readonly grantingStates: readonly string[];
+}
+
 /** What the tests and the doc generator read of a domain. `Command` is the names a grant row may carry. */
 export interface Declaration<Command extends string = string> {
   readonly name: string;
@@ -77,6 +87,8 @@ export interface Declaration<Command extends string = string> {
   readonly commands: readonly Rpc.Any[];
   readonly reads: Readonly<Record<string, ReadInfo>>;
   readonly machines: readonly Description[];
+  /** The binding of the membership machine on the domain that has it (`teams`), `null` elsewhere. */
+  readonly memberships: Memberships | null;
   /** The rows as the domain wrote them. */
   readonly declared: readonly Grant.Row<Command>[];
   /** What a person may run or open: the commands that no job alone runs, and the reads. An admin holds all of them. */
@@ -180,6 +192,7 @@ export const make = <
   readonly reads: { readonly [Read in Reads]: ReadInfo };
   readonly grants: readonly Grant.Row<NoInfer<CommandOf<Rpcs, Reads>>>[];
   readonly machines?: readonly Description[];
+  readonly memberships?: Memberships;
 }): Domain<Rpcs, Reads> => {
   const rpcs = Arr.fromIterable(declaration.commands.requests.values());
 
@@ -214,6 +227,7 @@ export const make = <
     group: declaration.commands,
     handle,
     machines: declaration.machines ?? [],
+    memberships: declaration.memberships ?? null,
     name: declaration.name,
     personal,
     reads: declaration.reads,
@@ -225,7 +239,8 @@ export const make = <
 
 // ---------------------------------------------------------------- completeness
 
-const namesOf = (declaration: Declaration): readonly string[] => [
+/** The names that a declaration's grant rows may carry, at run time: its commands and its reads (the type is `NamesOf`). */
+export const namesOf = (declaration: Declaration): readonly string[] => [
   ...Arr.map(declaration.commands, (rpc) => rpc._tag),
   ...Rec.keys(declaration.reads),
 ];
@@ -535,6 +550,59 @@ const machineProblems = (declaration: Declaration) =>
 const repeated = <A>(items: readonly A[], key: (item: A) => string) =>
   Arr.filter(Rec.values(Arr.groupBy(items, key)), (group) => group.length > 1);
 
+/** What a machine says about itself: its terminal states are among its states, each semester is declared once, and there is one clock. */
+const machineFacts = (declaration: Declaration) =>
+  Arr.flatMap(declaration.machines, (machine) => [
+    ...Arr.flatMap(machine.terminal, (state) =>
+      Arr.contains(machine.states, state)
+        ? []
+        : [
+            `${machine.name} has the terminal state ${state}, which is not one of its states`,
+          ]
+    ),
+    ...Arr.map(
+      repeated(machine.fields, (field) => Arr.join(field.path, ".")),
+      (group) =>
+        `${machine.name} declares the field ${Arr.join(group[0].path, ".")} twice`
+    ),
+    ...(Arr.filter(machine.fields, (field) => field.kind === "clock").length > 1
+      ? [`${machine.name} declares more than one clock`]
+      : []),
+  ]);
+
+/** The machine that the memberships of a domain name is its own, and its granting states are states of it. */
+const membershipBinding = (declaration: Declaration) => {
+  const { memberships } = declaration;
+
+  if (memberships === null) {
+    return [];
+  }
+
+  return Option.match(
+    Arr.findFirst(
+      declaration.machines,
+      (machine) => machine.name === memberships.machine
+    ),
+    {
+      onNone: () => [
+        `the memberships of ${declaration.name} name the machine ${memberships.machine}, which it does not declare`,
+      ],
+      onSome: (machine) => [
+        ...(Arr.isReadonlyArrayEmpty(memberships.grantingStates)
+          ? [`the memberships of ${declaration.name} have no granting state`]
+          : []),
+        ...Arr.flatMap(memberships.grantingStates, (state) =>
+          Arr.contains(machine.states, state)
+            ? []
+            : [
+                `the memberships of ${declaration.name} grant from ${state}, which is not a state of ${machine.name}`,
+              ]
+        ),
+      ],
+    }
+  );
+};
+
 /**
  * What only a list of domains can show. A tag is the key of the grant table, so two domains that declare one tag would
  * merge their grants; and the HTTP shape that ADR 0010 derives would be one route twice for a resource and a method
@@ -582,7 +650,8 @@ const sharedNames = (domains: readonly Declaration[]) => {
  * method or a colon and a lowerCamelCase verb, a name that its resource and method do not give it, a query that
  * changes something, a `create`, `delete` or `update` that its transitions contradict (ADR 0010), a subject set paired
  * with a scope it cannot use, a job's command that a person (an admin included) holds, a job that holds no grant, an
- * admin without a person's command, and a machine and its commands that disagree. Empty means complete. The tests
+ * admin without a person's command, a machine and its commands that disagree, a machine whose terminal states or
+ * fields are not its own, and a membership binding to a machine or to states that the domain does not have. Empty means complete. The tests
  * assert it for every domain, and the doc generator refuses to render otherwise.
  */
 export const problems = (declaration: Declaration): readonly string[] => [
@@ -599,6 +668,8 @@ export const problems = (declaration: Declaration): readonly string[] => [
   ...jobsWithoutGrant(declaration),
   ...adminGaps(declaration),
   ...machineProblems(declaration),
+  ...machineFacts(declaration),
+  ...membershipBinding(declaration),
 ];
 
 /** The problems of every domain, and those that only the whole list shows: a tag, or a resource and a method, twice. */

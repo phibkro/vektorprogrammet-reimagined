@@ -1,0 +1,44 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "sweepOutbox",
+      "runBy": {
+        "job": "outboxSweep"
+      }
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "sweepOutbox"
+      ],
+      "scope": "all",
+      "subject": "System(outboxSweep)@all"
+    }
+  ],
+  "machines": [],
+  "name": "outbox",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "outboxSweep"
+      },
+      "name": "System(outboxSweep)@all"
+    }
+  ]
+}
