@@ -1,6 +1,6 @@
 # Alchemy Domain beta.84 PostgreSQL spike
 
-**Status: ongoing; not adoption-ready.** The generic platform contract suite passed twice (24 tests/run). The real PostgreSQL Person create/extend/end-early/delete journey, 300 fresh-state AdminList deactivate/revoke rounds, 300 fresh-state overlapping-membership race rounds, and the repository's deterministic split-decision negative control have passed. The SELECT-only model execution, Story parity, erasure scan/implementation, matched repository latency and docgen check remain; recommendation remains **partly** until every required falsifier is complete.
+**Status: ongoing; not adoption-ready.** The generic beta.84 platform contract suite passed twice (24 tests/run). PostgreSQL Person journeys, 300-round AdminList and membership races, the split-decision negative control, and facts/projection reads under the repository's SELECT-only role all passed. The matching in-memory Story and generated declaration documentation checks also passed. Erasure and matched repository latency remain; recommendation is **partly**, not adoption-ready.
 
 ## Scope and evidence actually obtained
 
@@ -40,9 +40,9 @@ A further adoption risk identified by source audit: event-sourced aggregates sta
 | Deterministic #17 negative control without lock/split decision | **Passed in the existing repository control:** devenv shell -- bunx vp -C packages/db test test/adminList.postgres.test.ts -t "negative control: the same two decisions under each person"; it asserts zero Active administrators with a valid place in all 300 fresh-state rounds under the pre-R2 split decision. This is a repository baseline control, not a mutation of the spike's lock implementation. |
 | 300 fresh-state overlapping membership-write rounds, no overlap/deadlock | **Passed:** devenv shell -- bunx vp -C spikes/alchemy-domain test test/model.postgres.test.ts -t "overlapping membership writes"; 300 fresh Person instances, exactly one successful create and one membership row per round. Evidence: /tmp/alchemy-membership-race-300.log. |
 | Duplicate commandId → one decision | **Passed for generic Counter**; no Person/AdminList-specific duplicate test yet. |
-| SELECT-only projection/fact reads via repository role helper | **Not run yet** for the model. Resolver query inspection is not role-enforced evidence. |
-| Same observable race result in Story and PostgreSQL | **Not run yet.** |
-| Documentation/grants generated from declarations | **Not run yet.** |
+| SELECT-only projection/fact reads via repository role helper | **Passed:** model facts and a newly projected membership row are read with the repository SELECT-only role; a DELETE through that role is refused. Command: devenv shell -- bunx vp -C spikes/alchemy-domain test test/model.postgres.test.ts -t "command facts and projected membership rows read". |
+| Same observable race result in Story and PostgreSQL | **Passed:** the beta.84 Story test executes deactivate then revoke against the same seeded two-admin state, confirms the revoke rejection and exactly one Active account with a valid place. The 300-round PostgreSQL race asserts the identical final cardinality. Command: devenv shell -- bunx vp -C spikes/alchemy-domain test test/model.postgres.test.ts -t "Story keeps one Active administrator". |
+| Documentation/grants generated from declarations | **Passed:** devenv shell -- bun run check:docs; generated teams.md, accounts.md, and commands.md blocks match. The guard calls authorize from the existing domain declarations rather than maintaining a second grants table. |
 | Atomic rollback and after-commit delivery | **Passed for generic Counter** in the PostgreSQL contract suite. |
 | Erasure scan of event/state values | **Not run; no erasure implementation.** IDs/history remain linkable personal data. |
 

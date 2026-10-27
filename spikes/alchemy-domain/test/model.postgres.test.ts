@@ -1,17 +1,24 @@
 import { Internals } from "@alchemy.run/domain/Model";
+import { Story } from "@alchemy.run/domain/Story";
+import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
 import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   migratedTestDatabase,
   TestDatabaseUrl,
 } from "@vektorprogrammet/db/testing";
-import type { PersonId, PositionId, TeamId } from "@vektorprogrammet/domain";
+import {
+  ReadOnlyDatabaseUrl,
+  readOnlyRole,
+} from "@vektorprogrammet/db/testing/read-only-role";
+import type { PositionId, TeamId } from "@vektorprogrammet/domain";
 import {
   AdminGrantId,
   DepartmentRepository,
   EmailAddress,
   FieldOfStudyRepository,
   MembershipId,
+  PersonId,
   PersonRepository,
   PositionRepository,
   Principal,
@@ -31,6 +38,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import {
   AccountActivated,
+  AccountDeactivated,
   AccountInvited,
   AdminList,
   AdminPlaceGranted,
@@ -41,7 +49,11 @@ import { CommandFacts, RequestPrincipal } from "../src/model/context.ts";
 import type { Facts } from "../src/model/context.ts";
 import { factsOf } from "../src/model/facts.ts";
 import { ADMIN_LIST, PersonKey } from "../src/model/ids.ts";
-import { StaffingModel, staffingProjections } from "../src/model/model.ts";
+import {
+  StaffingModel,
+  StaffingStoryModel,
+  staffingProjections,
+} from "../src/model/model.ts";
 import {
   CreateMembership,
   DeleteMembership,
@@ -53,7 +65,7 @@ import {
   MembershipExtended,
   Person,
 } from "../src/model/person.ts";
-import { AlreadyExists } from "../src/model/rejections.ts";
+import { AlreadyExists, ValidationFailed } from "../src/model/rejections.ts";
 import { layer as postgresPlatform } from "../src/postgresPlatform.ts";
 import { race, raceReport, raceTwo } from "./support/race.ts";
 
@@ -72,10 +84,19 @@ const databasePlatform = Layer.unwrap(
       Layer.provideMerge(DatabaseLive({ maxConnections: 30, url }))
     )
   )
-).pipe(Layer.provideMerge(migratedTestDatabase));
+);
 
 const world = StaffingModel.layer(staffingProjections).pipe(
-  Layer.provideMerge(databasePlatform)
+  Layer.provideMerge(databasePlatform),
+  Layer.provideMerge(
+    readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase))
+  )
+);
+
+const readOnlyClient = Layer.unwrap(
+  Effect.map(Effect.service(ReadOnlyDatabaseUrl), (url) =>
+    PgClient.layer({ maxConnections: 1, prepare: false, url })
+  )
 );
 
 interface Fixture {
@@ -267,6 +288,7 @@ layer(world, { excludeTestServices: true })(
           if (initialMembershipCount === undefined) {
             return yield* Effect.die("membership count query returned no row");
           }
+
           assert.strictEqual(initialMembershipCount.count, 1);
 
           const membershipFacts = yield* factsOf("extendMembership", {
@@ -390,12 +412,164 @@ layer(world, { excludeTestServices: true })(
           if (finalMembershipCount === undefined) {
             return yield* Effect.die("membership count query returned no row");
           }
+
           assert.strictEqual(finalMembershipCount.count, 1);
 
           return yield* Effect.void;
         })
     );
 
+    it.effect(
+      "command facts and projected membership rows read under the SELECT-only database role",
+      () =>
+        Effect.gen(function* readOnlyFacts() {
+          const person = yield* fixture("readonly");
+
+          const facts = yield* Effect.provide(
+            factsOf("createMembership", {
+              positionId: person.memberPositionId,
+              target: String(person.personId),
+              teamId: person.teamId,
+            }),
+            readOnlyClient
+          );
+
+          assert.deepStrictEqual(facts.resources, [
+            { departmentId: person.departmentId },
+            { departmentId: person.departmentId },
+          ]);
+
+          const people = yield* Person;
+
+          const [before] = yield* Effect.provide(
+            Effect.gen(function* readProjectionBefore() {
+              const sql = yield* SqlClient;
+
+              return yield* sql<{
+                readonly count: number;
+              }>`select count(*)::int as count from membership`;
+            }),
+            readOnlyClient
+          );
+
+          const membershipId = MembershipId.make(yield* nextId("membership"));
+
+          yield* sendPerson(
+            people,
+            person.personId,
+            new CreateMembership({
+              end: NEXT_AUTUMN,
+              leader: false,
+              membershipId,
+              positionId: person.memberPositionId,
+              start: NEXT_SPRING,
+              teamId: person.teamId,
+            }),
+            person.personId,
+            facts,
+            "readonly-projection"
+          );
+
+          const [after] = yield* Effect.provide(
+            Effect.gen(function* readProjectionAfter() {
+              const sql = yield* SqlClient;
+
+              return yield* sql<{
+                readonly count: number;
+              }>`select count(*)::int as count from membership`;
+            }),
+            readOnlyClient
+          );
+
+          assert.strictEqual(after?.count, Number(before?.count) + 1);
+
+          const write = yield* Effect.provide(
+            Effect.gen(function* refuseProjectionWrite() {
+              const sql = yield* SqlClient;
+
+              return yield* Effect.exit(
+                sql.unsafe("delete from membership where false")
+              );
+            }),
+            readOnlyClient
+          );
+
+          assert.isTrue(Exit.isFailure(write));
+
+          return yield* Effect.void;
+        })
+    );
+
+    it.effect(
+      "Story keeps one Active administrator with a valid place when deactivate wins first",
+      () =>
+        Effect.gen(function* adminStory() {
+          const left = PersonId.make(100_001);
+          const right = PersonId.make(100_002);
+          const actor = PersonId.make(100_003);
+          const leftGrant = AdminGrantId.make(900_001);
+          const rightGrant = AdminGrantId.make(900_002);
+          const ref = AdminList.ref("1");
+          const runStory = Story.make(StaffingStoryModel);
+
+          yield* runStory(
+            Story.clock(DateTime.toEpochMillis(NOW)),
+            Story.given(
+              ref,
+              new AccountInvited({ personId: left }),
+              new AccountActivated({ personId: left }),
+              new AccountInvited({ personId: right }),
+              new AccountActivated({ personId: right }),
+              new AdminPlaceGranted({
+                grantedBy: null,
+                id: leftGrant,
+                personId: left,
+                until: FAR,
+              }),
+              new AdminPlaceGranted({
+                grantedBy: null,
+                id: rightGrant,
+                personId: right,
+                until: FAR,
+              })
+            ),
+            Story.provide(RequestPrincipal, adminPrincipal(actor)),
+            Story.provide(CommandFacts, { resources: [] }),
+            Story.when(ref, new DeactivateAccount({ personId: right })),
+            Story.then(ref, new AccountDeactivated({ personId: right })),
+            Story.when(ref, new DeleteAdminGrant({ id: leftGrant })),
+            Story.rejected(
+              new ValidationFailed({
+                issues: [
+                  {
+                    message:
+                      "Den siste administratorplassen som varer etter dette semesteret kan ikke fjernes.",
+                    path: ["id"],
+                  },
+                ],
+              })
+            ),
+            Story.state(ref, (state) => {
+              const activeWithPlace = Arr.filter(
+                state.places,
+                (place) =>
+                  DateTime.isGreaterThan(place.until, NOW) &&
+                  Arr.some(
+                    state.accounts,
+                    (account) =>
+                      account.personId === place.personId &&
+                      account.state === "Active"
+                  )
+              );
+
+              assert.strictEqual(activeWithPlace.length, 1);
+              assert.strictEqual(activeWithPlace[0]?.personId, left);
+            })
+          );
+
+          return yield* Effect.void;
+        })
+    );
     it.effect(
       "#17 serializes concurrent deactivate/revoke in 300 fresh admin-list states",
       () =>
@@ -408,11 +582,13 @@ layer(world, { excludeTestServices: true })(
           if (adminStore === undefined) {
             return yield* Effect.die("AdminList aggregate is not hosted");
           }
+
           const seedAdmin = adminStore.seed;
 
           if (seedAdmin === undefined) {
             return yield* Effect.die("AdminList aggregate has no seed store");
           }
+
           const failures: string[] = [];
 
           for (const round of Arr.range(1, 300)) {
