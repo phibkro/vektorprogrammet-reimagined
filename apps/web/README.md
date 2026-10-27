@@ -15,7 +15,7 @@ request ─► src/server.ts  fetch
                   └─ SSR routes (loaders call server functions)
 cron ────► src/server.ts  scheduled → runSemesterJob(env)
           (every 10 min)             → runEndingSoon(env), runAlumniConsent(env) → runDelivery(env)
-cron ────► src/server.ts  scheduled → runRetention(env)   (RETENTION_CRON, 02:17 UTC; `controller.cron` tells them apart)
+cron ────► src/server.ts  scheduled → runRetention(env)   (RETENTION_CRON, 02:17 UTC; `controller.cron` tells them apart; the mode, apply or count only, is `retentionModeFor(DEPLOYMENT)`)
 ```
 
 Each server function or server route:
@@ -122,7 +122,7 @@ The Worker reads these names; `src/server/env.ts` types them. `alchemy.run.ts` a
 
 | Stage | What it is | Database | Deployed by |
 | --- | --- | --- | --- |
-| `main` | the base Worker, built from `main`; parent of every Preview; runs the crons (the tick: outbox sweep, semester job, ending soon and alumni consent; the nightly retention run) | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
+| `main` | the base Worker, built from `main`; parent of every Preview; runs the crons (the tick: outbox sweep, semester job, ending soon and alumni consent; the nightly retention run, which changes rows here because this is a preview deployment: production only counts while a period is a proposal, spec 0007b R4) | Neon `dev`, the importer's **fake** fixture | `.github/workflows/preview.yml` on push to `main` |
 | `pr-<n>` | a [Cloudflare Worker Preview](https://developers.cloudflare.com/workers/previews/) of `main`: own URL, bindings, Hyperdrive config and R2 bucket; no crons | Neon `preview/pr-<n>`, forked from `dev` and migrated before the deploy; expires 14 days after the last push | the same workflow on every push to a pull request; destroyed when it closes |
 | `production` | the production deployment (not deployed yet) | Neon `production` | operator only |
 

@@ -1,58 +1,81 @@
 /**
- * Spec 0007b R3 item 32: the legal bases of the record of processing have an approval of their own (`basesApproval`),
- * apart from the approval of each period and of the notice's text. The notice and every row of the record follow it: with
- * every period and the notice's text decided, the notice is still a draft while only the bases are proposed, and it is
- * final when the bases are decided too. The declarations are constants of two modules, so each case evaluates the domain
- * again with those modules replaced, as `periodsInText.test.ts` does (two evaluations of one module graph cannot be two
- * static imports, so they are made here, once, before the tests).
+ * Spec 0007b R3 item 32 and R4: what a notice awaits follows the three declarations that it rests on, one by one: the
+ * approval of its text (`privacyText.approval`), of the legal bases (`basesApproval`) and of the periods that it states.
+ * Each case evaluates the domain again with those declarations replaced, so that exactly one of them is a proposal (and
+ * a fifth, none): the notice then awaits that decision and no other, and so does every row of the record. The
+ * combinations of approvals and the sentence for each are `notice.test.ts`'s. The declarations are constants of two
+ * modules, so the cases are made here, once, before the tests, as `periodsInText.test.ts` makes its second evaluation
+ * (two evaluations of one module graph cannot be two static imports).
  */
 // oxlint-disable anti-slop/no-module-mocking -- EX-0027: the guard evaluates the declarations a second time with their approvals replaced, and they reach every text only through modules.
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Record as Rec } from "effect";
 import { vi } from "vite-plus/test";
 
-import * as Real from "../../src/index.ts";
+import type { PersonalDataDeclaration } from "../../src/index.ts";
 import * as RealPeriods from "../../src/personalData/periods.ts";
 import * as RealTexts from "../../src/personalData/texts.ts";
 
-const decidedPeriods = {
-  Periods: Rec.map(RealPeriods.Periods, (period) => ({
-    ...period,
-    approval: "decided" as const,
-  })),
-};
+type Approval = PersonalDataDeclaration.Approval;
 
-const textsWith = (bases: "decided" | "proposed") => ({
+const PERIODS = "../../src/personalData/periods.ts";
+const TEXTS = "../../src/personalData/texts.ts";
+
+/** Every period with this approval. */
+const periodsWith = (approval: Approval) => ({
+  Periods: Rec.map(RealPeriods.Periods, (period) => ({ ...period, approval })),
+});
+
+/** The texts with the approval of the bases and of the notice's own text replaced. */
+const textsWith = (bases: Approval, text: Approval) => ({
   ...RealTexts,
   basesApproval: bases,
-  privacyText: { ...RealTexts.privacyText, approval: "decided" as const },
+  privacyText: { ...RealTexts.privacyText, approval: text },
 });
 
 vi.resetModules();
 
-vi.doMock("../../src/personalData/periods.ts", () => decidedPeriods);
+vi.doMock(PERIODS, () => periodsWith("decided"));
 
-vi.doMock("../../src/personalData/texts.ts", () => textsWith("decided"));
+vi.doMock(TEXTS, () => textsWith("decided", "decided"));
 
-const AllDecided = await import("../../src/index.ts");
+const NoneOpen = await import("../../src/index.ts");
 
 vi.resetModules();
 
-vi.doMock("../../src/personalData/periods.ts", () => decidedPeriods);
+vi.doMock(PERIODS, () => periodsWith("decided"));
 
-vi.doMock("../../src/personalData/texts.ts", () => textsWith("proposed"));
+vi.doMock(TEXTS, () => textsWith("proposed", "decided"));
 
-const OnlyBasesProposed = await import("../../src/index.ts");
+const OnlyBases = await import("../../src/index.ts");
 
-describe("spec 0007b R3 item 32: the legal bases have an approval of their own", () => {
-  it("with the bases, every period and the text decided, the notice is final and no row has an open decision (the control of the next test)", () => {
-    const { Catalog, ContactForm, privacyNotice, recordOfProcessing } =
-      AllDecided;
+vi.resetModules();
 
-    assert.strictEqual(privacyNotice(ContactForm, Catalog).approval, "decided");
+vi.doMock(PERIODS, () => periodsWith("decided"));
 
-    const rows = recordOfProcessing(Catalog);
+vi.doMock(TEXTS, () => textsWith("decided", "proposed"));
 
+const OnlyText = await import("../../src/index.ts");
+
+vi.resetModules();
+
+vi.doMock(PERIODS, () => periodsWith("proposed"));
+
+vi.doMock(TEXTS, () => textsWith("decided", "decided"));
+
+const OnlyPeriods = await import("../../src/index.ts");
+
+/** The notice of the contact form and the rows of the record, in one evaluation of the domain. */
+const readings = (domain: typeof NoneOpen) => ({
+  open: domain.privacyNotice(domain.ContactForm, domain.Catalog).open,
+  rows: domain.recordOfProcessing(domain.Catalog),
+});
+
+describe("spec 0007b R3 item 32 and R4: a notice and the record await the decisions that are open", () => {
+  it("with the text, the bases and every period decided, the notice awaits nothing and no row has an open decision (the control of the others)", () => {
+    const { open, rows } = readings(NoneOpen);
+
+    assert.deepStrictEqual(open, []);
     assert.isAbove(rows.length, 0);
     assert.isTrue(
       Arr.every(
@@ -63,17 +86,10 @@ describe("spec 0007b R3 item 32: the legal bases have an approval of their own",
     );
   });
 
-  it("with only the bases proposed, the notice is a draft and every row says its basis is, apart from its period", () => {
-    const { Catalog, ContactForm, privacyNotice, recordOfProcessing } =
-      OnlyBasesProposed;
+  it("with only the bases proposed, the notice awaits the bases, and every row says its basis is, apart from its period", () => {
+    const { open, rows } = readings(OnlyBases);
 
-    assert.strictEqual(
-      privacyNotice(ContactForm, Catalog).approval,
-      "proposed"
-    );
-
-    const rows = recordOfProcessing(Catalog);
-
+    assert.deepStrictEqual(open, ["bases"]);
     assert.isAbove(rows.length, 0);
     assert.isTrue(
       Arr.every(
@@ -84,13 +100,29 @@ describe("spec 0007b R3 item 32: the legal bases have an approval of their own",
     );
   });
 
-  it("negative control: the declarations as they are leave the bases proposed, so the two cases above are not the default", () => {
-    assert.strictEqual(Real.basesApproval, "proposed");
+  it("with only the notice's text proposed, the notice awaits its text and no row has an open decision", () => {
+    const { open, rows } = readings(OnlyText);
 
+    assert.deepStrictEqual(open, ["text"]);
     assert.isTrue(
       Arr.every(
-        Real.recordOfProcessing(Real.Catalog),
-        (row) => row.basisApproval === "proposed"
+        rows,
+        (row) =>
+          row.basisApproval === "decided" && row.periodApproval === "decided"
+      )
+    );
+  });
+
+  it("with only the periods proposed, the notice awaits its periods, and every row says its period is, apart from its basis", () => {
+    const { open, rows } = readings(OnlyPeriods);
+
+    assert.deepStrictEqual(open, ["periods"]);
+    assert.isAbove(rows.length, 0);
+    assert.isTrue(
+      Arr.every(
+        rows,
+        (row) =>
+          row.basisApproval === "decided" && row.periodApproval === "proposed"
       )
     );
   });

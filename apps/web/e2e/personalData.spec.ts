@@ -14,11 +14,13 @@ import {
   ContactForm,
   Periods,
   codePolicy,
+  draftNote,
   durationWords,
+  lifetimeWords,
   privacyNotice,
   privacyText,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Duration, Effect, Order, Schema } from "effect";
+import { Array as Arr, Effect, Order, Schema } from "effect";
 
 import { ANONYMOUS_CHOICE } from "../src/lib/testActor.ts";
 import { RETENTION_CRON } from "../worker.config.ts";
@@ -231,9 +233,9 @@ test("the link of the alumni e-mail answers without signing in, answers again, a
   )?.[0];
 
   expect(link).toBeDefined();
-  // The mail's own sentence: the declared lifetime of the code, in days (a number written here would outlive a change).
+  // The mail's own sentence: the declared lifetime of the code, spelled by `lifetimeWords` as the mail spells it.
   expect(mail?.text).toContain(
-    `${Duration.toDays(Duration.seconds(codePolicy.alumniConsent.lifetimeSeconds))} dager`
+    `Lenken virker i ${lifetimeWords(codePolicy.alumniConsent.lifetimeSeconds, "no")}`
   );
 
   const visitor = await visitorPage(browser);
@@ -264,15 +266,22 @@ test("the link of the alumni e-mail answers without signing in, answers again, a
     })
     .toBe(true);
 
-  // Negative control: a code that was never minted answers nothing, and says so.
+  // Negative control: a code that was never minted answers nothing, and says so. The refusal is the server's, a real 403
+  // that the click made (a click that made no request fails on that, and not on a missing message), and the form of the
+  // button that was clicked shows it.
   const forged = await visitorPage(browser);
   await openPage(forged, `${origin}/alumni?kode=c_${"A".repeat(43)}`);
 
-  await question(forged, KEEP)
-    .getByRole("button", { exact: true, name: "Ja" })
-    .click();
-
-  await expect(forged.getByRole("alert")).toBeVisible();
+  const keep = question(forged, KEEP);
+  expect(
+    await statusOfClick(
+      forged,
+      keep.getByRole("button", { exact: true, name: "Ja" })
+    )
+  ).toBe(403);
+  await expect(keep.getByRole("alert")).toContainText(
+    "Du har ikke tilgang til dette."
+  );
 
   expect(await runDatabase(consentsOf(EVA))).toEqual([
     { kind: "news", textVersion: 1, withdrawn: true },
@@ -362,7 +371,9 @@ test("the nightly retention cron anonymises an expired person, and its audit row
   const id = await runDatabase(insertExpiredPerson(NAME, EMAIL));
   expect(await isAnonymised(id)).toBe(false);
 
-  // The Worker's own `scheduled` handler, with the retention cron: the dispatch on `controller.cron` is what runs.
+  // The Worker's own `scheduled` handler, with the retention cron: the dispatch on `controller.cron` is what runs. This
+  // stack is a local deployment, which applies the run (`retention.ran`); production only counts while a period is a
+  // proposal, which `apps/web/test/retentionJob.postgres.test.ts` runs through the same job in each deployment.
   const ran = await request.get(
     `${originOf()}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent(RETENTION_CRON)}`
   );
@@ -412,10 +423,12 @@ test("the contact form shows the privacy notice that the declarations generate",
     `Lagres: ${durationWords(Periods.outboxRows.duration, "no")}`
   );
 
-  // The page says it is a draft while the text or a period awaits the operator, and not after.
-  const { approval } = privacyNotice(ContactForm, Catalog);
+  // The page says what awaits the operator and only that: the sentence from the declarations, or no note when nothing does.
+  const { open } = privacyNotice(ContactForm, Catalog);
+  const note = draftNote(open, "no");
+  const shown = notice.getByRole("note");
 
-  await expect(notice.getByRole("note")).toHaveCount(
-    approval === "proposed" ? 1 : 0
-  );
+  await (note === undefined
+    ? expect(shown).toHaveCount(0)
+    : expect(shown).toHaveText(note));
 });

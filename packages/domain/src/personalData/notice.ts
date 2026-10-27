@@ -9,10 +9,23 @@ import { Array as Arr, Order, Predicate, Record as Rec } from "effect";
 
 import type { CatalogOf } from "./catalog.ts";
 import type { Approval, PersonalData, Words } from "./declaration.ts";
-import { expiryWords, personalColumns, retentionWordsBoth } from "./derive.ts";
+import {
+  expiryWords,
+  personalColumns,
+  retentionIsProposed,
+  retentionWordsBoth,
+} from "./derive.ts";
+import type { Language } from "./duration.ts";
 import type { FormDeclaration } from "./forms.ts";
-import { basesApproval, legalBases, privacyText, purposes } from "./texts.ts";
-import type { LegalBasisText } from "./texts.ts";
+import {
+  NOTICE_DECISIONS,
+  basesApproval,
+  legalBases,
+  noticeDecisionWords,
+  privacyText,
+  purposes,
+} from "./texts.ts";
+import type { LegalBasisText, NoticeDecision } from "./texts.ts";
 
 export interface NoticeEntry {
   readonly field: string;
@@ -30,23 +43,51 @@ export interface PrivacyNotice {
   readonly controller: Words;
   readonly rights: Words;
   readonly entries: readonly NoticeEntry[];
-  /** `proposed` while the text, a legal basis or a period that it states awaits the operator's approval. */
-  readonly approval: Approval;
+  /** What awaits the operator's approval: the notice's text, a legal basis or a period that it states. Empty when it is final. */
+  readonly open: readonly NoticeDecision[];
 }
 
-/** `proposed` when any period of the retention is still a proposal. */
-const approvalOf = (data: PersonalData): Approval => {
-  const periods = [
-    data.retention.period,
-    ...(data.retention.longerWhile === undefined
-      ? []
-      : [data.retention.longerWhile.period]),
-  ];
+/** The decisions that a notice awaits, in the order that a draft note names them: those that are still `proposed`. */
+export const openDecisions = (
+  approvals: Readonly<Record<NoticeDecision, Approval>>
+): readonly NoticeDecision[] =>
+  Arr.filter(
+    NOTICE_DECISIONS,
+    (decision) => approvals[decision] === "proposed"
+  );
 
-  return Arr.some(periods, (period) => period.approval === "proposed")
-    ? "proposed"
-    : "decided";
+/** The parts of a list in a sentence: "a", "a og b", "a, b og c". */
+const listed = (parts: readonly string[], and: string): string =>
+  parts.length > 1
+    ? `${Arr.join(Arr.dropRight(parts, 1), ", ")} ${and} ${Arr.join(Arr.takeRight(parts, 1), "")}`
+    : Arr.join(parts, "");
+
+/**
+ * The draft note of a notice, from what it awaits: "Utkast: teksten og periodene venter på godkjenning." Each open
+ * decision is named and no other, and a notice that awaits nothing has no note (spec 0007b R4). The page and the
+ * generated document print this one sentence.
+ */
+export const draftNote = (
+  open: readonly NoticeDecision[],
+  language: Language
+): string | undefined => {
+  if (!Arr.isReadonlyArrayNonEmpty(open)) {
+    return undefined;
+  }
+
+  const names = listed(
+    Arr.map(open, (decision) => noticeDecisionWords[decision][language]),
+    language === "no" ? "og" : "and"
+  );
+
+  return language === "no"
+    ? `Utkast: ${names} venter på godkjenning.`
+    : `Draft, awaiting the operator's approval: ${names}.`;
 };
+
+/** `proposed` when any period of the retention is still a proposal. */
+const approvalOf = (data: PersonalData): Approval =>
+  retentionIsProposed(data.retention) ? "proposed" : "decided";
 
 const storedAt = (catalog: CatalogOf, storedIn: string) => {
   const [table = "", column = ""] = storedIn.split(".");
@@ -74,13 +115,15 @@ export const privacyNotice = (
       : []
   );
 
-  const draft =
-    privacyText.approval === "proposed" ||
-    basesApproval === "proposed" ||
-    Arr.some(found, (entry) => entry.stored.approval === "proposed");
+  const open = openDecisions({
+    bases: basesApproval,
+    periods: Arr.some(found, (entry) => entry.stored.approval === "proposed")
+      ? "proposed"
+      : "decided",
+    text: privacyText.approval,
+  });
 
   return {
-    approval: draft ? "proposed" : "decided",
     controller: privacyText.controller,
     entries: Arr.map(found, ({ declared, field, stored }) => ({
       basis: legalBases[declared.legalBasis],
@@ -92,6 +135,7 @@ export const privacyNotice = (
     })),
     form: form.form,
     heading: privacyText.heading,
+    open,
     rights: privacyText.rights,
   };
 };

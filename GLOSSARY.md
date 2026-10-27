@@ -84,6 +84,8 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Retention period** (lagringstid): How long the system keeps one kind of personal data before it deletes or anonymises it. _Avoid_: TTL, expiry
 
+**Retention report** (lagringsrapport): The nightly retention run in its counting mode. It finds what has reached the end of its period, counts it and audits the counts (`retention.reported`), and changes nothing. Production runs it until every period that the run applies is approved; local and preview deployments, which hold fake data, run the retention for real. _Avoid_: dry run, simulation
+
 **Consent** (samtykke): A recorded answer from a person to one question, for example "keep my details for 5 years" or "send me alumni news". The record names the version of the text that the person saw, when they said yes and when they withdrew. A "no" is a record too. A person can withdraw each consent separately. _Avoid_: opt-in, permission
 
 **Declaration** (deklarasjon): What the code says, once, about each stored column: what it holds about a person and why (purpose, legal basis, retention, and what happens at the end), or why it holds nothing about a person. The retention job, the export, the erasure, the merge, the privacy notice and the record of processing are all read from it. _Avoid_: annotation, policy

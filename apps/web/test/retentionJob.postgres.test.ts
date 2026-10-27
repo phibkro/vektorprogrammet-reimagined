@@ -100,13 +100,13 @@ for (const deployment of Deployment.literals) {
             const url = yield* TestDatabaseUrl;
             yield* seedDuePerson;
 
-            yield* Effect.promise(async () => {
-              await runRetention({
+            yield* Effect.promise(
+              runRetention.bind(null, {
                 DEPLOYMENT: deployment,
                 HYPERDRIVE: { connectionString: Redacted.value(url) },
                 SITE_URL: "https://retention.example",
-              });
-            });
+              })
+            );
 
             const left = LEFT_BEHIND[modeIn(deployment)];
 

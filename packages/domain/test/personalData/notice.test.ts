@@ -10,12 +10,21 @@ import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
 import {
   Catalog,
   ContactForm,
+  NOTICE_DECISIONS,
   basesApproval,
+  draftNote,
+  noticeDecisionWords,
+  openDecisions,
   personalColumns,
   privacyNotice,
   privacyText,
   recordOfProcessing,
+  retentionIsProposed,
   retentionWordsBoth,
+} from "../../src/index.ts";
+import type {
+  NoticeDecision,
+  PersonalDataDeclaration,
 } from "../../src/index.ts";
 
 describe("spec 0007b falsifier 1: the privacy notice", () => {
@@ -63,10 +72,9 @@ describe("spec 0007b falsifier 1: the privacy notice", () => {
     }
   });
 
-  it("carries the fixed paragraphs of the texts, and says it is a draft while a text, a basis or a period is a proposal", () => {
+  it("carries the fixed paragraphs of the texts", () => {
     assert.strictEqual(notice.controller, privacyText.controller);
     assert.strictEqual(notice.rights, privacyText.rights);
-    assert.strictEqual(notice.approval, "proposed");
   });
 
   it("negative control: a form with no personal field has no entry, and a field of an undeclared column says so", () => {
@@ -88,7 +96,112 @@ describe("spec 0007b falsifier 1: the privacy notice", () => {
       Arr.every(orphan.entries, (entry) => entry.kept.en === "not declared")
     );
 
-    assert.strictEqual(orphan.approval, "proposed");
+    assert.include(orphan.open, "periods");
+  });
+});
+
+/** Every set of open decisions, in the order that a note names them: the eight combinations of three approvals. */
+const COMBINATIONS: readonly (readonly NoticeDecision[])[] = [
+  [],
+  ["text"],
+  ["bases"],
+  ["periods"],
+  ["text", "bases"],
+  ["text", "periods"],
+  ["bases", "periods"],
+  ["text", "bases", "periods"],
+];
+
+/** What the page and the document say for each combination: one sentence that names what is open and nothing else. */
+const NOTES: readonly (readonly [string | undefined, string | undefined])[] = [
+  [undefined, undefined],
+  [
+    "Utkast: teksten venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the text.",
+  ],
+  [
+    "Utkast: de rettslige grunnlagene venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the legal bases.",
+  ],
+  [
+    "Utkast: periodene venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the periods.",
+  ],
+  [
+    "Utkast: teksten og de rettslige grunnlagene venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the text and the legal bases.",
+  ],
+  [
+    "Utkast: teksten og periodene venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the text and the periods.",
+  ],
+  [
+    "Utkast: de rettslige grunnlagene og periodene venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the legal bases and the periods.",
+  ],
+  [
+    "Utkast: teksten, de rettslige grunnlagene og periodene venter på godkjenning.",
+    "Draft, awaiting the operator's approval: the text, the legal bases and the periods.",
+  ],
+];
+
+/** The three approvals for a set of open decisions: `proposed` for each that is in it, `decided` for the rest. */
+const approvalsOf = (
+  open: readonly NoticeDecision[]
+): Record<NoticeDecision, PersonalDataDeclaration.Approval> => ({
+  bases: open.includes("bases") ? "proposed" : "decided",
+  periods: open.includes("periods") ? "proposed" : "decided",
+  text: open.includes("text") ? "proposed" : "decided",
+});
+
+/** A set of decisions as text for a failure message. */
+const named = (open: readonly NoticeDecision[]): string =>
+  open.length === 0 ? "none" : Arr.join(open, " + ");
+
+describe("spec 0007b R4: a notice awaits exactly the decisions that are open, and says so", () => {
+  it("each of the eight combinations of the three approvals gives the decisions that are proposed, and no other", () => {
+    for (const open of COMBINATIONS) {
+      assert.deepStrictEqual(openDecisions(approvalsOf(open)), open);
+    }
+  });
+
+  it("each combination has one sentence in each language, naming what is open and nothing else", () => {
+    assert.strictEqual(COMBINATIONS.length, NOTES.length);
+
+    for (const [index, open] of COMBINATIONS.entries()) {
+      const [no, en] = NOTES[index] ?? [];
+      const set = named(open);
+
+      assert.strictEqual(draftNote(open, "no"), no, `${set} in Norwegian`);
+      assert.strictEqual(draftNote(open, "en"), en, `${set} in English`);
+
+      // The sentence names a decision exactly when it is open (the words of a closed one never stand in it).
+      for (const decision of NOTICE_DECISIONS) {
+        assert.strictEqual(
+          (no ?? "").includes(noticeDecisionWords[decision].no),
+          open.includes(decision),
+          `${decision} in ${set}`
+        );
+      }
+    }
+  });
+
+  it("the notice of the contact form awaits what its three declarations leave open", () => {
+    const [, stored] = Option.getOrThrow(
+      Arr.findFirst(
+        personalColumns(Catalog.outbox),
+        ([column]) => column === "payload"
+      )
+    );
+
+    assert.deepStrictEqual(
+      privacyNotice(ContactForm, Catalog).open,
+      openDecisions({
+        bases: basesApproval,
+        periods: retentionIsProposed(stored.retention) ? "proposed" : "decided",
+        text: privacyText.approval,
+      })
+    );
   });
 });
 

@@ -7,6 +7,7 @@ import {
   codePolicy,
   consentNames,
   consentTexts,
+  draftNote,
   privacyNotice,
   recordOfProcessing,
 } from "@vektorprogrammet/domain";
@@ -554,12 +555,12 @@ const privacyNotices = (
   Arr.join(
     Arr.map(forms, (form) => {
       const notice = privacyNotice(form, catalog);
-      const draft = approvalWords[notice.approval]?.en;
+      const draft = draftNote(notice.open, "en");
 
       return Arr.join(
         [
           `#### ${form.title.en}`,
-          draft === undefined ? "" : `_${draft}._`,
+          draft === undefined ? "" : `_${draft}_`,
           notice.controller.en,
           table(
             ["Field", "Why", "Legal basis", "Who receives it", "Kept for"],

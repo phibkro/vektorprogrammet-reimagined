@@ -10,18 +10,11 @@ import {
   PersonalDataDeclaration,
   SiteOrigin,
   codePolicy,
+  lifetimeWords,
   mintCode,
 } from "@vektorprogrammet/domain";
 import type { Account } from "@vektorprogrammet/domain";
-import {
-  Context,
-  Crypto,
-  DateTime,
-  Duration,
-  Effect,
-  Layer,
-  Option,
-} from "effect";
+import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { Auth } from "./auth";
@@ -35,7 +28,7 @@ type CredentialIntent = Extract<
   { readonly _tag: "SetCredential" }
 >;
 
-/** The wording of each purpose's mail; the link is the purpose's page and `?kode=`, and the days come from the policy. */
+/** The wording of each purpose's mail; the link is the purpose's page and `?kode=`, and the lifetime is spelled from the policy by `lifetimeWords`. */
 const codeMail = {
   activation: {
     path: "/aktiver",
@@ -45,8 +38,8 @@ const codeMail = {
   alumniConsent: {
     path: "/alumni",
     subject: "To spørsmål om opplysningene dine",
-    text: (link: string, days: number) =>
-      `Du er ikke lenger medlem eller assistent i Vektorprogrammet. Vi vil gjerne spørre deg om to ting som gjelder opplysningene dine. Svar med ett klikk på hvert spørsmål: ${link}\n\nLenken virker i ${days} dager, og du kan endre svaret så lenge den virker. Du trenger ikke svare.`,
+    text: (link: string, lifetime: string) =>
+      `Du er ikke lenger medlem eller assistent i Vektorprogrammet. Vi vil gjerne spørre deg om to ting som gjelder opplysningene dine. Svar med ett klikk på hvert spørsmål: ${link}\n\nLenken virker i ${lifetime}, og du kan endre svaret så lenge den virker. Du trenger ikke svare.`,
   },
   resetPassword: {
     path: "/tilbakestill-passord",
@@ -140,7 +133,7 @@ export const accountDeliveryLayer = Layer.effect(
               subject: presentation.subject,
               text: presentation.text(
                 link,
-                Duration.toDays(Duration.seconds(policy.lifetimeSeconds))
+                lifetimeWords(policy.lifetimeSeconds, "no")
               ),
               to: recipient.email,
             });

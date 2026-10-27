@@ -102,7 +102,7 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
-| `runRetention` | `:run` | personalData | Each night, delete or anonymise what has reached the end of its declared period. The audit row holds integer counts per table, never a value. | System(retention) |
+| `runRetention` | `:run` | personalData | Each night, delete or anonymise what has reached the end of its declared period. The audit row holds integer counts per table, never a value. A production run only counts what it would change (audited as `retention.reported`) while any period that it applies is still a proposal; local and preview runs change it (`retention.ran`). | System(retention) |
 
 ### AuditEntry
 

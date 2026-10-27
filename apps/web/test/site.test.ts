@@ -7,7 +7,12 @@ import { assert, describe, it } from "@effect/vitest";
 import { isNotFound } from "@tanstack/react-router";
 import { CmsClient, PortableText } from "@vektorprogrammet/cms-client";
 import type { NewsData } from "@vektorprogrammet/cms-client";
-import { DepartmentId } from "@vektorprogrammet/domain";
+import {
+  Catalog,
+  ContactForm,
+  DepartmentId,
+  privacyNotice,
+} from "@vektorprogrammet/domain";
 import type { AdmissionPeriod } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -547,8 +552,8 @@ describe("the contact page (/kontakt)", () => {
           ["email", "message", "name", "subject"]
         );
         assert.strictEqual(privacy.form, "contact");
-        // The periods and the text await the operator: the page says it is a draft until they are decided.
-        assert.strictEqual(privacy.approval, "proposed");
+        // The page carries the domain's notice as it is, whatever it awaits: its note is derived from `open`.
+        assert.deepStrictEqual(privacy, privacyNotice(ContactForm, Catalog));
         assert.match(privacy.controller.no, /Vektorprogrammet/u);
       })
   );

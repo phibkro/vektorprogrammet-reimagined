@@ -53,7 +53,7 @@ Vektorprogrammet is responsible for all personal data in the system. The privacy
 
 \* Proposed, awaiting operator approval.
 
-Each night, the system deletes or anonymises the data that has reached the end of its period. The audit row of the run holds one count for each table, and never a value.
+Each night, the system deletes or anonymises the data that has reached the end of its period. The audit row of the run holds one count for each table, and never a value. While any period that a run applies is a proposal (\*), the production run does not delete or anonymise: it counts what it would have, and the audit row says so (`retention.reported`). Local and preview deployments hold fake data and run it for real (`retention.ran`). Approving the periods in `periods.ts` is what lets production run it for real.
 
 These data are in the information model but have no table yet. Each gets its declaration with the slice that builds it: applications that are not accepted and their interviews (6 months after the admission period), interview answers of accepted applicants and special needs (until the placement semester ends), expense claims and receipts (5 years after the end of the year), bank account numbers (until the refund is recorded and exported), and admission alerts (until the person stops them, or 2 years without an opening \*).
 
@@ -151,7 +151,7 @@ Two tests close the declaration. The first fails if a column of the migrated dat
 
 #### Contact form
 
-_proposed, awaiting operator approval._
+_Draft, awaiting the operator's approval: the text, the legal bases and the periods._
 
 Vektorprogrammet (organisation number 998744814) is the controller of the data on this form.
 
@@ -192,7 +192,7 @@ A consent record names the version of the text that the person saw, when they ga
 | `exportMyData` | Person | `:export` | Download everything held about a person as JSON (GDPR Art. 15, 20). Audited. It changes no data. Only the person themself can download it: an administrator's grant does not reach this command, and the handler refuses it. | Self; Admin | own, all |  |
 | `erasePerson` | Person | `:erase` | Anonymise a person's core fields and delete their account, sessions, consents and subscriptions. The history rows stay (GDPR Art. 17). Refused, with the reason, while a legal hold applies and when it would remove the last Active admin. A second call changes nothing. | Self; Admin | own, all | RULE-117 |
 | `mergePersons` | Person | `:merge` | Merge two records of one person: every row of the second follows the first, and the second becomes a tombstone without personal data. Refused with a typed conflict, and nothing changes, when both records have an account or when two memberships in one team would overlap. | Admin | all |  |
-| `runRetention` | Retention | `:run` | Each night, delete or anonymise what has reached the end of its declared period. The audit row holds integer counts per table, never a value. | System(retention) | all |  |
+| `runRetention` | Retention | `:run` | Each night, delete or anonymise what has reached the end of its declared period. The audit row holds integer counts per table, never a value. A production run only counts what it would change (audited as `retention.reported`) while any period that it applies is still a proposal; local and preview runs change it (`retention.ran`). | System(retention) | all |  |
 | `sendAlumniConsent` | Consent | `:send` | When a person's last engagement ends, e-mail them the two alumni questions once. One request per person and engagement end. | System(alumniConsent) | all |  |
 
 <!-- docgen:end personal-data-commands -->

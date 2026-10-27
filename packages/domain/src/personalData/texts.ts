@@ -182,3 +182,20 @@ export const approvalWords: Readonly<Record<Approval, Words | null>> = {
     no: "forslag, venter på godkjenning",
   },
 };
+
+/** What a privacy notice can await the operator for: its own text, the legal bases that it states, the periods that it states. */
+export type NoticeDecision = "bases" | "periods" | "text";
+
+/** The decisions in the order that a draft note names them. */
+export const NOTICE_DECISIONS: readonly NoticeDecision[] = [
+  "text",
+  "bases",
+  "periods",
+];
+
+/** The words that a draft note names each decision with (spec 0007b R4). */
+export const noticeDecisionWords: Readonly<Record<NoticeDecision, Words>> = {
+  bases: { en: "the legal bases", no: "de rettslige grunnlagene" },
+  periods: { en: "the periods", no: "periodene" },
+  text: { en: "the text", no: "teksten" },
+};

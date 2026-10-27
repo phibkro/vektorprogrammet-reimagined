@@ -1,6 +1,6 @@
 /**
  * Spec 0007b falsifier 5, the delivery half: the `IssueCode` message of the alumni job is delivered as one e-mail with a
- * link to `/alumni?kode=…`, and a 60-day code that opens the answer and nothing else. A person who was erased while the
+ * link to `/alumni?kode=…`, and a code (with the lifetime that its policy declares) that opens the answer and nothing else. A person who was erased while the
  * message waited gets no mail and no code. Without that erasure the same message sends, which is the negative control:
  * the skip is the erasure's doing, not a message that never sends.
  */
@@ -17,6 +17,7 @@ import {
   authorize,
   codePolicy,
   codePrincipal,
+  lifetimeWords,
 } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -83,7 +84,7 @@ layer(live, { excludeTestServices: true })(
   "spec 0007b falsifier 5: the alumni code mail",
   (it) => {
     it.effect(
-      "an asked alumnus gets one mail with a 60-day link that only answers; an erased one gets nothing",
+      "an asked alumnus gets one mail with a link that only answers; an erased one gets nothing",
       () =>
         Effect.gen(function* alumniMail() {
           const sql = yield* SqlClient;
@@ -116,10 +117,11 @@ layer(live, { excludeTestServices: true })(
           );
 
           const [mail] = sent;
-          const days = codePolicy.alumniConsent.lifetimeSeconds / 86_400;
-          assert.strictEqual(days, 60);
           assert.include(mail?.text ?? "", `${origin}/alumni?kode=c_`);
-          assert.include(mail?.text ?? "", `${days} dager`);
+          assert.include(
+            mail?.text ?? "",
+            `Lenken virker i ${lifetimeWords(codePolicy.alumniConsent.lifetimeSeconds, "no")}`
+          );
 
           // Only Alma has a code: Erik's message was acknowledged without minting one.
           const codes = yield* Schema.decodeUnknownEffect(expiries)(
@@ -161,7 +163,7 @@ layer(live, { excludeTestServices: true })(
             assert.isFalse(authorize(holder.value, "setAlumniConsent", own));
           }
 
-          // 60 days from the moment it was made, to the second.
+          // The lifetime that the policy declares, from the moment the code was made, to the second.
           const expiresAt = codes[0]?.ms ?? 0;
 
           const usableAt = (ms: number) =>

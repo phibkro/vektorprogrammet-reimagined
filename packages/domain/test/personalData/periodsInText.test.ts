@@ -65,10 +65,12 @@ const NUMBER_WORDS = [
 
 const UNITS = [
   "days?",
+  "hours?",
   "weeks?",
   "months?",
   "years?",
   "dag(?:er)?",
+  "timer?",
   "uke(?:r)?",
   "måned(?:er)?",
   "år",
@@ -145,6 +147,7 @@ const declaredStrings = Effect.fnUntraced(function* declaredStrings(
     })),
     forms: domain.Forms,
     legalBases: domain.legalBases,
+    noticeDecisionWords: domain.noticeDecisionWords,
     privacyText: domain.privacyText,
     purposes: domain.purposes,
   };
@@ -301,6 +304,24 @@ describe("spec 0007b R3 item 28: a period that a declared text states is built f
             NOTHING_IS_EXEMPT
           ),
           []
+        );
+
+        // A lifetime in hours is one too (`lifetimeWords` writes it for a code that lives less than a day).
+        assert.deepStrictEqual(
+          writtenPhrases(
+            {
+              texts: ["valid 24 hours", "gyldig i 24 timer", "gyldig i 1 time"],
+            },
+            {
+              texts: ["valid 24 hours", "gyldig i 24 timer", "gyldig i 1 time"],
+            },
+            NOTHING_IS_EXEMPT
+          ),
+          [
+            'texts[0] "24 hours" in: valid 24 hours',
+            'texts[1] "24 timer" in: gyldig i 24 timer',
+            'texts[2] "1 time" in: gyldig i 1 time',
+          ]
         );
 
         // An exempt text is not looked at.
