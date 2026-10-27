@@ -17,8 +17,21 @@ import {
 } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Exit, Option } from "effect";
 
+import {
+  activateAccount,
+  activeAdmin,
+  moveAccount,
+  noAdmins,
+} from "./support/accountsWorld.ts";
 import { pgliteDatabase } from "./support/database.ts";
-import { insertMembership, semester, world } from "./support/teamsWorld.ts";
+import {
+  asPerson,
+  grantPlace,
+  placeMembership,
+  revokePlace,
+  semester,
+  world,
+} from "./support/teamsWorld.ts";
 
 const HOST_2026 = semester("HOST", 2026);
 
@@ -60,8 +73,12 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         });
 
         const accounts = yield* AccountRepository;
-        yield* accounts.verifyEmail(person.id);
-        const collision = yield* Effect.flip(accounts.verifyEmail(other.id));
+        yield* asPerson(person.id, (locked) => accounts.verifyEmail(locked));
+
+        const collision = yield* Effect.flip(
+          asPerson(other.id, (locked) => accounts.verifyEmail(locked))
+        );
+
         assert.strictEqual(collision._tag, "AlreadyExists");
         assert.sameMembers(
           Arr.map(yield* people.list(department.id), (found) => found.id),
@@ -133,16 +150,16 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
           teamId: team.id,
         };
 
-        const first = yield* insertMembership(who, {
+        const first = yield* placeMembership(who, {
           end: VAR_2027,
           start: HOST_2026,
         });
 
         const overlapping = yield* Effect.flip(
-          insertMembership(who, { end: HOST_2027, start: VAR_2027 })
+          placeMembership(who, { end: HOST_2027, start: VAR_2027 })
         );
 
-        const next = yield* insertMembership(who, {
+        const next = yield* placeMembership(who, {
           end: HOST_2027,
           start: HOST_2027,
         });
@@ -168,7 +185,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const { department, leaderPosition, person, team } =
           yield* world("epsilon");
 
-        const planned = yield* insertMembership(
+        const planned = yield* placeMembership(
           { personId: person.id, positionId: leaderPosition, teamId: team.id },
           { end: HOST_2027, start: HOST_2027 },
           true
@@ -207,7 +224,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
       Effect.gen(function* effectProgram() {
         const { memberPosition, person, team } = yield* world("zeta");
 
-        const created = yield* insertMembership(
+        const created = yield* placeMembership(
           {
             personId: person.id,
             positionId: memberPosition,
@@ -218,35 +235,40 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
 
         const memberships = yield* MembershipRepository;
 
+        const setEnd = (change: {
+          readonly activeIn: typeof HOST_2026;
+          readonly newEnd: typeof HOST_2026;
+          readonly observedEnd: typeof HOST_2026;
+        }) =>
+          asPerson(person.id, (locked) =>
+            memberships.setEnd(locked, { id: created.id, ...change })
+          );
+
         const stale = yield* Effect.flip(
-          memberships.setEnd({
+          setEnd({
             activeIn: HOST_2026,
-            id: created.id,
             newEnd: HOST_2027,
             observedEnd: HOST_2026,
           })
         );
 
         const notActive = yield* Effect.flip(
-          memberships.setEnd({
+          setEnd({
             activeIn: HOST_2027,
-            id: created.id,
             newEnd: HOST_2027,
             observedEnd: VAR_2027,
           })
         );
 
-        const extended = yield* memberships.setEnd({
+        const extended = yield* setEnd({
           activeIn: HOST_2026,
-          id: created.id,
           newEnd: HOST_2027,
           observedEnd: VAR_2027,
         });
 
         const again = yield* Effect.flip(
-          memberships.setEnd({
+          setEnd({
             activeIn: HOST_2026,
-            id: created.id,
             newEnd: HOST_2027,
             observedEnd: VAR_2027,
           })
@@ -276,20 +298,24 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
           teamId: team.id,
         };
 
-        const first = yield* insertMembership(who, {
+        const first = yield* placeMembership(who, {
           end: HOST_2026,
           start: HOST_2026,
         });
 
-        yield* insertMembership(who, { end: HOST_2027, start: VAR_2027 });
+        yield* placeMembership(who, { end: HOST_2027, start: VAR_2027 });
 
         const overlap = yield* Effect.flip(
-          (yield* MembershipRepository).setEnd({
-            activeIn: HOST_2026,
-            id: first.id,
-            newEnd: VAR_2027,
-            observedEnd: HOST_2026,
-          })
+          asPerson(person.id, (locked) =>
+            MembershipRepository.use((memberships) =>
+              memberships.setEnd(locked, {
+                activeIn: HOST_2026,
+                id: first.id,
+                newEnd: VAR_2027,
+                observedEnd: HOST_2026,
+              })
+            )
+          )
         );
 
         assert.strictEqual(overlap._tag, "AlreadyExists");
@@ -302,7 +328,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
       Effect.gen(function* effectProgram() {
         const { memberPosition, person, team } = yield* world("theta");
 
-        const planned = yield* insertMembership(
+        const planned = yield* placeMembership(
           {
             personId: person.id,
             positionId: memberPosition,
@@ -315,22 +341,32 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const observed = { end: planned.end, start: planned.start };
 
         const changed = yield* Effect.flip(
-          memberships.remove({
-            current: HOST_2026,
-            id: planned.id,
-            observed: { end: VAR_2027, start: HOST_2027 },
-          })
+          asPerson(person.id, (locked) =>
+            memberships.remove(locked, {
+              current: HOST_2026,
+              id: planned.id,
+              observed: { end: VAR_2027, start: HOST_2027 },
+            })
+          )
         );
 
         const started = yield* Effect.flip(
-          memberships.remove({ current: HOST_2027, id: planned.id, observed })
+          asPerson(person.id, (locked) =>
+            memberships.remove(locked, {
+              current: HOST_2027,
+              id: planned.id,
+              observed,
+            })
+          )
         );
 
-        yield* memberships.remove({
-          current: HOST_2026,
-          id: planned.id,
-          observed,
-        });
+        yield* asPerson(person.id, (locked) =>
+          memberships.remove(locked, {
+            current: HOST_2026,
+            id: planned.id,
+            observed,
+          })
+        );
 
         const gone = yield* Effect.flip(memberships.findById(planned.id));
 
@@ -347,24 +383,29 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
     () =>
       Effect.gen(function* effectProgram() {
         const { person } = yield* world("iota");
+        yield* noAdmins;
         const grants = yield* AdminGrantRepository;
         const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
 
-        const expired = yield* grants.create({
+        // Only a place that an Active account holds counts as the last one.
+        yield* asPerson(person.id, activateAccount);
+
+        const expired = yield* grantPlace(person.id, {
           grantedBy: null,
-          personId: person.id,
           until: DateTime.makeUnsafe("2026-08-31T00:00:00Z"),
         });
 
-        const only = yield* grants.create({
+        const only = yield* grantPlace(person.id, {
           grantedBy: null,
-          personId: person.id,
           until: LATER,
         });
 
-        const last = yield* grants.revoke(only.id, cutoff);
-        const dropped = yield* grants.revoke(expired.id, cutoff);
-        const missing = yield* Effect.flip(grants.revoke(expired.id, cutoff));
+        const last = yield* revokePlace(person.id, only.id, cutoff);
+        const dropped = yield* revokePlace(person.id, expired.id, cutoff);
+
+        const missing = yield* Effect.flip(
+          revokePlace(person.id, expired.id, cutoff)
+        );
 
         assert.strictEqual(last, "last");
         assert.strictEqual(dropped, "revoked");
@@ -373,6 +414,37 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
           Arr.map(yield* grants.list, (grant) => grant.id),
           [only.id]
         );
+      })
+  );
+
+  it.effect(
+    "a place that a deactivated account holds does not count: the list is never left with no Active administrator",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { fieldOfStudy, person } = yield* world("iota2");
+        yield* noAdmins;
+        const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
+
+        const other = yield* PersonRepository.use((people) =>
+          people.create({
+            email: EmailAddress.make("iota2.other@example.org"),
+            fieldOfStudyId: fieldOfStudy.id,
+            name: "Annen administrator",
+          })
+        );
+
+        const mine = yield* activeAdmin(person.id, LATER);
+        const theirs = yield* activeAdmin(other.id, LATER);
+
+        yield* asPerson(other.id, (locked) =>
+          moveAccount(locked, "deactivate", "Active")
+        );
+
+        const refused = yield* revokePlace(person.id, mine.id, cutoff);
+        const allowed = yield* revokePlace(other.id, theirs.id, cutoff);
+
+        assert.strictEqual(refused, "last");
+        assert.strictEqual(allowed, "revoked");
       })
   );
 
@@ -399,17 +471,13 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         const { department, leaderPosition, person, team } =
           yield* world("lambda");
 
-        yield* insertMembership(
+        yield* placeMembership(
           { personId: person.id, positionId: leaderPosition, teamId: team.id },
           { end: VAR_2027, start: HOST_2026 },
           true
         );
 
-        yield* (yield* AdminGrantRepository).create({
-          grantedBy: null,
-          personId: person.id,
-          until: LATER,
-        });
+        yield* grantPlace(person.id, { grantedBy: null, until: LATER });
 
         const directory = yield* PrincipalDirectory;
 

@@ -25,7 +25,7 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 
 | Context | Capabilities | Contents |
 | --- | --- | --- |
-| `kernel`, `shared` | all | the kernel above; ids, errors (`NotFound`, `Forbidden`, `AlreadyExists`, `Conflict`, `ValidationFailed`), Oslo clock helpers, `Outbox`, `InTransaction`, `SiteOrigin`, input decoding |
+| `kernel`, `shared` | all | the kernel above; ids, errors (`NotFound`, `Forbidden`, `AlreadyExists`, `Conflict`, `ValidationFailed`), Oslo clock helpers, `Outbox`, `InTransaction`, `AggregateLocks` and `Locked` (the lock token), `SiteOrigin`, input decoding |
 | `organisation` | C1, C2 | departments, fields of study, semesters (RULE-022/033/050/051/084/237), admission decisions (RULE-015/119), the `OrganisationRpc` commands, the semester job (`semesterJob`) and the pure semester reads (`currentSemester`, `findCurrentSemester`) |
 | `teams` | spec 0006 | `Person`, `Team`, `Position`, `Membership` (a term of two semesters, its state calculated in `term.ts`), `AdminGrant`; the `TeamsRpc` commands and the Membership machine; the ending-soon digest (`endingSoon.ts`) |
 | `accounts` | spec 0007 | The Account machine, `AccountRpc`, password policy, single-use Code and request-scoped code principals. [Account reference](../../docs/system/accounts.md). |
@@ -41,14 +41,15 @@ A principal is a person with facts, never a role (ADR 0001). The scheduled jobs 
 | --- | --- |
 | `CurrentPrincipal` | the acting party; provided per request (a person) or per job (`System`) by `apps/web` |
 | `InTransaction` | proof that the program runs in a DB transaction; provided only by `packages/db`'s runner |
+| `AggregateLocks` | `lock(root, id)` and `lockAll(root, ids)`: the row lock of an aggregate root (the admin list, then a person), as the token `Locked<Root>` that every decision read and write of the root's own rows takes (spec 0006b); implemented by `packages/db`, provided in memory by the test layer |
 | `DepartmentRepository` | `list`, `findById`, `create`/`update` (`AlreadyExists` on unique city) |
 | `SemesterRepository` | `list`, `find`, atomic `ensure` (RULE-237; only the scheduled job calls it, spec 0003) |
 | `FieldOfStudyRepository` | `listByDepartment`, `findById`, `create`, `rename` |
 | `AdmissionPeriodRepository` | `list` (read-only; the public pages ask which admission is open) |
 | `PersonRepository`, `TeamRepository`, `PositionRepository` | people, teams (unique name per department, deactivated and never deleted), the position value list |
-| `MembershipRepository` | reads, `insert` (no overlap: `AlreadyExists`), and the conditional `setEnd` and `remove` (a lost race is a `Conflict`) |
-| `AdminGrantRepository` | the admin list; `revoke` refuses the last place that ends after the current semester, atomically |
-| `AccountRepository`, `CodeRepository`, `PasswordHasher` | Account state, conditional code use and the bcrypt boundary. |
+| `MembershipRepository` | reads, `findLocked` and `listLocked` for a decision, and `insert` (no overlap: `AlreadyExists`), the conditional `setEnd` and `remove` (a lost race is a `Conflict`); a write takes the person's `Locked` token |
+| `AdminGrantRepository` | the admin list; `create` takes the admin list's and the person's `Locked` tokens; `revoke` refuses the last place that ends after the current semester and that an Active account holds, atomically, under the admin list's lock (spec 0006b R2) |
+| `AccountRepository`, `CodeRepository`, `PasswordHasher` | Account state (a transition is applied under the person's lock; `isLastActiveAdmin` reads through the admin list's lock), conditional code use and the bcrypt boundary. |
 | `DigestLedger` | one row per leader and semester: the digest goes out once |
 | `PrincipalDirectory` | loads a person's facts in one read (`apps/web` uses it to build the principal) |
 | `SocialEventRepository` | `list({ departmentId, semesterId })`, `create` |
@@ -68,7 +69,7 @@ A closed set: `NotFound`, `Forbidden`, `AlreadyExists`, `Conflict`, `ValidationF
 
 ## Transaction convention
 
-Commands do not open transactions; atomic commands **require `InTransaction`**, and `packages/db` provides it by wrapping the program in `SqlClient.withTransaction`. `storeUpload` and all queries run outside a transaction. Details and the full command table: [`src/README.md`](src/README.md).
+Commands do not open transactions; atomic commands **require `InTransaction`**, and `packages/db` provides it by wrapping the program in `SqlClient.withTransaction`. `storeUpload` and all queries run outside a transaction. A command that writes a person's own rows takes the person's lock first (`AggregateLocks`, spec 0006b). Details and the full command table: [`src/README.md`](src/README.md).
 
 ## Tests
 

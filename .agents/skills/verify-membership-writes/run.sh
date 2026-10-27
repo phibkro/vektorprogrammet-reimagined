@@ -11,7 +11,7 @@
 #   3. GOALS (reach-*): the model can do what the properties are about: each of these must be reachable.
 #   4. BROKEN VARIANTS: model-check each variant (the real code with one edit). Each must fail on its property;
 #      a variant that passes means the property cannot fail, which is a defect of the verification.
-#   5. WHAT-IFS and DESIGN (whatif-*, design-*): commands and the spec 0006b design that are not code yet.
+#   5. WHAT-IFS and LOCKALL (whatif-*, lockall-*): a command that the code does not have, and AggregateLocks.lockAll over two persons.
 #   6. With --code: the tests of the real repositories that pin each fact that Shapes.tla takes from the code
 #      (needs PostgreSQL: `devenv up -d postgres`).
 #
@@ -38,34 +38,42 @@ digest=0
 # name | module | code | transactions | invariants | expected result
 # `pass` or `fails:<Invariant>`. Every name is also in SKILL.md (checked below).
 matrix=(
-  "current-code|Race|CurrentCode|3|NoDeadlockAbort NoOverlapCommitted RefusalsAreTrue LegalAtApply|pass"
+  "current-code|Race|CurrentCode|3|NoDeadlockAbort NoOverlapCommitted RefusalsAreTrue LegalAtApply NoWaitInCheck|pass"
   "reach-overlap-loser|Race|CurrentCode|2|NeverAlreadyExists|fails:NeverAlreadyExists"
   "reach-lost-transition|Race|CurrentCode|2|NeverConflict|fails:NeverConflict"
   "reach-lock-wait|Race|CurrentCode|2|NeverWaitsForLock|fails:NeverWaitsForLock"
-  "reach-check-wait-on-unlocked-remove|Race|CurrentCode|2|NeverWaitsInCheck|fails:NeverWaitsInCheck"
+  "reach-list-wait|Race|CurrentCode|2|NeverWaitsForList|fails:NeverWaitsForList"
+  "reach-person-wait-holding-list|Race|CurrentCode|2|NeverWaitsForPersonHoldingList|fails:NeverWaitsForPersonHoldingList"
+  "reach-check-wait|Race|LockTakesNoRowLock|2|NoWaitInCheck|fails:NoWaitInCheck"
+  "reach-order-violation|Race|ListAfterPerson|2|NeverOrderViolation|fails:NeverOrderViolation"
   "reach-change-commits|Race|CurrentCode|2|NeverChangeCommits|fails:NeverChangeCommits"
   "reach-all-commit|Race|CurrentCode|2|NeverAllCommit|fails:NeverAllCommit"
-  "insert-without-lock|Race|InsertWithoutLock|2|NoDeadlockAbort|fails:NoDeadlockAbort"
-  "setend-without-lock|Race|SetEndWithoutLock|2|NoDeadlockAbort|fails:NoDeadlockAbort"
-  "insert-locks-after-write|Race|InsertLocksAfterWrite|2|NoDeadlockAbort|fails:NoDeadlockAbort"
-  "setend-without-observed-end|Race|SetEndWithoutObservedEnd|2|LegalAtApply|fails:LegalAtApply"
-  "setend-unconditional|Race|SetEndUnconditional|2|LegalAtApply|fails:LegalAtApply"
+  "lock-takes-no-row-lock|Race|LockTakesNoRowLock|2|NoDeadlockAbort|fails:NoDeadlockAbort"
+  "decide-before-lock|Race|DecideBeforeLock|2|LegalAtApply|pass"
+  "decide-before-lock-without-observed-end|Race|DecideBeforeLockWithoutObservedEnd|2|LegalAtApply|fails:LegalAtApply"
+  "decide-before-lock-unconditional|Race|DecideBeforeLockUnconditional|2|LegalAtApply|fails:LegalAtApply"
+  "setend-unconditional|Race|SetEndUnconditional|2|LegalAtApply|pass"
   "no-exclusion-constraint|Race|NoExclusionConstraint|2|NoOverlapCommitted|fails:NoOverlapCommitted"
   "deadlock-mapped-to-already-exists|Race|DeadlockMappedToAlreadyExists|2|RefusalsAreTrue|fails:RefusalsAreTrue"
-  "story-r6-deadlock|Story|InsertWithoutLock|2|NoDeadlockAbort|fails:NoDeadlockAbort"
+  "list-after-person|Race|ListAfterPerson|2|NoDeadlockAbort|pass"
+  "list-after-person-unchecked|Race|ListAfterPersonUnchecked|2|NoDeadlockAbort|fails:NoDeadlockAbort"
+  "story-r6-deadlock|Story|LockTakesNoRowLock|2|NoDeadlockAbort|fails:NoDeadlockAbort"
   "story-r6-fixed|Story|CurrentCode|2|NoDeadlockAbort NoOverlapCommitted RefusalsAreTrue LegalAtApply|pass"
-  "whatif-replace-without-lock|WhatIf|WithReplace|2|NoDeadlockAbort|fails:NoDeadlockAbort"
-  "whatif-replace-locked-first|WhatIf|WithReplaceLockedFirst|2|NoDeadlockAbort|pass"
-  "whatif-all-writes-locked|WhatIf|WithReplaceAllWritesLocked|3|NoDeadlockAbort|pass"
-  "design-two-persons-call-order|Pair|LocksInCallOrder|2|NoDeadlockAbort|fails:NoDeadlockAbort"
-  "design-two-persons-id-order|Pair|LocksInIdOrder|3|NoDeadlockAbort|pass"
+  "whatif-replace-writing-first|WhatIf|ReplaceWritingFirst|2|NoDeadlockAbort|fails:NoDeadlockAbort"
+  "whatif-replace-through-construct|WhatIf|ReplaceThroughConstruct|3|NoDeadlockAbort|pass"
+  "lockall-id-order|Pair|LockAll|3|NoDeadlockAbort|pass"
+  "lockall-call-order-by-hand|Pair|LocksInCallOrder|2|NoDeadlockAbort|fails:NoDeadlockAbort"
+  "lockall-call-order-through-registry|Pair|LocksInCallOrderThroughRegistry|2|NoDeadlockAbort|pass"
+  "reach-pair-order-violation|Pair|LocksInCallOrderThroughRegistry|2|NeverOrderViolation|fails:NeverOrderViolation"
 )
 # The slowest runs; --quick leaves them out and checks the current code with two transactions instead of three.
-quick_skip='^whatif-all-writes-locked$'
+quick_skip='^whatif-replace-through-construct$'
 
 # The tests of the real code that pin what Shapes.tla takes from it (SKILL.md, "What pins the model to the code").
 code_tests=(
   test/membershipWriteModel.postgres.test.ts
+  test/aggregates.postgres.test.ts
+  test/adminList.postgres.test.ts
   test/teams.postgres.test.ts
   test/classifySqlFailure.test.ts
 )
@@ -101,15 +109,33 @@ if [ "$digest" = 1 ]; then
   covered_digest HEAD || { echo "No covered paths found in HEAD." >&2; exit 2; }
   exit 0
 fi
+
+# A writer of `membership` is product code that writes it: through Drizzle or SQL, or through the aggregate writer,
+# which reaches the table by its handle `owned.membership` (spec 0006b: `aggregates.insert(locked, owned.membership, …)`
+# spans lines, so the handle is what the scan looks for, and a file that only reads through it is listed too). Tests are
+# not writers, and neither are the strings of a RuleTester fixture (`*.test.ts`) that name `db.insert(membership)`.
 membership_writers() {
-  git -C "$root" grep -liE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]' \
-    -- packages apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.md' || true
+  git -C "$root" grep -liE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]|owned\.membership([^[:alnum:]_]|$)' \
+    -- packages apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.md' || true
+}
+
+# The files of a list that the coverage block does not cover: an entry covers the file it names, or every file under the
+# directory it names.
+uncovered() {
+  local file entry
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    for entry in "${covered[@]}"; do
+      if [ "$file" = "$entry" ] || [[ "$file" == "$entry"/* ]]; then continue 2; fi
+    done
+    printf '%s\n' "$file"
+  done
 }
 
 if [ -n "$touched_base" ]; then
   skill_dir=${here#"$root"/}
   changed=$(git -C "$root" diff --name-only "$touched_base"...HEAD -- "${covered[@]}" "$skill_dir" devenv.nix devenv.lock)
-  unknown=$(membership_writers | grep -vxF -f <(printf '%s\n' "${covered[@]}") | grep -v '^$' || true)
+  unknown=$(membership_writers | uncovered)
   if [ -n "$changed" ] || [ -n "$unknown" ]; then
     echo "touched"
     printf '%s\n' "$changed" "$unknown" | grep -v '^$' | sed 's/^/  /' >&2
@@ -155,7 +181,7 @@ if [ -n "$(git -C "$root" status --porcelain -- "${covered[@]}")" ]; then
 fi
 
 writers=$(membership_writers)
-unknown=$(printf '%s\n' "$writers" | grep -vxF -f <(printf '%s\n' "${covered[@]}") | grep -v '^$' || true)
+unknown=$(printf '%s\n' "$writers" | uncovered)
 if [ -n "$unknown" ]; then
   echo "DRIFT  a writer of the membership table is not in the coverage list. Add its statements to model/Shapes.tla (a repository"
   echo "       method and the commands that call it), then list the file in SKILL.md:"

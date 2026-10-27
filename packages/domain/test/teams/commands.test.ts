@@ -9,6 +9,7 @@ import { TestClock } from "effect/testing";
 
 import {
   AdminGrantRepository,
+  AggregateLocks,
   AuditPrincipal,
   FieldOfStudyId,
   MembershipRepository,
@@ -18,6 +19,7 @@ import {
   Teams,
   TeamsEndpoints,
   anonymous,
+  lockAdminList,
 } from "../../src/index.ts";
 import type {
   DepartmentId,
@@ -47,6 +49,7 @@ import {
   LEADER_POSITION,
   MEMBER_POSITION,
   teamRows,
+  withActiveAccount,
 } from "../support/teamsInMemory.ts";
 
 const TRONDHEIM_FIELD = FieldOfStudyId.make(1);
@@ -647,17 +650,34 @@ describe("teams: extending, ending, changing and cancelling (RULE-234, RULE-251,
   );
 });
 
+/**
+ * A place on the list that is put there directly, as a fixture does: through the locks of the list and of the person,
+ * like every write, and with an Active account for the person, which a place needs to count.
+ */
+const placeFor = Effect.fnUntraced(function* placeFor(
+  personId: PersonId,
+  grantedBy: PersonId | null,
+  until: DateTime.Utc
+) {
+  const adminList = yield* lockAdminList;
+
+  const locked = yield* AggregateLocks.use((locks) =>
+    locks.lock("Person", personId)
+  );
+
+  yield* withActiveAccount(personId);
+
+  return yield* AdminGrantRepository.use((grants) =>
+    grants.create(adminList, locked, { grantedBy, until })
+  );
+});
+
 /** Ada holds the first place (given outside the system), Ola a second one that Ada gave. */
 const admins = Effect.gen(function* admins() {
   const { kari, ola } = yield* world;
   const ada = yield* newPerson("Ada", TRONDHEIM_FIELD);
-  const grants = yield* AdminGrantRepository;
-
-  const first = yield* grants.create({
-    grantedBy: null,
-    personId: ada.id,
-    until: LATE,
-  });
+  const first = yield* placeFor(ada.id, null, LATE);
+  yield* withActiveAccount(ola.id);
 
   const second = yield* asPrincipal(adminOf(ada.id))(
     TeamsEndpoints.grantAdmin({ personId: ola.id, until: ADMIN_UNTIL })
@@ -698,12 +718,10 @@ describe("falsifier 6: the admin list (RULE-113, RULE-308)", () => {
         const { ada, first, kari, ola, second } = yield* admins;
 
         // Kari held a place that has already ended: it is not a valid one and must not count.
-        const expired = yield* AdminGrantRepository.use((grants) =>
-          grants.create({
-            grantedBy: ada.id,
-            personId: kari.id,
-            until: DateTime.makeUnsafe("2026-08-31T00:00:00Z"),
-          })
+        const expired = yield* placeFor(
+          kari.id,
+          ada.id,
+          DateTime.makeUnsafe("2026-08-31T00:00:00Z")
         );
 
         const ownPlace = yield* revokeAs(adminOf(ada.id), first.id);
@@ -753,6 +771,28 @@ describe("falsifier 6: the admin list (RULE-113, RULE-308)", () => {
             ],
           ]
         );
+      }).pipe(Effect.provide(TestServices))
+  );
+
+  it.effect(
+    "spec 0006b R2: every command that changes a place locks the admin list first and the person second, in that order",
+    () =>
+      Effect.gen(function* effectProgram() {
+        const { ada, ola, second } = yield* admins;
+
+        yield* asPrincipal(adminOf(ada.id))(
+          TeamsEndpoints.revokeAdmin({ id: second.id })
+        );
+
+        assert.deepStrictEqual(yield* teamRows((tables) => tables.locks), [
+          // The fixture: Ada's own place, then the place that Ada gives Ola, then Ada's revocation of it.
+          "AdminList:1",
+          `Person:${ada.id}`,
+          "AdminList:1",
+          `Person:${ola.id}`,
+          "AdminList:1",
+          `Person:${ola.id}`,
+        ]);
       }).pipe(Effect.provide(TestServices))
   );
 });

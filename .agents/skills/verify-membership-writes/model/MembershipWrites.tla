@@ -8,31 +8,41 @@
 (*                                                                         *)
 (* This module has two kinds of definitions:                               *)
 (*   - what the CODE does: the record `Code`, defined in Shapes.tla, with  *)
-(*     the statements of each repository write and of each command, with   *)
-(*     the file and line of each. Change the code, change that record.     *)
+(*     the statements of each call that a command makes and of each        *)
+(*     command, with the file and line of each. Change the code, change    *)
+(*     that record.                                                        *)
 (*   - what POSTGRESQL does: everything below. Each action is one step     *)
 (*     that another transaction can interleave with; the probes in         *)
 (*     packages/db/test/membershipWriteModel.postgres.test.ts show each of *)
 (*     them on a real database.                                            *)
 (*                                                                         *)
 (* A transaction runs one command. The command is a list of statements    *)
-(* (`Steps`). Two statements are split in two steps because PostgreSQL     *)
-(* lets other transactions in between: an INSERT, and an UPDATE that moves *)
-(* the term, first write the new row and its index entry and only then     *)
-(* check the exclusion constraint against every other entry, including     *)
-(* entries of transactions that have not finished (`CheckWait`,            *)
-(* `CheckRefuse`, `CheckPass`).                                            *)
+(* (`Steps`). Since spec 0006b a command takes its lock first, with        *)
+(* `AggregateLocks` (`SELECT ... ORDER BY id FOR NO KEY UPDATE` on the     *)
+(* person's row, or on the admin list's one row), reads what it decides    *)
+(* on after the lock, and writes through the lock's token. Two statements  *)
+(* are split in two steps because PostgreSQL lets other transactions in    *)
+(* between: an INSERT, and an UPDATE that moves the term, first write the  *)
+(* new row and its index entry and only then check the exclusion           *)
+(* constraint against every other entry, including entries of              *)
+(* transactions that have not finished (`CheckWait`, `CheckRefuse`,        *)
+(* `CheckPass`).                                                           *)
+(*                                                                         *)
+(* The locks have one global order: the admin list, then persons in        *)
+(* ascending id. The code refuses a lock that would come before one that   *)
+(* the transaction holds (`LockOrderViolation`: a defect, and no statement *)
+(* is sent), so a command never waits for a lock while it holds a later    *)
+(* one (`AcquireLock`).                                                    *)
 (*                                                                         *)
 (* Abstractions (argued in SKILL.md, "What is verified, and what is not"): *)
 (*   - an UPDATE is one step: the row lock, the new version and its index  *)
 (*     entry together. Inside PostgreSQL other transactions can see the    *)
 (*     old row locked before the new one has its entry; every outcome that *)
 (*     allows is reachable by another order of this model's steps.         *)
-(*   - the join that locks the person through a membership locks even if   *)
-(*     that membership was just deleted; the real join then finds no row,  *)
-(*     locks nothing, and the UPDATE that follows matches nothing too.     *)
 (*   - the current semester does not change during a race.                 *)
-(*   - foreign-key checks, the audit row and the outbox rows are left out. *)
+(*   - foreign-key checks, the audit row, the outbox rows and the rows of  *)
+(*     the other tables that a person owns (admin_grant, account, code)    *)
+(*     are left out: their commands appear only as the locks they take.    *)
 (***************************************************************************)
 EXTENDS Naturals, Sequences, FiniteSets
 
@@ -54,7 +64,7 @@ VARIABLES
     outcome,    \* outcome[t]: what the command's caller is told
     err,        \* err[t]: the SQLSTATE that ended t, or "none"
     blocked,    \* blocked[t]: the transaction that t waits for, or NoTxn
-    holder,     \* holder[p]: the transaction that holds person p's row lock
+    holder,     \* holder[k]: the transaction that holds the row lock of key k: a person, or the admin list
     versions,   \* every version of every membership row, as PostgreSQL keeps them
     seen,       \* seen[t]: the term that t read before its conditional write
     pending,    \* pending[t]: {the row version that t wrote and has not checked yet}
@@ -63,6 +73,12 @@ VARIABLES
 
 vars == << plan, pc, status, outcome, err, blocked, holder, versions, seen,
            pending, replaced, backed >>
+
+\* The admin list's one row is a lock key of its own. It comes before every
+\* person (shared/aggregate.ts, AggregateRoots), and persons are 1, 2, ..., so
+\* the keys sort in lock order.
+AdminList == 0
+LockKeys == Persons \cup {AdminList}
 
 (***************************************************************************)
 (* The command and its statements                                         *)
@@ -154,7 +170,7 @@ Finish(t, st, told, sqlstate) ==
     /\ status' = [status EXCEPT ![t] = st]
     /\ outcome' = [outcome EXCEPT ![t] = told]
     /\ err' = [err EXCEPT ![t] = sqlstate]
-    /\ holder' = [p \in Persons |-> IF holder[p] = t THEN NoTxn ELSE holder[p]]
+    /\ holder' = [k \in LockKeys |-> IF holder[k] = t THEN NoTxn ELSE holder[k]]
     /\ pending' = [pending EXCEPT ![t] = {}]
     /\ blocked' = [blocked EXCEPT ![t] = NoTxn]
     /\ backed' = [backed EXCEPT ![t] = BackedBy(t)]
@@ -212,8 +228,8 @@ Deadlock(t) ==
 (* Statements                                                              *)
 (***************************************************************************)
 
-\* A command reads the membership it is about, without a lock, and its machine
-\* decides (commands.ts `beginTransition`).
+\* A command reads the membership it is about (`findLocked`, a plain SELECT
+\* through the lock's token) and its machine decides (commands.ts, beginTransition).
 StateOf(term) ==
     IF Current < term.s THEN "Planned"
     ELSE IF Current <= term.e THEN "Active"
@@ -231,6 +247,19 @@ Allowed(pl, term) ==
       [] pl.kind \in {"cancel", "replace"}
             -> StateOf(term) = "Planned"
 
+\* MembershipRepository.findById: a plain SELECT without a lock. It finds whose
+\* lock the command takes next (the owner of a membership never changes), and
+\* ends the command when no committed row is there.
+FindRow(t) ==
+    /\ At(t, "find")
+    /\ LET rows == Found(plan[t].row, t)
+       IN  \/ /\ rows = {}
+              /\ Refuse(t, "NotFound")
+           \/ /\ rows /= {}
+              /\ Advance(t)
+              /\ UNCHANGED << plan, status, outcome, err, blocked, holder,
+                              versions, seen, pending, replaced, backed >>
+
 ReadRow(t) ==
     /\ At(t, "read")
     /\ LET rows == Found(plan[t].row, t)
@@ -246,36 +275,46 @@ ReadRow(t) ==
                        /\ Finish(t, "aborted", "Conflict", "none")
                        /\ UNCHANGED << plan, pc, versions, replaced >>
 
-LockedPerson(t, op) ==
+LockedKey(t, op) ==
     CASE op = "lockPerson"        -> plan[t].person
       [] op = "lockPersonOfRow"   -> RowPerson(plan[t].row)
+      [] op = "lockAdminList"     -> AdminList
       [] op = "lockSecondPerson"  -> plan[t].person2
       [] op = "lockLowerPerson"   -> IF plan[t].person <= plan[t].person2
                                         THEN plan[t].person ELSE plan[t].person2
       [] op = "lockHigherPerson"  -> IF plan[t].person <= plan[t].person2
                                         THEN plan[t].person2 ELSE plan[t].person
 
-LockOps == { "lockPerson", "lockPersonOfRow", "lockSecondPerson",
+LockOps == { "lockPerson", "lockPersonOfRow", "lockAdminList", "lockSecondPerson",
              "lockLowerPerson", "lockHigherPerson" }
 
-\* SELECT ... FOR NO KEY UPDATE on the person's row. It waits while another
-\* transaction holds the row, and holds it until the transaction ends.
-LockPerson(t) ==
+\* A lock that would come before one that t holds (lockScope.ts, orderViolation).
+\* A row that t holds is not locked again.
+OutOfOrder(t, k) == /\ holder[k] /= t /\ \E q \in LockKeys : holder[q] = t /\ q > k
+
+\* SELECT ... ORDER BY id FOR NO KEY UPDATE on one row (AggregateLocks.lock). It
+\* waits while another transaction holds the row, and holds it until the
+\* transaction ends. A lock out of order is refused before the statement is sent.
+AcquireLock(t) ==
     \E op \in LockOps :
         /\ At(t, op)
-        /\ LET p == LockedPerson(t, op)
-           IN  \/ /\ holder[p] \in {NoTxn, t}
-                  /\ holder' = [holder EXCEPT ![p] = t]
+        /\ LET k == LockedKey(t, op)
+           IN  \/ /\ Code.orderCheck /\ OutOfOrder(t, k)
+                  /\ Refuse(t, "LockOrderViolation")
+               \/ /\ ~(Code.orderCheck /\ OutOfOrder(t, k))
+                  /\ holder[k] \in {NoTxn, t}
+                  /\ holder' = [holder EXCEPT ![k] = t]
                   /\ Advance(t)
                   /\ UNCHANGED << plan, status, outcome, err, blocked, versions,
                                   seen, pending, replaced, backed >>
-               \/ /\ ~(holder[p] \in {NoTxn, t})
-                  /\ blocked' = [blocked EXCEPT ![t] = holder[p]]
+               \/ /\ ~(Code.orderCheck /\ OutOfOrder(t, k))
+                  /\ ~(holder[k] \in {NoTxn, t})
+                  /\ blocked' = [blocked EXCEPT ![t] = holder[k]]
                   /\ UNCHANGED << plan, pc, status, outcome, err, holder, versions,
                                   seen, pending, replaced, backed >>
 
 \* The membership that an INSERT writes: a command's own input, or for `change`
-\* the rest of the term of the membership that it ends (commands.ts:270-277).
+\* the rest of the term of the membership that it ends (teams/commands.ts:275-281).
 InsertedTerm(t) ==
     IF plan[t].kind = "change"
         THEN [team |-> plan[t].team2, s |-> plan[t].from, e |-> seen[t].e]
@@ -404,7 +443,7 @@ Init ==
     /\ outcome = [t \in Txns |-> "running"]
     /\ err = [t \in Txns |-> "none"]
     /\ blocked = [t \in Txns |-> NoTxn]
-    /\ holder = [p \in Persons |-> NoTxn]
+    /\ holder = [k \in LockKeys |-> NoTxn]
     /\ versions = { [id |-> r.id, person |-> r.person, team |-> r.team,
                      s |-> r.s, e |-> r.e, creator |-> Genesis, deleter |-> NoTxn]
                     : r \in InitRows }
@@ -420,7 +459,7 @@ Finished == Done /\ UNCHANGED vars
 
 Next ==
     \/ \E t \in Txns :
-         \/ ReadRow(t) \/ LockPerson(t) \/ InsertRow(t) \/ UpdateEnd(t)
+         \/ FindRow(t) \/ ReadRow(t) \/ AcquireLock(t) \/ InsertRow(t) \/ UpdateEnd(t)
          \/ DeleteRow(t) \/ CheckWait(t) \/ CheckRefuse(t) \/ CheckPass(t)
          \/ Commit(t) \/ Cancel(t) \/ Wake(t) \/ Deadlock(t)
     \/ Finished
@@ -435,7 +474,7 @@ TypeOK ==
     /\ \A t \in Txns : status[t] \in {"running", "committed", "aborted"}
     /\ \A t \in Txns : err[t] \in {"none", "23P01", "40P01"}
     /\ \A t \in Txns : blocked[t] \in Txns \cup {NoTxn}
-    /\ \A p \in Persons : holder[p] \in Txns \cup {NoTxn}
+    /\ \A k \in LockKeys : holder[k] \in Txns \cup {NoTxn}
     /\ \A t \in Txns : Cardinality(pending[t]) <= 1 /\ Cardinality(replaced[t]) <= 1
 
 \* Rule (spec 0006 R6): a membership write is never rolled back as a deadlock
@@ -465,6 +504,11 @@ RefusalsAreTrue == \A t \in Txns : outcome[t] = "AlreadyExists" => backed[t]
 LegalAtApply ==
     \A t \in Txns : status[t] = "committed" => \A r \in replaced[t] : Allowed(plan[t], r)
 
+\* Rule (spec 0006b contract 1): the writes of one person never run at the same
+\* time, because each one takes the person's lock first. So no write ever waits
+\* inside the exclusion check for another transaction's unfinished row.
+NoWaitInCheck == \A t \in Txns : ~(blocked[t] /= NoTxn /\ pending[t] /= {})
+
 (***************************************************************************)
 (* Goals. A pass means little if the model cannot do the things that the   *)
 (* properties are about. Each goal says "this never happens"; run.sh       *)
@@ -486,8 +530,26 @@ NeverWaitsForLock ==
           /\ pc[t] <= Len(Program(t))
           /\ Program(t)[pc[t]] \in LockOps)
 
-\* A write waits inside the exclusion check, for a transaction that has not finished.
-NeverWaitsInCheck == \A t \in Txns : ~(blocked[t] /= NoTxn /\ pending[t] /= {})
+\* A command waits for the admin list's lock.
+NeverWaitsForList ==
+    \A t \in Txns :
+        ~(/\ blocked[t] /= NoTxn
+          /\ pending[t] = {}
+          /\ pc[t] <= Len(Program(t))
+          /\ Program(t)[pc[t]] = "lockAdminList")
+
+\* A command waits for a person's lock while it holds the admin list's lock:
+\* the case that the global order of the locks is for.
+NeverWaitsForPersonHoldingList ==
+    \A t \in Txns :
+        ~(/\ blocked[t] /= NoTxn
+          /\ holder[AdminList] = t
+          /\ pending[t] = {}
+          /\ pc[t] <= Len(Program(t))
+          /\ Program(t)[pc[t]] \in LockOps \ {"lockAdminList"})
+
+\* A lock out of order is refused as a defect.
+NeverOrderViolation == \A t \in Txns : outcome[t] /= "LockOrderViolation"
 
 \* A `change` commits: it ends one membership and starts another in one transaction.
 NeverChangeCommits == \A t \in Txns : ~(plan[t].kind = "change" /\ status[t] = "committed")

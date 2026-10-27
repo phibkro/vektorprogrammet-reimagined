@@ -2,8 +2,12 @@
  * The teams domain on real PostgreSQL (spec 0006), each suite on its own disposable database:
  * - falsifier 3: twenty concurrent `extend` and `endEarly` calls on one membership leave a consistent row, and every
  *   loser gets the typed conflict. The row is consistent when the successes, in the order they committed, replay
- *   as a legal sequence of transitions that ends where the row ends. A negative control swaps the conditional update
- *   for an unconditional one and must break that replay.
+ *   as a legal sequence of transitions that ends where the row ends. Since spec 0006b the person's lock keeps that
+ *   replay legal on its own, so an unconditional update no longer breaks it: a test asserts that it stays legal.
+ * - the lock-removal controls of falsifier 3 (spec 0006b R3): that test and the one that shows an insert waiting for
+ *   the person's row lock. Both fail every time `AggregateLocks.lock` stops taking the row lock. The 300-round overlap
+ *   races guard the contract with the lock in place; they are not a control, because without the lock they fail only
+ *   now and then (spec 0006 R6 saw about 6 rounds in 1,000).
  * - falsifier 4: an overlapping membership and `end < start` are refused by the database itself; dropping the
  *   constraint makes the same insert succeed.
  * - the other races that a constraint or a lock settles: two overlapping inserts, two revocations of the last two
@@ -11,7 +15,8 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  AdminGrantRepository,
+  EmailAddress,
+  PersonRepository,
   SiteOrigin,
   CurrentPrincipal,
   DigestLedger,
@@ -28,10 +33,8 @@ import {
   Array as Arr,
   Cause,
   DateTime,
-  Deferred,
   Effect,
   Exit,
-  Fiber,
   Layer,
   Option,
   Order,
@@ -45,9 +48,19 @@ import {
   transactional,
   violatedUniqueConstraint,
 } from "../src/index.ts";
+import { activateAccount } from "./support/accountsWorld.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
-import { race } from "./support/race.ts";
-import { insertMembership, semester, world } from "./support/teamsWorld.ts";
+import { meetsHeldLock, race, raceReport } from "./support/race.ts";
+import {
+  asPerson,
+  grantPlace,
+  insertMembership,
+  lockPerson,
+  placeMembership,
+  revokePlace,
+  semester,
+  world,
+} from "./support/teamsWorld.ts";
 
 const HOST_2026 = semester("HOST", 2026);
 
@@ -177,7 +190,7 @@ const freshMembership = Effect.fnUntraced(function* freshMembership(
 ) {
   const found = yield* world(tag);
 
-  const membership = yield* insertMembership(
+  const membership = yield* placeMembership(
     {
       personId: found.person.id,
       positionId: found.memberPosition,
@@ -255,18 +268,23 @@ const overlapRound = Effect.fnUntraced(function* overlapRound(
         )
       : asWrite(
           transactional(
-            Effect.flatMap(
-              insertMembership(who, { end: HOST_2026, start: HOST_2026 }),
-              (first) =>
-                MembershipRepository.use((memberships) =>
-                  memberships.setEnd({
-                    activeIn: HOST_2026,
-                    id: first.id,
-                    newEnd: VAR_2027,
-                    observedEnd: HOST_2026,
-                  })
-                )
-            )
+            Effect.gen(function* extendOverlapping() {
+              const first = yield* insertMembership(who, {
+                end: HOST_2026,
+                start: HOST_2026,
+              });
+
+              const locked = yield* lockPerson(who.personId);
+
+              return yield* MembershipRepository.use((memberships) =>
+                memberships.setEnd(locked, {
+                  activeIn: HOST_2026,
+                  id: first.id,
+                  newEnd: VAR_2027,
+                  observedEnd: HOST_2026,
+                })
+              );
+            })
           )
         );
 
@@ -307,6 +325,49 @@ const overlapRounds = Effect.fnUntraced(function* overlapRounds(
   );
 
   return Arr.flatten(problems);
+});
+
+/**
+ * One round of two revocations at once, in fresh state: each owner is an Active administrator with one valid place,
+ * and the two places are revoked together. One succeeds and the other is told it is the last valid place, and one place
+ * is left. The owners have Active accounts already: only a place that an Active account holds counts.
+ */
+const revokeRound = Effect.fnUntraced(function* revokeRound(
+  attempt: number,
+  owners: readonly [PersonId, PersonId]
+) {
+  const db = yield* Drizzle;
+  const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
+
+  yield* db.delete(schema.adminGrant);
+
+  const first = yield* grantPlace(owners[0], { grantedBy: null, until: LATER });
+
+  const second = yield* grantPlace(owners[1], {
+    grantedBy: null,
+    until: LATER,
+  });
+
+  const exits = yield* race([
+    revokePlace(owners[0], first.id, cutoff),
+    revokePlace(owners[1], second.id, cutoff),
+  ]);
+
+  const outcomes = Arr.flatMap(exits, (exit) =>
+    Exit.isSuccess(exit) ? [exit.value] : []
+  );
+
+  assert.deepStrictEqual(
+    Arr.sort(outcomes, Order.String),
+    ["last", "revoked"],
+    raceReport(attempt, exits)
+  );
+
+  assert.strictEqual(
+    (yield* db.select().from(schema.adminGrant)).length,
+    1,
+    raceReport(attempt, exits)
+  );
 });
 
 layer(teamsDatabase, { excludeTestServices: true })(
@@ -350,7 +411,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
       );
 
       it.effect(
-        "falsifier 3, negative control: with an unconditional update instead of the conditional one, the successes no longer replay as legal transitions",
+        "falsifier 3, lock-removal control (spec 0006b R3): the person's lock alone keeps the successes legal, even when the update is unconditional (take the lock away and this fails every time)",
         () =>
           Effect.gen(function* effectProgram() {
             yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
@@ -363,7 +424,7 @@ layer(teamsDatabase, { excludeTestServices: true })(
 
                 return MembershipRepository.of({
                   ...live,
-                  setEnd: ({ id, newEnd }) =>
+                  setEnd: (_locked, { id, newEnd }) =>
                     Effect.orDie(
                       Effect.andThen(
                         sql`update membership set end_term = ${newEnd.term}, end_year = ${newEnd.year} where id = ${id}`,
@@ -378,9 +439,10 @@ layer(teamsDatabase, { excludeTestServices: true })(
               Effect.provide(round(`bad${index}`), unconditional)
             );
 
-            assert.isTrue(
-              Arr.some(attempts, (outcome) => outcome.violations.length > 0),
-              "the replay finds an illegal sequence once the update is unconditional"
+            assert.deepStrictEqual(
+              Arr.map(attempts, (outcome) => outcome.violations),
+              Arr.makeBy(6, () => []),
+              "the replay finds no illegal sequence: every command decided on the row after the lock, so no write was stale"
             );
           })
       );
@@ -421,119 +483,90 @@ layer(teamsDatabase, { excludeTestServices: true })(
       );
 
       it.effect(
-        "an insert waits for the person's row lock before it writes anything (the order that keeps overlapping writes from deadlocking)",
+        "falsifier 3, lock-removal control (spec 0006b R3): an insert waits for the person's row lock before it writes anything, the order that keeps overlapping writes from deadlocking (take the lock away and this fails every time)",
         () =>
           Effect.gen(function* effectProgram() {
             const { memberPosition, person, team } = yield* world("lockwait");
             const db = yield* Drizzle;
-            const sql = yield* SqlClient;
-            const held = yield* Deferred.make<null>();
-            const release = yield* Deferred.make<null>();
-            const finished = yield* Deferred.make<null>();
 
-            yield* Effect.forkChild(
+            const meeting = yield* meetsHeldLock(
+              db
+                .select({ id: schema.person.id })
+                .from(schema.person)
+                .where(eq(schema.person.id, person.id))
+                .for("no key update"),
+              "%for no key update%",
               transactional(
-                Effect.gen(function* holder() {
-                  yield* db
-                    .select({ id: schema.person.id })
-                    .from(schema.person)
-                    .where(eq(schema.person.id, person.id))
-                    .for("no key update");
-                  yield* Deferred.succeed(held, null);
-                  yield* Deferred.await(release);
-                })
+                insertMembership(
+                  {
+                    personId: person.id,
+                    positionId: memberPosition,
+                    teamId: team.id,
+                  },
+                  { end: VAR_2027, start: HOST_2026 }
+                )
               )
             );
-
-            yield* Deferred.await(held);
-
-            const insertion = yield* Effect.forkChild(
-              Effect.ensuring(
-                transactional(
-                  insertMembership(
-                    {
-                      personId: person.id,
-                      positionId: memberPosition,
-                      teamId: team.id,
-                    },
-                    { end: VAR_2027, start: HOST_2026 }
-                  )
-                ),
-                Deferred.succeed(finished, null)
-              )
-            );
-
-            let waiting = 0;
-
-            for (const _ of Arr.range(1, 5000)) {
-              const rows = yield* sql<{
-                readonly waiting: number;
-              }>`select count(*)::int as waiting from pg_stat_activity
-                where datname = current_database() and wait_event_type = 'Lock'
-                and query ilike '%for no key update%' and pid <> pg_backend_pid()`;
-
-              waiting = rows[0]?.waiting ?? 0;
-
-              if (waiting > 0 || (yield* Deferred.isDone(finished))) {
-                break;
-              }
-            }
 
             assert.strictEqual(
-              waiting,
+              meeting.waiting,
               1,
               "the insert was not waiting for the person's row lock"
             );
-            assert.isFalse(yield* Deferred.isDone(finished));
+            assert.isTrue(meeting.stillRunning);
 
-            yield* Deferred.succeed(release, null);
-            yield* Fiber.join(insertion);
+            assert.deepStrictEqual(
+              meeting.wrote,
+              [],
+              "the insert had written to a table before it waited for the lock"
+            );
+
+            assert.isFalse(
+              meeting.hasTransactionId,
+              "the insert had written or row-locked something before it waited for the lock"
+            );
+
+            assert.isTrue(Exit.isSuccess(meeting.exit));
           })
       );
 
       it.effect(
-        "two revocations of the last two valid admin places at once: one succeeds and the other is told it is the last",
+        `${OVERLAP_ROUNDS} rounds of two revocations of a person's last two valid admin places at once: one succeeds and the other is told it is the last`,
         () =>
           Effect.gen(function* effectProgram() {
             const { person } = yield* world("rev");
-            const grants = yield* AdminGrantRepository;
-            const db = yield* Drizzle;
-            const cutoff = DateTime.makeUnsafe("2026-12-31T23:00:00Z");
 
-            for (const _ of Arr.range(1, 8)) {
-              yield* db.delete(schema.adminGrant);
+            yield* asPerson(person.id, activateAccount);
 
-              const first = yield* grants.create({
-                grantedBy: null,
-                personId: person.id,
-                until: LATER,
-              });
-
-              const second = yield* grants.create({
-                grantedBy: null,
-                personId: person.id,
-                until: LATER,
-              });
-
-              const exits = yield* race([
-                transactional(grants.revoke(first.id, cutoff)),
-                transactional(grants.revoke(second.id, cutoff)),
-              ]);
-
-              const outcomes = Arr.flatMap(exits, (exit) =>
-                Exit.isSuccess(exit) ? [exit.value] : []
-              );
-
-              assert.deepStrictEqual(Arr.sort(outcomes, Order.String), [
-                "last",
-                "revoked",
-              ]);
-              assert.strictEqual(
-                (yield* db.select().from(schema.adminGrant)).length,
-                1
-              );
+            for (const attempt of Arr.range(1, OVERLAP_ROUNDS)) {
+              yield* revokeRound(attempt, [person.id, person.id]);
             }
-          })
+          }),
+        STRESS_TIMEOUT_MS
+      );
+
+      it.effect(
+        `${OVERLAP_ROUNDS} rounds of two revocations of the last two valid admin places of two different people at once: one succeeds, the other is told it is the last, and the two never deadlock`,
+        () =>
+          Effect.gen(function* effectProgram() {
+            const found = yield* world("rev2");
+
+            const other = yield* PersonRepository.use((people) =>
+              people.create({
+                email: EmailAddress.make("rev2.other@example.org"),
+                fieldOfStudyId: found.fieldOfStudy.id,
+                name: "Annen administrator",
+              })
+            );
+
+            yield* asPerson(found.person.id, activateAccount);
+            yield* asPerson(other.id, activateAccount);
+
+            for (const attempt of Arr.range(1, OVERLAP_ROUNDS)) {
+              yield* revokeRound(attempt, [found.person.id, other.id]);
+            }
+          }),
+        STRESS_TIMEOUT_MS
       );
 
       it.effect(

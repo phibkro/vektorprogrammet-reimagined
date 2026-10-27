@@ -1,9 +1,9 @@
 -------------------------------- MODULE Pair --------------------------------
 (***************************************************************************)
-(* Two persons, and commands that lock both ("merge", a cross-department   *)
-(* change). Design scenario for spec 0006b contract 2: there is no code    *)
-(* for it yet, so this module is not covered code. Both commands name the  *)
-(* same two persons, in opposite order.                                    *)
+(* Two persons, and commands that lock both (a merge, a cross-department   *)
+(* change): AggregateLocks.lockAll over two ids. No command does that yet, *)
+(* so this module checks the lock construct and not a command. Both        *)
+(* commands name the same two persons, in opposite order.                  *)
 (***************************************************************************)
 EXTENDS MembershipWrites, Shapes, TLC
 

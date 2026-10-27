@@ -47,6 +47,8 @@ export * from "./accounts/principal.ts";
 export * from "./declarations.ts";
 
 // shared
+export * from "./shared/aggregate.ts";
+
 export * from "./shared/clock.ts";
 
 export * from "./shared/errors.ts";

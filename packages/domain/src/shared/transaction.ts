@@ -9,6 +9,13 @@
  */
 import { Context } from "effect";
 
+/**
+ * A repository method that writes a table that an aggregate owns (spec 0006b) requires it too, because the lock
+ * that the write needs lasts only as long as the transaction. That is a requirement of the caller's, not an
+ * implementation detail of the repository, so the service is marked leakable.
+ *
+ * @effect-leakable-service
+ */
 export class InTransaction extends Context.Service<
   InTransaction,
   { readonly kind: "database-transaction" }

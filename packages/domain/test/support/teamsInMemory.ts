@@ -17,11 +17,15 @@ import {
   Predicate,
   Ref,
 } from "effect";
+import { cast } from "effect/Function";
 
 import {
   AccountRepository,
+  AccountState,
+  ADMIN_LIST_ID,
   AdminGrantId,
   AdminGrantRepository,
+  AggregateLocks,
   AlreadyExists,
   Conflict,
   DigestLedger,
@@ -49,7 +53,9 @@ import type {
   ActiveMembership,
   AdminGrant,
   AdminGrantView,
+  AggregateRoot,
   EntityName,
+  Locked,
   Membership,
   MembershipFact,
   MembershipView,
@@ -69,6 +75,7 @@ export interface TeamTableRefs {
   readonly accounts: Ref.Ref<readonly Account[]>;
   readonly adminGrants: Ref.Ref<readonly AdminGrant[]>;
   readonly digests: Ref.Ref<ReadonlySet<string>>;
+  readonly locks: Ref.Ref<readonly string[]>;
   readonly memberships: Ref.Ref<readonly Membership[]>;
   readonly nextId: Ref.Ref<number>;
   readonly people: Ref.Ref<readonly Person[]>;
@@ -81,6 +88,7 @@ export const makeTeamTables = (): TeamTableRefs => ({
   accounts: Ref.makeUnsafe<readonly Account[]>([]),
   adminGrants: Ref.makeUnsafe<readonly AdminGrant[]>([]),
   digests: Ref.makeUnsafe<ReadonlySet<string>>(new Set()),
+  locks: Ref.makeUnsafe<readonly string[]>([]),
   memberships: Ref.makeUnsafe<readonly Membership[]>([]),
   nextId: Ref.makeUnsafe(1000),
   people: Ref.makeUnsafe<readonly Person[]>([]),
@@ -228,6 +236,8 @@ const personRepository = Layer.effect(
           return person;
         }),
       findById: (id) => findOrNotFound(tables.people, "Person", id),
+      findLocked: (locked) =>
+        Effect.orDie(findOrNotFound(tables.people, "Person", locked.id)),
       list: (departmentId) =>
         Effect.map(Ref.get(tables.people), (people) =>
           Arr.sort(
@@ -395,11 +405,18 @@ const membershipRepository = Layer.effect(
           );
         }),
       findById: (id) => findOrNotFound(tables.memberships, "Membership", id),
-      insert: (draft) =>
+      findLocked: (locked, id) =>
+        Effect.filterOrFail(
+          findOrNotFound(tables.memberships, "Membership", id),
+          (membership) => membership.personId === locked.id,
+          () => new NotFound({ entity: "Membership", key: String(id) })
+        ),
+      insert: (locked, draft) =>
         Effect.gen(function* insert() {
           const membership: Membership = {
             ...draft,
             id: MembershipId.make(yield* nextId(tables)),
+            personId: PersonId.make(locked.id),
           };
 
           if (overlapping(yield* Ref.get(tables.memberships), membership)) {
@@ -437,11 +454,16 @@ const membershipRepository = Layer.effect(
             )
           )
         ),
-      remove: ({ current, id, observed }) =>
+      listLocked: (locked) =>
+        Effect.map(Ref.get(tables.memberships), (rows) =>
+          Arr.filter(rows, (row) => row.personId === locked.id)
+        ),
+      remove: (locked, { current, id, observed }) =>
         Effect.gen(function* remove() {
           const row = Arr.findFirst(
             yield* Ref.get(tables.memberships),
-            (membership) => membership.id === id
+            (membership) =>
+              membership.id === id && membership.personId === locked.id
           );
 
           if (
@@ -459,11 +481,15 @@ const membershipRepository = Layer.effect(
 
           return yield* Effect.void;
         }),
-      setEnd: ({ activeIn, id, newEnd, observedEnd }) =>
+      setEnd: (locked, { activeIn, id, newEnd, observedEnd }) =>
         Effect.gen(function* setEnd() {
           const rows = yield* Ref.get(tables.memberships);
 
-          const row = Arr.findFirst(rows, (membership) => membership.id === id);
+          const row = Arr.findFirst(
+            rows,
+            (membership) =>
+              membership.id === id && membership.personId === locked.id
+          );
 
           if (
             Option.isNone(row) ||
@@ -497,11 +523,12 @@ const adminGrantRepository = Layer.effect(
     const tables = yield* TeamTables;
 
     return AdminGrantRepository.of({
-      create: (draft) =>
+      create: (_adminList, locked, draft) =>
         Effect.gen(function* create() {
           const grant: AdminGrant = {
             ...draft,
             id: AdminGrantId.make(yield* nextId(tables)),
+            personId: PersonId.make(locked.id),
           };
 
           yield* Ref.update(tables.adminGrants, (rows) => [...rows, grant]);
@@ -530,24 +557,39 @@ const adminGrantRepository = Layer.effect(
           )
         );
       }),
-      revoke: (id, validAfter) =>
+      revoke: (_adminList, locked, id, validAfter) =>
         Effect.gen(function* revoke() {
-          const grants = yield* Ref.get(tables.adminGrants);
-
           const grant = yield* findOrNotFound(
             tables.adminGrants,
             "AdminGrant",
             id
           );
 
-          const valid = Arr.filter(grants, (row) =>
-            DateTime.isGreaterThan(row.until, validAfter)
+          if (grant.personId !== locked.id) {
+            return yield* new NotFound({
+              entity: "AdminGrant",
+              key: String(id),
+            });
+          }
+
+          const accounts = yield* Ref.get(tables.accounts);
+
+          // A place counts when it ends after the cut-off and an Active account holds it.
+          const counts = (row: AdminGrant) =>
+            DateTime.isGreaterThan(row.until, validAfter) &&
+            Arr.some(
+              accounts,
+              (account) =>
+                account.personId === row.personId &&
+                Predicate.isTagged(account.state, "Active")
+            );
+
+          const others = Arr.filter(
+            yield* Ref.get(tables.adminGrants),
+            (row) => row.id !== id && counts(row)
           );
 
-          if (
-            DateTime.isGreaterThan(grant.until, validAfter) &&
-            valid.length === 1
-          ) {
+          if (counts(grant) && others.length === 0) {
             return "last" as const;
           }
 
@@ -557,6 +599,62 @@ const adminGrantRepository = Layer.effect(
 
           return "revoked" as const;
         }),
+    });
+  })
+);
+
+/**
+ * The locks of the fakes: a person's lock exists when the person does, and the admin list's always does. Nothing
+ * waits, because nothing runs at once; the real locking is `packages/db`'s, under test in
+ * `test/aggregates.postgres.test.ts`. Each lock is logged (`AdminList:1`, `Person:7`) in the order that it was taken,
+ * so a test can see that a command locks the admin list before the person.
+ */
+const aggregateLocks = Layer.effect(
+  AggregateLocks,
+  Effect.gen(function* aggregateLocks() {
+    const tables = yield* TeamTables;
+
+    const exists = Effect.fnUntraced(function* exists(
+      root: AggregateRoot,
+      id: number
+    ) {
+      const people = yield* Ref.get(tables.people);
+
+      return root === "AdminList"
+        ? id === ADMIN_LIST_ID
+        : Arr.some(people, (person) => person.id === id);
+    });
+
+    const lockAll = Effect.fnUntraced(function* lockAll<
+      Root extends AggregateRoot,
+    >(root: Root, ids: readonly number[]) {
+      for (const id of ids) {
+        if (!(yield* exists(root, id))) {
+          return yield* new NotFound({ entity: root, key: String(id) });
+        }
+      }
+
+      const wanted = Arr.sort(Arr.dedupe(ids), Order.Number);
+
+      yield* Ref.update(tables.locks, (log) => [
+        ...log,
+        ...Arr.map(wanted, (id) => `${root}:${id}`),
+      ]);
+
+      // SAFETY: the token's brand exists only in its type; the fake has just checked that the rows exist (EX-0025).
+      return Arr.map(wanted, (id) =>
+        cast<{ id: number; root: Root }, Locked<Root>>({ id, root })
+      );
+    });
+
+    return AggregateLocks.of({
+      lock: (root, id) =>
+        Effect.flatMap(lockAll(root, [id]), ([locked]) =>
+          locked === undefined
+            ? Effect.die("lockAll returned no token")
+            : Effect.succeed(locked)
+        ),
+      lockAll,
     });
   })
 );
@@ -681,6 +779,7 @@ const accountReads = Layer.unwrap(
 
 const teamsRepositories = Layer.mergeAll(
   accountReads,
+  aggregateLocks,
   personRepository,
   teamRepository,
   positionRepository,
@@ -705,3 +804,12 @@ export const teamsInMemoryOver = (tables: TeamTableRefs) =>
 /** Reads one fake teams table; the tests assert what was (not) written. */
 export const teamRows = <A>(select: (tables: Tables) => Ref.Ref<A>) =>
   TeamTables.use((tables) => Ref.get(select(tables)));
+
+/** An Active account for the person: a place on the admin list counts as an Active administrator's only then. */
+export const withActiveAccount = (personId: PersonId) =>
+  TeamTables.use((tables) =>
+    Ref.update(tables.accounts, (rows) => [
+      ...rows,
+      { personId, state: AccountState.cases.Active.make({}) },
+    ])
+  );

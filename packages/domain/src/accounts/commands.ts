@@ -1,4 +1,11 @@
-/** Account commands run inside the caller's transaction; auth writes are outbox deliveries after commit. */
+/**
+ * Account commands run inside the caller's transaction; auth writes are outbox deliveries after commit.
+ *
+ * A command about one person takes that person's lock first (`AggregateLocks`, spec 0006b), reads what it decides on
+ * through the token and writes through it. `deactivate` and `reactivate` can change who is an Active administrator,
+ * which spans every administrator, so they lock the admin list before the person; `deactivate` decides through its
+ * token whether the person is the last Active administrator.
+ */
 import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
@@ -6,6 +13,8 @@ import * as Commands from "../kernel/commands.ts";
 import * as Machine from "../kernel/machine.ts";
 import { CurrentPrincipal } from "../kernel/principal.ts";
 import type { Principal } from "../kernel/principal.ts";
+import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
+import type { Locked } from "../shared/aggregate.ts";
 import { Conflict, Forbidden } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
 import { Outbox, OutboxMessage } from "../shared/outbox.ts";
@@ -30,12 +39,12 @@ import {
   resetPassword,
   updateProfile,
 } from "./declaration.ts";
-import type { Account, AccountState } from "./entities.ts";
+import type { Account } from "./entities.ts";
 import { PasswordHasher } from "./passwordHasher.ts";
 import { codePrincipal } from "./principal.ts";
 import { AccountRepository } from "./services.ts";
 
-const conflict = (personId: PersonId) =>
+const conflict = (personId: number) =>
   new Conflict({
     entity: "Account",
     key: String(personId),
@@ -52,10 +61,10 @@ const personResource = Effect.fn("Account.personResource")(
     const memberships = yield* MembershipRepository;
     const teams = yield* TeamRepository;
     const principal = yield* CurrentPrincipal;
-    // Authorization depends on the person's department and memberships: hold its aggregate lock before reading them.
-    yield* (yield* AccountRepository).lockPerson(personId);
-    const person = yield* people.findById(personId);
-    const membershipsOfPerson = yield* memberships.listByPerson(personId);
+    // Authorization depends on the person's department and memberships: take the person's lock, then read them.
+    const locked = yield* (yield* AggregateLocks).lock("Person", personId);
+    const person = yield* people.findLocked(locked);
+    const membershipsOfPerson = yield* memberships.listLocked(locked);
 
     const departments = yield* Effect.forEach(
       membershipsOfPerson,
@@ -93,78 +102,69 @@ const codeResource = Effect.map(CurrentPrincipal, (principal) =>
 const personOf = (principal: Principal): PersonId | null =>
   Predicate.isTagged(principal, "Person") ? principal.personId : null;
 
+/** The person's lock, and the account read through it; a person without an account cannot be acted on. */
 const lockAccount = Effect.fn("Account.lock")(function* lockAccount(
   personId: PersonId
 ) {
   const accounts = yield* AccountRepository;
 
-  if (!(yield* accounts.lockPerson(personId))) {
-    return yield* conflict(personId);
-  }
+  const locked = yield* (yield* AggregateLocks)
+    .lock("Person", personId)
+    .pipe(Effect.catchTag("NotFound", () => conflict(personId)));
 
-  const found = yield* accounts.findForUpdate(personId);
+  const found = yield* accounts.findLocked(locked);
 
   if (Option.isNone(found)) {
     return yield* conflict(personId);
   }
 
-  return found.value;
+  return { account: found.value, locked };
 });
 
 const consumeCode = Effect.fn("Account.consumeCode")(function* consumeCode(
-  personId: PersonId,
+  locked: Locked<"Person">,
   purpose: CodePurpose,
   token: CodeToken,
   now: DateTime.Utc
 ) {
   const codes = yield* CodeRepository;
   const hash = yield* Effect.orDie(hashCode(token));
-
-  const consumed = yield* codes.consume({
-    hash,
-    now,
-    purpose,
-    subject: personId,
-  });
+  const consumed = yield* codes.consume(locked, { hash, now, purpose });
 
   if (!consumed) {
-    return yield* conflict(personId);
+    return yield* conflict(locked.id);
   }
 
   return yield* Effect.void;
 });
 
+/**
+ * The machine decides on what the locks hold, and the repository applies the transition it chose: an account that
+ * changed since is a `Conflict`.
+ */
 const changeState = Effect.fn("Account.changeState")(function* changeState(
+  locked: Locked<"Person">,
   account: Account,
   principal: Principal,
   command: "activate" | "deactivate" | "reactivate",
-  to: AccountState["_tag"],
-  now: DateTime.Utc
+  lastActiveAdmin: boolean
 ) {
-  const accounts = yield* AccountRepository;
-
-  const lastActiveAdmin =
-    command === "deactivate"
-      ? yield* accounts.isLastActiveAdmin(account.personId, now)
-      : false;
-
-  if (
-    !Machine.can(AccountMachine, command, account.state._tag, {
+  const [transition] = Machine.available(
+    AccountMachine,
+    command,
+    account.state._tag,
+    {
       actorId: personOf(principal),
       lastActiveAdmin,
       personId: account.personId,
-    })
-  ) {
+    }
+  );
+
+  if (transition === undefined) {
     return yield* conflict(account.personId);
   }
 
-  return yield* accounts.transition({
-    from: account.state._tag,
-    now,
-    personId: account.personId,
-    prohibitLastActiveAdmin: command === "deactivate",
-    to,
-  });
+  return yield* (yield* AccountRepository).transition(locked, transition);
 });
 
 const queueCredential = Effect.fn("Account.queueCredential")(
@@ -199,18 +199,18 @@ export const AccountHandlers = AccountRpc.toLayer({
         }
 
         const now = yield* DateTime.now;
-        const account = yield* lockAccount(personId);
+        const { account, locked } = yield* lockAccount(personId);
 
         const activated = yield* changeState(
+          locked,
           account,
           principal,
           "activate",
-          "Active",
-          now
+          false
         );
 
-        yield* consumeCode(personId, "activation", code, now);
-        yield* (yield* AccountRepository).verifyEmail(personId);
+        yield* consumeCode(locked, "activation", code, now);
+        yield* (yield* AccountRepository).verifyEmail(locked);
         yield* queueCredential(personId, password, false);
         yield* recordAudit(principal, "account.activated", "Account", personId);
 
@@ -223,25 +223,19 @@ export const AccountHandlers = AccountRpc.toLayer({
       Effect.gen(function* deactivateAccount() {
         yield* InTransaction;
         const accounts = yield* AccountRepository;
+        const now = yield* DateTime.now;
 
-        if (!(yield* accounts.lockPerson(personId))) {
-          return yield* conflict(personId);
-        }
-
-        const found = yield* accounts.find(personId);
-
-        if (Option.isNone(found)) {
-          return yield* conflict(personId);
-        }
-
-        const account = found.value;
+        // Whether an Active administrator is left spans every administrator, so the list is locked first, and the
+        // decision reads through its token.
+        const adminList = yield* lockAdminList;
+        const { account, locked } = yield* lockAccount(personId);
 
         const updated = yield* changeState(
+          locked,
           account,
           principal,
           "deactivate",
-          "Deactivated",
-          yield* DateTime.now
+          yield* accounts.isLastActiveAdmin(adminList, personId, now)
         );
 
         yield* recordAudit(
@@ -259,10 +253,11 @@ export const AccountHandlers = AccountRpc.toLayer({
     run: ({ personId }, principal) =>
       Effect.gen(function* inviteAccount() {
         yield* InTransaction;
-        // personResource has locked the Person in this same transaction before authorization.
         const accounts = yield* AccountRepository;
         const outbox = yield* Outbox;
-        const account = yield* accounts.invite(personId);
+        // `personResource` took the lock before authorization: it is held, and this returns its token.
+        const locked = yield* (yield* AggregateLocks).lock("Person", personId);
+        const account = yield* accounts.invite(locked);
         yield* outbox.enqueue([
           OutboxMessage.cases.IssueCode.make({
             personId,
@@ -279,14 +274,15 @@ export const AccountHandlers = AccountRpc.toLayer({
     run: ({ personId }, principal) =>
       Effect.gen(function* reactivateAccount() {
         yield* InTransaction;
-        const account = yield* lockAccount(personId);
+        yield* lockAdminList;
+        const { account, locked } = yield* lockAccount(personId);
 
         const updated = yield* changeState(
+          locked,
           account,
           principal,
           "reactivate",
-          "Active",
-          yield* DateTime.now
+          false
         );
 
         yield* recordAudit(
@@ -305,24 +301,39 @@ export const AccountHandlers = AccountRpc.toLayer({
       Effect.gen(function* requestReset() {
         yield* InTransaction;
         const accounts = yield* AccountRepository;
-        const account = yield* accounts.findActiveByPrivateEmail(email);
+        const people = yield* PersonRepository;
+        const candidate = yield* accounts.findActiveByPrivateEmail(email);
 
-        if (Option.isSome(account)) {
-          const { personId } = account.value;
+        if (Option.isNone(candidate)) {
+          return;
+        }
 
-          if (yield* accounts.lockPerson(personId)) {
-            // Recheck both the address and state after acquiring the aggregate lock.
-            const current = yield* accounts.findActiveByPrivateEmail(email);
+        const { personId } = candidate.value;
 
-            if (Option.isSome(current) && current.value.personId === personId) {
-              yield* (yield* Outbox).enqueue([
-                OutboxMessage.cases.IssueCode.make({
-                  personId,
-                  purpose: "resetPassword",
-                }),
-              ]);
-            }
-          }
+        const locked = yield* (yield* AggregateLocks)
+          .lock("Person", personId)
+          .pipe(Effect.option);
+
+        if (Option.isNone(locked)) {
+          return;
+        }
+
+        // Recheck both the address and the state through the lock: they may have changed since the candidate was found.
+        const person = yield* people.findLocked(locked.value);
+        const current = yield* accounts.findLocked(locked.value);
+
+        if (
+          person.email === email &&
+          Option.exists(current, (account) =>
+            Predicate.isTagged(account.state, "Active")
+          )
+        ) {
+          yield* (yield* Outbox).enqueue([
+            OutboxMessage.cases.IssueCode.make({
+              personId,
+              purpose: "resetPassword",
+            }),
+          ]);
         }
       }),
   }),
@@ -338,13 +349,13 @@ export const AccountHandlers = AccountRpc.toLayer({
         }
 
         const now = yield* DateTime.now;
-        const account = yield* lockAccount(personId);
+        const { account, locked } = yield* lockAccount(personId);
 
         if (!Predicate.isTagged(account.state, "Active")) {
           return yield* conflict(personId);
         }
 
-        yield* consumeCode(personId, "resetPassword", code, now);
+        yield* consumeCode(locked, "resetPassword", code, now);
         yield* queueCredential(personId, password, true);
         yield* recordAudit(
           principal,
@@ -361,10 +372,11 @@ export const AccountHandlers = AccountRpc.toLayer({
     run: ({ personId, ...profile }, principal) =>
       Effect.gen(function* updatePersonProfile() {
         yield* InTransaction;
+        // `personResource` took the lock before authorization: it is held, and this returns its token.
+        const locked = yield* (yield* AggregateLocks).lock("Person", personId);
 
-        // personResource has locked the Person in this same transaction before authorization.
         const updated = yield* (yield* AccountRepository).updateProfile(
-          personId,
+          locked,
           profile
         );
 

@@ -1,26 +1,29 @@
 ---
 name: verify-membership-writes
-description: Model-check (TLA+) how concurrent writes to one person's memberships behave in PostgreSQL: the person's row lock, the `membership_no_overlap` exclusion constraint, the conditional UPDATEs and the typed errors. Use when a change touches `MembershipRepository` (`packages/db/src/repositories/teams.ts`), the Teams command handlers, the membership machine, `classifySqlFailure`, the transaction wrapper or a migration of `membership`; when a new command or repository writes memberships or takes the person's row lock (accounts, codes, placements, spec 0006b's `Aggregate.lock`); and when reviewing a pull request that does either.
+description: Model-check (TLA+) how concurrent commands that write one person's memberships behave in PostgreSQL under spec 0006b's aggregate locks: the person's and the admin list's row locks (taken first, in one global order), the `membership_no_overlap` exclusion constraint, the conditional UPDATEs and the typed errors. Use when a change touches `packages/db/src/aggregate` (`AggregateLocks`, `Aggregates`), `MembershipRepository` (`packages/db/src/repositories/teams.ts`), the Teams or Account command handlers that lock, the membership machine, `classifySqlFailure`, the transaction wrapper or a migration of `membership`; when a new command or repository writes memberships or another table that a person owns, or takes a lock through `AggregateLocks`; and when reviewing a pull request that does either.
 ---
 
 # Verify membership writes under concurrency
 
-**Property.** However many commands write one person's memberships at once, and however PostgreSQL interleaves their statements (a request can be cancelled at any step), no write is rolled back as a deadlock victim, no two overlapping memberships of one person in one team are both committed, "already exists" is only said when a committed membership overlaps, and a change commits only if it was legal from the membership it really replaced.
+**Property.** However many commands write one person's memberships at once, and however PostgreSQL interleaves their statements (a request can be cancelled at any step), no write is rolled back as a deadlock victim, no write waits inside the exclusion check for another transaction's unfinished row (the writes of one person never run at the same time), no two overlapping memberships of one person in one team are both committed, "already exists" is only said when a committed membership overlaps, and a change commits only if it was legal from the membership it really replaced. The commands that change who is on the admin list take its lock before any person's, so the order of the locks never makes two commands wait for each other.
 
 **Harm.** A deadlock victim is a 500 for a leader who did an ordinary thing and says nothing about the data (the other write can still roll back); a wrong "already exists" turns a leader away from a membership that was never made; a lost update reactivates an ended membership or shortens a term without a trace.
 
-The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single attempts and showed in about 0.6% of contended rounds. TLC visits every interleaving of the statements of up to three commands, with a cancellation possible at every step.
+The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single attempts and showed in about 0.6% of contended rounds, and with the lock taken out of `AggregateLocks.lock` the 300-round overlap race failed in 2 of 5 runs (spec 0006b R3). TLC visits every interleaving of the statements of up to three commands, with a cancellation possible at every step, and finds the deadlock without the lock at once.
 
 ## Coverage record
 
-Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each repository write and each command, with file and line. `run.sh` reads this block.
+Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: e014326bed025787b13f350dec0c4c33f3687549
-confirmed-at: 0795adc734dd5d980acece5fc3404116a24b84fa
+sync-digest: d717cf081d1209245b91d6a029861f962f392f28
+confirmed-at: 093be22dbf7bee87967d4a67a1b527a5fb2a757a
 packages/db/src/repositories/teams.ts
 packages/domain/src/teams/commands.ts
 packages/domain/src/teams/declaration.ts
+packages/domain/src/accounts/commands.ts
+packages/domain/src/shared/aggregate.ts
+packages/db/src/aggregate
 packages/db/src/classifySqlFailure.ts
 packages/db/src/transactional.ts
 packages/db/src/schema.ts
@@ -30,9 +33,12 @@ apps/web/src/server/transactor.ts
 
 | Covered code | What the model takes from it |
 | --- | --- |
-| `MembershipRepositoryLive.insert`, `setEnd`, `remove` (`teams.ts:425-543`) | the statements of each write and their order; the WHERE clause of each conditional write; "no row matched" is `lostRace`, the typed `Conflict` |
-| the handlers `addMember`, `cancel`, `change`, `endEarly`, `extend` (`commands.ts:144-377`) | which repository writes each command calls, in order (`compose`) |
-| `MembershipMachine` (`declaration.ts:254-313`) | the guard that decides, before the write, whether a transition is allowed (`Allowed`) |
+| `AggregateLocks.lock` and `lockAll` (`packages/db/src/aggregate/locks.ts:80-142`), the lock scope (`lockScope.ts:36-50`) | a lock is one `SELECT … ORDER BY id FOR NO KEY UPDATE`; a row that the transaction already holds sends no statement; a lock that would come before a held one is a defect before any statement (`orderCheck`) |
+| `Aggregates.insert`, `update`, `remove` (`aggregate/aggregates.ts:252-350`) | each write is one statement with `owner = token` in its WHERE; the token check sends none |
+| `MembershipRepositoryLive.findById`, `findLocked`, `insert`, `setEnd`, `remove` (`teams.ts:381-565`) | the statements of each call; the WHERE clause of each conditional write; "no row matched" is `lostRace`, the typed `Conflict` |
+| the handlers `addMember`, `cancel`, `change`, `endEarly`, `extend`, `grantAdmin`, `revokeAdmin` (`teams/commands.ts`) and `deactivate`, `reactivate` (`accounts/commands.ts:230-231, 277-278`) | which locks and repository calls each command makes, in order (`compose`); `beginTransition` (`teams/commands.ts:115-145`) is find, lock, read, decide |
+| `AggregateRoots`, `lockAdminList` (`shared/aggregate.ts`) | the admin list's lock comes before every person's |
+| `MembershipMachine` (`declaration.ts:254-315`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
 | `membership_no_overlap` (`drizzle/20261026221817_membership_no_overlap`) | the exclusion constraint on person, team and term |
 | `classifySqlFailure` (`classifySqlFailure.ts:95-145`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
 | `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED) |
@@ -42,13 +48,13 @@ The `sync-digest` is the digest of the covered paths at the last confirmation. `
 ## Run it
 
 ```sh
-devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh          # about 1 minute
-devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --quick  # about 35 seconds
+devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh          # about 1.5 minutes
+devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --quick  # about 45 seconds
 devenv up -d postgres && devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --code
 devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh --digest  # print the covered-path digest for the coverage block
 ```
 
-The `formal` profile of `devenv.nix` adds TLA+ tools 1.7.4 (TLC, with the Java 8 that nixpkgs builds them with), pinned by `devenv.lock`, with the Java heap capped; the default shell does not have them. The machine is shared: `run.sh` prints the load and stops when it is above 80% of the CPUs or under 4 GB are free (`FORCE=1` overrides). It runs one TLC at a time with 8 workers (`TLC_WORKERS`) and a 2 GB heap (`TLC_HEAP`); the largest run, three commands, took 1.6 GB resident and 20 seconds. `--code` also runs the tests of the real repositories that pin the facts that `Shapes.tla` takes from the code (needs PostgreSQL).
+The `formal` profile of `devenv.nix` adds TLA+ tools 1.7.4 (TLC, with the Java 8 that nixpkgs builds them with), pinned by `devenv.lock`, with the Java heap capped; the default shell does not have them. The machine is shared: `run.sh` prints the load and stops when it is above 80% of the CPUs or under 4 GB are free (`FORCE=1` overrides). It runs one TLC at a time with 8 workers (`TLC_WORKERS`) and a 2 GB heap (`TLC_HEAP`); the largest run, three commands, visits 1.4 million states and took 40 seconds. `--code` also runs the tests of the real repositories that pin the facts that `Shapes.tla` takes from the code (needs PostgreSQL): the files in `code_tests` of `run.sh`.
 
 `--code` requires `bun install` and runs its PostgreSQL tests in the default devenv shell, using this worktree's allocated port rather than the formal profile's port. It prints the port before the tests.
 
@@ -57,11 +63,11 @@ What a good run prints, and what each line means:
 | Line | Means |
 | --- | --- |
 | `ok covered code digest matches SKILL.md` | the model was confirmed against this code. `DRIFT` means the HEAD digest differs from the recorded digest, or a new writer of `membership` exists. |
-| `current-code … pass` | all four properties hold for the code as `Shapes.tla` describes it |
-| `reach-overlap-loser`, `reach-lost-transition`, `reach-lock-wait`, `reach-check-wait-on-unlocked-remove`, `reach-change-commits`, `reach-all-commit` `… fails:Never…` | the model can reach what the properties are about: an overlap loser, a lost race, a wait for the lock, a wait inside the check for an unlocked `remove`, a committed `change`, every command committed. A pass of `current-code` over a model that cannot do these would mean nothing |
-| `insert-without-lock … fails:NoDeadlockAbort` and the other variants | the property can fail: this variant is the real code with one edit (table below) |
+| `current-code … pass` | all five properties hold for the code as `Shapes.tla` describes it |
+| `reach-overlap-loser`, `reach-lost-transition`, `reach-lock-wait`, `reach-list-wait`, `reach-person-wait-holding-list`, `reach-change-commits`, `reach-all-commit`, `reach-order-violation`, `reach-pair-order-violation` `… fails:Never…`, and `reach-check-wait … fails:NoWaitInCheck` | the model can reach what the properties are about: an overlap loser, a lost race, a wait for a person's lock, a wait for the admin list's lock, a wait for a person's lock while holding the list's, a committed `change`, every command committed, a lock refused as out of order, and a wait inside the exclusion check (which only a missing lock allows). A pass of `current-code` over a model that cannot do these would mean nothing |
+| `lock-takes-no-row-lock … fails:NoDeadlockAbort` and the other variants | the property can fail: this variant is the real code with one edit (table below) |
 | `story-r6-deadlock` and `story-r6-fixed` | the pair that `/statechart` reads: the R6 race in a scenario small enough to draw, without and with the lock |
-| `whatif-*`, `design-*` | not code: commands that the code does not have yet and the design of spec 0006b |
+| `whatif-*`, `lockall-*` | not a command: a command that the code does not have, and `AggregateLocks.lockAll` over two persons (no command calls it yet) |
 
 Exit status: `0` all as expected, `1` the code breaks a property or a variant is not caught or a code test failed, `2` tool missing or no headroom, `3` all as expected but the coverage is stale.
 
@@ -76,71 +82,80 @@ Read every result that is not `as expected`, and the passing `current-code`, wit
 1. Take the counterexample as steps in words (`/statechart`). Each step is one SQL statement or one PostgreSQL action. `Shapes.tla` gives the file and line of every statement, and `MembershipWrites.tla` names the PostgreSQL rule of every other step.
 2. **A step that the code cannot take is a modeling error.** Open the cited line. Does the code issue that statement, in that order, in that command? Fix the model so that it matches the code and say what was wrong. Never weaken the property or the bounds to make it pass.
 3. **A step that PostgreSQL would not take is a modeling error.** Run `bunx vp test run test/membershipWriteModel.postgres.test.ts` in `packages/db` (PostgreSQL up). The test named after that step shows the rule on a real database. If it passes, the model's rule is right; if it fails, PostgreSQL changed and the model's rule is stale.
-4. **If every step can happen, it is a bug.** Report the counterexample in the code's words, the harm in one sentence and the commit that introduced it (`git log -S'for("no key update"' -- packages/db/src/repositories/teams.ts`). Replay it on the real code when you can. The two writes of the R6 counterexample are the overlap race of `teams.postgres.test.ts`: with the lock deleted from `insert`, its 300 rounds failed with `DeadlockError: deadlock detected` (round 220 in the run that confirmed this skill) and "an insert waits for the person's row lock" failed at once. Do not change product code unless you were asked to.
+4. **If every step can happen, it is a bug.** Report the counterexample in the code's words, the harm in one sentence and the commit that introduced it (`git log -S'for("no key update"' -- packages/db/src/aggregate/locks.ts`). Replay it on the real code when you can. The two writes of the R6 counterexample are the overlap race of `teams.postgres.test.ts`: with `.for("no key update")` deleted from `locks.ts`, the model fails at once (`lock-takes-no-row-lock`), the 300-round race failed with `DeadlockError: deadlock detected` in 2 of 5 runs, and the lock-wait control and the unconditional-update control failed in all five (spec 0006b R3). Do not change product code unless you were asked to.
 
 ## Update the model after a change
 
 Do this when `run.sh` says `DRIFT`, or when you change covered code on purpose.
 
-1. Review covered-code changes since `confirmed-at` when that commit is available; the digest itself is the authority for drift. `run.sh` prints per-file `git diff` hints when possible and finds new writers of `membership` too. A writer that you add or change must be in the coverage block. For each change decide whether the model still describes the code.
+1. Review covered-code changes since `confirmed-at` when that commit is available; the digest itself is the authority for drift. `run.sh` prints per-file `git diff` hints when possible and finds new writers of `membership` too: a file that writes the table with Drizzle or SQL, or names the handle `owned.membership` through which the aggregate writer reaches it (tests are not writers). A writer that you add or change must be in the coverage block. For each change decide whether the model still describes the code.
 2. Translate from the code, statement by statement, into `CurrentCode` in `model/Shapes.tla`. Write the update before you run it, and never shape it by what makes the run pass.
 
    | In the code | In `Shapes.tla` |
    | --- | --- |
-   | `db.select(…).from(person).where(…).for("no key update")` | `lockPerson` |
-   | the same through `.innerJoin(membership, …).for("no key update", { of: person })` | `lockPersonOfRow` |
-   | `db.insert(membership)` | `insertRow` |
-   | `db.update(membership).set(end…).where(…)` | `updateEnd`, and the conditions of its WHERE in `setEndWhere` |
-   | `db.delete(membership).where(…)` | `deleteRow`, and `removeWhere` |
-   | a read of the membership before the write (`beginTransition`) | `read` |
-   | the `memberships.insert/setEnd/remove` calls of a handler, in order | its entry in `compose` |
+   | `AggregateLocks.lock("Person", id)` (`lockAll` of one id: `SELECT … ORDER BY id FOR NO KEY UPDATE`) | `lockPerson`; `lockPersonOfRow` for the person of a membership that `findById` found |
+   | `lockAdminList` | `lockAdminList` |
+   | `lockAll("Person", [a, b])` | `lockLowerPerson` then `lockHigherPerson` (the statement takes its rows one at a time, lowest first) |
+   | `MembershipRepository.findById`, `findLocked` | `find`, `read` |
+   | `aggregates.insert(…, owned.membership, …)` | `insertRow` |
+   | `aggregates.update(…, owned.membership, { where })` | `updateEnd`, and the conditions of its WHERE in `setEndWhere` |
+   | `aggregates.remove(…, owned.membership, where)` | `deleteRow`, and `removeWhere` |
+   | the lock and repository calls of a handler, in order | its entry in `compose`, each call named in `repo` |
 
-3. **A statement that the model has no name for** (another table, `ON CONFLICT`, `FOR UPDATE` over a set of rows, an advisory lock, a retry, `SERIALIZABLE`) needs a new action in `MembershipWrites.tla`. First write the probe that shows the PostgreSQL rule in `membershipWriteModel.postgres.test.ts`; then the action; then a goal (`Never…`), a broken variant and their runs in `run.sh`.
+3. **A statement that the model has no name for** (another table, `ON CONFLICT`, `FOR UPDATE` over a set of rows in no stated order, an advisory lock, a retry, `SERIALIZABLE`) needs a new action in `MembershipWrites.tla`. First write the probe that shows the PostgreSQL rule in `membershipWriteModel.postgres.test.ts`; then the action; then a goal (`Never…`), a broken variant and their runs in `run.sh`.
 4. Run `run.sh`. Then break the new code the way the property guards against (drop the new lock, reorder the new statement), make the same edit in `Shapes.tla` as a new variant, and see it caught. A pass that you have not seen fail proves nothing.
 5. Commit the change to the model apart from any product change. After confirming the model against the code, record `run.sh --digest` as `sync-digest` and the reference commit as `confirmed-at`. Do not update either after a run that was blocked.
 
-Spec 0006b will change this code: `Aggregate.lock` replaces the inline lock selects, writes take a `Locked<Person>`, `remove` locks too, `Machine.apply` writes the state. `WithReplaceAllWritesLocked` and `LocksInIdOrder` in `Shapes.tla` are the shapes that the spec promises. Compare the code that lands with them statement by statement.
+Spec 0006b changed this code, and this model describes the result: the lock is the command's first statement (`AggregateLocks`), a write takes the lock's token, the decision reads through it, and the admin list is the first lock. A new command that takes a lock needs an entry in `compose`; a new write to a table that a person owns needs one only for its locks, unless it is `membership`.
 
 ## Broken variants
 
-Each is `CurrentCode` with one edit that the code could get. `run.sh --list` prints them.
+Each is `CurrentCode` with one edit that the code could get (two edits, where the code stays safe with one). `run.sh --list` prints them.
 
 | Run | The code edit | Fails on | Story |
 | --- | --- | --- | --- |
-| `insert-without-lock`, `story-r6-deadlock` | delete `teams.ts:437-442` (the code before the fix of spec 0006 R6) | `NoDeadlockAbort` | both writes write their row and index entry, then each overlap check waits for the other's unfinished row: deadlock |
-| `setend-without-lock` | delete `teams.ts:480-486` | `NoDeadlockAbort` | an extension and an insert of one person deadlock the same way |
-| `insert-locks-after-write` | move the lock select after the INSERT | `NoDeadlockAbort` | both writes write before either one locks, so the checks cross: the same deadlock as without the lock |
-| `setend-without-observed-end` | drop `eq(membership.endOrdinal, …observedEnd)` at `teams.ts:494` | `LegalAtApply` | two extensions read the same end; the later one shortens the term |
-| `setend-unconditional` | keep only `eq(membership.id, …)` (the negative control of falsifier 3) | `LegalAtApply` | two early ends of one membership: the second applies to a membership that the first already ended |
+| `lock-takes-no-row-lock`, `story-r6-deadlock`, `reach-check-wait` | delete `.for("no key update")` at `locks.ts:110` (mutation M1 of spec 0006b R3; the code before the fix of spec 0006 R6) | `NoDeadlockAbort`, `NoWaitInCheck` | every lock, a person's and the admin list's, becomes a plain read: both writes write their row and index entry, then each overlap check waits for the other's unfinished row: deadlock |
+| `decide-before-lock` | `beginTransition` decides on `findById` (an unlocked read) and locks afterwards | passes | the conditional UPDATE catches a stale decision: a second guard |
+| `decide-before-lock-without-observed-end` | the same, and drop `eq(membership.endOrdinal, …observedEnd)` at `teams.ts:516` | `LegalAtApply` | two extensions read the same end; the later one shortens the term |
+| `decide-before-lock-unconditional` | the same, and keep only `eq(membership.id, …)` at `teams.ts:515` | `LegalAtApply` | two early ends of one membership: the second applies to a membership that the first already ended |
+| `setend-unconditional` | keep only `eq(membership.id, …)`, the decision still under the lock (the control of `teams.postgres.test.ts` that spec 0006b R1 item 10 changed) | passes | the lock alone keeps every commit legal; each guard alone is enough |
 | `no-exclusion-constraint` | drop `membership_no_overlap` (the negative control of falsifier 4) | `NoOverlapCommitted` | an insert that overlaps an existing membership commits |
 | `deadlock-mapped-to-already-exists` | map `40P01` to `AlreadyExists` in `classifySqlFailure` (with the missing lock) | `RefusalsAreTrue` | the victim is told "already exists" although the other write has not committed: it can still roll back, and then nothing exists |
-| `whatif-replace-without-lock` | a new command that removes, then inserts, without locking first | `NoDeadlockAbort` | `remove` takes no lock, so it holds a row that the other write waits for while it waits for the lock |
-| `whatif-replace-locked-first`, `whatif-all-writes-locked` | the same command locking first, or `remove` locking (spec 0006b) | passes | no write that another command can wait on happens before the lock |
-| `design-two-persons-call-order` | two persons locked in the order the caller names them | `NoDeadlockAbort` | two commands name the same two persons in opposite order |
-| `design-two-persons-id-order` | `Aggregate.lockAll`: lower id first | passes | every command takes its locks in one order, so no cycle can form |
+| `list-after-person`, `reach-order-violation` | `revokeAdmin` locks the holder before the admin list | passes | the registry refuses the second lock as a defect before it sends a statement, so no wait can form |
+| `list-after-person-unchecked` | the same, and delete the order check (`locks.ts:92-103`) | `NoDeadlockAbort` | `grantAdmin` holds the list and waits for the person; `revokeAdmin` holds the person and waits for the list |
+| `whatif-replace-writing-first` | a new command that removes, then locks and inserts, around the construct | `NoDeadlockAbort` | the DELETE holds a row that the other write waits for while it waits for the lock |
+| `whatif-replace-through-construct` | the same command through the token: `beginTransition`, `remove`, `insert` | passes | the token makes the lock the first statement, so nothing that another command can wait on happens before it |
+| `lockall-id-order` | `AggregateLocks.lockAll`: the lower id first | passes | every command takes its locks in one order, so no cycle can form |
+| `lockall-call-order-by-hand` | two persons locked as SQL in the order the caller names them (the negative control of falsifier 2) | `NoDeadlockAbort` | two commands name the same two persons in opposite order |
+| `lockall-call-order-through-registry`, `reach-pair-order-violation` | the same two calls through `AggregateLocks.lock` | passes | the registry refuses the lock that comes after a higher id |
 
 ## What is verified, and what is not
 
-- **Bounds.** Three commands at once (two for each variant), one person, semesters 1 to 4, the current semester 2, two teams, an Active membership (`r0`, team x, semesters 1 to 2) and a Planned one (`r1`, team y, semester 3), 18 command inputs (`addMember` in either team for any term from semester 2, `extend` to 3 or 4, `endEarly` from 2, `change` to either team from 2, `cancel` of the Planned membership), and a cancellation of any request at any step. The design runs use two persons and two commands. A pass is a pass for these bounds: no deadlock cycle of four or more commands, no second person, no other terms.
-- **Pinned PostgreSQL rules** (each shown on PostgreSQL 18.6 by `membershipWriteModel.postgres.test.ts`): READ COMMITTED; an INSERT or a term-moving UPDATE writes its row and index entry before it checks the exclusion constraint, waits for an unfinished writer of an overlapping row, then looks again, and is refused (`23P01`) only by a committed one; a conditional UPDATE waits for the row's writer and is judged on the newest version; `FOR NO KEY UPDATE` waits for another one but not for a foreign-key check, whereas `FOR UPDATE` does; PostgreSQL rolls back exactly one member of a cycle of waits with `40P01`, and which one is not defined.
-- **Left out.** The audit and outbox rows of each command (no lock or constraint that another command can wait on); foreign-key checks (they never conflict with the person lock; probed); plain reads (they never wait); a semester boundary that falls inside one command; the driver, Hyperdrive's pooling and a `lock_timeout` or `statement_timeout` (none is set in the test database; production's are not checked); `UPDATE` as one step (inside PostgreSQL, other transactions can see the old row locked before the new one has its index entry; every outcome that allows is also reachable by another order of the model's steps); writes to other tables and by other repositories, including `AccountRepository`, `CodeRepository` and `AdminGrantRepository` (see below); the importer's `TRUNCATE`; PostgreSQL other than 18.
+- **Bounds.** Three commands at once (two for each variant), one person, semesters 1 to 4, the current semester 2, two teams, an Active membership (`r0`, team x, semesters 1 to 2) and a Planned one (`r1`, team y, semester 3), 20 command inputs (`addMember` in either team for any term from semester 2, `extend` to 3 or 4, `endEarly` from 2, `change` to either team from 2, `cancel` of the Planned membership, `grantAdmin` and `revokeAdmin`, which only lock), and a cancellation of any request at any step. The `lockall-*` runs use two persons and two or three commands. A pass is a pass for these bounds: no deadlock cycle of four or more commands, no second person in the race, no other terms.
+- **Pinned PostgreSQL rules** (each shown on PostgreSQL 18.6 by `membershipWriteModel.postgres.test.ts`): READ COMMITTED; an INSERT or a term-moving UPDATE writes its row and index entry before it checks the exclusion constraint, waits for an unfinished writer of an overlapping row, then looks again, and is refused (`23P01`) only by a committed one; a conditional UPDATE waits for the row's writer and is judged on the newest version; `FOR NO KEY UPDATE` waits for another one but not for a foreign-key check, whereas `FOR UPDATE` does; `SELECT … ORDER BY id FOR NO KEY UPDATE` over several rows takes them one at a time, lowest first, and waits for a row that another transaction holds while it keeps the rows before it; PostgreSQL rolls back exactly one member of a cycle of waits with `40P01`, and which one is not defined.
+- **Left out.** The audit and outbox rows of each command (no lock or constraint that another command can wait on); foreign-key checks (they never conflict with the person lock; probed); plain reads (they never wait); a semester boundary that falls inside one command; the driver, Hyperdrive's pooling and a `lock_timeout` or `statement_timeout` (none is set in the test database; production's are not checked); `UPDATE` as one step (inside PostgreSQL, other transactions can see the old row locked before the new one has its index entry; every outcome that allows is also reachable by another order of the model's steps); the rows of the other tables that a person owns (`admin_grant`, `account`, `code`) and the repositories that write them: their commands appear only as the locks they take, and a unique index on another column (`code_hash_unique`, an e-mail address) could make writes of two different persons wait for each other, which this model does not check; the importer's `TRUNCATE`; PostgreSQL other than 18.
+- **Not checked: whether an Active administrator is left.** The model checks the order of the admin list's lock, not the decision that the lock protects. `grantAdmin`, `revokeAdmin`, `deactivate` and `reactivate` take the list's lock before any person's, so they cannot take part in a cycle with a person's lock, and a person's lock before the list's is refused as a defect (`list-after-person`, `reach-order-violation`). The model has no `admin_grant` or `account` rows, so no property of it says that an Active administrator with a valid place is always left: that is the rule of spec 0006b R2 (`activeAdminPlaces`, `AccountRepository.isLastActiveAdmin`, `AdminGrantRepository.revoke`). Its evidence is the race tests that `--code` runs. `adminList.postgres.test.ts` has 300 rounds of a deactivation against a revocation, with and without the deactivation's write held back, the control that decides under each person's lock only (it leaves no Active administrator with a place in every round), the stale principal, and each of the four commands waiting for the list's row lock with nothing written. `teams.postgres.test.ts` has two 300-round tests of two revocations at once. Spec 0007's 300 rounds of racing deactivations (`accounts.postgres.test.ts`) run in `vp run -r test`, not in `--code`. A change that drops a command's list lock is not a TLC failure, because `Shapes.tla` still says that the command takes it. The covered file changes, so `run.sh` reports DRIFT until the model has been read against the change and the digest recorded, and the race and lock-wait tests above fail (spec 0006b R2 item 5 lists what each weakened guard breaks).
 
 ## What pins the model to the code
 
 | Fact in `Shapes.tla` | The test of the real code that fails if it changes (`--code`) |
 | --- | --- |
-| `insert` locks the person before it writes | `teams.postgres.test.ts`: "an insert waits for the person's row lock before it writes anything" |
-| `setEnd` locks the person before it writes | `membershipWriteModel.postgres.test.ts`: "setEnd waits for the person's row lock before it writes anything". It is new: the 300-round extension and insert race of `teams.postgres.test.ts` takes the lock through the `insert` that precedes the extension in its transaction, so it still passes when `setEnd` loses its own lock |
-| `setEnd`'s UPDATE names the end that was read | `teams.postgres.test.ts`: falsifier 3 and its negative control |
+| `lock` takes `FOR NO KEY UPDATE` on the person's row | `teams.postgres.test.ts`: "falsifier 3, lock-removal control: an insert waits for the person's row lock before it writes anything" (it fails in every run without the lock, and when the insert writes a row before its lock); and the five command tests of `membershipWriteModel.postgres.test.ts` |
+| each command takes the person's lock before it writes (`compose`) | `membershipWriteModel.postgres.test.ts`, last block: `addMember`, `extend`, `endEarly`, `change` and `cancel` each wait for a person's lock that another session holds, and PostgreSQL shows the waiting backend with no write lock and no transaction id (read from `pg_locks` and `pg_stat_activity`: another session cannot read an uncommitted row, so a read of the table could not fail); once the lock is let go the command writes a membership. A membership written before the lock fails all five on `wrote`, and a row lock on another table fails them on `hasTransactionId` (spec 0006b R4) |
+| the decision read comes after the lock | `teams.postgres.test.ts`: "falsifier 3, lock-removal control: the person's lock alone keeps the successes legal, even when the update is unconditional" (it fails when the lock goes, and when a command decides before it) |
+| a write cannot happen without the lock | `aggregate.types.test.ts` (a write without the token does not type-check) and `aggregates.postgres.test.ts` ("a token that no lock made … never reads or writes") |
+| `lockAll` is one statement ordered by id that takes its rows lowest first, one at a time | `membershipWriteModel.postgres.test.ts`: "lockAll is one statement ordered by id …"; `aggregates.postgres.test.ts`: falsifier 2, 300 rounds of two `lockAll` calls in opposite order and its hand-written control |
+| the admin list's lock comes first, and a lock out of order is a defect that sends no statement | `aggregates.postgres.test.ts`: "a lock that would break the global order is a defect" and "the admin list comes before every person"; `adminList.postgres.test.ts`: each of the four commands waits for the list's row lock with no write lock and no transaction id |
+| `setEnd`'s UPDATE names the end that was read (a second guard) | `teams.postgres.test.ts`: falsifier 3 |
 | the exclusion constraint exists | `teams.postgres.test.ts`: falsifier 4 |
 | `40P01` is a defect | `classifySqlFailure.test.ts` |
-| each command's calls, `remove` without a lock | nothing: only the drift check sees them. Adding a lock to `remove` is safe (spec 0006b does it), so no test pins its absence |
 
 ## Findings at the confirmed commit
 
-- **The code keeps all four properties** inside the bounds. The reach goals show the model does what they are about.
-- **`remove` is unlocked and safe only because it is one statement with nothing after it that can wait.** A command that deletes a membership and then writes another one before it locks the person deadlocks (`whatif-replace-without-lock`; the same on PostgreSQL in `membershipWriteModel.postgres.test.ts`). The rule for a new command is to lock the person first. Spec 0006b makes that structural.
-- **Outside what is verified, found while reading spec 0007 beside this model, not fixed and not modeled.** `AdminGrantRepository.revoke` (`teams.ts`) refuses to remove "the last valid place" by counting grants, whoever holds them. `AccountRepository.transition` (`accounts.ts`) refuses to deactivate "the last Active admin" by counting Active accounts after it has locked the grants. A Deactivated person's place still counts for `revoke`. With two Active admins, `A` deactivating `C` while `C` revokes `A`'s place both succeed when `deactivate` takes the grants' lock first, and no Active admin holds a place afterwards. `C`'s request was authorized before `C` was deactivated and runs after it, as any request can (the principal is read before the transaction; spec 0007: "a deactivation bites on the next request"). Reproduction, in the style of the last-admin race of `accounts.postgres.test.ts`: two Active admins, each with a place; `transactional(AccountEndpoints.deactivate({ personId: C }))` as `A` and `transactional(TeamsEndpoints.revokeAdmin({ id: placeOfA }))` as `C`, with `CurrentPrincipal` given to each; afterwards count the people who are Active and hold a place. On PostgreSQL 18.6: 1 of 200 simultaneous rounds ended with none; when `C`'s revoke started 3 ms after the deactivation, 100 of 100. Next target for this skill: the last-admin protocol (`activeAdminIds` locks the grants in id order, then reads accounts without a lock; `revoke` locks the same grants and reads no account).
+- **The code keeps all five properties** inside the bounds, `NoWaitInCheck` included: with every write under the person's lock, no write ever waits inside the exclusion check. The reach goals show the model does what they are about.
+- **Two guards, either enough.** The conditional UPDATE and the lock each keep every commit legal alone (`decide-before-lock`, `setend-unconditional`); only the two removed together break it. That is spec 0006b R1 item 10 as a verdict of the model, and the reason that the R6 negative control no longer fails.
+- **A command written around the construct still deadlocks** (`whatif-replace-writing-first`; the same on PostgreSQL in `membershipWriteModel.postgres.test.ts`). The token and the lint rule `no-owned-table-write` make that command impossible to write for a table that a person owns.
+- **Outside what is verified: the last-administrator decision.** See "What is verified, and what is not": the model shows that the admin list's lock is taken first and cannot take part in a cycle, and the race tests that `--code` runs are the evidence for the rule itself.
 
 When the verification falls behind the code, follow the pstack `/maintain-formal-verification-skill` skill: it is this skill's upkeep loop.
 

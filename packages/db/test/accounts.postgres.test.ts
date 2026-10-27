@@ -4,7 +4,6 @@ import { assert, layer } from "@effect/vitest";
 import {
   AccountEndpoints,
   AccountRepository,
-  AdminGrantRepository,
   CodeRepository,
   CurrentPrincipal,
   EmailAddress,
@@ -32,26 +31,16 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
+import { activeAdmin, moveAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
-import { world } from "./support/teamsWorld.ts";
+import { raceReport } from "./support/race.ts";
+import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
 
 const expiresAt = DateTime.makeUnsafe("2099-01-01T00:00:00.000Z");
 const beforeExpiry = DateTime.makeUnsafe("2098-12-31T23:59:59.999Z");
 const now = DateTime.makeUnsafe("2026-10-27T12:00:00.000Z");
 
 const RACE_ROUNDS = 300;
-
-/** Retain every failed fiber's full Cause in the assertion, including SQL defects. */
-const raceReport = <A, E>(
-  round: number,
-  exits: readonly Exit.Exit<A, E>[]
-): string =>
-  `round ${round}:\n${Arr.join(
-    Arr.map(Arr.filter(exits, Exit.isFailure), (failure) =>
-      Cause.pretty(failure.cause)
-    ),
-    "\n\n"
-  )}`;
 
 type AccountStateName = "Invited" | "Active" | "Deactivated";
 
@@ -76,13 +65,13 @@ const checkPurpose = Effect.fnUntraced(function* checkPurpose(
   purpose: CodePurpose
 ) {
   const code = yield* mintCode().pipe(Effect.orDie);
-  yield* (yield* CodeRepository).replace({
-    expiresAt,
-    hash: code.hash,
-    purpose,
-    subject: personId,
-    usedAt: null,
-  });
+
+  yield* asPerson(personId, (locked) =>
+    CodeRepository.use((codes) =>
+      codes.replace(locked, { expiresAt, hash: code.hash, purpose })
+    )
+  );
+
   const principal = yield* codePrincipal(code.token, purpose);
 
   const expected =
@@ -110,7 +99,6 @@ layer(
     () =>
       Effect.gen(function* personLockProperty() {
         const fixture = yield* world("person-lock");
-        const accounts = yield* AccountRepository;
         const people = yield* PersonRepository;
         const sql = yield* SqlClient;
 
@@ -127,11 +115,11 @@ layer(
           const holder = yield* Effect.forkChild(
             transactional(
               Effect.gen(function* holdPersonLock() {
-                const found = yield* accounts.lockPerson(person.id);
+                const found = yield* lockPerson(person.id);
                 yield* Deferred.succeed(locked, null);
                 yield* Deferred.await(release);
 
-                return found;
+                return found.id === person.id;
               })
             )
           );
@@ -146,7 +134,12 @@ layer(
 
           yield* Deferred.succeed(release, null);
           const held = yield* Fiber.await(holder);
-          const report = raceReport<unknown, never>(round, [competitor, held]);
+
+          const report = raceReport<unknown, unknown>(round, [
+            competitor,
+            held,
+          ]);
+
           assert.isTrue(Exit.isSuccess(held) && held.value, report);
           assert.isTrue(Exit.isFailure(competitor), report);
 
@@ -177,23 +170,21 @@ layer(
 
         for (const round of Arr.range(1, RACE_ROUNDS)) {
           const { hash } = yield* mintCode().pipe(Effect.orDie);
-          yield* codes.replace({
-            expiresAt,
-            hash,
-            purpose: "activation",
-            subject: fixture.person.id,
-            usedAt: null,
-          });
+
+          yield* asPerson(fixture.person.id, (locked) =>
+            codes.replace(locked, { expiresAt, hash, purpose: "activation" })
+          );
 
           const uses = yield* Effect.all(
             Arr.makeBy(20, () =>
               Effect.exit(
-                codes.consume({
-                  hash,
-                  now,
-                  purpose: "activation",
-                  subject: fixture.person.id,
-                })
+                asPerson(fixture.person.id, (locked) =>
+                  codes.consume(locked, {
+                    hash,
+                    now,
+                    purpose: "activation",
+                  })
+                )
               )
             ),
             { concurrency: "unbounded" }
@@ -221,69 +212,74 @@ layer(
     () =>
       Effect.gen(function* codeBoundaries() {
         const fixture = yield* world("code-boundary");
+        const other = yield* world("code-other");
         const codes = yield* CodeRepository;
         const first = yield* mintCode().pipe(Effect.orDie);
         const second = yield* mintCode().pipe(Effect.orDie);
 
         const replace = (hash: typeof first.hash) =>
-          codes.replace({
-            expiresAt,
-            hash,
-            purpose: "activation",
-            subject: fixture.person.id,
-            usedAt: null,
-          });
+          asPerson(fixture.person.id, (locked) =>
+            codes.replace(locked, {
+              expiresAt,
+              hash,
+              purpose: "activation",
+            })
+          );
+
+        /** One presentation of a code by `personId`: the lock that a command takes is the subject. */
+        const consume = (
+          personId: PersonId,
+          presented: {
+            readonly hash: typeof first.hash;
+            readonly now: DateTime.Utc;
+            readonly purpose: CodePurpose;
+          }
+        ) => asPerson(personId, (locked) => codes.consume(locked, presented));
 
         yield* replace(first.hash);
 
         assert.isFalse(
-          yield* codes.consume({
+          yield* consume(fixture.person.id, {
             hash: first.hash,
             now: beforeExpiry,
             purpose: "resetPassword",
-            subject: fixture.person.id,
           })
         );
         assert.isFalse(
-          yield* codes.consume({
+          yield* consume(other.person.id, {
             hash: first.hash,
             now: beforeExpiry,
             purpose: "activation",
-            subject: PersonId.make(fixture.person.id + 1),
           })
         );
         assert.isFalse(
-          yield* codes.consume({
+          yield* consume(fixture.person.id, {
             hash: first.hash,
             now: expiresAt,
             purpose: "activation",
-            subject: fixture.person.id,
           })
         );
         assert.isTrue(
-          yield* codes.consume({
+          yield* consume(fixture.person.id, {
             hash: first.hash,
             now: beforeExpiry,
             purpose: "activation",
-            subject: fixture.person.id,
           })
         );
         yield* replace(first.hash);
         yield* replace(second.hash);
         assert.isFalse(
-          yield* codes.consume({
+          yield* consume(fixture.person.id, {
             hash: first.hash,
             now,
             purpose: "activation",
-            subject: fixture.person.id,
           })
         );
         assert.isTrue(
-          yield* codes.consume({
+          yield* consume(fixture.person.id, {
             hash: second.hash,
             now,
             purpose: "activation",
-            subject: fixture.person.id,
           })
         );
       })
@@ -294,28 +290,22 @@ layer(
     () =>
       Effect.gen(function* codeStateProperty() {
         const fixture = yield* world("code-state");
-        const accounts = yield* AccountRepository;
-        yield* accounts.invite(fixture.person.id);
+
+        yield* asPerson(fixture.person.id, (locked) =>
+          AccountRepository.use((accounts) => accounts.invite(locked))
+        );
 
         for (const state of ["Invited", "Active", "Deactivated"] as const) {
           if (state === "Active") {
-            yield* accounts.transition({
-              from: "Invited",
-              now,
-              personId: fixture.person.id,
-              prohibitLastActiveAdmin: false,
-              to: "Active",
-            });
+            yield* asPerson(fixture.person.id, (locked) =>
+              moveAccount(locked, "activate", "Invited")
+            );
           }
 
           if (state === "Deactivated") {
-            yield* accounts.transition({
-              from: "Active",
-              now,
-              personId: fixture.person.id,
-              prohibitLastActiveAdmin: false,
-              to: "Deactivated",
-            });
+            yield* asPerson(fixture.person.id, (locked) =>
+              moveAccount(locked, "deactivate", "Active")
+            );
           }
 
           yield* Effect.forEach(
@@ -332,7 +322,6 @@ layer(
       Effect.gen(function* lastAdminRace() {
         const fixture = yield* world("admin-race");
         const accounts = yield* AccountRepository;
-        const grants = yield* AdminGrantRepository;
         const people = yield* PersonRepository;
         const sql = yield* SqlClient;
 
@@ -354,19 +343,7 @@ layer(
           );
 
           for (const person of pair) {
-            yield* accounts.invite(person.id);
-            yield* accounts.transition({
-              from: "Invited",
-              now,
-              personId: person.id,
-              prohibitLastActiveAdmin: false,
-              to: "Active",
-            });
-            yield* grants.create({
-              grantedBy: null,
-              personId: person.id,
-              until: expiresAt,
-            });
+            yield* activeAdmin(person.id, expiresAt);
           }
 
           const outcomes = yield* Effect.all(

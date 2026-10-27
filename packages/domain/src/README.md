@@ -23,6 +23,24 @@ export const runInTransaction = <A, E, R>(program: Effect.Effect<A, E, R>) =>
 - Authorization (`Domain.handle`) runs inside the transaction.
 - No provider I/O (R2, mail, Slack, Turnstile) inside a transaction.
 
+## Aggregate locks (spec 0006b)
+
+A person's own rows (memberships, admin places, the account and its codes) are written only by a transaction that holds the person's row lock. `shared/aggregate.ts` declares the contract; `packages/db` makes the tokens and checks them.
+
+- `AggregateRoots` lists the roots in the order that a transaction locks them (`["AdminList", "Person"]`: the admin list's one row, then people in ascending id). `AggregateLocks.lock(root, id)` and `lockAll(root, ids)` require `InTransaction` and return `Locked<Root>`, the token of a held lock (`NotFound` when the row is not there). `lockAll` locks the rows of one root in ascending id order, in one statement. A lock that would come before one the transaction holds is a defect, so a command locks everything it needs, once, before its first decision read. `lockAdminList` is `lock("AdminList", ADMIN_LIST_ID)`.
+- A repository method that reads to decide or that writes takes the token: `PersonRepository.findLocked`, `MembershipRepository.findLocked`, `listLocked`, `insert`, `setEnd`, `remove`, `AdminGrantRepository.create` (and the admin list's token as well, as `revoke` and `AccountRepository.isLastActiveAdmin` do), `AccountRepository.findLocked`, `invite`, `transition`, `verifyEmail`, `updateProfile`, `CodeRepository.replace` and `consume`. The token is the proof that the lock is held; a repository does not lock for itself. A method of a repository that lists people for display (`find`, `list`) takes none.
+- A handler locks first, then reads through the token, decides, and writes through it:
+
+```ts
+const locked = yield * (yield * AggregateLocks).lock("Person", personId);
+const terms = yield * memberships.listLocked(locked); // the facts the decision rests on
+// … decide with the pure rule functions …
+yield * memberships.insert(locked, draft);
+```
+
+- Whether an Active administrator is left spans every administrator, so it is decided under the admin list's lock (`lockAdminList`, spec 0006b R2), which comes before every person: `deactivate`, `reactivate`, `grantAdmin` and `revokeAdmin` lock it first, and `AccountRepository.isLastActiveAdmin` and `AdminGrantRepository.revoke` read through its token. A place counts only while an Active account holds it. A decision about a few known people (a merge) locks all of them in one `lockAll` and reads through every token.
+- `apps/web`'s in-memory test layer (`@vektorprogrammet/domain/testing`) provides the same service, so a handler's tests run the same protocol without a database.
+
 ## Commands
 
 Each domain declares its commands as `Rpc.make` in one `RpcGroup` (`declaration.ts`), and its handlers in `commands.ts` with `Domain.handle(rpc, { resource, run })`. A server function does not call a handler directly: it calls an **endpoint** (`XEndpoints.command(input)`), which decodes the untrusted input with the command's payload schema (a `ValidationFailed` on failure) and calls the handler through the in-process client (`withX`, from `Commands.inProcess`). The caller wraps the whole thing in `Transactor.run`, so the client, the handler, its audit row and its outbox rows share one transaction.
@@ -40,10 +58,10 @@ Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; 
 
 ## Repository contract
 
-- Methods require nothing and fail only with the listed domain errors. Everything else (lost connection, unexpected SQL state) is a defect (`Effect.orDie` after `classifySqlFailure`).
+- Methods fail only with the listed domain errors. Everything else (lost connection, unexpected SQL state) is a defect (`Effect.orDie` after `classifySqlFailure`). A method that reads or writes a person's own rows takes the person's `Locked<"Person">` as its first argument, and otherwise a method requires nothing (§ Aggregate locks).
 - Unique constraints map to `AlreadyExists` (entity, key, Norwegian message): department `city`, team name per department, person e-mail, and the exclusion constraint that keeps one person's memberships in one team from overlapping. Commands may replace the message.
-- A transition is a conditional update: `MembershipRepository.setEnd` is `UPDATE … SET end = $new WHERE id = $1 AND end = $observed AND <active>`, and `remove` is `DELETE … WHERE id = $1 AND term = $observed AND <planned>`. Zero rows is a `Conflict`, never a silent overwrite. The state is calculated from the term and the current semester (`teams/term.ts`) and stored nowhere.
-- `AdminGrantRepository.revoke` locks the places that end after `validAfter`, then deletes unless the place is the last of them (`"last"`): two revocations at once cannot both succeed.
+- A transition is a conditional update: `MembershipRepository.setEnd` is `UPDATE … SET end = $new WHERE id = $1 AND end = $observed AND <active>`, and `remove` is `DELETE … WHERE id = $1 AND term = $observed AND <planned>`. Zero rows is a `Conflict`, never a silent overwrite. The state is calculated from the term and the current semester (`teams/term.ts`) and stored nowhere. A stored machine's state (the account's) is written only by `AccountRepository.transition`, which applies one transition of the machine: `UPDATE … SET state = to WHERE owner = $1 AND state = ANY(from)`.
+- `AdminGrantRepository.revoke(adminList, holder, id, validAfter)` is atomic (it requires `InTransaction`): it reads the places that end after `validAfter` and that an Active account holds through the admin list's token, then deletes the place through the holder's token unless it is the last of them (`"last"`). Two revocations at once cannot both succeed, and a place that a deactivated account holds does not count.
 - `SemesterRepository.ensure` is `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`, one statement that returns the existing row too, so concurrent callers all get the one row (RULE-237, spec 0001 R1). Only the semester job, run by the Worker's `scheduled` handler, calls it (spec 0003): the current semester and its successor `nextSemester` (RULE-050). A read asks `currentSemester` (pure: calendar and `Clock`) or `findCurrentSemester` (the row, `None` until the job has written it); it never inserts.
 - `DigestLedger.claim` is `INSERT … ON CONFLICT DO NOTHING RETURNING`: true for the first caller, false after. The ledger row and the outbox row commit together.
 - `PublicFileRepository.register` is idempotent on `key`.

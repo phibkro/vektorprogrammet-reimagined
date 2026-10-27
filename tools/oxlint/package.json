@@ -1,0 +1,12 @@
+{
+  "name": "@vektorprogrammet/oxlint",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "devenv shell -- node --test \"anti-slop/rules/*.test.ts\""
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
+  }
+}

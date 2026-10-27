@@ -12,6 +12,9 @@ import { Effect, Layer } from "effect";
 import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { Aggregates } from "./aggregate/aggregates.ts";
+import { roots } from "./aggregate/declaration.ts";
+import { aggregateLocksLayer } from "./aggregate/locks.ts";
 import { Drizzle } from "./internal/drizzle.ts";
 import { AccountRepositoryLive } from "./repositories/accounts.ts";
 import { CapturedMailStoreLive } from "./repositories/capturedMail.ts";
@@ -41,8 +44,18 @@ import {
 } from "./repositories/teams.ts";
 
 /**
- * Every repository Layer over an abstract `Drizzle` and `SqlClient`. Internal:
- * tests build it on PGlite; `DatabaseLive` builds it on `@effect/sql-pg`.
+ * The aggregate construct (spec 0006b) that the repositories write through: the domain's `AggregateLocks` over the
+ * roots of the schema, and the writer of the tables that they own.
+ */
+const AggregatesLayer = Layer.mergeAll(
+  aggregateLocksLayer(roots),
+  Aggregates.layer
+);
+
+/**
+ * Every repository Layer over an abstract `Drizzle` and `SqlClient`, and the aggregate locks that commands take
+ * (`AggregateLocks`) and the writer that the repositories use (`Aggregates`). Internal: tests build it on PGlite;
+ * `DatabaseLive` builds it on `@effect/sql-pg`.
  */
 export const RepositoriesLayer = Layer.mergeAll(
   DepartmentRepositoryLive,
@@ -65,7 +78,7 @@ export const RepositoriesLayer = Layer.mergeAll(
   OutboxLive,
   OutboxDeliveryLive,
   AuditLogLive
-);
+).pipe(Layer.provideMerge(AggregatesLayer));
 
 export interface DatabaseConfig {
   readonly url: Redacted.Redacted;

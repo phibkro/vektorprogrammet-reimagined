@@ -4,6 +4,9 @@
  * semester (`term.ts`); the Membership machine says which command may start from which state, and a refusal by the
  * machine is a `Conflict`, as is a write that finds the row changed since it was read (the conditional updates of
  * `MembershipRepository`). Nothing is written outside the transaction the caller opened.
+ *
+ * A command about one person takes that person's lock first (`AggregateLocks`, spec 0006b), reads what it decides on
+ * through the token (`findLocked`) and writes through it, so two commands on one person queue instead of interleaving.
  */
 import { DateTime, Effect, Predicate } from "effect";
 
@@ -15,6 +18,7 @@ import { currentSemester } from "../organisation/commands.ts";
 import { semesterWindow } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
 import { FieldOfStudyRepository } from "../organisation/services.ts";
+import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import { Conflict, Forbidden, validationFailed } from "../shared/errors.ts";
 import type { MembershipId, TeamId } from "../shared/ids.ts";
 import { InTransaction } from "../shared/transaction.ts";
@@ -103,8 +107,10 @@ const aboutMembership = (id: MembershipId) =>
   }));
 
 /**
- * Reads the membership, finds its state in the current semester and lets the machine decide: a command the machine
- * refuses is a `Conflict`, because the membership is not in a state the command starts from (any more).
+ * Locks the person that the membership belongs to, reads the membership through the lock, finds its state in the
+ * current semester and lets the machine decide: a command the machine refuses is a `Conflict`, because the membership
+ * is not in a state the command starts from (any more). The owner of a membership never changes, so the first read
+ * only finds whose lock to take; the decision is made on what the second read finds under it.
  */
 const beginTransition = Effect.fn("beginTransition")(function* beginTransition(
   id: MembershipId,
@@ -112,7 +118,11 @@ const beginTransition = Effect.fn("beginTransition")(function* beginTransition(
   requested: Semester | null
 ) {
   yield* InTransaction;
-  const { membership, memberships, team } = yield* loadMembership(id);
+  const locks = yield* AggregateLocks;
+  const memberships = yield* MembershipRepository;
+  const { personId } = yield* memberships.findById(id);
+  const locked = yield* locks.lock("Person", personId);
+  const membership = yield* memberships.findLocked(locked, id);
   const current = yield* currentSemester;
   const term = { end: membership.end, start: membership.start };
 
@@ -131,7 +141,7 @@ const beginTransition = Effect.fn("beginTransition")(function* beginTransition(
     });
   }
 
-  return { current, membership, memberships, team };
+  return { current, locked, membership, memberships };
 });
 
 const belongsToDepartment = (
@@ -147,12 +157,14 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     run: (input, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;
+        const locks = yield* AggregateLocks;
         const memberships = yield* MembershipRepository;
         const persons = yield* PersonRepository;
         const positions = yield* PositionRepository;
         const current = yield* currentSemester;
         const team = yield* teamOf(input.teamId);
-        const person = yield* persons.findById(input.personId);
+        const locked = yield* locks.lock("Person", input.personId);
+        const person = yield* persons.findLocked(locked);
         yield* positions.findById(input.positionId);
 
         if (!team.active) {
@@ -182,10 +194,9 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* validationFailed(["start"], START_IN_THE_PAST);
         }
 
-        const created = yield* memberships.insert({
+        const created = yield* memberships.insert(locked, {
           ...term,
           leader: input.leader,
-          personId: input.personId,
           positionId: input.positionId,
           teamId: input.teamId,
         });
@@ -205,13 +216,10 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     resource: ({ id }) => aboutMembership(id),
     run: ({ id }, principal) =>
       Effect.gen(function* run() {
-        const { current, membership, memberships } = yield* beginTransition(
-          id,
-          "cancel",
-          null
-        );
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(id, "cancel", null);
 
-        yield* memberships.remove({
+        yield* memberships.remove(locked, {
           current,
           id,
           observed: { end: membership.end, start: membership.start },
@@ -246,11 +254,8 @@ export const TeamsHandlers = TeamsRpc.toLayer({
       Effect.gen(function* run() {
         const positions = yield* PositionRepository;
 
-        const { current, membership, memberships } = yield* beginTransition(
-          input.id,
-          "change",
-          input.from
-        );
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(input.id, "change", input.from);
 
         const target = yield* teamOf(input.teamId ?? membership.teamId);
         const positionId = input.positionId ?? membership.positionId;
@@ -260,17 +265,16 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* validationFailed(["teamId"], TEAM_INACTIVE);
         }
 
-        const ended = yield* memberships.setEnd({
+        const ended = yield* memberships.setEnd(locked, {
           activeIn: current,
           id: input.id,
           newEnd: previousSemester(input.from),
           observedEnd: membership.end,
         });
 
-        const started = yield* memberships.insert({
+        const started = yield* memberships.insert(locked, {
           end: membership.end,
           leader: input.leader ?? membership.leader,
-          personId: membership.personId,
           positionId,
           start: input.from,
           teamId: target.id,
@@ -329,13 +333,10 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     resource: ({ id }) => aboutMembership(id),
     run: ({ id, semester }, principal) =>
       Effect.gen(function* run() {
-        const { current, membership, memberships } = yield* beginTransition(
-          id,
-          "endEarly",
-          semester
-        );
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(id, "endEarly", semester);
 
-        const ended = yield* memberships.setEnd({
+        const ended = yield* memberships.setEnd(locked, {
           activeIn: current,
           id,
           newEnd: previousSemester(semester),
@@ -357,13 +358,10 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     resource: ({ id }) => aboutMembership(id),
     run: ({ end, id }, principal) =>
       Effect.gen(function* run() {
-        const { current, membership, memberships } = yield* beginTransition(
-          id,
-          "extend",
-          end
-        );
+        const { current, locked, membership, memberships } =
+          yield* beginTransition(id, "extend", end);
 
-        const extended = yield* memberships.setEnd({
+        const extended = yield* memberships.setEnd(locked, {
           activeIn: current,
           id,
           newEnd: end,
@@ -381,8 +379,8 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     run: ({ personId, until }, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;
+        const locks = yield* AggregateLocks;
         const grants = yield* AdminGrantRepository;
-        const persons = yield* PersonRepository;
         const now = yield* DateTime.now;
 
         const granter = Predicate.isTagged(principal, "Person")
@@ -397,11 +395,12 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* validationFailed(["until"], UNTIL_PAST);
         }
 
-        yield* persons.findById(personId);
+        // The list comes before every person: a place changes who is on it.
+        const adminList = yield* lockAdminList;
+        const locked = yield* locks.lock("Person", personId);
 
-        const created = yield* grants.create({
+        const created = yield* grants.create(adminList, locked, {
           grantedBy: granter,
-          personId,
           until,
         });
 
@@ -444,7 +443,12 @@ export const TeamsHandlers = TeamsRpc.toLayer({
     run: ({ id }, principal) =>
       Effect.gen(function* run() {
         yield* InTransaction;
+        const locks = yield* AggregateLocks;
         const grants = yield* AdminGrantRepository;
+
+        // Whether an Active administrator is left spans every administrator, so the list is locked before the
+        // holder of the place, and the place cannot change while it is held.
+        const adminList = yield* lockAdminList;
         const grant = yield* grants.findById(id);
 
         if (
@@ -454,8 +458,15 @@ export const TeamsHandlers = TeamsRpc.toLayer({
           return yield* new Forbidden({ command: "revokeAdmin" });
         }
 
+        const holder = yield* locks.lock("Person", grant.personId);
         const current = yield* currentSemester;
-        const outcome = yield* grants.revoke(id, semesterWindow(current).end);
+
+        const outcome = yield* grants.revoke(
+          adminList,
+          holder,
+          id,
+          semesterWindow(current).end
+        );
 
         if (outcome === "last") {
           return yield* validationFailed(["id"], LAST_ADMIN);

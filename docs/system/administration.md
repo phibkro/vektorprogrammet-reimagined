@@ -20,7 +20,7 @@ This domain keeps the system safe and lawful. It gives people accounts, keeps th
 - Admins are a short list of named people, usually the IT leader and most team and board leaders.
 - Each place on the list ends on a date. By default, it ends with the person's membership.
 - Nobody can add or remove themselves.
-- The last admin with a place that has not ended cannot be removed.
+- The last admin with an Active account and a place that has not ended cannot be removed. A place that a deactivated account holds does not count.
 - Four weeks before an admin's place ends, the admins get a reminder.
 
 ## Personal data
