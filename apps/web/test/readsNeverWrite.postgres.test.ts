@@ -41,6 +41,7 @@ import {
   PositionId,
   SemesterRepository,
   TeamRepository,
+  Transactor,
   WorkspaceFacts,
   anonymous,
   currentSemester,
@@ -90,7 +91,6 @@ import {
   schoolsPage,
   teamPage,
 } from "../src/server/site/pages";
-import { Transactor, transactorLayer } from "../src/server/transactor";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
 import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
@@ -444,9 +444,7 @@ const seedDatabase = Effect.gen(function* seedDatabase() {
 }).pipe(
   Effect.provide(
     Layer.unwrap(
-      Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-        transactorLayer.pipe(Layer.provideMerge(requestServices(url)))
-      )
+      Effect.map(Effect.service(TestDatabaseUrl), (url) => requestServices(url))
     )
   )
 );

@@ -4,7 +4,11 @@
   "ignoreDependencies": ["@effect/language-service"],
   "workspaces": {
     "tools/quality": {
-      "entry": ["checkEffectExceptions.ts", "syncEffectPolicy.ts"],
+      "entry": [
+        "checkEffectExceptions.ts",
+        "checkStoreBoundary.ts",
+        "syncEffectPolicy.ts"
+      ],
       "project": ["*.ts", "test/**/*.ts"]
     },
     "apps/web": {

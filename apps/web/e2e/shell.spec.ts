@@ -8,7 +8,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
-import { LOCAL_PEOPLE } from "@vektorprogrammet/db";
+import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
 import { Array as Arr, Record as Rec } from "effect";
 
 import { PANEL_SECTIONS } from "../src/lib/panelSections.ts";

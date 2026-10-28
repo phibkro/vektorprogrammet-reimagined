@@ -23,7 +23,8 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { schema, transactional } from "../src/index.ts";
+import { transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { Drizzle, postgresJobDatabase } from "./support/database.ts";
 import { encodeJson } from "./support/json.ts";
 import { countWhere } from "./support/personalDataActors.ts";

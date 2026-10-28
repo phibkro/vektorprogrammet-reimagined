@@ -47,8 +47,15 @@ export * from "./accounts/commands.ts";
 
 export * from "./accounts/principal.ts";
 
+export * from "./accounts/sessionDirectory.ts";
+
+export * from "./accounts/signInDirectory.ts";
+
 // every domain's declaration, and the one grant table that `authorize` reads
 export * from "./declarations.ts";
+
+// the fake people of a local deployment, a Preview and the browser tests (fixture data, no engine)
+export * from "./localPeople.ts";
 
 // shared
 export * from "./shared/aggregate.ts";
@@ -65,6 +72,8 @@ export * from "./shared/siteOrigin.ts";
 
 export * from "./shared/transaction.ts";
 
+export * from "./shared/transactor.ts";
+
 export * from "./shared/validation.ts";
 
 // audit (C12)
@@ -76,6 +85,10 @@ export * as Audit from "./audit/declaration.ts";
 
 // outbox delivery (the job `outboxSweep`; the handlers are in apps/web) and what an administrator reads of it
 export * as OutboxSweep from "./outbox/declaration.ts";
+
+export * from "./outbox/captured.ts";
+
+export * from "./outbox/delivery.ts";
 
 export * from "./outbox/status.ts";
 
@@ -113,6 +126,8 @@ export * as Organisation from "./organisation/declaration.ts";
 export * from "./organisation/department.ts";
 
 export * from "./organisation/fieldOfStudy.ts";
+
+export * from "./organisation/legacyImport.ts";
 
 // The package root exports the answers to the calendar questions, not the window arithmetic they are
 // built from (`semesterForDate`, `semesterWindow`, `windowContains`): outside the domain nobody can

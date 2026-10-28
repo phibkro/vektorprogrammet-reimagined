@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 00bab8876cd36ffac54cc7ee20fc745965c8bc8a
-confirmed-at: b1a2e3a88ab178c387b80c531fcea3ac8084aabe
+sync-digest: 2a4a920b52b3c568381b39121cc35ea366026695
+confirmed-at: 12f23ddeb24001e00ced99411014079abf0abdba
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -33,7 +33,7 @@ packages/db/src/classifySqlFailure.ts
 packages/db/src/transactional.ts
 packages/db/src/schema.ts
 packages/db/drizzle
-apps/web/src/server/transactor.ts
+packages/domain/src/shared/transactor.ts
 ```
 
 | Covered code | What the model takes from it |

@@ -9,8 +9,11 @@
  * the transports, Better Auth, the Workspace writer) and `withEnding` (the dead-letter ending: the database only), so
  * the dead-letter consumer builds no more than it uses.
  */
-import { OutboxDelivery } from "@vektorprogrammet/db";
-import { Commands, OutboxSweep } from "@vektorprogrammet/domain";
+import {
+  Commands,
+  OutboxDelivery,
+  OutboxSweep,
+} from "@vektorprogrammet/domain";
 import { DateTime, Effect } from "effect";
 import { RpcGroup } from "effect/rpc";
 

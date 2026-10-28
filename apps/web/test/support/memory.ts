@@ -5,12 +5,6 @@
  * delivery to be exercised. Every value is a fake same-shape value.
  */
 import {
-  OutboxClaim,
-  OutboxClaimToken,
-  OutboxDelivery,
-} from "@vektorprogrammet/db";
-import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
-import {
   AdmissionPeriodRepository,
   AlreadyExists,
   AuditLog,
@@ -25,6 +19,9 @@ import {
   InTransaction,
   NotFound,
   Outbox,
+  OutboxClaim,
+  OutboxClaimToken,
+  OutboxDelivery,
   OutboxMessageId,
   OutboxReports,
   PublicFileRepository,
@@ -33,6 +30,7 @@ import {
   SiteOrigin,
   SocialEventId,
   SocialEventRepository,
+  Transactor,
   WorkspaceReports,
   anonymous,
   deliveryState,
@@ -40,6 +38,7 @@ import {
 import type {
   AdmissionPeriod,
   AuditEntry,
+  ClaimedOutboxMessage,
   Department,
   EntityName,
   FieldOfStudy,
@@ -65,8 +64,6 @@ import {
   Record as Rec,
   Stream,
 } from "effect";
-
-import { Transactor } from "../../src/server/transactor";
 
 interface OutboxRow {
   readonly id: OutboxMessageId;

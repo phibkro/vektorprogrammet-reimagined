@@ -7,7 +7,7 @@
 #
 # Saves pages/<label>.html and pages/<label>.headers in the run directory and prints a summary. The default label is
 # the actor and the path. The seeded people: Ada Admin, Lise Leder, Mats Medlem, Sofie Styre, Nora Nybegynner,
-# Eva Ekstern (packages/db/src/localPeople.ts); `anonymous` is nobody.
+# Eva Ekstern (packages/domain/src/localPeople.ts); `anonymous` is nobody.
 set -euo pipefail
 # shellcheck disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

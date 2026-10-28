@@ -23,14 +23,14 @@ Each server function or server route:
 
 1. Reads the request before Effect runs (`server/scope.ts`: env, `ctx`, the request's `AbortSignal`, the test-actor cookie; form fields and uploads are read in the handler).
 2. Calls `runQuery`, `runCommand` or `runPreparedCommand` (`server/runtime.ts`). These build the **per-request Layer**:
-   - `DatabaseLive({ url: env.HYPERDRIVE.connectionString, maxConnections: 2 })`
+   - `DatabaseLive({ url: env.HYPERDRIVE.connectionString, maxConnections: 2 })`, the only module that names the adapter (`server/runtime.ts`: `bun run check:store-boundary` fails on any other import of `@vektorprogrammet/db`); Better Auth asks the domain through that same layer
    - `FileStore` over the R2 binding (`server/fileStore.ts`)
    - `CurrentPrincipal` from the Better Auth session and one account-and-membership read (`server/principal.ts`)
    - `SiteOrigin` for digest links
    - Web Crypto `Crypto.Crypto` (`server/webCrypto.ts`)
    - `TurnstileVerifier` and `ContactRateLimiter`
    - `CmsClient` (`packages/cms-client`) over `fetch` to `CMS_URL`, authorised with the read-only `CMS_TOKEN`: the public pages' texts, FAQ, news and sponsors
-   - `Transactor`, which wraps a command in `@vektorprogrammet/db`'s `transactional` (the only provider of `InTransaction`)
+   - `Transactor` (the domain's port, provided by `DatabaseLive`), which wraps a command in `@vektorprogrammet/db`'s `transactional` (the only provider of `InTransaction`)
 3. Runs the Effect with the request's `AbortSignal`. A prepared command runs `prepare` outside any transaction (provider I/O such as rate limit, Turnstile and R2 uploads), then the command inside one.
 4. Maps typed failures through **one table** (`server/errors.ts`):
 

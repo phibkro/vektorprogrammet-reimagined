@@ -22,6 +22,7 @@ import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
 import { JobRunsLive } from "./repositories/jobRuns.ts";
+import { ImportTargetLive } from "./repositories/legacyImport.ts";
 import {
   AdmissionPeriodRepositoryLive,
   DepartmentRepositoryLive,
@@ -43,6 +44,7 @@ import {
   retentionRunLayer,
 } from "./repositories/personalData.ts";
 import { SessionDirectoryLive } from "./repositories/sessions.ts";
+import { SignInDirectoryLive } from "./repositories/signIn.ts";
 import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
 import {
   AdminGrantRepositoryLive,
@@ -59,6 +61,7 @@ import {
   WorkspaceFactsLive,
   WorkspaceReportsLive,
 } from "./repositories/workspace.ts";
+import { TransactorLive } from "./transactional.ts";
 
 /**
  * The aggregate construct (spec 0006b) that the repositories write through: the domain's `AggregateLocks` over the
@@ -70,9 +73,9 @@ const AggregatesLayer = Layer.mergeAll(
 );
 
 /**
- * Every repository Layer over an abstract `Drizzle` and `SqlClient`, and the aggregate locks that commands take
- * (`AggregateLocks`) and the writer that the repositories use (`Aggregates`). It has no nightly retention run: each
- * layer below adds one.
+ * Every repository Layer over an abstract `Drizzle` and `SqlClient`, the domain's `Transactor` over that `SqlClient`,
+ * and the aggregate locks that commands take (`AggregateLocks`) and the writer that the repositories use
+ * (`Aggregates`). It has no nightly retention run: each layer below adds one.
  */
 const Repositories = Layer.mergeAll(
   DepartmentRepositoryLive,
@@ -85,6 +88,7 @@ const Repositories = Layer.mergeAll(
   CodeRepositoryLive,
   CapturedMessageStoreLive,
   SessionDirectoryLive,
+  SignInDirectoryLive,
   PersonRepositoryLive,
   TeamRepositoryLive,
   PositionRepositoryLive,
@@ -104,7 +108,8 @@ const Repositories = Layer.mergeAll(
   JobRunsLive,
   WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
-  WorkspaceReportsLive
+  WorkspaceReportsLive,
+  TransactorLive
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 /**
@@ -162,5 +167,26 @@ export const JobDatabaseLive = (
     Layer.mergeAll(
       Repositories,
       retentionRunLayer(config.retention).pipe(Layer.provide(AggregatesLayer))
+    )
+  );
+
+/**
+ * The database of the legacy importer: `ImportTarget` over a direct connection (not Hyperdrive), so prepared statements
+ * stay on; two connections are plenty for a sequential import. Only the importer's composition root builds it.
+ */
+export const ImportDatabaseLive = (config: {
+  readonly url: Redacted.Redacted;
+}) =>
+  ImportTargetLive.pipe(
+    Layer.provide(
+      Drizzle.layerPg.pipe(
+        Layer.provideMerge(
+          PgClient.layer({
+            applicationName: "vektorprogrammet-import",
+            maxConnections: 2,
+            url: config.url,
+          })
+        )
+      )
     )
   );

@@ -1,6 +1,5 @@
 /** Spec 0007 R1/falsifier 4: scan every database text/json column except the fake mailbox. */
 import { assert, layer } from "@effect/vitest";
-import { transactional } from "@vektorprogrammet/db";
 import {
   AccountEndpoints,
   CodeToken,
@@ -26,6 +25,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { deliverPending, live } from "./support/deliveryLive";
+import { transacted } from "./support/transacted";
 
 const columns = Schema.Array(
   Schema.Struct({
@@ -127,7 +127,7 @@ const invite = (personId: number) =>
     const sql = yield* SqlClient;
     const email = `invitee${personId}@example.org`;
     yield* sql`insert into person (id, name, email, field_of_study_id) values (${personId}, 'Invitee', ${email}, ${LEADER})`;
-    yield* transactional(
+    yield* transacted(
       AccountEndpoints.createAccount({ personId }).pipe(
         Effect.provideService(CurrentPrincipal, leaderPrincipal)
       )
@@ -187,7 +187,7 @@ layer(live, { excludeTestServices: true })(
             personId: PersonId.make(201),
           });
 
-          yield* transactional(
+          yield* transacted(
             AccountEndpoints.createAccount({ personId: 202 }).pipe(
               Effect.provideService(CurrentPrincipal, leader)
             )
@@ -232,7 +232,7 @@ layer(live, { excludeTestServices: true })(
           assert.deepStrictEqual(leaked(afterRetry, token1), []);
           assert.deepStrictEqual(leaked(afterRetry, token2), []);
 
-          const activated = yield* transactional(
+          const activated = yield* transacted(
             AccountEndpoints.activateAccount({
               code: token2,
               password: "safe test password",

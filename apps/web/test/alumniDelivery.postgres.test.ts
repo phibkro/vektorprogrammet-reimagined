@@ -5,7 +5,6 @@
  * the skip is the erasure's doing, not a message that never sends.
  */
 import { assert, layer } from "@effect/vitest";
-import { transactional } from "@vektorprogrammet/db";
 import {
   CodeToken,
   CurrentPrincipal,
@@ -24,6 +23,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { deliverPending, live, origin } from "./support/deliveryLive";
+import { transacted } from "./support/transacted";
 
 const ALUMNA = 601;
 const ERASED = 602;
@@ -62,7 +62,7 @@ const askBoth = Effect.gen(function* askBoth() {
     },
   ])}`;
 
-  yield* transactional(
+  yield* transacted(
     Effect.gen(function* enqueue() {
       yield* (yield* Outbox).enqueue(
         Arr.makeBy(2, (index) =>
@@ -77,7 +77,7 @@ const askBoth = Effect.gen(function* askBoth() {
 }).pipe(Effect.orDie);
 
 const answerByCode = (code: CodeToken, news: boolean) =>
-  transactional(PersonalDataEndpoints.answerAlumniConsent({ code, news }));
+  transacted(PersonalDataEndpoints.answerAlumniConsent({ code, news }));
 
 layer(live, { excludeTestServices: true })(
   "spec 0007b falsifier 5: the alumni code mail",
@@ -90,7 +90,7 @@ layer(live, { excludeTestServices: true })(
           yield* askBoth;
 
           // The message waits in the outbox while Erik erases himself: the person is anonymised and has no account.
-          const erased = yield* transactional(
+          const erased = yield* transacted(
             PersonalDataEndpoints.erasePerson({ personId: ERASED }).pipe(
               Effect.provideService(CurrentPrincipal, self(ERASED))
             )

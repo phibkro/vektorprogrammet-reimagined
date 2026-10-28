@@ -9,13 +9,14 @@
  *     → ImportTarget.replaceAll (one PostgreSQL transaction)
  *     → buildReport + writeReport (JSON + Markdown)
  */
+import { ImportDatabaseLive } from "@vektorprogrammet/db";
+import { ImportTarget } from "@vektorprogrammet/domain";
 import { Effect, Layer, Option } from "effect";
 import type { Redacted } from "effect";
 
 import { LegacyFiles, resolveLegacyFiles } from "./files.ts";
 import { LegacySource, legacyMysqlLayer } from "./legacy/source.ts";
 import { buildReport, writeReport } from "./report.ts";
-import { ImportTarget, targetPgLayer } from "./target.ts";
 import { planImport, referencedFilePaths } from "./transform/plan.ts";
 
 export const runImport = Effect.fn("runImport")(function* runImport(
@@ -45,7 +46,7 @@ export const importLayer = (options: {
     LegacySource.layer.pipe(
       Layer.provide(legacyMysqlLayer(options.legacyMysqlUrl))
     ),
-    ImportTarget.layer.pipe(Layer.provide(targetPgLayer(options.targetUrl))),
+    ImportDatabaseLive({ url: options.targetUrl }),
     Option.match(options.legacyFilesDir, {
       onNone: () => LegacyFiles.none,
       onSome: LegacyFiles.fromDirectory,

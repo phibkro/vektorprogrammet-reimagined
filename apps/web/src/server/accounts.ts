@@ -1,11 +1,11 @@
 /** Read models for Min side and the post-sign-in destination. */
-import { SessionDirectory } from "@vektorprogrammet/db";
 import {
   ConsentRepository,
   CurrentPrincipal,
   DepartmentRepository,
   FieldOfStudyRepository,
   PersonRepository,
+  SessionDirectory,
   consentSummary,
 } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Predicate } from "effect";

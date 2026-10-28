@@ -1,21 +1,24 @@
 /** Interprets account outbox intents after domain commit. */
-import { OutboxDelivery, transactional } from "@vektorprogrammet/db";
-import type { ClaimedOutboxMessage, OutboxAck } from "@vektorprogrammet/db";
 import {
   AccountRepository,
   AggregateLocks,
   CodeRepository,
+  OutboxDelivery,
   OutboxMessage,
   PersonRepository,
   PersonalDataDeclaration,
   SiteOrigin,
+  Transactor,
   codePolicy,
   lifetimeWords,
   mintCode,
 } from "@vektorprogrammet/domain";
-import type { Account } from "@vektorprogrammet/domain";
+import type {
+  Account,
+  ClaimedOutboxMessage,
+  OutboxAck,
+} from "@vektorprogrammet/domain";
 import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
-import { SqlClient } from "effect/sql/SqlClient";
 
 import { Auth } from "./auth";
 import { DeliveryClaimLost } from "./deliveryClaimLost";
@@ -74,7 +77,7 @@ export class AccountDelivery extends Context.Service<
 export const accountDeliveryLayer = Layer.effect(
   AccountDelivery,
   Effect.gen(function* buildAccountDelivery() {
-    const sql = yield* SqlClient;
+    const transactor = yield* Transactor;
     const accounts = yield* AccountRepository;
     const codes = yield* CodeRepository;
     const locks = yield* AggregateLocks;
@@ -87,82 +90,83 @@ export const accountDeliveryLayer = Layer.effect(
 
     const issueCode = Effect.fn("AccountDelivery.issueCode")(
       function* issueCode(row: ClaimedOutboxMessage, message: CodeIntent) {
-        return yield* transactional(
-          Effect.gen(function* mintSendAndAcknowledge() {
-            const locked = yield* locks
-              .lock("Person", message.personId)
-              .pipe(Effect.option);
+        return yield* transactor
+          .run(
+            Effect.gen(function* mintSendAndAcknowledge() {
+              const locked = yield* locks
+                .lock("Person", message.personId)
+                .pipe(Effect.option);
 
-            if (Option.isNone(locked)) {
-              return yield* delivery.markDelivered(row.id, row.claimToken);
-            }
+              if (Option.isNone(locked)) {
+                return yield* delivery.markDelivered(row.id, row.claimToken);
+              }
 
-            const account = yield* accounts.findLocked(locked.value);
-            const recipient = yield* people.findLocked(locked.value);
-            const policy = codePolicy[message.purpose];
+              const account = yield* accounts.findLocked(locked.value);
+              const recipient = yield* people.findLocked(locked.value);
+              const policy = codePolicy[message.purpose];
 
-            // Nothing is sent when the purpose's account is not there any more, or the person was erased meanwhile:
-            // anonymisation leaves an address that cannot receive mail.
-            if (
-              !accountFits(policy.account, account) ||
-              PersonalDataDeclaration.isAnonymisedEmail(recipient.email)
-            ) {
-              return yield* delivery.markDelivered(row.id, row.claimToken);
-            }
+              // Nothing is sent when the purpose's account is not there any more, or the person was erased meanwhile:
+              // anonymisation leaves an address that cannot receive mail.
+              if (
+                !accountFits(policy.account, account) ||
+                PersonalDataDeclaration.isAnonymisedEmail(recipient.email)
+              ) {
+                return yield* delivery.markDelivered(row.id, row.claimToken);
+              }
 
-            const now = yield* DateTime.now;
+              const now = yield* DateTime.now;
 
-            const { token, hash } = yield* mintCode().pipe(
-              Effect.provideService(Crypto.Crypto, crypto),
-              Effect.orDie
-            );
+              const { token, hash } = yield* mintCode().pipe(
+                Effect.provideService(Crypto.Crypto, crypto),
+                Effect.orDie
+              );
 
-            yield* codes.replace(locked.value, {
-              expiresAt: DateTime.add(now, {
-                seconds: policy.lifetimeSeconds,
-              }),
-              hash,
-              purpose: message.purpose,
-            });
+              yield* codes.replace(locked.value, {
+                expiresAt: DateTime.add(now, {
+                  seconds: policy.lifetimeSeconds,
+                }),
+                hash,
+                purpose: message.purpose,
+              });
 
-            const presentation = codeMail[message.purpose];
-            const link = `${origin}${presentation.path}?kode=${token}`;
+              const presentation = codeMail[message.purpose];
+              const link = `${origin}${presentation.path}?kode=${token}`;
 
-            const email = OutboxMessage.cases.Email.make({
-              replyTo: null,
-              subject: presentation.subject,
-              text: presentation.text(
-                link,
-                lifetimeWords(policy.lifetimeSeconds, "no")
-              ),
-              to: recipient.email,
-            });
+              const email = OutboxMessage.cases.Email.make({
+                replyTo: null,
+                subject: presentation.subject,
+                text: presentation.text(
+                  link,
+                  lifetimeWords(policy.lifetimeSeconds, "no")
+                ),
+                to: recipient.email,
+              });
 
-            // Provider errors may contain request data: never persist or log them with a code. Each attempt mints a
-            // new code, so its mail is its own message: the key is the row and the attempt, not the row alone.
-            yield* sender.send(email, `${row.id}.${row.attempts}`).pipe(
-              Effect.mapError(
-                () =>
-                  new DeliveryFailed({
-                    reason: "code email delivery failed",
-                  })
-              )
-            );
-            const ack = yield* delivery.markDelivered(row.id, row.claimToken);
+              // Provider errors may contain request data: never persist or log them with a code. Each attempt mints a
+              // new code, so its mail is its own message: the key is the row and the attempt, not the row alone.
+              yield* sender.send(email, `${row.id}.${row.attempts}`).pipe(
+                Effect.mapError(
+                  () =>
+                    new DeliveryFailed({
+                      reason: "code email delivery failed",
+                    })
+                )
+              );
+              const ack = yield* delivery.markDelivered(row.id, row.claimToken);
 
-            if (ack === "claimLost") {
-              return yield* new DeliveryClaimLost();
-            }
+              if (ack === "claimLost") {
+                return yield* new DeliveryClaimLost();
+              }
 
-            return ack;
-          })
-        ).pipe(
-          Effect.provideService(SqlClient, sql),
-          Effect.catchTag("DeliveryClaimLost", () =>
-            Effect.succeed("claimLost" as const)
-          ),
-          Effect.uninterruptible
-        );
+              return ack;
+            })
+          )
+          .pipe(
+            Effect.catchTag("DeliveryClaimLost", () =>
+              Effect.succeed("claimLost" as const)
+            ),
+            Effect.uninterruptible
+          );
       }
     );
 

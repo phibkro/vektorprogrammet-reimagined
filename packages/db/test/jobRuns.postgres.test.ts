@@ -11,7 +11,8 @@ import { Array as Arr, Cause, DateTime, Effect, Exit, Predicate } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { schema, transactional } from "../src/index.ts";
+import { transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { AT } from "./support/fixtures.ts";
 import { race } from "./support/race.ts";

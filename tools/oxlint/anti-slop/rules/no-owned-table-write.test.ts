@@ -58,13 +58,9 @@ new RuleTester({
       code: `${schemaNamed("account")}db.insert(account).values(row)`,
       errors: owned,
     },
-    // The schema namespace, in both spellings that the code base uses.
+    // The schema namespace of the in-package module (`import * as schema`); the package root exports no schema.
     {
       code: `${schemaNamespace}db.update(schema.code).set(values)`,
-      errors: owned,
-    },
-    {
-      code: 'import { schema } from "@vektorprogrammet/db";\ndb.insert(schema.account).values(row)',
       errors: owned,
     },
     // Another name for the import is still the table.

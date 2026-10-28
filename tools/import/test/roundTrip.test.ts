@@ -13,6 +13,7 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
+import type { TargetTable } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Config,
@@ -37,7 +38,6 @@ import { importLayer, runImport } from "../src/pipeline.ts";
 import { ReportFromJson } from "../src/report.ts";
 import type { ReconciliationReport } from "../src/report.ts";
 import { TARGET_TABLES } from "../src/transform/plan.ts";
-import type { TargetTable } from "../src/transform/plan.ts";
 import { LegacyTestDatabase } from "./support/databases.ts";
 import { FAKE_FILES, PERSONAL_SENTINELS } from "./support/fixture.ts";
 

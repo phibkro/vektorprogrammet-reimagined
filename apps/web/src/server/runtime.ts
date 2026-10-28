@@ -18,15 +18,11 @@ import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
-import type {
-  CapturedMessageStore,
-  OutboxDelivery,
-  SessionDirectory,
-} from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
   JobRegistry,
   SiteOrigin,
+  Transactor,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {
@@ -36,6 +32,7 @@ import type {
   AdmissionPeriodRepository,
   AlumniRequests,
   AuditLog,
+  CapturedMessageStore,
   CodeRepository,
   ConsentRepository,
   DepartmentRepository,
@@ -47,6 +44,7 @@ import type {
   LegalHolds,
   MembershipRepository,
   Outbox,
+  OutboxDelivery,
   OutboxMessageId,
   OutboxReports,
   PasswordHasher,
@@ -57,6 +55,8 @@ import type {
   PrincipalDirectory,
   PublicFileRepository,
   SemesterRepository,
+  SessionDirectory,
+  SignInDirectory,
   SocialEventRepository,
   TeamRepository,
   SystemJob,
@@ -76,6 +76,7 @@ import type { Outcome } from "../lib/outcome";
 import type { AccountDelivery } from "./accountDelivery";
 import { accountDeliveryLayer } from "./accountDelivery";
 import { Auth, authLayer } from "./auth";
+import type { AuthEnvironment } from "./auth";
 import { AuthBoundaryFailure } from "./authError";
 import { decodeDeployment } from "./deployment";
 import type { WorkerEnv } from "./env";
@@ -102,7 +103,6 @@ import type { ContactRateLimiter } from "./rateLimit";
 import { retentionModeFor } from "./retentionMode";
 import { messageSenderLayer, senderConfigFromEnv } from "./senders";
 import type { MessageSender } from "./senders";
-import { Transactor, transactorLayer } from "./transactor";
 import { turnstileLiveLayer } from "./turnstile";
 import type { TurnstileVerifier } from "./turnstile";
 import { webCryptoLayer } from "./webCrypto";
@@ -160,6 +160,8 @@ export type DatabaseServices =
   | WorkspaceReports
   | OutboxDelivery
   | SessionDirectory
+  | Transactor
+  | SignInDirectory
   | SqlClient.SqlClient;
 
 /** Every service a request program may require. */
@@ -167,7 +169,6 @@ export type RequestServices =
   | DatabaseServices
   | Auth
   | PasswordHasher
-  | Transactor
   | FileStore
   | CurrentPrincipal
   | SiteOrigin
@@ -184,14 +185,27 @@ const databaseLayer = (
     url: Redacted.make(env.HYPERDRIVE.connectionString),
   }).pipe(Layer.orDie);
 
-/** The live per-request Layer. Infrastructure that fails to build is a defect. */
+/**
+ * Better Auth over the scope's one database layer (spec 0017, falsifier 7): the library asks the domain through the
+ * services that `database` provides, so no second pool is opened for it, and `database` is one build however many
+ * layers of the scope need it. Every scope that has Better Auth has it through this function.
+ */
+const authOverDatabase = (
+  env: AuthEnvironment,
+  database: Layer.Layer<DatabaseServices>
+) => authLayer(env).pipe(Layer.orDie, Layer.provideMerge(database));
+
+/**
+ * The live per-request Layer. Infrastructure that fails to build is a defect. `database` is the request's one database
+ * layer (a test passes its own, to count its builds).
+ */
 export const liveRequestLayer = (
-  scope: RequestScope
+  scope: RequestScope,
+  database: Layer.Layer<DatabaseServices> = databaseLayer(scope.env)
 ): Layer.Layer<RequestServices> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(scope.env.DEPLOYMENT), (deployment) =>
       Layer.mergeAll(
-        transactorLayer,
         workspaceModeLayer(workspaceConfigFromEnv(deployment, scope.env)),
         r2FileStoreLayer(scope.env.PUBLIC_FILES),
         Layer.effect(
@@ -208,12 +222,7 @@ export const liveRequestLayer = (
           url: scope.env.CMS_URL,
         })
       ).pipe(
-        Layer.provideMerge(
-          Layer.merge(
-            databaseLayer(scope.env),
-            authLayer(scope.env).pipe(Layer.orDie)
-          )
-        ),
+        Layer.provideMerge(authOverDatabase(scope.env, database)),
         Layer.provide(FetchHttpClient.layer)
       )
     )
@@ -296,9 +305,10 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
 
 /**
  * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the
- * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one.
+ * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one. Better Auth asks the domain through that same
+ * database layer (one build, shared by reference). Exported for tests.
  */
-const deliveryLayer = (
+export const deliveryLayer = (
   env: TickEnv,
   database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Layer.Layer<
@@ -321,7 +331,7 @@ const deliveryLayer = (
               Layer.provideMerge(database)
             ),
             workspaceWriterLayer(workspaceConfigFromEnv(deployment, env)),
-            authLayer(env).pipe(Layer.orDie),
+            authOverDatabase(env, database),
             webCryptoLayer,
             Layer.succeed(SiteOrigin)(env.SITE_URL)
           )
@@ -413,17 +423,18 @@ export const runQueue = (env: TickEnv, batch: OutboxBatch): Promise<void> =>
   );
 
 export const runSignInPerson = (
-  env: WorkerEnv,
+  env: AuthEnvironment,
   input: {
     readonly personId: PersonId;
     readonly password: string;
     readonly headers: Headers;
   },
-  signal: AbortSignal
+  signal: AbortSignal,
+  database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Promise<Response> =>
   Effect.runPromise(
     Auth.use((auth) => auth.signInPerson(input)).pipe(
-      Effect.provide(authLayer(env)),
+      Effect.provide(authOverDatabase(env, database)),
       Effect.orDie,
       logDefects
     ),
@@ -479,7 +490,7 @@ const tickLayer = (env: TickEnv): Layer.Layer<TickServices | Transactor> =>
         workspaceDirectoryLayer(workspace),
         workspaceModeLayer(workspace),
         publisherLayerFor(env, { direct: delivery, queued: delivery }),
-        transactorLayer.pipe(Layer.provideMerge(delivery))
+        delivery
       );
     })
   );
@@ -562,7 +573,8 @@ export const runCommand = <
 /** Each Better Auth path has a separate per-IP bucket on the shared Worker binding. */
 export const runAuthRequest = (
   request: Request,
-  env: WorkerEnv
+  env: AuthEnvironment & Pick<WorkerEnv, "CONTACT_RATE_LIMIT">,
+  database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Promise<Response> =>
   Effect.runPromise(
     Effect.gen(function* authRequest() {
@@ -581,6 +593,6 @@ export const runAuthRequest = (
       }
 
       return yield* (yield* Auth).handle(request);
-    }).pipe(Effect.provide(authLayer(env)), Effect.orDie),
+    }).pipe(Effect.provide(authOverDatabase(env, database)), Effect.orDie),
     { signal: request.signal }
   );

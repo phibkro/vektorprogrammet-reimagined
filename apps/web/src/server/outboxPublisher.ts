@@ -21,10 +21,10 @@
  * Retires when Previews can own a queue consumer: the binding then goes to Previews and the direct layer goes away.
  */
 import type { Queue } from "@cloudflare/workers-types";
-import { OutboxDelivery } from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
   Outbox,
+  OutboxDelivery,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {

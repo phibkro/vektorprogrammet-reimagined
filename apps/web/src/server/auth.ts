@@ -1,17 +1,33 @@
 /**
  * EX-0017: Better Auth's Promise/pg ABI has no cancellation signal. Every library call runs to completion in an
  * uninterruptible Effect, with a per-request pool closed by the owning scope. Retire when Better Auth forwards
- * request cancellation to its adapter. Credential deliveries use the library adapter after domain commit.
+ * request cancellation to its adapter. Credential deliveries use the library adapter after domain commit. The pool
+ * reads and writes Better Auth's four tables only: what the library needs of the domain, its two Promise callbacks ask
+ * through `RunDomain` (a `FiberSet.makeRuntimePromise` that the layer's scope owns) and the rest through the ports.
  */
 import type { BetterAuthOptions } from "@better-auth/core";
 import type { DBTransactionAdapter } from "@better-auth/core/db/adapter";
 import { BASE_ERROR_CODES } from "@better-auth/core/error";
-import { PersonId, passwordAllowed } from "@vektorprogrammet/domain";
-import type { PasswordHash } from "@vektorprogrammet/domain";
+import {
+  AccountRepository,
+  PersonId,
+  SignInDirectory,
+  passwordAllowed,
+} from "@vektorprogrammet/domain";
+import type { PasswordHash, SignInProfile } from "@vektorprogrammet/domain";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getSessionCookie } from "better-auth/cookies";
-import { Context, DateTime, Effect, Layer, Predicate, Schema } from "effect";
+import {
+  Context,
+  DateTime,
+  Effect,
+  FiberSet,
+  Layer,
+  Option,
+  Predicate,
+  Schema,
+} from "effect";
 import { Pool } from "pg";
 
 import { AuthBoundaryFailure } from "./authError";
@@ -52,26 +68,6 @@ const ForeignSession = Schema.NullOr(
 );
 
 const decodeSession = Schema.decodeUnknownEffect(ForeignSession);
-const StateRow = Schema.NullOr(Schema.Struct({ state: Schema.String }));
-const isStateRow = Schema.is(StateRow);
-const decodeStateEffect = Schema.decodeUnknownEffect(StateRow);
-
-const isAliases = Schema.is(
-  Schema.Array(Schema.Struct({ email: Schema.String }))
-);
-
-const decodeCanonicalEmail = Schema.decodeUnknownEffect(
-  Schema.Struct({ email: Schema.String })
-);
-
-const Profile = Schema.Struct({
-  email: Schema.String,
-  email_verified: Schema.Boolean,
-  id: PersonId,
-  name: Schema.String,
-});
-
-const decodeProfile = Schema.decodeUnknownEffect(Profile);
 const ForeignUser = Schema.Struct({ id: Schema.NonEmptyString });
 const isForeignUser = Schema.is(ForeignUser);
 const ForeignCredential = Schema.Struct({ id: Schema.NonEmptyString });
@@ -185,7 +181,7 @@ const updateCredential = <Options extends BetterAuthOptions>(
 const applyCredentialTransaction = <Options extends BetterAuthOptions>(
   tx: DBTransactionAdapter<Options>,
   input: CredentialInput,
-  profile: typeof Profile.Type,
+  profile: SignInProfile,
   at: Date
 ) =>
   tx
@@ -200,7 +196,7 @@ const applyCredentialTransaction = <Options extends BetterAuthOptions>(
           data: {
             createdAt: at,
             email: profile.email,
-            emailVerified: profile.email_verified,
+            emailVerified: profile.emailVerified,
             name: profile.name,
             personId: profile.id,
             updatedAt: at,
@@ -223,8 +219,41 @@ const fields = {
   updatedAt: "updated_at",
 } as const;
 
+/** What a Better Auth callback may ask of the domain: the reads of these two services. */
+type DomainReads = AccountRepository | SignInDirectory;
+
+/**
+ * Runs a domain read from one of Better Auth's Promise callbacks (EX-0017): `authLayer` builds the runner once, in its
+ * own scope, so closing the scope interrupts a read that is still running.
+ */
+export type RunDomain = <A>(
+  effect: Effect.Effect<A, never, DomainReads>
+) => Promise<A>;
+
+/** Whether the owner of a Better Auth user holds an Active account: a session is created for no one else. */
+const holdsActiveAccount = Effect.fn("Auth.holdsActiveAccount")(
+  function* holdsActiveAccount(userId: string) {
+    const directory = yield* SignInDirectory;
+    const accounts = yield* AccountRepository;
+    const owner = yield* directory.personOfUser(userId);
+
+    if (Option.isNone(owner)) {
+      return false;
+    }
+
+    return Option.exists(yield* accounts.find(owner.value), (account) =>
+      Predicate.isTagged(account.state, "Active")
+    );
+  }
+);
+
 /** Test mutations create their own instance; the live Layer always uses this unmodified configuration. */
-export const makeAuth = (pool: Pool, secret: string, siteUrl: string) =>
+export const makeAuth = (
+  pool: Pool,
+  secret: string,
+  siteUrl: string,
+  run: RunDomain
+) =>
   betterAuth({
     account: {
       additionalFields: {
@@ -256,18 +285,11 @@ export const makeAuth = (pool: Pool, secret: string, siteUrl: string) =>
       session: {
         create: {
           before: (session) =>
-            pool
-              .query(
-                "select a.state from auth_user u join account a on a.person_id = u.person_id where u.id = $1",
-                [session.userId]
-              )
-              .then(({ rows }) => {
-                const state: unknown = rows[0] ?? null;
-
-                if (!isStateRow(state) || state?.state !== "Active") {
-                  throw invalidCredentials();
-                }
-              }),
+            run(holdsActiveAccount(session.userId)).then((active) => {
+              if (!active) {
+                throw invalidCredentials();
+              }
+            }),
         },
       },
     },
@@ -315,32 +337,19 @@ export const makeAuth = (pool: Pool, secret: string, siteUrl: string) =>
 
         const email = body.email.toLowerCase();
 
-        return pool
-          .query(
-            "select u.email from person p join auth_user u on u.person_id = p.id where p.email = $1 or p.company_email = $1 limit 2",
-            [email]
+        return run(SignInDirectory.use((directory) => directory.match(email)))
+          .then<string | { readonly email: string }>((found) =>
+            // Unknown and ambiguous addresses take the time of one hash, so the refusal says nothing about which it was.
+            Predicate.isTagged(found, "Unique")
+              ? found
+              : hashPassword(body.password)
           )
-          .then<string | { readonly email: string }>(({ rows }) => {
-            const aliases: unknown = rows;
-
-            if (!isAliases(aliases)) {
+          .then((resolved) => {
+            if (Predicate.isString(resolved)) {
               throw invalidCredentials();
             }
 
-            const [first] = aliases;
-
-            if (first === undefined || aliases.length > 1) {
-              return hashPassword(body.password);
-            }
-
-            return { email: first.email };
-          })
-          .then((alias) => {
-            if (Predicate.isString(alias)) {
-              throw invalidCredentials();
-            }
-
-            return { context: { body: { ...body, email: alias.email } } };
+            return { context: { body: { ...body, email: resolved.email } } };
           });
       }),
     },
@@ -418,17 +427,26 @@ export class Auth extends Context.Service<
   }
 >()("@vektorprogrammet/web/server/Auth") {}
 
-interface AuthEnvironment extends Pick<
+export interface AuthEnvironment extends Pick<
   WorkerEnv,
   "BETTER_AUTH_SECRET" | "SITE_URL"
 > {
   readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
 }
 
-/** One pool and one Better Auth instance per owned Worker request or delivery scope. */
+/**
+ * One pool and one Better Auth instance per owned Worker request or delivery scope. The pool is Better Auth's own: it
+ * reads and writes the four `auth_*` tables and nothing of the domain. What the library needs to know of a person (is
+ * the account Active, which identity answers to an address, the profile an identity is made from) it asks the domain,
+ * through `AccountRepository` and `SignInDirectory` (spec 0017).
+ */
 export const authLayer = (
   env: AuthEnvironment
-): Layer.Layer<Auth, AuthBoundaryFailure> =>
+): Layer.Layer<
+  Auth,
+  AuthBoundaryFailure,
+  AccountRepository | SignInDirectory
+> =>
   Layer.effect(
     Auth,
     Effect.gen(function* buildAuth() {
@@ -449,7 +467,10 @@ export const authLayer = (
         (owned) => foreign(() => owned.end()).pipe(Effect.orDie)
       );
 
-      const auth = makeAuth(pool, env.BETTER_AUTH_SECRET, env.SITE_URL);
+      const accounts = yield* AccountRepository;
+      const directory = yield* SignInDirectory;
+      const run = yield* FiberSet.makeRuntimePromise<DomainReads>();
+      const auth = makeAuth(pool, env.BETTER_AUTH_SECRET, env.SITE_URL, run);
 
       const session = Effect.fn("Auth.session")(function* session(
         headers: Headers
@@ -478,17 +499,13 @@ export const authLayer = (
 
         const { personId } = current.value.user;
 
-        const rows = yield* foreign(() =>
-          pool.query("select state from account where person_id = $1", [
-            personId,
-          ])
-        );
+        const account = yield* accounts.find(personId);
 
-        const state = yield* decodeStateEffect(rows.rows[0] ?? null).pipe(
-          Effect.mapError((cause) => new AuthBoundaryFailure({ cause }))
-        );
-
-        if (state?.state === "Active") {
+        if (
+          Option.exists(account, (found) =>
+            Predicate.isTagged(found.state, "Active")
+          )
+        ) {
           return null;
         }
 
@@ -523,15 +540,15 @@ export const authLayer = (
           readonly password: string;
           readonly headers: Headers;
         }) {
-          const rows = yield* foreign(() =>
-            pool.query("select email from auth_user where person_id = $1", [
-              input.personId,
-            ])
-          );
+          const identity = yield* directory.signInEmailOf(input.personId);
 
-          const { email } = yield* decodeCanonicalEmail(rows.rows[0]).pipe(
-            Effect.mapError((cause) => new AuthBoundaryFailure({ cause }))
-          );
+          if (Option.isNone(identity)) {
+            return yield* new AuthBoundaryFailure({
+              cause: "the person has no sign-in identity",
+            });
+          }
+
+          const email = identity.value;
 
           return yield* foreign(() =>
             auth.api.signInEmail({
@@ -545,15 +562,10 @@ export const authLayer = (
 
       const setCredential = Effect.fn("Auth.setCredential")(
         function* setCredential(input: CredentialInput) {
-          const rows = yield* foreign(() =>
-            pool.query(
-              "select id, name, email, email_verified from person where id = $1",
-              [input.personId]
-            )
-          );
-
-          const profile = yield* decodeProfile(rows.rows[0]).pipe(
-            Effect.mapError((cause) => new AuthBoundaryFailure({ cause }))
+          const profile = yield* Effect.fromOption(
+            yield* directory.profileOf(input.personId),
+            () =>
+              new AuthBoundaryFailure({ cause: "the person does not exist" })
           );
 
           const context = yield* foreign(() => auth.$context);

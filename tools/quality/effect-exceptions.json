@@ -126,18 +126,27 @@
       ],
       "scope": {
         "files": ["apps/web/src/server/auth.ts"],
-        "symbols": ["Auth", "authLayer", "Auth.setCredential"],
+        "symbols": [
+          "Auth",
+          "authLayer",
+          "Auth.setCredential",
+          "makeAuth",
+          "RunDomain",
+          "holdsActiveAccount"
+        ],
         "directives": ["oxlint-disable-next-line"]
       },
-      "reason": "Spec 0007 embeds Better Auth and its pg adapter. The library owns Promise callbacks and foreign calls finish before interruption is reported.",
+      "reason": "Spec 0007 embeds Better Auth and its pg adapter. The library owns Promise callbacks and foreign calls finish before interruption is reported. Spec 0017 moved the library's reads of domain tables behind domain ports, which its Promise callbacks call through one runner that the layer's scope owns.",
       "missingCapability": "Better Auth 1.7.14's pg/Kysely adapter and transaction callback accept neither Effect nor AbortSignal.",
       "nativeAlternativesExamined": [
         "Effect acquireRelease owns the request-local pool but cannot interrupt a Promise whose library ignores cancellation.",
         "Effect tryPromise exposes a signal; Better Auth has no signal parameter to receive it.",
-        "Effect SQL transactions cannot own the library's separate adapter transaction."
+        "Effect SQL transactions cannot own the library's separate adapter transaction.",
+        "FiberSet.makeRuntimePromise runs the domain reads that two Better Auth Promise callbacks make (AccountRepository, SignInDirectory), in fibers that the layer's scope owns; it does not change the library's own calls, which still run to completion."
       ],
       "verification": [
-        "devenv shell -- bunx vp -C apps/web test test/auth.postgres.test.ts",
+        "devenv shell -- bunx vp -C apps/web test test/auth.postgres.test.ts test/deliveryScope.postgres.test.ts",
+        "devenv shell -- bunx vp -C tools/quality test test/authPool.test.ts",
         "devenv shell -- bun run e2e"
       ],
       "owner": "apps/web",
@@ -308,12 +317,16 @@
       "scope": {
         "files": [
           "apps/web/test/deliveryBoundary.postgres.test.ts",
+          "apps/web/test/deliveryScope.postgres.test.ts",
           "apps/web/test/outboxQueue.postgres.test.ts",
-          "apps/web/test/support/commandOutcome.ts"
+          "apps/web/test/support/commandOutcome.ts",
+          "apps/web/test/support/workerEnv.ts"
         ],
         "symbols": [
           "runCommandOutcome Promise boundary",
-          "runTick and runQueue Promise boundaries"
+          "runTick and runQueue Promise boundaries",
+          "runSignInPerson and runAuthRequest Promise boundaries",
+          "the stand-in RateLimit binding's limit"
         ]
       },
       "reason": "The PostgreSQL delivery tests exercise the actual Promise-returning request, scheduled and queue runtimes inside an Effect test.",

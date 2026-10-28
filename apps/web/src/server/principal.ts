@@ -1,6 +1,6 @@
 /** A Better Auth session identifies a person; the domain's Account state and grants decide their authority. */
-import { DEFAULT_LOCAL_PERSON } from "@vektorprogrammet/db";
 import {
+  DEFAULT_LOCAL_PERSON,
   PrincipalDirectory,
   anonymous,
   currentSemester,

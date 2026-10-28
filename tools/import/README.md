@@ -12,6 +12,8 @@ legacy MySQL (SELECT-only legacy_reader, one snapshot)
 
 The importer refuses a target containing accounts, codes, auth users, welcome claims, outbox or capture records, job runs or Workspace reports. It cannot restore credentials, sent-notification history or in-flight work. Account migration belongs to spec 0013.
 
+The importer does not import the database driver: `src/pipeline.ts` is its composition root, and it builds `ImportDatabaseLive` (`@vektorprogrammet/db`) for the domain's `ImportTarget` port (`packages/domain/src/organisation/legacyImport.ts`). The adapter, with the truncate list, is `packages/db/src/repositories/legacyImport.ts` (spec 0017).
+
 ## Authority
 
 - **Loading rows derived from the 2024-08-22 backup into Neon branches is authorised** (operator, Checkpoint 2, 2026-10-15). Production Neon is written only at the final import.

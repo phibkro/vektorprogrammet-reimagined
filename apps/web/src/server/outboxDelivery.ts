@@ -7,13 +7,16 @@
  * the answer is `Retrying` with the delay. The queue owns how often that happens (`DeliveryPolicy.attempts`), and its
  * dead-letter queue ends the row (`failOutbox`).
  */
-import { OutboxDelivery } from "@vektorprogrammet/db";
+import {
+  OutboxDelivery,
+  OutboxSweep,
+  WorkspaceWriter,
+} from "@vektorprogrammet/domain";
 import type {
   ClaimedOutboxMessage,
   OutboxClaimToken,
-} from "@vektorprogrammet/db";
-import { OutboxSweep, WorkspaceWriter } from "@vektorprogrammet/domain";
-import type { OutboxMessageId } from "@vektorprogrammet/domain";
+  OutboxMessageId,
+} from "@vektorprogrammet/domain";
 import {
   Cause,
   Context,

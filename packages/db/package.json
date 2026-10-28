@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./testing": "./test/support/disposableDatabase.ts",
+    "./testing/auth-tables-role": "./test/support/authTablesRole.ts",
     "./testing/local-seed": "./test/support/localSeed.ts",
     "./testing/read-only-role": "./test/support/readOnlyRole.ts"
   },

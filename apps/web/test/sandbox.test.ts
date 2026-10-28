@@ -7,8 +7,6 @@ import { assert, describe, it } from "@effect/vitest";
 import {
   CapturedMessageStore,
   DEFAULT_LOCAL_PERSON,
-} from "@vektorprogrammet/db";
-import {
   DepartmentId,
   EmailAddress,
   OutboxMessage as OutboxMessageSchema,

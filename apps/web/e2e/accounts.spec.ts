@@ -1,7 +1,7 @@
 /** Spec 0007 falsifier 7, local half: the real Worker, mailbox, PostgreSQL and browser. */
 // oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
-import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/db";
+import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/domain";
 import { Array as Arr, Clock, Effect } from "effect";
 
 import { CONTACT_RATE_LIMIT } from "../worker.config.ts";

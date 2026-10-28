@@ -17,6 +17,7 @@ import {
   WorkspaceReports,
   WorkspaceWriter,
   requestWorkspaceReport,
+  Transactor,
 } from "@vektorprogrammet/domain";
 import type {
   JobRun,
@@ -49,7 +50,6 @@ import { AccountDelivery } from "../src/server/accountDelivery";
 import { workspaceSyncRunner } from "../src/server/jobRunners";
 import { dispatchTick } from "../src/server/jobs";
 import { MessageSender } from "../src/server/senders";
-import { Transactor } from "../src/server/transactor";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { workspaceDirectoryLayer } from "../src/server/workspace";
 import { deliverPending } from "./support/deliveryLive";

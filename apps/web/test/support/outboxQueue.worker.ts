@@ -6,7 +6,8 @@
  * retries, the attempt count and the dead-letter route are the runtime's.
  */
 import type { MessageBatch, Queue } from "@cloudflare/workers-types";
-import { DatabaseLive, OutboxDelivery } from "@vektorprogrammet/db";
+import { DatabaseLive } from "@vektorprogrammet/db";
+import { OutboxDelivery } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Context,

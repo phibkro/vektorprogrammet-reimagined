@@ -8,6 +8,11 @@ import shadcn from "ultracite/oxlint/shadcn";
 import { defineConfig } from "vite-plus";
 
 import { diagnosticRules } from "./tools/quality/diagnosticRules.ts";
+import {
+  boundaryOverrides,
+  restrictedImportPatterns,
+  siblingAdapterPattern,
+} from "./tools/quality/storeBoundary.ts";
 
 export const tsgoRules = diagnosticRules.lint;
 
@@ -72,7 +77,6 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/server/accountDelivery.ts",
         "apps/web/src/server/contact.ts",
         "apps/web/src/server/personalData.ts",
-        "apps/web/src/server/transactor.ts",
         "apps/web/src/server/scope.ts",
         "apps/web/src/server/deployment.ts",
         "apps/web/src/server/env.ts",
@@ -309,6 +313,22 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     overrides: [
       ...effectConfigResult.overrides,
+      // A package beside `packages/db` reaches the adapter as `../../db/…` (spec 0017); `boundaryOverrides` below
+      // replace this for the files that an allowance covers, `packages/db/**` among them.
+      {
+        files: ["packages/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: restrictedImportPatterns(
+                [],
+                [...restrictedSourcePatterns, siblingAdapterPattern]
+              ),
+            },
+          ],
+        },
+      },
       {
         files: ["packages/domain/**"],
         rules: {
@@ -317,20 +337,22 @@ export default defineConfig({
             {
               patterns: [
                 {
-                  group: [
-                    "@vektorprogrammet/db",
-                    "@vektorprogrammet/db/*",
-                    "apps/*",
-                  ],
+                  group: ["apps/*"],
                   message:
-                    "The domain is pure and must not depend on the database or application layer.",
+                    "The domain is pure and must not depend on the application layer.",
                 },
-                ...restrictedSourcePatterns,
+                ...restrictedImportPatterns(
+                  [],
+                  [...restrictedSourcePatterns, siblingAdapterPattern]
+                ),
               ],
             },
           ],
         },
       },
+      // Where `@vektorprogrammet/db` and the database engine packages may be imported (spec 0017). Each allowance is
+      // one override, because a later override replaces this rule's options instead of adding to them.
+      ...boundaryOverrides(restrictedSourcePatterns),
       {
         // The domain's Effect Schema declarations intentionally export both a runtime value and a same-named type (TypeScript itself rejects every other redeclaration).
         files: [
@@ -382,9 +404,10 @@ export default defineConfig({
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
-          "tools/import/src/target.ts",
+          "packages/domain/src/organisation/legacyImport.ts",
           "tools/import/src/report.ts",
           "tools/quality/checkEffectExceptions.ts",
+          "tools/quality/checkStoreBoundary.ts",
           "tools/db-path-spike/src/worker.ts",
           "tools/db-path-spike/src/worker/checks.ts",
           "tools/db-path-spike/src/worker/http.ts",
@@ -489,7 +512,7 @@ export default defineConfig({
         files: [
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
-          "tools/import/src/target.ts",
+          "packages/domain/src/organisation/legacyImport.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
@@ -584,6 +607,9 @@ export default defineConfig({
           "apps/web/test/contact.test.ts",
           // EX-0028: the delivery test calls the Promise-based command runtime.
           "apps/web/test/deliveryBoundary.postgres.test.ts",
+          // EX-0028 (spec 0017): the scope test calls the Promise-based runners, and its stand-in rate-limit binding answers a Promise.
+          "apps/web/test/deliveryScope.postgres.test.ts",
+          "apps/web/test/support/workerEnv.ts",
           "apps/web/test/outboxQueue.postgres.test.ts",
           "apps/web/test/support/commandOutcome.ts",
           "apps/web/test/support/fakeQueue.ts",
@@ -691,7 +717,7 @@ export default defineConfig({
       ],
       "no-restricted-imports": [
         "error",
-        { patterns: restrictedSourcePatterns },
+        { patterns: restrictedImportPatterns([], restrictedSourcePatterns) },
       ],
       // Workspace modules consistently use lower camelCase filenames.
       "unicorn/filename-case": ["error", { case: "camelCase" }],

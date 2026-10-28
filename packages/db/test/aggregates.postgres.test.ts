@@ -30,7 +30,8 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { Aggregates } from "../src/aggregate/aggregates.ts";
 import { Person } from "../src/aggregate/declaration.ts";
-import { schema, transactional } from "../src/index.ts";
+import { transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { activateAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
 import {

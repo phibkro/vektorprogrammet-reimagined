@@ -23,6 +23,19 @@ export const runInTransaction = <A, E, R>(program: Effect.Effect<A, E, R>) =>
 - Authorization (`Domain.handle`) runs inside the transaction.
 - No provider I/O (R2, mail, Slack, Turnstile) inside a transaction.
 
+## Store ports (spec 0017, ADR 0014 stage 1)
+
+A port is a service the domain declares and a store implements; `packages/db` holds the PostgreSQL adapters, and no module outside a composition root imports them (`bun run check:store-boundary`). Each port's file states the guarantee that its adapter must keep.
+
+| Port | File | What it lets the caller do |
+| --- | --- | --- |
+| `Transactor` | `shared/transactor.ts` | `run(program)`: the program is one transaction and gets `InTransaction`; a typed failure, a defect or an interruption rolls it back. |
+| `OutboxDelivery` | `outbox/delivery.ts` | Claim one outbox row by id, record the outcome with the claim token, mark dead, record the queue's receipt, list stale rows. |
+| `CapturedMessageStore` | `outbox/captured.ts` | Keep a non-production message once per delivery key. |
+| `SessionDirectory` | `accounts/sessionDirectory.ts` | `byPerson`: a person's live sessions, each with its last seen (`SessionActivity`). |
+| `SignInDirectory` | `accounts/signInDirectory.ts` | The four reads that Better Auth's callbacks need of a person: the person of a user, the identity behind an address, the sign-in address, the profile to create a user from. |
+| `ImportTarget` | `organisation/legacyImport.ts` | The legacy import's one transaction over `TargetTable`s. |
+
 ## Aggregate locks (spec 0006b)
 
 A person's own rows (memberships, admin places, the account and its codes) are written only by a transaction that holds the person's row lock. `shared/aggregate.ts` declares the contract; `packages/db` makes the tokens and checks them.
