@@ -13,7 +13,7 @@ These points are binding for this ADR.
 - **The monorepo stays.** All pieces version together. There are no per-service package versions.
 - **A piece moves to its own repository only when it has a different owner, release cadence, consumers or access boundary.** The repository pins it by commit. Today only effx qualifies, and it is already separate.
 - **What we want is good module boundaries and an enforced dependency graph.** We do not want more repositories or more packages for their own sake.
-- **Taxonomy.** A **library** has no runtime and no authority. A **service** declares commands, ports and rules, and depends on libraries. A **platform** implements the services: adapters, Workers, the CMS app. An **integration** is a platform piece whose dependency is the runtime of an external system, not only external code or a declaration.
+- **Taxonomy.** A **library** has no runtime and no authority. A **service** declares commands, ports and rules, and depends on libraries. A **platform** is what our code runs on and stores its records in. An **integration** is another system, with its own state and rules, that we adapt to (section 10 has the definition and four rules).
 - **Proposed groupings.**
   - Libraries: kernel (its generic part goes to effx), transactions (`Transactor`, `InTransaction`), the outbox pattern, the personal-data annotation vocabulary, `cms-client`, docgen, the Oxlint rules.
   - Services: IAM (accounts, codes, sessions, grants), Organisation lifecycle (semesters, departments, admission, fields of study), Membership and teams (IAM depends on it, not the reverse), Content, Files, Contact, Audit (the legal record, not observability), Privacy (export, erasure, retention, record of processing).
@@ -135,8 +135,8 @@ Order: **libraries < services < platform ≈ integrations.** Platform and integr
 
 - A **library** has no runtime and no authority. It imports `effect` and other libraries it declares.
 - A **service** declares commands, ports and rules for one part of the organisation's work.
-- The **platform** implements the ports of services on Cloudflare and Neon/PostgreSQL: the database adapters, the Workers, the R2 and Queue bindings.
-- An **integration** is a platform piece whose dependency is the runtime of an external system: a mail provider, Slack, Turnstile's verify call, Google Workspace. External code alone (Better Auth as a library, `sanitize-html`) does not make an integration.
+- The **platform** is what our code runs on and stores its records in: Workers, Neon/PostgreSQL through Hyperdrive, Queues and R2. It holds our records of truth and can take part in our transaction. It implements the ports of the services.
+- An **integration** is another system with its own state and rules that we adapt to: Google Workspace, Slack, the mail provider, Turnstile, EmDash's API, Better Auth and its Infrastructure. It is always outside our transaction, reached after commit, at least once, and idempotent. Section 10 has the rules of this category.
 
 Inside the service category the domain has two sub-rungs of composition. They order services among themselves, so the headline order stays three-way.
 
@@ -252,7 +252,7 @@ Where today's code sits. "Port declared in" says where the port that the piece i
 | Background Worker (scheduled and queue) | app, composing platform | the same Worker: `jobRunners`, `jobs`, `outboxQueue`, `outboxSweep`, `outboxDelivery`, `retentionMode` |  | needs the job database role, `OUTBOX_QUEUE`, `SEND_EMAIL`, `MAIL_FROM`, `SLACK_WEBHOOK_URL`; Workspace credentials are not provisioned yet (spec 0008) |
 | Shared composition | app | `server/runtime.ts`, `scope.ts`, `env.ts`, `deployment.ts` |  | one `WorkerEnv` holds both Workers' credentials; `runtime.ts` builds the request, tick and queue scopes |
 | Triggers | service (domain side), platform (runtime side) | `jobs/*`, `outbox/*` in the domain; `jobRunners.ts`, `outboxQueue.ts` in `apps/web` | `triggers` | each service declares its own jobs; the registry is a catalog |
-| Authentication | platform | Better Auth 1.7.14 in `apps/web/src/server/auth.ts`, `password.ts`, `authError.ts`, `authStartup.ts`; its own `pg` pool on Hyperdrive; four `auth_*` tables | `iam` (`AccountRepository`, `SignInDirectory`, `SessionDirectory`) | external code in our runtime, so platform and not an integration (ADR 0014, answer 4) |
+| Authentication | integration (edge case) | Better Auth 1.7.14 in `apps/web/src/server/auth.ts`, `password.ts`, `authError.ts`, `authStartup.ts`; its own `pg` pool on Hyperdrive; four `auth_*` tables | `iam` (`AccountRepository`, `SignInDirectory`, `SessionDirectory`) | it runs in our Worker and stores in our database, but it has its own state and rules and writes outside the domain transaction, so it is an integration (section 10; ADR 0014, answer 4) |
 | Better Auth Infrastructure | integration, if adopted | not used | none yet | a paid managed add-on of Better Auth: [dashboard, audit logs, security](https://better-auth.com/docs/infrastructure/introduction), [email](https://better-auth.com/docs/infrastructure/services/email), [SMS](https://better-auth.com/docs/infrastructure/services/sms); [pricing](https://better-auth.com/pricing). **Not evaluated in this ADR.** Follow-up: research Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail) |
 | Mail, Slack | integration | `server/senders.ts` | **`apps/web`** (`MessageSender`) | port in the platform: moves to `triggers`; the file imports `./env` and `./deployment` of the app |
 | Turnstile | integration | `server/turnstile.ts` | **`apps/web`** (`TurnstileVerifier`) | port in the platform: moves to `contact` |
@@ -329,6 +329,25 @@ Whether each leaf directory is also a workspace package is the promotion questio
 | `tools/import` | A runtime program that sits in `tools/` | Moves to `apps/import`, with its MySQL and EmDash adapters as integrations (stage 5) |
 | `server/senders.ts` imports `./env`, `./deployment` | An integration that imports the app's composition types | Pass the configuration values in; stage 5 |
 
+### 10. What an integration is, and four rules
+
+**Platform** is what our code runs on and stores its records in: Workers, Neon/PostgreSQL through Hyperdrive, Queues, R2. It holds our records of truth and may take part in our transaction.
+
+**Integration** is another system with its own state and rules that we adapt to: Google Workspace, Slack, the mail provider, Turnstile, EmDash's API, Better Auth and its Infrastructure. It is always outside our transaction. We reach it after commit, at least once, and the call is idempotent.
+
+Edge cases:
+
+- **Queues are platform.** A queue message carries only the id of our row, and the PostgreSQL row is the truth (spec 0008b).
+- **EmDash** is deployed on our platform (`apps/cms`), but talking to it is an integration (`packages/integrations/emdash`).
+- **Better Auth** runs in our Worker and stores in our database, but it has its own state and rules, and it writes outside the domain transaction (`AGENTS.md`). It is an integration.
+
+Rules of the category:
+
+1. **No integration call inside a transaction.** An integration port carries a marker, and `Transactor.run` rejects a program whose requirements include one, so the call cannot run inside `InTransaction`. It is a type-level rule, and stage 1 enforces it next to the dependency check. It closes the item that spec 0018 leaves out of scope ("making 'no provider I/O inside a transaction' structural": on its branch the mode `Outside` records a convention and nothing checks it). Falsifier F11.
+2. **Every integration declares its non-production stand-in** (a capture sink or a fake). Only production uses the real provider. This generalises today's structural rule for mail and Slack. A new integration without a stand-in fails the check. Own small spec.
+3. **Every integration declares the personal data it receives**: the columns or classes that leave us, the processor and its hosting region. The record of processing generates the recipients per processor (GDPR Art. 30). Own small spec. The Better Auth Infrastructure follow-up feeds it.
+4. **Provider secrets live only in the background Worker.** The public `fetch` Worker may not depend on an integration that holds a provider secret (mail, Slack, SMS, Workspace). Own spec, scheduled before production gets real provider secrets. Today one Worker holds all of them (`SEND_EMAIL`, `MAIL_FROM`, `SLACK_WEBHOOK_URL`), and the web Worker also holds two per-request secrets, `BETTER_AUTH_SECRET` and `TURNSTILE_SECRET_KEY`. That spec must say whether per-request secrets of this kind stay in the web Worker.
+
 ## Enforcement options
 
 | Option | In the tree? | Sees module cycles | Sees layers | What I observed |
@@ -366,6 +385,7 @@ Each falsifier has a negative control: the same input without the fault passes. 
 | F8 | **Oracle.** For a fixture with a known cycle, the check and Oxlint `import/no-cycle` give the same verdict; for the real domain both say acyclic at file level | The same fixture without the cycle: both pass |
 | F9 | **The real tree.** The check run on `packages/domain/src` reports exactly the baselined edges. The baseline count is pinned in the test, so a stage that removes an edge must also lower the count | Adding one real import (a mutation of the in-memory map) raises the findings by one |
 | F10 | **The lint agrees.** After stage 4, a fixture file that Oxlint rejects for a restricted specifier is rejected by the check too, for the same specifier | A specifier that the declaration allows passes in both |
+| F11 | **No integration call inside a transaction.** A type test: a program that needs an integration port (for example `MessageSender`) and runs in a `Transactor` scope fails to compile | The same call after the scope has committed compiles |
 
 A control must fail every time without its mechanism. Prove each one by removing the rule and running the test five times, as `AGENTS.md` requires for locks.
 
@@ -377,6 +397,7 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 | --- | --- | --- | --- |
 | 0 | Operator accepts the ADR with the answers in "Resolutions". | Done: accepted 2026-10-28. | — |
 | 1 | Write `moduleGraph.ts` with modules as globs over the current layout, the check, its tests and the `ready` and CI hooks. Baseline: the 3 upward edges (`shared/outbox.ts:12`, `:13`, `workspace/commands.ts:26`) and the package leaks. Turn on `import/no-cycle` for `packages/**`. | F1 to F9 pass. The check reports exactly the baseline on the real tree. | M |
+| 1b | Rule 1 of section 10: mark the integration ports and make `Transactor.run` reject a program that requires one. Move the `MessageSender` and `TurnstileVerifier` ports into the domain first (stage 5 item), or mark them where they are. | F11 passes. | S |
 | 2 | `workspace` declares its own sync job. `jobs/registry.ts` imports it. | Baseline loses `workspace/commands.ts:26`. `registry.test.ts` passes (it checks that declaration, command, runner and document agree). | S |
 | 3 | Split `shared/outbox.ts` (own spec): the library keeps `Outbox` and the enqueue contract; each service declares its messages; `catalog` assembles the union that delivery decodes. | Baseline loses `outbox.ts:12` and `:13`. The directory graph is acyclic: the exception in rule 7 is removed. | M |
 | 4 | Make directory = module. `git mv` the files to `packages/{libs,services,platform,integrations}/…`, rename `accounts` and `teams`, split `packages/cms-client` (content model to `services/content`, generated client to `integrations/emdash`), rewrite imports with a codemod, one module per change; the count of moved files is measured then (38 files change directory even without the category tree). Then generate the `no-restricted-imports` overrides. | F10 passes. The imports of `index.ts` and the docgen change, and nothing else. | M to L |
@@ -385,6 +406,9 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 | 6 | Fold `storeBoundary.ts` into the declaration. | `check:store-boundary` and `check:module-graph` are one command with the same findings as before. | S |
 | 7 | Generate `docs/system/modules.md` (the diagram and the tables above) from the declaration, checked by `check:docs`. Break the `apps/web/src/server` type cycle at `env.ts`, then split the background Worker by credentials (own ADR). | `check:docs` fails when the declaration and the document differ. Each Worker's `WorkerEnv` lists only its own secrets. | M |
 | 8 | Move the generic part of `kernel` to effx when a second domain uses it (ADR 0009). | effx pins it by commit. | — |
+| 9 | Follow-up spec: every integration declares a non-production stand-in (rule 2). | A new integration without one fails the check. | S |
+| 10 | Follow-up spec: every integration declares the personal data it receives, with processor and region (rule 3); the record of processing lists recipients per processor. Research Better Auth Infrastructure here. | `check:docs` shows a recipient for each integration that receives personal data. | M |
+| 11 | Follow-up spec: provider secrets only in the background Worker (rule 4). Before production gets real provider secrets. | The `fetch` Worker's composition root imports no integration that holds a provider secret. | M |
 
 ## Considered options
 
@@ -416,8 +440,9 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 6. **Tools rule.** Accepted as proposed: a tool may import a package's public declarations and never an app; nothing imports a tool; tools never ship to a runtime. `tools/import` moves to `apps/` as an integration (stage 5). `tools/oxlint` → `packages/db` and `tools/db-path-spike` → `apps/web` are leaks to fix (stage 5).
 7. **Layout.** Category first: `packages/{libs,services,platform,integrations}/<boundary>`, with a subdirectory per service inside a platform. Boundary first stays recorded as the considered alternative; reopen it when separate owners exist per boundary.
 8. **The CMS client splits.** `collections.ts` and `portableText.ts` (the content model) go to `packages/services/content`. `generated.ts` and `client.ts` (the OpenAPI-generated HTTP client of a running EmDash) go to `packages/integrations/emdash`. Stage 4 does the split; a follow-up spec (stage 4b) adds the domain ports. Evidence is in section 8.
+9. **Integration is defined by rules.** Platform is what our code runs on and stores its records in. Integration is another system with its own state and rules, outside our transaction, reached after commit, at least once, idempotent. Four rules (section 10): no integration call inside a transaction (stage 1b); a declared non-production stand-in; declared personal data received; provider secrets only in the background Worker. Rules 2 to 4 are follow-up specs (stages 9 to 11).
 
-No question is open. Follow-up, not decided here: research Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail).
+No question is open. Follow-ups, not decided here: the specs of stages 4b, 9, 10 and 11, and research on Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail).
 
 ## Evidence limits
 

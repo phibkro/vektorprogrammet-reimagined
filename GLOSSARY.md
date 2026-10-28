@@ -178,6 +178,6 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Assembly**: The top of the domain: the list of all declarations, the public surface and the catalogs that only documents and tests read. _Avoid_: barrel, root
 
-**Platform**: What implements the ports of the services on Cloudflare and Neon/PostgreSQL: the database adapters, the Workers and their bindings. Nothing in the domain imports it. _Avoid_: infrastructure, backend
+**Platform**: What our code runs on and stores its records in: Workers, Neon/PostgreSQL through Hyperdrive, Queues and R2. It holds our records of truth and can take part in our transaction. It implements the ports of the services, and nothing in the domain imports it. _Avoid_: infrastructure, backend
 
-**Integration**: A platform piece whose dependency is the runtime of an outside system, for example a mail provider, Slack, Turnstile or Google Workspace. Code that runs inside our own runtime does not make an integration. _Avoid_: connector, plugin
+**Integration**: Another system with its own state and rules that we adapt to, for example Google Workspace, Slack, the mail provider, Turnstile, EmDash's API or Better Auth. It is always outside our transaction: we reach it after commit, at least once, with an idempotent call. Four rules apply: no call inside a transaction, a declared non-production stand-in, declared personal data received, and provider secrets only in the background Worker (ADR 0015). _Avoid_: connector, plugin, adapter (an adapter implements a port on the platform)
