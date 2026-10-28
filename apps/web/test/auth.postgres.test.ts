@@ -197,13 +197,70 @@ const refusedCommand = (exit: Exit.Exit<unknown, unknown>) =>
     Option.map((refusal) => refusal.command)
   );
 
+/** A `pg` pool on `url` that the scope closes. */
+const ownedPool = (url: Redacted.Redacted) =>
+  Effect.acquireRelease(
+    Effect.sync(() => new Pool({ connectionString: Redacted.value(url) })),
+    (owned) => Effect.promise(() => owned.end())
+  );
+
+/**
+ * Signs `typed` in through a Better Auth instance whose domain reads go through `run`, and returns whether that was
+ * admitted and everything the instance printed to the console meanwhile, with nested errors written out in full.
+ */
+const consoleOfSignIn = (typed: string, run: RunDomain) =>
+  Effect.gen(function* signInAndListen() {
+    const url = yield* AuthTablesDatabaseUrl;
+    const logged: string[] = [];
+
+    const record = (...parts: readonly unknown[]) => {
+      logged.push(
+        Arr.join(
+          Arr.map(parts, (part) => inspect(part, { depth: 12 })),
+          " "
+        )
+      );
+    };
+
+    yield* Effect.acquireRelease(
+      Effect.sync(() => {
+        const original = { error: console.error, warn: console.warn };
+
+        console.error = record;
+        console.warn = record;
+
+        return original;
+      }),
+      (original) =>
+        Effect.sync(() => {
+          console.error = original.error;
+          console.warn = original.warn;
+        })
+    );
+
+    const pool = yield* ownedPool(url);
+    const instance = makeAuth(pool, secret, origin, run);
+
+    const attempt = yield* Effect.exit(
+      Effect.tryPromise(() =>
+        instance.handler(signInRequest(typed, fixturePassword))
+      )
+    );
+
+    return {
+      admitted: Exit.isSuccess(attempt) && attempt.value.status === 200,
+      logged,
+    };
+  }).pipe(Effect.scoped);
+
 /**
  * The runner of Better Auth's Promise callbacks over the real ports, except for the read that `down` names: that one
  * counts the call in `reached` and dies, as every read does when the database is unreachable.
  */
 const domainRunner = (
   down?: "match" | "personOfUser" | "find",
-  reached?: Ref.Ref<number>
+  reached?: Ref.Ref<number>,
+  failure: Effect.Effect<never> = Effect.die("the store is down")
 ) =>
   Effect.gen(function* buildRunner() {
     const run = yield* FiberSet.makeRuntimePromise();
@@ -214,7 +271,7 @@ const domainRunner = (
       reached === undefined
         ? Effect.void
         : Ref.update(reached, (count) => count + 1),
-      Effect.die("the store is down")
+      failure
     );
 
     const broken = SignInDirectory.of({
@@ -239,13 +296,6 @@ const domainRunner = (
 
     return runner;
   });
-
-/** A `pg` pool on `url` that the scope closes. */
-const ownedPool = (url: Redacted.Redacted) =>
-  Effect.acquireRelease(
-    Effect.sync(() => new Pool({ connectionString: Redacted.value(url) })),
-    (owned) => Effect.promise(() => owned.end())
-  );
 
 const mutantAuth = (url: Redacted.Redacted) =>
   Effect.gen(function* buildMutant() {
@@ -986,6 +1036,45 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         }).pipe(Effect.scoped)
     );
   }
+
+  it.effect(
+    "a failed sign-in lookup refuses the visitor and leaves the address they typed out of what is logged",
+    () =>
+      Effect.gen(function* lookupFails() {
+        const sql = yield* SqlClient;
+        const typed = "typed.by.a.visitor@example.org";
+
+        // Control: a store whose failure carries the typed address (as a driver that reports its parameters would) is
+        // printed with it, so the check below reads a log that would show a leak.
+        const leaky = yield* consoleOfSignIn(
+          typed,
+          yield* domainRunner(
+            "match",
+            undefined,
+            Effect.die(new Error(`Failed query: params: ${typed}`))
+          )
+        );
+
+        assert.isFalse(leaky.admitted);
+        assert.isTrue(Arr.some(leaky.logged, (line) => line.includes(typed)));
+
+        // The lookup fails for real: the query names a column that is gone, and Drizzle reports the SQL it ran.
+        yield* Effect.acquireRelease(
+          sql`alter table person rename column company_email to company_email_gone`,
+          () =>
+            sql`alter table person rename column company_email_gone to company_email`.pipe(
+              Effect.orDie
+            )
+        );
+
+        const failed = yield* consoleOfSignIn(typed, yield* domainRunner());
+
+        assert.isFalse(failed.admitted);
+        // The failure was reported, so the assertion below reads a log that has the failure in it.
+        assert.isAbove(failed.logged.length, 0);
+        assert.isFalse(Arr.some(failed.logged, (line) => line.includes(typed)));
+      }).pipe(Effect.scoped)
+  );
 
   it.effect(
     "missing or short signing secrets fail closed before opening a deployed auth pool",
