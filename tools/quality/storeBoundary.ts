@@ -25,7 +25,7 @@ interface Restriction {
   readonly regexes: readonly string[];
 }
 
-export const restricted: Readonly<Record<Group, Restriction>> = {
+const restricted: Readonly<Record<Group, Restriction>> = {
   db: {
     message:
       "`@vektorprogrammet/db` is the PostgreSQL adapter: import the port from `@vektorprogrammet/domain`, and let a composition root provide the adapter's Layer (spec 0017).",
@@ -48,7 +48,7 @@ export const restricted: Readonly<Record<Group, Restriction>> = {
   },
 };
 
-export const groups: readonly Group[] = Rec.keys(restricted);
+const groups: readonly Group[] = Rec.keys(restricted);
 
 export interface Allowance {
   /** Paths from the repository root; `*` stops at a slash and `**` crosses slashes. */
