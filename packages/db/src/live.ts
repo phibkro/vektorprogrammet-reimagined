@@ -16,8 +16,9 @@
  *   (`TransactionNotLive`) unless that proof is the top of the connection's stack, the innermost level. The comparison
  *   is by reference: a copy is a forgery. The method then counts as in flight on that entry until it ends, on every
  *   exit, interruption included (the count is released by a finalizer).
- * - A nested level is admitted only while the entry around it has no method in flight, and the admission and the entry
- *   are one synchronous step.
+ * - A nested level is admitted only from the innermost live level: the caller's own level, the entry at the depth of
+ *   the caller's `[connection, depth]` pair, must be the one whose proof the caller holds, must be the top of the
+ *   connection's stack, and must have no method in flight. The admission and the entry are one synchronous step.
  *
  * Why (spec 0019 R14). One connection is one ordered conversation, so a nested level's `SAVEPOINT` lands between
  * whatever statements of the level around it are on the wire, and everything after it goes into the savepoint, which
@@ -27,7 +28,14 @@
  * level that is already under way (it has several statements) would have its later statements land in it: the nested
  * level is refused while the count is above zero, and no method of the outer level can start once the entry is there.
  * For any interleaving of a method of a level and a nested level on one connection, one of them dies as
- * `TransactionNotLive`, or both complete and every row is in the level that reported it.
+ * `TransactionNotLive`, or both complete and every row is in the level that reported it. A third thing is closed by the
+ * depth rule (round 4, R18): a fiber that outlives a nested level A holds A's pair, and without the rule it could open
+ * a level Cx from it, above which the outer level would then admit its next nested level B, whose savepoint would sit
+ * inside Cx's and whose reported success would be rolled back with Cx. With the rule A's pair no longer names the top of
+ * the stack, so Cx is refused. The same rule decides two nested levels asked for at once from one parent
+ * (`Effect.all([transactional(a), transactional(b)], { concurrency: 2 })`): the first is admitted, and the second is
+ * refused as `TransactionNotLive`, every time, because the first is then the top of the stack. Effect would have run them
+ * one after the other; a program that wants two savepoints in one level runs them in sequence.
  *
  * Identity of the fiber plays no part: the in-process RPC server runs every command handler on a fiber of its own, not
  * the one that opened the transaction. Methods of one level may run concurrently (several `enqueue` calls at once are
@@ -70,16 +78,40 @@ interface Entry {
 const stacks = new WeakMap<Connection, Entry[]>();
 
 /**
- * Puts the entry on the connection's stack, and says whether it did. A nested level is admitted only when there is a
- * level around it and no method of that level is running; a top level is always admitted. Check and push are one
+ * Puts a top-level entry on its connection's stack. The level has no connection until `BEGIN` has run, so there is
+ * nothing to check: a top level is always admitted.
+ */
+const enterTop = (connection: Connection, entry: Entry) =>
+  Effect.sync(() => {
+    stacks.set(connection, [...(stacks.get(connection) ?? []), entry]);
+
+    return true;
+  });
+
+/**
+ * Puts a nested entry on the connection's stack, and says whether it did. The caller's own level is the entry at the
+ * caller's `depth` (the `[connection, depth]` pair of the context the nested level is asked for in), and the nested level
+ * is admitted only when that entry is the one the caller holds the proof of (it is live, and it is the caller's), is the
+ * top of the stack (no level above it, whether live or begun) and has no method running. A fiber that outlives its level
+ * holds a pair whose entry is gone or is no longer the top, so it cannot open a level from it. Check and push are one
  * synchronous step, so no method can start between them.
  */
-const enter = (connection: Connection, entry: Entry, nested: boolean) =>
+const enterNested = (
+  connection: Connection,
+  entry: Entry,
+  depth: number,
+  held: Option.Option<Proof>
+) =>
   Effect.sync(() => {
     const stack = stacks.get(connection) ?? [];
-    const parent = stack.at(-1);
+    const caller = stack.at(depth);
 
-    if (nested && (parent === undefined || parent.active > 0)) {
+    if (
+      caller === undefined ||
+      stack.length !== depth + 1 ||
+      caller.active > 0 ||
+      !Option.exists(held, (proof) => proof === caller.proof)
+    ) {
       return false;
     }
 
@@ -105,22 +137,22 @@ const refusal = (method: string, why: string) =>
 
 /**
  * `program` with the entry on its connection's stack for as long as it runs, on every exit (the release is a finalizer).
- * A nested level that is not admitted dies without having been entered.
+ * A level that is not admitted dies without having been entered.
  */
 const holding = <A, E, R>(
   connection: Connection,
   entry: Entry,
-  nested: boolean,
+  enter: Effect.Effect<boolean>,
   program: Effect.Effect<A, E, R>
 ) =>
   Effect.acquireUseRelease(
-    enter(connection, entry, nested),
+    enter,
     (admitted) =>
       admitted
         ? program
         : refusal(
             "a nested transactional",
-            "it was asked for while a method of the level around it is running, or outside a live level"
+            "it was asked for while a method of its own level is running, from a level that is not the innermost live one, or outside a live level"
           ),
     (admitted) => (admitted ? leave(connection, entry) : Effect.void)
   );
@@ -153,14 +185,16 @@ export const liveLevel = <A, E, R>(
     };
 
     if (Option.isSome(outer)) {
-      const [connection] = outer.value;
+      const [connection, depth] = outer.value;
 
-      return holding(
-        connection,
-        entry,
-        true,
-        open((program) =>
-          Effect.provideService(program, InTransaction, entry.proof)
+      return Effect.flatMap(Effect.serviceOption(InTransaction), (held) =>
+        holding(
+          connection,
+          entry,
+          enterNested(connection, entry, depth, held),
+          open((program) =>
+            Effect.provideService(program, InTransaction, entry.proof)
+          )
         )
       );
     }
@@ -179,7 +213,7 @@ export const liveLevel = <A, E, R>(
             holding(
               connection,
               entry,
-              false,
+              enterTop(connection, entry),
               Effect.provideService(program, InTransaction, entry.proof)
             ),
         })

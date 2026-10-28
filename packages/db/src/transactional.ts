@@ -3,8 +3,8 @@
  * transaction's own, and `live.ts` has how an adapter checks it).
  *
  * Runs `self` in `SqlClient.withTransaction` (a savepoint when already inside
- * one) with that level's own `InTransaction` provided (`liveLevel`: a fresh proof for each level, owned by the fiber
- * that opened it, taken back when the level ends). A typed failure, a defect or an
+ * one) with that level's own `InTransaction` provided (`liveLevel`: a fresh proof for each level, on a stack of the
+ * levels of the connection, taken back when the level ends). A typed failure, a defect or an
  * interruption rolls back every row the program wrote: domain rows, the audit
  * row and the outbox rows. A failing BEGIN or COMMIT is an infrastructure
  * failure and therefore a defect.

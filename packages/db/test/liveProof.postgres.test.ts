@@ -56,6 +56,7 @@ import {
   Exit,
   Fiber,
   Layer,
+  Option,
   Order,
   Predicate,
   Record as Rec,
@@ -431,7 +432,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
   /**
    * Review round 2, probe C (gated): the fiber that opened the outer level opens a nested level, and a forked child of it
    * holds the outer proof and writes while that level is live. Its statement would go into the savepoint, which rolls
-   * back, and the child would be told it succeeded. The child is not the fiber of the innermost level, so it dies.
+   * back, and the child would be told it succeeded. The outer proof is not the innermost on the connection, so it dies.
    */
   const siblingBesideNestedLevel = Effect.gen(function* sibling() {
     const innerOpen = yield* Deferred.make<null>();
@@ -670,6 +671,241 @@ layer(postgresDatabase({ maxConnections: 4 }), {
   );
 
   /**
+   * Review round 4, probe E made deterministic. A slow statement of the outer level (not a method of a port, so it counts
+   * for nothing) is already on the connection, so a nested level's SAVEPOINT waits behind it for 300 ms and a sibling that
+   * starts in that time queues its INSERT behind the SAVEPOINT. The nested level is entered before its SAVEPOINT, so the
+   * sibling holds a proof that is no longer the innermost and dies; entered after it, the sibling would pass, its row
+   * would go into the savepoint and be rolled back while it was told it succeeded. No timing of fibers is left to chance.
+   */
+  it.effect(
+    "probe E, deterministic: a sibling that starts while a nested level's SAVEPOINT waits on the connection dies, or its row is kept",
+    () =>
+      Effect.gen(function* savepointOnTheWire() {
+        const sql = yield* SqlClient;
+        const before = yield* outboxRows;
+
+        const outer = yield* Effect.exit(
+          transactional(
+            Effect.gen(function* outerLevel() {
+              const slow = yield* Effect.forkChild(sql`select pg_sleep(0.3)`);
+              yield* Effect.sleep("40 millis");
+
+              const nested = yield* Effect.forkChild(
+                Effect.exit(
+                  transactional(
+                    Effect.andThen(
+                      Effect.sleep("20 millis"),
+                      Effect.fail("the nested level rolls back")
+                    )
+                  )
+                )
+              );
+
+              yield* Effect.sleep("40 millis");
+
+              const sibling = yield* Effect.exit(
+                enqueue("behind the SAVEPOINT")
+              );
+
+              yield* Fiber.join(slow);
+              yield* Fiber.join(nested);
+
+              return sibling;
+            })
+          )
+        );
+
+        const kept = (yield* outboxRows) - before;
+
+        assert.isTrue(
+          Exit.isSuccess(outer) &&
+            (Exit.isSuccess(outer.value)
+              ? kept === 1
+              : refused(outer.value) && kept === 0),
+          `${describeExit(outer)}, ${kept} rows kept`
+        );
+      }),
+    { timeout: 30_000 }
+  );
+
+  /**
+   * Review round 4, P3. A fiber that outlives a nested level A holds A's context, including its proof and its
+   * `[connection, 1]` pair. A nested level that it opens from there must be refused: A is gone, so its pair no longer names
+   * the top of the connection's stack. Admitted, the level (Cx) would sit on the stack, the outer level would admit its
+   * next nested level (B) above it, and B's row would be rolled back with Cx while B was told it succeeded.
+   */
+  type Fork = <A, E, R>(
+    scope: Scope.Scope,
+    program: Effect.Effect<A, E, R>
+  ) => Effect.Effect<Fiber.Fiber<A, E>, never, R>;
+
+  const FORKS = {
+    forkChild: (_scope, program) => Effect.forkChild(program),
+    forkIn: (scope, program) => Effect.forkIn(program, scope),
+  } satisfies Readonly<Record<string, Fork>>;
+
+  for (const [forkName, fork] of Rec.toEntries(FORKS)) {
+    it.effect(
+      `P3 (${forkName}): a fiber that outlives a nested level cannot open a level from its context, so the next nested level's row is kept`,
+      () =>
+        Effect.scoped(
+          Effect.gen(function* survivorOpensALevel() {
+            const scope = yield* Effect.scope;
+            const before = yield* outboxRows;
+            const start = yield* Deferred.make<null>();
+            const cxOpen = yield* Deferred.make<null>();
+            const bDone = yield* Deferred.make<null>();
+
+            const outer = yield* Effect.exit(
+              transactional(
+                Effect.gen(function* outerLevel() {
+                  const survivor = yield* transactional(
+                    fork(
+                      scope,
+                      Effect.andThen(
+                        Deferred.await(start),
+                        Effect.exit(
+                          transactional(
+                            Effect.andThen(
+                              Deferred.succeed(cxOpen, null),
+                              Effect.andThen(
+                                Deferred.await(bDone),
+                                Effect.fail("Cx rolls back")
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  );
+
+                  yield* Deferred.succeed(start, null);
+                  yield* Effect.timeoutOption(
+                    Deferred.await(cxOpen),
+                    "300 millis"
+                  );
+
+                  const b = yield* Effect.exit(transactional(enqueue("B")));
+                  yield* Deferred.succeed(bDone, null);
+
+                  return { b, cx: yield* Fiber.join(survivor) };
+                })
+              )
+            );
+
+            const kept = (yield* outboxRows) - before;
+
+            assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
+
+            if (Exit.isSuccess(outer)) {
+              // The loss itself, first: B reported success, so its row must be kept.
+              assert.isTrue(
+                Exit.isSuccess(outer.value.b),
+                describeExit(outer.value.b)
+              );
+              assert.strictEqual(
+                kept,
+                1,
+                "B reported success, so its row must be kept"
+              );
+              assertRefused(
+                outer.value.cx,
+                "the level opened from a dead level"
+              );
+            }
+          })
+        ),
+      { timeout: 30_000 }
+    );
+  }
+
+  it.effect(
+    "P8: a fiber that outlives a nested level that failed cannot open a level from its context: it is refused and writes nothing",
+    () =>
+      Effect.gen(function* survivorOfAFailedLevel() {
+        const before = yield* outboxRows;
+
+        const outer = yield* Effect.exit(
+          transactional(
+            Effect.gen(function* outerLevel() {
+              const gate = yield* Deferred.make<null>();
+
+              const survivor =
+                yield* Deferred.make<Fiber.Fiber<Exit.Exit<unknown>>>();
+
+              yield* Effect.exit(
+                transactional(
+                  Effect.gen(function* failingLevel() {
+                    const fiber = yield* Effect.forkChild(
+                      Effect.andThen(
+                        Deferred.await(gate),
+                        Effect.exit(transactional(enqueue("survivor")))
+                      )
+                    );
+
+                    yield* Deferred.succeed(survivor, fiber);
+
+                    return yield* Effect.fail("the nested level rolls back");
+                  })
+                )
+              );
+
+              yield* Deferred.succeed(gate, null);
+
+              return yield* Fiber.join(yield* Deferred.await(survivor));
+            })
+          )
+        );
+
+        assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
+
+        if (Exit.isSuccess(outer)) {
+          assertRefused(outer.value, "the survivor of a failed level");
+        }
+
+        assert.strictEqual(yield* outboxRows, before);
+      })
+  );
+
+  it.effect(
+    "two nested levels asked for at once from one parent: the second is refused as TransactionNotLive every time, and the first completes with its row (30 rounds)",
+    () =>
+      Effect.gen(function* twoAtOnce() {
+        for (const round of Arr.range(1, 30)) {
+          const before = yield* outboxRows;
+
+          const outer = yield* Effect.exit(
+            transactional(
+              Effect.all(
+                [
+                  Effect.exit(transactional(enqueue(`first ${round}`))),
+                  Effect.exit(transactional(enqueue(`second ${round}`))),
+                ],
+                { concurrency: 2 }
+              )
+            )
+          );
+
+          const kept = (yield* outboxRows) - before;
+
+          assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
+
+          if (Exit.isSuccess(outer)) {
+            const [first, second] = outer.value;
+
+            assert.isTrue(
+              Exit.isSuccess(first),
+              `round ${round}: first ${describeExit(first)}`
+            );
+            assertRefused(second, `round ${round}: the second of two at once`);
+            assert.strictEqual(kept, 1, `round ${round}`);
+          }
+        }
+      }),
+    { timeout: 60_000 }
+  );
+
+  /**
    * The invariant of spec 0019 R14: for every interleaving of a method of a level and a nested level on one connection,
    * one of them dies as `TransactionNotLive`, or both complete and every row is in the level that reported it. This
    * method has two statements with a gap between them, so a `SAVEPOINT` that lands in the gap would take the second
@@ -862,11 +1098,15 @@ layer(postgresDatabase({ maxConnections: 4 }), {
 
             yield* Effect.sleep("100 millis");
 
-            assertRefused(
-              yield* Effect.exit(
-                Effect.timeout(transactional(Effect.void), "5 seconds")
-              ),
-              "a nested level asked for while a method of the level around it is blocked in the database"
+            // A nested level that is not refused queues its SAVEPOINT behind the blocked method on the connection, so
+            // its answer is read from a fiber with a bound, never waited for: a mutant fails here instead of hanging.
+            const attempt = yield* Effect.forkChild(
+              Effect.exit(transactional(Effect.void))
+            );
+
+            const answer = yield* Effect.timeoutOption(
+              Fiber.join(attempt),
+              "2 seconds"
             );
 
             const interrupting = yield* Effect.forkChild(
@@ -876,9 +1116,15 @@ layer(postgresDatabase({ maxConnections: 4 }), {
             yield* Deferred.succeed(release, null);
             yield* Fiber.join(holder);
             yield* Fiber.join(interrupting);
+            yield* Fiber.interrupt(attempt);
 
             const nested = yield* Effect.exit(transactional(Effect.void));
             assert.isTrue(Exit.isSuccess(nested), describeExit(nested));
+
+            assert.isTrue(
+              Option.isSome(answer) && refused(answer.value),
+              `a nested level asked for while a method of the level around it is blocked in the database: ${Option.isSome(answer) ? describeExit(answer.value) : "not refused within 2 seconds"}`
+            );
           })
         );
       }),
