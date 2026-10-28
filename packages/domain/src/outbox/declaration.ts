@@ -1,12 +1,14 @@
 /**
  * What the outbox's system actor does (spec 0006 R1, spec 0008b): delivering the messages that commands enqueued is a
- * command of its own, and so are the two other things that actor does to rows. All three run as `System("outboxSweep")`
+ * command of its own, and so are the other things that actor does to rows. All four run as `System("outboxSweep")`
  * alone, through `authorize`, like every other command, and the handlers live in `apps/web`: they need the transports and
  * `packages/db`'s delivery side.
  *
  * - `deliverOutbox`: the Queue consumer (and the Worker Preview's direct path, which has no queue) delivers the rows that
  *   a message names, by id.
- * - `failOutbox`: the dead-letter queue's consumer marks a row failed (`dead`) once the queue has given up on it.
+ * - `failOutbox`: the dead-letter queue's consumer marks a row failed (`dead`) once the queue has given up on it, if a
+ *   delivery failure was recorded on it.
+ * - `recordOutboxFailure`: the consumer records that it could not even build its delivery stack, so the rows can end.
  * - `sweepOutbox`: the cron job finds the rows that no receipt covers any more and puts their ids back on the queue. It
  *   delivers nothing, and the command only finds them: the queue is infrastructure, not a domain write.
  */
@@ -116,9 +118,35 @@ export const failOutbox = Rpc.make("failOutbox", {
   info({
     job: "outboxSweep",
     method: ":fail",
-    note: "The dead-letter queue's consumer: a row that is still pending and unclaimed becomes `dead`; a delivered one is left alone.",
+    note: "The dead-letter queue's consumer: a row becomes `dead` only when it is pending, unclaimed and a delivery failure was recorded on it (`last_error`); a row that never failed stays pending for the sweep, and a delivered one is left alone.",
     resource: "OutboxMessage",
     summary: "Mark the rows that the queue gave up on as failed.",
+  })
+);
+
+/** The classes of failure that the consumer records on a row without having tried a provider. A class, never a message. */
+export const RecordedFailure = Schema.Literals(["delivery stack unavailable"]);
+
+export type RecordedFailure = typeof RecordedFailure.Type;
+
+export const recordOutboxFailure = Rpc.make("recordOutboxFailure", {
+  error: DomainErrorSchema,
+  payload: Schema.Struct({
+    failure: RecordedFailure,
+    messages: Schema.Array(
+      Schema.Struct({ attempts: Schema.Int, id: OutboxMessageId })
+    ),
+  }),
+  success: Schema.Array(OutboxMessageId),
+}).annotate(
+  Info,
+  info({
+    job: "outboxSweep",
+    method: ":record",
+    note: "The consumer could not build its delivery stack (a sender or auth binding is missing or refused): it records the class of that failure on the rows its messages name, each only while pending and unclaimed, and dates the next attempt by `DeliveryPolicy.retryDelay` for the message's delivery count. The dead-letter queue's consumer can then end them. It reads and writes nothing else, and no provider was tried.",
+    resource: "OutboxMessage",
+    summary:
+      "Record that a delivery could not start on the rows that the queue messages name.",
   })
 );
 
@@ -140,14 +168,19 @@ export const sweepOutbox = Rpc.make("sweepOutbox", {
   })
 );
 
-export const OutboxRpc = RpcGroup.make(sweepOutbox, deliverOutbox, failOutbox);
+export const OutboxRpc = RpcGroup.make(
+  sweepOutbox,
+  deliverOutbox,
+  failOutbox,
+  recordOutboxFailure
+);
 
 export const OutboxDomain = declareDomain({
   commands: OutboxRpc,
   grants: [
     grant(
       [system("outboxSweep")],
-      ["sweepOutbox", "deliverOutbox", "failOutbox"],
+      ["sweepOutbox", "deliverOutbox", "failOutbox", "recordOutboxFailure"],
       "all"
     ),
   ],

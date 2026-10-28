@@ -67,6 +67,7 @@ import {
   Match,
   Option,
   Order,
+  Predicate,
   Array as Arr,
   pipe,
   Schema,
@@ -99,13 +100,15 @@ export type ClaimedOutboxMessage = typeof ClaimedOutboxMessage.Type;
 export type OutboxAck = "recorded" | "claimLost";
 
 /**
- * What a claim on one row found: the row, claimed (`Claimed`); another claim that is still live (`Held`); or a row that
- * is not pending any more or does not exist (`Settled`).
+ * What a claim on one row found: the row, claimed (`Claimed`); the row, claimed, but its payload does not decode, so only
+ * the claim is handed back (`Undeliverable`); another claim that is still live (`Held`); or a row that is not pending
+ * any more or does not exist (`Settled`).
  */
 export const OutboxClaim = Schema.TaggedUnion({
   Claimed: { row: ClaimedOutboxMessage },
   Held: {},
   Settled: {},
+  Undeliverable: { attempts: Schema.Int, claimToken: OutboxClaimToken },
 });
 
 export type OutboxClaim = typeof OutboxClaim.Type;
@@ -146,6 +149,16 @@ export class OutboxDelivery extends Context.Service<
      * answers `held`; a delivered or dead row, `settled`.
      */
     readonly markDead: (id: OutboxMessageId) => Effect.Effect<OutboxEnding>;
+    /**
+     * Records a delivery failure that no provider produced (the consumer could not start): `error` is a class, and the next
+     * attempt is due at `next`. Only a pending row with no live claim is written; any other is `settled`. This is what
+     * lets the dead-letter ending take the row.
+     */
+    readonly recordFailure: (
+      id: OutboxMessageId,
+      error: string,
+      next: DateTime.Utc
+    ) => Effect.Effect<"recorded" | "settled">;
     /** The receipt of the queue: it accepted these ids now. Rows that are not pending are left as they are. */
     readonly markQueued: (
       ids: readonly OutboxMessageId[]
@@ -221,7 +234,7 @@ export const OutboxDeliveryLive = Layer.effect(
   OutboxDelivery,
   Effect.gen(function* OutboxDeliveryLive() {
     const db = yield* Drizzle;
-    const decodeClaimed = decodeWith(ClaimedOutboxMessage);
+    const decodeClaimed = Schema.decodeUnknownEffect(ClaimedOutboxMessage);
 
     /** Why a row could not be taken: it is pending (a live claim holds it, or one has just been released), or it is not. */
     const whyNot = Effect.fnUntraced(function* whyNot(id: OutboxMessageId) {
@@ -272,15 +285,29 @@ export const OutboxDeliveryLive = Layer.effect(
           : OutboxClaim.cases.Settled.make({});
       }
 
-      return OutboxClaim.cases.Claimed.make({
-        row: yield* decodeClaimed({
+      if (row.claimToken === null) {
+        return yield* Effect.die("a claim that was just taken has no token");
+      }
+
+      // A payload that no longer decodes (a schema changed without a migration) is a fact about this row, not a defect of
+      // the system: the claim is held and handed back as `Undeliverable`, so the caller records a class on the row and
+      // the row can end. The decode error is never kept or logged: it can print the payload's values.
+      const decoded = yield* Effect.result(
+        decodeClaimed({
           attempts: row.attempts,
           claimToken: row.claimToken,
           createdAt: DateTime.fromDateUnsafe(row.createdAt),
           id: String(row.id),
           message: row.payload,
-        }),
-      });
+        })
+      );
+
+      return Predicate.isTagged(decoded, "Success")
+        ? OutboxClaim.cases.Claimed.make({ row: decoded.success })
+        : OutboxClaim.cases.Undeliverable.make({
+            attempts: row.attempts,
+            claimToken: OutboxClaimToken.make(row.claimToken),
+          });
     });
 
     const release = Effect.fnUntraced(function* release(
@@ -375,6 +402,25 @@ export const OutboxDeliveryLive = Layer.effect(
         : ("settled" as const);
     });
 
+    const recordFailure = Effect.fn("OutboxDelivery.recordFailure")(
+      function* recordFailure(
+        id: OutboxMessageId,
+        error: string,
+        next: DateTime.Utc
+      ) {
+        const nowDate = DateTime.toDateUtc(yield* DateTime.now);
+
+        const rows = yield* db
+          .update(outbox)
+          .set({ lastError: error, nextAttemptAt: DateTime.toDateUtc(next) })
+          .where(takeable(id, nowDate))
+          .returning({ id: outbox.id })
+          .pipe(Effect.orDie);
+
+        return rows.length === 1 ? ("recorded" as const) : ("settled" as const);
+      }
+    );
+
     const markQueued = Effect.fn("OutboxDelivery.markQueued")(
       function* markQueued(ids: readonly OutboxMessageId[]) {
         if (ids.length === 0) {
@@ -431,6 +477,7 @@ export const OutboxDeliveryLive = Layer.effect(
       markDelivered,
       markFailed,
       markQueued,
+      recordFailure,
       stale,
     });
   })

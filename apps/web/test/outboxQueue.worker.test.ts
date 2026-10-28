@@ -1,12 +1,15 @@
 /**
  * Spec 0008b falsifier 4 in the real Queues runtime. Miniflare runs the Worker's consumer (`support/outboxQueue.worker.ts`:
- * the real `consumeDelivery` and `consumeEnding` over the real database) against real queues configured as `OUTBOX_CONSUMER` and
+ * the real `handleBatch` over the real database) against real queues configured as `OUTBOX_CONSUMER` and
  * `DEAD_LETTER_CONSUMER` say, so the attempt count, the retries and the route to the dead-letter queue are the runtime's:
  *
  * - a provider that fails 3 times and then answers: the row ends `delivered`, after four deliveries of one message;
  * - a provider that always fails: the row ends `failed` (`dead`) after the declared attempts, through the dead-letter queue;
  * - control: the same provider and queue without a dead-letter queue: the row is still pending after the declared attempts,
  *   so it is the dead-letter queue that ends it;
+ * - a defect after a successful claim (the sender dies), a payload that no longer decodes, and a delivery stack that cannot be
+ *   built (a sender binding is missing): each records a class on the row, so the row ends `dead` through the dead-letter
+ *   queue after the declared deliveries, without any call to a provider for the last two;
  * - falsifier 5 on real traffic: every body that the consumer saw is an outbox id.
  *
  * Miniflare is not Cloudflare's production: it is the same `workerd` and the same documented rules (`max_retries + 1`
@@ -146,7 +149,8 @@ const until = (
 
 /** One Miniflare with the consumer of both queues, a provider that fails its first `failFirst` calls, and a queue pair as given. */
 const runScenario = (options: {
-  readonly failFirst: number | "outage";
+  readonly failFirst: number | "defect" | "outage" | "senders";
+  readonly undecodablePayload?: boolean;
   readonly withDeadLetterQueue: boolean;
   readonly waitFor: (observed: Observed) => boolean;
 }) =>
@@ -159,6 +163,10 @@ const runScenario = (options: {
 
       if (id === undefined) {
         return yield* Effect.die("one message was enqueued");
+      }
+
+      if (options.undecodablePayload === true) {
+        yield* (yield* SqlClient)`update outbox set payload = jsonb_set(payload, '{to}', '"not an address"') where id = ${Number(id)}`;
       }
 
       const worker = yield* testWorker(
@@ -335,6 +343,74 @@ layer(live, { excludeTestServices: true })(
             "the row never failed at a provider: it is not ended, and the sweep puts it back"
           );
           assert.isNull(observed.lastError);
+        }),
+      { timeout: 90_000 }
+    );
+
+    it.effect(
+      "a sender that dies after every claim: the defect is recorded as the row's failure and the row ends dead through the dead-letter queue",
+      () =>
+        Effect.gen(function* poisonRow() {
+          const { observed } = yield* runScenario({
+            failFirst: "defect",
+            waitFor: (state) => state.status === "dead",
+            withDeadLetterQueue: true,
+          });
+
+          assert.strictEqual(observed.status, "dead");
+          assert.strictEqual(observed.lastError, "delivery defect");
+          assert.strictEqual(
+            observed.calls,
+            DECLARED_DELIVERIES,
+            "the sender was reached on every delivery"
+          );
+          assert.deepStrictEqual(
+            observed.deliveries,
+            EVERY_DELIVERY_THEN_THE_DEAD_LETTER_QUEUE
+          );
+        }),
+      { timeout: 90_000 }
+    );
+
+    it.effect(
+      "a payload that no longer decodes: the claim is handed back with a class and the row ends dead, with no provider call and no payload in the record",
+      () =>
+        Effect.gen(function* undecodable() {
+          const { observed } = yield* runScenario({
+            failFirst: 0,
+            undecodablePayload: true,
+            waitFor: (state) => state.status === "dead",
+            withDeadLetterQueue: true,
+          });
+
+          assert.strictEqual(observed.status, "dead");
+          assert.strictEqual(observed.lastError, "undecodable payload");
+          assert.strictEqual(observed.calls, 0);
+          assert.deepStrictEqual(
+            observed.deliveries,
+            EVERY_DELIVERY_THEN_THE_DEAD_LETTER_QUEUE
+          );
+        }),
+      { timeout: 90_000 }
+    );
+
+    it.effect(
+      "a delivery stack that cannot be built (a sender binding is missing): the class is recorded on the row without any claim, and the dead-letter queue ends it",
+      () =>
+        Effect.gen(function* noSenders() {
+          const { observed } = yield* runScenario({
+            failFirst: "senders",
+            waitFor: (state) => state.status === "dead",
+            withDeadLetterQueue: true,
+          });
+
+          assert.strictEqual(observed.status, "dead");
+          assert.strictEqual(observed.lastError, "delivery stack unavailable");
+          assert.strictEqual(observed.calls, 0, "no provider was reached");
+          assert.deepStrictEqual(
+            observed.deliveries,
+            EVERY_DELIVERY_THEN_THE_DEAD_LETTER_QUEUE
+          );
         }),
       { timeout: 90_000 }
     );

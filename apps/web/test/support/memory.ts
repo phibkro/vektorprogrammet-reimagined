@@ -464,6 +464,23 @@ const repositories = Layer.effectContext(
             }
           }
         }),
+      recordFailure: (id, error, next) =>
+        Effect.sync(() => {
+          const row = rowOf(id);
+
+          if (
+            row === undefined ||
+            row.status !== "pending" ||
+            row.claimToken !== null
+          ) {
+            return "settled" as const;
+          }
+
+          row.lastError = error;
+          row.nextAttemptAt = next;
+
+          return "recorded" as const;
+        }),
       stale: ({ before, limit }) =>
         Effect.sync(() =>
           Arr.take(

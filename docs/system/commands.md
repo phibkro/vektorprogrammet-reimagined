@@ -123,7 +123,8 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | --- | --- | --- | --- | --- |
 | `sweepOutbox` | `:sweep` | outbox | Find the pending outbox rows that no queue message covers any more. Names at most `limit` pending rows without a fresh receipt (older than `DeliveryPolicy.requeueAfter`) and no live claim: the job puts their ids on the queue again. It changes and delivers nothing: the queue's consumer delivers. | System(outboxSweep) |
 | `deliverOutbox` | `:deliver` | outbox | Deliver the mail, Slack and credential intents that a queue message names. Claims the rows the queue message names, each only while it is pending and no live claim holds it; code mail is minted and acknowledged in its delivery transaction (spec 0007 R1). | System(outboxSweep) |
-| `failOutbox` | `:fail` | outbox | Mark the rows that the queue gave up on as failed. The dead-letter queue's consumer: a row that is still pending and unclaimed becomes `dead`; a delivered one is left alone. | System(outboxSweep) |
+| `failOutbox` | `:fail` | outbox | Mark the rows that the queue gave up on as failed. The dead-letter queue's consumer: a row becomes `dead` only when it is pending, unclaimed and a delivery failure was recorded on it (`last_error`); a row that never failed stays pending for the sweep, and a delivered one is left alone. | System(outboxSweep) |
+| `recordOutboxFailure` | `:record` | outbox | Record that a delivery could not start on the rows that the queue messages name. The consumer could not build its delivery stack (a sender or auth binding is missing or refused): it records the class of that failure on the rows its messages name, each only while pending and unclaimed, and dates the next attempt by `DeliveryPolicy.retryDelay` for the message's delivery count. The dead-letter queue's consumer can then end them. It reads and writes nothing else, and no provider was tried. | System(outboxSweep) |
 
 ### SupportTicket
 

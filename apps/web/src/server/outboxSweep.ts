@@ -14,14 +14,17 @@ import { Commands, OutboxSweep } from "@vektorprogrammet/domain";
 import { DateTime, Effect } from "effect";
 import { RpcGroup } from "effect/rpc";
 
-import { deliverOutbox, failOutbox } from "./outboxDelivery";
+import { RetryDelay, deliverOutbox, failOutbox } from "./outboxDelivery";
 
 const DeliveryRpc = RpcGroup.make(
   OutboxSweep.sweepOutbox,
   OutboxSweep.deliverOutbox
 );
 
-const EndingRpc = RpcGroup.make(OutboxSweep.failOutbox);
+const EndingRpc = RpcGroup.make(
+  OutboxSweep.failOutbox,
+  OutboxSweep.recordOutboxFailure
+);
 
 const DeliveryHandlers = DeliveryRpc.toLayer({
   deliverOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.deliverOutbox, {
@@ -53,10 +56,35 @@ const EndingHandlers = EndingRpc.toLayer({
     resource: () => Effect.succeed({}),
     run: ({ ids }) => failOutbox(ids),
   }),
+  recordOutboxFailure: OutboxSweep.OutboxDomain.handle(
+    OutboxSweep.recordOutboxFailure,
+    {
+      resource: () => Effect.succeed({}),
+      run: ({ failure, messages }) =>
+        Effect.gen(function* recordFailures() {
+          const delivery = yield* OutboxDelivery;
+          const now = yield* DateTime.now;
+          const delays = yield* RetryDelay;
+
+          const recorded = yield* Effect.forEach(messages, (message) =>
+            Effect.map(
+              delivery.recordFailure(
+                message.id,
+                failure,
+                DateTime.addDuration(now, delays(message.attempts))
+              ),
+              (outcome) => (outcome === "recorded" ? [message.id] : [])
+            )
+          );
+
+          return recorded.flat();
+        }),
+    }
+  ),
 });
 
 /** Deliver and sweep, behind the in-process client; see `Commands.inProcess`. */
 export const withOutbox = Commands.inProcess(DeliveryRpc, DeliveryHandlers);
 
-/** The dead-letter ending, behind its own in-process client. */
+/** The dead-letter ending and the record of a delivery that could not start, behind their own in-process client. */
 export const withEnding = Commands.inProcess(EndingRpc, EndingHandlers);

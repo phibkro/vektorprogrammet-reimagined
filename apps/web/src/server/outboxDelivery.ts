@@ -8,13 +8,24 @@
  * dead-letter queue ends the row (`failOutbox`).
  */
 import { OutboxDelivery } from "@vektorprogrammet/db";
-import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
+import type {
+  ClaimedOutboxMessage,
+  OutboxClaimToken,
+} from "@vektorprogrammet/db";
 import { OutboxSweep, WorkspaceWriter } from "@vektorprogrammet/domain";
 import type { OutboxMessageId } from "@vektorprogrammet/domain";
-import { Context, DateTime, Duration, Effect, Match, Predicate } from "effect";
+import {
+  Cause,
+  Context,
+  DateTime,
+  Duration,
+  Effect,
+  Match,
+  Predicate,
+} from "effect";
 
 import { AccountDelivery } from "./accountDelivery";
-import { MessageSender } from "./senders";
+import { DeliveryFailed, MessageSender } from "./senders";
 
 /**
  * The delay before the retry that follows the `attempts`-th failed delivery: the policy's (`OutboxSweep.retryDelay`)
@@ -57,31 +68,41 @@ const deliverClaim = Effect.fnUntraced(function* deliverClaim(
   return yield* delivery.markDelivered(row.id, row.claimToken);
 });
 
-/** The claimed row, delivered: sent and recorded, or failed with the class of the failure and the policy's delay. */
-const deliverClaimed = Effect.fnUntraced(function* deliverClaimed(
-  row: ClaimedOutboxMessage
+/** What delivery needs: the database, the transports, the account flows and the Workspace writer. */
+export type DeliveryServices =
+  | OutboxDelivery
+  | AccountDelivery
+  | MessageSender
+  | WorkspaceWriter;
+
+/** A claim that is held: enough to hand it back. */
+interface HeldClaim {
+  readonly attempts: number;
+  readonly claimToken: OutboxClaimToken;
+  readonly id: OutboxMessageId;
+}
+
+/**
+ * Hands a held claim back as a failure: the class of the failure (never a message) goes on the row, the next attempt is
+ * dated by the policy's delay for the row's attempts, and the answer is `Retrying`. A row that has failed this way
+ * after every claim can end: the dead-letter ending needs a recorded failure.
+ */
+const failClaim = Effect.fnUntraced(function* failClaim(
+  held: HeldClaim,
+  reason: string
 ) {
-  const { id } = row;
-  const delivery = yield* OutboxDelivery;
-  const result = yield* Effect.result(deliverClaim(row));
+  const { id } = held;
+  const wait = (yield* RetryDelay)(held.attempts);
 
-  if (Predicate.isTagged(result, "Success")) {
-    return result.success === "recorded"
-      ? OutboxSweep.DeliveryResult.cases.Delivered.make({ id })
-      : OutboxSweep.DeliveryResult.cases.Settled.make({ id });
-  }
-
-  const wait = (yield* RetryDelay)(row.attempts);
-
-  const ack = yield* delivery.markFailed(
-    row.id,
-    row.claimToken,
-    result.failure.reason,
+  const ack = yield* (yield* OutboxDelivery).markFailed(
+    id,
+    held.claimToken,
+    reason,
     DateTime.addDuration(yield* DateTime.now, wait)
   );
 
   yield* Effect.logWarning("outbox delivery failed").pipe(
-    Effect.annotateLogs({ attempts: row.attempts, outboxId: row.id })
+    Effect.annotateLogs({ attempts: held.attempts, outboxId: id, reason })
   );
 
   return ack === "claimLost"
@@ -90,6 +111,52 @@ const deliverClaimed = Effect.fnUntraced(function* deliverClaimed(
         afterSeconds: Math.ceil(Duration.toSeconds(wait)),
         id,
       });
+});
+
+/**
+ * The class of a defect, for a log: its tag, or "defect". Never its text: a decode error prints the values it refused,
+ * which are addresses.
+ */
+export const defectClass = (cause: Cause.Cause<unknown>): string => {
+  const defect = Cause.squash(cause);
+
+  return Predicate.hasProperty(defect, "_tag") ? String(defect._tag) : "defect";
+};
+
+/**
+ * The claimed row, delivered: sent and recorded, or failed with a class and the policy's delay. A defect after a
+ * successful claim (a handler or a sender that dies) is a failure of this row, not an outage: the claim proves the
+ * database is reachable, so it is recorded as \`delivery defect\` and the row can end after the declared attempts. A
+ * defect of the claim itself records nothing: that is an outage, and the row stays pending.
+ */
+const deliverClaimed = Effect.fnUntraced(function* deliverClaimed(
+  row: ClaimedOutboxMessage
+) {
+  const { id } = row;
+
+  const result = yield* Effect.result(
+    deliverClaim(row).pipe(
+      Effect.catchDefect((defect) =>
+        Effect.andThen(
+          Effect.logError("outbox delivery died").pipe(
+            Effect.annotateLogs({
+              class: defectClass(Cause.die(defect)),
+              outboxId: id,
+            })
+          ),
+          Effect.fail(new DeliveryFailed({ reason: "delivery defect" }))
+        )
+      )
+    )
+  );
+
+  if (Predicate.isTagged(result, "Success")) {
+    return result.success === "recorded"
+      ? OutboxSweep.DeliveryResult.cases.Delivered.make({ id })
+      : OutboxSweep.DeliveryResult.cases.Settled.make({ id });
+  }
+
+  return yield* failClaim(row, result.failure.reason);
 });
 
 const deliverOne = Effect.fnUntraced(function* deliverOne(id: OutboxMessageId) {
@@ -107,6 +174,8 @@ const deliverOne = Effect.fnUntraced(function* deliverOne(id: OutboxMessageId) {
         ),
       Settled: () =>
         Effect.succeed(OutboxSweep.DeliveryResult.cases.Settled.make({ id })),
+      Undeliverable: (held) =>
+        failClaim({ ...held, id }, "undecodable payload"),
     })
   );
 });

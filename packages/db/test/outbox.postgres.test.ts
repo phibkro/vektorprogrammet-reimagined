@@ -291,6 +291,93 @@ layer(postgresDatabase(), { excludeTestServices: true })(
       );
 
       layerTest.effect(
+        "a payload that no longer decodes is handed back as undeliverable with its claim, and recording a class on it lets the dead-letter queue end it; recording on a held or settled row does nothing",
+        () =>
+          Effect.gen(function* undeliverable() {
+            yield* atStart;
+            const { delivery, sql } = yield* services;
+            const broken = yield* one("broken");
+            const unstarted = yield* one("unstarted");
+            const held = yield* one("held");
+            const next = DateTime.add(AT, { minutes: 5 });
+
+            yield* sql`update outbox set payload = jsonb_set(payload, '{text}', '42') where id = ${Number(broken)}`;
+
+            const claim = yield* delivery.claim(broken, 30);
+
+            if (!Predicate.isTagged(claim, "Undeliverable")) {
+              assert.fail(
+                `expected an undeliverable payload, found ${claim._tag}`
+              );
+            }
+
+            assert.strictEqual(claim.attempts, 1);
+
+            assert.strictEqual(
+              yield* delivery.markFailed(
+                broken,
+                claim.claimToken,
+                "undecodable payload",
+                next
+              ),
+              "recorded",
+              "the claim that was taken is released by the failure, with a class and a date"
+            );
+
+            assert.strictEqual(yield* delivery.markDead(broken), "failed");
+
+            assert.strictEqual(
+              yield* delivery.markDead(unstarted),
+              "settled",
+              "the control: a row that nothing recorded on is not ended"
+            );
+            assert.strictEqual(
+              yield* delivery.recordFailure(
+                unstarted,
+                "delivery stack unavailable",
+                next
+              ),
+              "recorded"
+            );
+            assert.strictEqual(yield* delivery.markDead(unstarted), "failed");
+
+            yield* claimOrFail(held, 30);
+            assert.strictEqual(
+              yield* delivery.recordFailure(
+                held,
+                "delivery stack unavailable",
+                next
+              ),
+              "settled",
+              "a live claim is not written over"
+            );
+            assert.strictEqual(
+              yield* delivery.recordFailure(
+                unstarted,
+                "delivery stack unavailable",
+                next
+              ),
+              "settled",
+              "a row that has ended is not written over"
+            );
+
+            const rows = yield* sql<{
+              readonly last_error: string | null;
+              readonly status: string;
+            }>`select status, last_error from outbox where id in (${Number(broken)}, ${Number(unstarted)}, ${Number(held)}) order by id`;
+
+            assert.deepStrictEqual(
+              Arr.map(rows, (row) => [row.status, row.last_error]),
+              [
+                ["dead", "undecodable payload"],
+                ["dead", "delivery stack unavailable"],
+                ["pending", null],
+              ]
+            );
+          })
+      );
+
+      layerTest.effect(
         "a row that ends or is delivered keeps no credential hash",
         () =>
           Effect.gen(function* effectProgram() {

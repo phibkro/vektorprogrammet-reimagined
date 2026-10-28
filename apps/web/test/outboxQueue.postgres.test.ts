@@ -19,7 +19,7 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, layer } from "@effect/vitest";
-import { CapturedMessageStore } from "@vektorprogrammet/db";
+import { CapturedMessageStore, OutboxDelivery } from "@vektorprogrammet/db";
 import { TestDatabaseUrl } from "@vektorprogrammet/db/testing";
 import {
   AccountEndpoints,
@@ -35,6 +35,7 @@ import {
   Array as Arr,
   Cause,
   Clock,
+  DateTime,
   Effect,
   Exit,
   Layer,
@@ -167,13 +168,18 @@ const freshRun = Effect.gen(function* freshRun() {
 });
 
 /** A batch of one message that writes its answers (`ack` or `retry`) to `answers`. */
-const answeringBatch = (id: string, queue: string, answers: string[]) => ({
+const answeringBatch = (
+  id: string,
+  queue: string,
+  answers: string[],
+  attempts = 1
+) => ({
   messages: [
     {
       ack: () => {
         answers.push("ack");
       },
-      attempts: 1,
+      attempts,
       body: id,
       retry: () => {
         answers.push("retry");
@@ -518,13 +524,14 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
     );
 
     it.effect(
-      "the dead-letter consumer builds the database only: with the production senders unconfigured it still ends a failed row, while the delivery consumer cannot start",
+      "a delivery stack that cannot be built (the production senders unconfigured): every delivery records the class on the row and retries, the sweep stops listing it, and the dead-letter consumer, which builds the database only, ends it",
       () =>
-        Effect.gen(function* endingNeedsOnlyTheDatabase() {
+        Effect.gen(function* unbuildableStack() {
           yield* reset;
 
           const sql = yield* SqlClient;
           const url = yield* TestDatabaseUrl;
+          const outbox = yield* OutboxDelivery;
 
           const outcome = yield* requestOutcome(url, false);
 
@@ -532,32 +539,69 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
             ? Option.getOrThrow(Arr.head(outcome.value.enqueued))
             : yield* Effect.die("the command enqueued one message");
 
-          yield* sql`update outbox set last_error = 'send_email rejected' where id = ${Number(id)}`;
+          yield* sql`update outbox set created_at = now() - interval '30 minutes', next_attempt_at = now() - interval '30 minutes', queued_at = null where id = ${Number(id)}`;
 
-          /** Production, with none of its sender bindings: the senders refuse to build. */
+          const staleIds = Effect.gen(function* listStale() {
+            const now = yield* DateTime.now;
+
+            return yield* outbox.stale({
+              before: DateTime.subtract(now, { minutes: 10 }),
+              limit: 10,
+            });
+          });
+
+          assert.deepStrictEqual(
+            yield* staleIds,
+            [id],
+            "the control: before any delivery the sweep lists the row"
+          );
+
           const unconfigured = envFor(url, undefined, "production");
           const answers: string[] = [];
 
-          const batch = (queueName: string) =>
-            answeringBatch(id, queueName, answers);
+          yield* Effect.forEach(
+            Arr.makeBy(
+              OutboxSweep.DeliveryPolicy.attempts,
+              (index) => index + 1
+            ),
+            (attempts) =>
+              Effect.promise(() =>
+                runQueue(
+                  unconfigured,
+                  answeringBatch(id, "vp-outbox-test", answers, attempts)
+                )
+              ),
+            { discard: true }
+          );
 
-          const delivering = yield* Effect.exit(
-            Effect.promise(() =>
-              runQueue(unconfigured, batch("vp-outbox-test"))
+          assert.deepStrictEqual(
+            answers,
+            Arr.makeBy(OutboxSweep.DeliveryPolicy.attempts, () => "retry"),
+            "every delivery is answered by the consumer itself: the batch is retried with the policy's delay"
+          );
+
+          const afterDeliveries = yield* rowState(id);
+
+          assert.strictEqual(afterDeliveries.status, "pending");
+          assert.strictEqual(
+            afterDeliveries.last_error,
+            "delivery stack unavailable",
+            "the class of the failure is recorded without any claim and without a hand"
+          );
+          assert.deepStrictEqual(
+            yield* staleIds,
+            [],
+            "the next attempt is dated by the policy, so the sweep does not put the row back during its chain"
+          );
+
+          yield* Effect.promise(() =>
+            runQueue(
+              unconfigured,
+              answeringBatch(id, "vp-outbox-test-dlq", answers)
             )
           );
 
-          assert.isTrue(
-            Exit.isFailure(delivering),
-            "the control: the delivery consumer needs the senders and fails to start"
-          );
-          assert.deepStrictEqual(answers, []);
-
-          yield* Effect.promise(() =>
-            runQueue(unconfigured, batch("vp-outbox-test-dlq"))
-          );
-
-          assert.deepStrictEqual(answers, ["ack"]);
+          assert.deepStrictEqual(Arr.last(answers), Option.some("ack"));
           assert.strictEqual((yield* rowState(id)).status, "dead");
         })
     );

@@ -180,9 +180,9 @@ devenv shell -- bash -c 'cd apps/web && bunx vp build'
 | `test/publicFiles.test.ts` | RULE-290: `/filer` header policy, unregistered key → 404, no paths |
 | `test/redirects.test.ts` | legacy aliases → 301, legacy file paths → `/filer/{key}`, traversal never looked up |
 | `test/contact.test.ts` | RULE-167: no or invalid token → rejected, no outbox rows, no commit; RULE-156; RULE-249; rate limit |
-| `test/outboxDelivery.test.ts` | delivery by id, the retry delay, the dead-letter ending, and the authorization of the outbox's three commands as `System("outboxSweep")` |
+| `test/outboxDelivery.test.ts` | delivery by id, the retry delay, the dead-letter ending, and the authorization of the outbox's four commands as `System("outboxSweep")` |
 | `test/outboxQueue.postgres.test.ts` | spec 0008b on PostgreSQL with a recording queue: rollback publishes nothing, the sweep finds a crash's row, two deliveries of one id call the provider once (300 rounds), no queue message holds anything but an id, code mail on the queue path, nothing real outside production; each with its control |
-| `test/outboxQueue.worker.test.ts` | spec 0008b falsifier 4 in Miniflare: the real Queues runtime's retries and dead-letter route over the real consumer and database |
+| `test/outboxQueue.worker.test.ts` | spec 0008b falsifier 4 in Miniflare: the real Queues runtime's retries and dead-letter route over the real consumer and database, including a sender that dies, a payload that does not decode and a delivery stack that cannot be built |
 | `test/jobs.postgres.test.ts`, `test/workspace.postgres.test.ts`, `test/workspaceNamespace.postgres.test.ts`, `test/deliveryBoundary.postgres.test.ts` | spec 0008: durable job claims, recovery, dry-runs, address-namespace races and post-commit delivery, with controls |
 | `test/organisationPanel.test.ts` | spec 0001: the departments, semesters and fields-of-study programs a server function runs: create, edit, refusals (repeated city, another department's field of study), what the views return; spec 0003: the semester views are reads (a missing row stays missing and is shown as such) |
 | `test/readsNeverWrite.postgres.test.ts` | specs 0003 and 0006: all registered reads run with a SELECT-only database role, including a negative control |

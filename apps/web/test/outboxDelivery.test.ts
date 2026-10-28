@@ -16,6 +16,7 @@ import {
   Duration,
   Effect,
   Layer,
+  Logger,
   Predicate,
   pipe,
 } from "effect";
@@ -312,6 +313,51 @@ describe("outbox delivery by id (spec 0008b)", () => {
         );
       })
   );
+
+  it.effect(
+    "a sender that dies after the claim is a failure of the row: a class is recorded, the claim is released, the retry waits the policy's delay, and the log holds no address",
+    () =>
+      Effect.gen(function* poisonRow() {
+        const tables = makeTables({ outbox: [pendingRow("1")] });
+        const logged: string[] = [];
+
+        const dying = Layer.mergeAll(
+          memoryLayer(tables),
+          Layer.succeed(
+            MessageSender,
+            MessageSender.of({
+              send: () => Effect.die(new Error("avdeling@example.org")),
+            })
+          ),
+          Layer.mock(AccountDelivery, {}),
+          Layer.mock(WorkspaceWriter, {}),
+          Logger.layer([
+            Logger.map(Logger.formatJson, (line) => {
+              logged.push(line);
+            }),
+          ])
+        );
+
+        const decisions = yield* deliveryDecisions([
+          { attempts: 1, body: "1" },
+        ]).pipe(Effect.provide(dying));
+
+        assert.deepStrictEqual(
+          Arr.map(decisions, (decision) =>
+            Predicate.isTagged(decision, "Retry") ? decision.afterSeconds : -1
+          ),
+          [Math.ceil(seconds(1))]
+        );
+        assert.strictEqual(tables.outbox[0]?.status, "pending");
+        assert.strictEqual(tables.outbox[0]?.lastError, "delivery defect");
+        assert.isNull(tables.outbox[0]?.claimToken);
+        assert.isAbove(logged.length, 0, "the defect was logged");
+        assert.isFalse(
+          Arr.some(logged, (line) => line.includes("avdeling@example.org")),
+          "the log holds the defect's class, never its text"
+        );
+      })
+  );
 });
 
 const layerFor = (principal: Principal) =>
@@ -355,9 +401,19 @@ const commands = [
         verdictOf
       ),
   ],
+  [
+    "recordOutboxFailure",
+    (principal: Principal) =>
+      withEnding((client) =>
+        client.recordOutboxFailure({
+          failure: "delivery stack unavailable",
+          messages: [],
+        })
+      ).pipe(Effect.provide(layerFor(principal)), verdictOf),
+  ],
 ] as const;
 
-describe("spec 0006 R1 and spec 0008b: the outbox's three commands are held by the outboxSweep job alone", () => {
+describe("spec 0006 R1 and spec 0008b: the outbox's four commands are held by the outboxSweep job alone", () => {
   it.effect(
     "the job runs each of them; every other principal, an administrator included, is refused",
     () =>

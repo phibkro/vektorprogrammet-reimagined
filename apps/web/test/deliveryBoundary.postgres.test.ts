@@ -6,7 +6,7 @@
  * visible there. A rolled-back command leaves neither a row nor a provider call. The negative control is a command that
  * calls the provider inside its transaction, which the same probe catches.
  *
- * Falsifier 3: a delivery that crashes after the provider answered and before the acknowledgement is claimed again and
+ * Falsifier 3: a delivery that crashes after the provider answered and before the acknowledgement (the process dies: an interruption, which no handler sees; a defect is recorded as the row's failure, spec 0008b R3) is claimed again and
  * sends again with the same key, and the keyed capture sink keeps the message once. The control is a sink that has no
  * key, which keeps it twice.
  */
@@ -233,8 +233,7 @@ layer(live, { excludeTestServices: true })(
                 Effect.updateService(OutboxDelivery, (real) =>
                   OutboxDelivery.of({
                     ...real,
-                    markDelivered: () =>
-                      Effect.die("the process died before the acknowledgement"),
+                    markDelivered: () => Effect.interrupt,
                   })
                 ),
                 Effect.provide(
