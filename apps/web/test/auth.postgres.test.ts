@@ -197,16 +197,20 @@ const refusedCommand = (exit: Exit.Exit<unknown, unknown>) =>
     Option.map((refusal) => refusal.command)
   );
 
+/** A `pg` pool on `url` that the scope closes. */
+const ownedPool = (url: Redacted.Redacted) =>
+  Effect.acquireRelease(
+    Effect.sync(() => new Pool({ connectionString: Redacted.value(url) })),
+    (owned) => Effect.promise(() => owned.end())
+  );
+
 const mutantAuth = (url: Redacted.Redacted) =>
   Effect.gen(function* buildMutant() {
     const run = yield* FiberSet.makeRuntimePromise<
       AccountRepository | SignInDirectory
     >();
 
-    const pool = yield* Effect.acquireRelease(
-      Effect.sync(() => new Pool({ connectionString: Redacted.value(url) })),
-      (owned) => Effect.promise(() => owned.end())
-    );
+    const pool = yield* ownedPool(url);
 
     return makeAuth(pool, secret, origin, run);
   });
@@ -900,12 +904,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         yield* sql`delete from auth_session where user_id = 'auth-102'`;
         const failing = yield* FiberSet.makeRuntimePromise();
 
-        const pool = yield* Effect.acquireRelease(
-          Effect.sync(
-            () => new Pool({ connectionString: Redacted.value(url) })
-          ),
-          (owned) => Effect.promise(() => owned.end())
-        );
+        const pool = yield* ownedPool(url);
 
         // Every domain read of this instance dies, as it does when the database is unreachable.
         const down = makeAuth(pool, secret, origin, () =>

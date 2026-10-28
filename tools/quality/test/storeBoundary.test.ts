@@ -6,7 +6,6 @@ import {
   FileSystem,
   Option,
   Order,
-  Path,
   Record as Rec,
   Schema,
   Stream,
@@ -30,6 +29,16 @@ const site = (
 ): ImportSite => ({ group, line: 1, path, specifier });
 
 const text = (lines: readonly string[]) => `${Arr.join(lines, "\n")}\n`;
+
+const findingsAt = (
+  path: string,
+  specifier: string,
+  group: ImportSite["group"]
+) =>
+  Arr.filter(
+    boundaryFindings([path], [site(path, specifier, group)]),
+    (finding) => finding.startsWith(path)
+  );
 
 describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
   it("a glob's `**` crosses directories (also none) and its `*` stops at a slash", () => {
@@ -120,15 +129,9 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     it("reports an import that no allowance covers", () => {
       const path = "apps/web/src/server/newThing.ts";
 
-      assert.deepStrictEqual(
-        Arr.filter(
-          boundaryFindings([path], [site(path, "@vektorprogrammet/db", "db")]),
-          (finding) => finding.startsWith(path)
-        ),
-        [
-          `${path}:1: imports @vektorprogrammet/db (db) and no allowance covers it`,
-        ]
-      );
+      assert.deepStrictEqual(findingsAt(path, "@vektorprogrammet/db", "db"), [
+        `${path}:1: imports @vektorprogrammet/db (db) and no allowance covers it`,
+      ]);
     });
 
     it("reports a group that the covering allowance does not allow", () => {
@@ -155,12 +158,11 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     });
 
     it("accepts an import that an allowance allows", () => {
-      const path = "tools/db-path-spike/src/worker/database.ts";
-
       assert.deepStrictEqual(
-        Arr.filter(
-          boundaryFindings([path], [site(path, "@vektorprogrammet/db", "db")]),
-          (finding) => finding.startsWith(path)
+        findingsAt(
+          "tools/db-path-spike/src/worker/database.ts",
+          "@vektorprogrammet/db",
+          "db"
         ),
         []
       );
@@ -258,14 +260,13 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       () =>
         Effect.gen(function* probesAreLinted() {
           const fs = yield* FileSystem.FileSystem;
-          const path = yield* Path.Path;
           const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
           yield* Effect.acquireUseRelease(
             Effect.forEach(
               Rec.values(probes),
               ({ content, file }) =>
-                fs.writeFileString(path.join(root, file), content),
+                fs.writeFileString(`${root}${file}`, content),
               { discard: true }
             ),
             () =>
@@ -327,7 +328,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
             () =>
               Effect.forEach(
                 Rec.values(probes),
-                ({ file }) => fs.remove(path.join(root, file), { force: true }),
+                ({ file }) => fs.remove(`${root}${file}`, { force: true }),
                 { discard: true }
               ).pipe(Effect.orDie)
           );

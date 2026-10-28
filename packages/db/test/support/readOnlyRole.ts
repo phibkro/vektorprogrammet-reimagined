@@ -7,13 +7,14 @@
  * succeeds therefore wrote nothing. A write is refused with `permission denied` (SQLSTATE 42501), which
  * `DatabaseLive` turns into a defect.
  *
- * The role is cluster-wide, so release drops what it owns and then the role itself, before the database is
+ * The role is cluster-wide; `restrictedRole.ts` drops what it owns and then the role itself before the database is
  * dropped. It needs a `TEST_DATABASE_ADMIN_URL` role that may create roles (devenv's is a superuser).
  */
 import { assert } from "@effect/vitest";
-import { Cause, Context, Effect, Exit, Layer, Random, Redacted } from "effect";
+import type { Redacted } from "effect";
+import { Cause, Context, Exit, Layer } from "effect";
 
-import { TestDatabaseUrl, withClient } from "./disposableDatabase.ts";
+import { restrictedRole } from "./restrictedRole.ts";
 
 /** The URL of a role on the disposable database that holds SELECT and nothing else. */
 export class ReadOnlyDatabaseUrl extends Context.Service<
@@ -21,48 +22,12 @@ export class ReadOnlyDatabaseUrl extends Context.Service<
   Redacted.Redacted
 >()("test/ReadOnlyDatabaseUrl") {}
 
-const randomWord = Effect.map(Random.nextIntBetween(0, 2 ** 31), (n) =>
-  n.toString(36)
-);
-
 export const readOnlyRole = Layer.effect(
   ReadOnlyDatabaseUrl,
-  Effect.gen(function* readOnlyRole() {
-    const database = yield* TestDatabaseUrl;
-    const url = new URL(Redacted.value(database));
-    const databaseName = url.pathname.slice(1);
-    const role = `vp_read_only_${yield* randomWord}`;
-    const password = `${yield* randomWord}${yield* randomWord}`;
-
-    yield* Effect.acquireRelease(
-      withClient(database, (client) =>
-        Effect.forEach(
-          [
-            `create role "${role}" login password '${password}' nosuperuser nocreatedb nocreaterole noinherit`,
-            `revoke temporary on database "${databaseName}" from public`,
-            `grant connect on database "${databaseName}" to "${role}"`,
-            `grant usage on schema public to "${role}"`,
-            `grant select on all tables in schema public to "${role}"`,
-          ],
-          (statement) => client.unsafe(statement),
-          { discard: true }
-        )
-      ),
-      () =>
-        withClient(database, (client) =>
-          client
-            .unsafe(`drop owned by "${role}"`)
-            .pipe(
-              Effect.andThen(client.unsafe(`drop role if exists "${role}"`))
-            )
-        ).pipe(Effect.orDie)
-    );
-
-    url.username = role;
-    url.password = password;
-
-    return Redacted.make(url.toString());
-  }).pipe(Effect.orDie)
+  restrictedRole(
+    "vp_read_only_",
+    (role) => `grant select on all tables in schema public to "${role}"`
+  )
 );
 
 /** Asserts that `exit` is the refusal of a write by the role: a failure whose cause says `permission denied`. */

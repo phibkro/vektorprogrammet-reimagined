@@ -8,11 +8,12 @@
  * the domain is refused with `permission denied` (SQLSTATE 42501). Code that signs people in through this role and
  * succeeds therefore reads the domain only through the application's ports.
  *
- * The role is cluster-wide, so release drops what it owns and then the role itself, before the database is dropped.
+ * The role is cluster-wide; `restrictedRole.ts` drops what it owns and then the role itself before the database is dropped.
  */
-import { Array as Arr, Context, Effect, Layer, Random, Redacted } from "effect";
+import type { Redacted } from "effect";
+import { Array as Arr, Context, Layer } from "effect";
 
-import { TestDatabaseUrl, withClient } from "./disposableDatabase.ts";
+import { restrictedRole } from "./restrictedRole.ts";
 
 /** Better Auth's tables (`modelName` in `apps/web/src/server/auth.ts`), the only ones that its pool may touch. */
 export const AUTH_TABLES = [
@@ -28,49 +29,14 @@ export class AuthTablesDatabaseUrl extends Context.Service<
   Redacted.Redacted
 >()("test/AuthTablesDatabaseUrl") {}
 
-const randomWord = Effect.map(Random.nextIntBetween(0, 2 ** 31), (n) =>
-  n.toString(36)
-);
-
 export const authTablesRole = Layer.effect(
   AuthTablesDatabaseUrl,
-  Effect.gen(function* authTablesRole() {
-    const database = yield* TestDatabaseUrl;
-    const url = new URL(Redacted.value(database));
-    const databaseName = url.pathname.slice(1);
-    const role = `vp_auth_tables_${yield* randomWord}`;
-    const password = `${yield* randomWord}${yield* randomWord}`;
-
-    yield* Effect.acquireRelease(
-      withClient(database, (client) =>
-        Effect.forEach(
-          [
-            `create role "${role}" login password '${password}' nosuperuser nocreatedb nocreaterole noinherit`,
-            `revoke temporary on database "${databaseName}" from public`,
-            `grant connect on database "${databaseName}" to "${role}"`,
-            `grant usage on schema public to "${role}"`,
-            `grant select, insert, update, delete on ${Arr.join(
-              Arr.map(AUTH_TABLES, (table) => `"${table}"`),
-              ", "
-            )} to "${role}"`,
-          ],
-          (statement) => client.unsafe(statement),
-          { discard: true }
-        )
-      ),
-      () =>
-        withClient(database, (client) =>
-          client
-            .unsafe(`drop owned by "${role}"`)
-            .pipe(
-              Effect.andThen(client.unsafe(`drop role if exists "${role}"`))
-            )
-        ).pipe(Effect.orDie)
-    );
-
-    url.username = role;
-    url.password = password;
-
-    return Redacted.make(url.toString());
-  }).pipe(Effect.orDie)
+  restrictedRole(
+    "vp_auth_tables_",
+    (role) =>
+      `grant select, insert, update, delete on ${Arr.join(
+        Arr.map(AUTH_TABLES, (table) => `"${table}"`),
+        ", "
+      )} to "${role}"`
+  )
 );
