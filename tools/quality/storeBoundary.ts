@@ -136,13 +136,11 @@ export const allowances: readonly Allowance[] = [
     reason:
       "The rule reads the adapter's ownership declaration; ADR 0014 stage 5 moves that declaration into the domain. Oxlint does not lint this directory, so the check is what covers it.",
   },
-  // Temporary entries: every file below imports the adapter for a port or fixture that spec 0017 moves to the domain.
-  // Each step deletes the entries it fixes, and the check fails on an entry whose file no longer imports the adapter.
   {
-    allows: ["db", "drizzle", "sql-pg"],
-    files: ["tools/import/src/target.ts"],
-    reason: "The importer writes PostgreSQL directly.",
-    until: "step 7 (ImportTarget)",
+    allows: ["db"],
+    files: ["tools/import/src/pipeline.ts"],
+    reason:
+      "Composition root of the importer: builds `ImportDatabaseLive`, the one place that names the adapter.",
   },
 ];
 

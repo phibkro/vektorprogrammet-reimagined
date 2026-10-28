@@ -388,7 +388,7 @@ export default defineConfig({
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
-          "tools/import/src/target.ts",
+          "packages/domain/src/organisation/legacyImport.ts",
           "tools/import/src/report.ts",
           "tools/quality/checkEffectExceptions.ts",
           "tools/quality/checkStoreBoundary.ts",
@@ -496,7 +496,7 @@ export default defineConfig({
         files: [
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
-          "tools/import/src/target.ts",
+          "packages/domain/src/organisation/legacyImport.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },

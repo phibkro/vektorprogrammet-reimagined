@@ -9,6 +9,7 @@ export { UniqueConstraint } from "./schema.ts";
 
 export {
   DatabaseLive,
+  ImportDatabaseLive,
   JobDatabaseLive,
   type DatabaseConfig,
 } from "./databaseLive.ts";

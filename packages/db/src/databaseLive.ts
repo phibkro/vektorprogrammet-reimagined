@@ -22,6 +22,7 @@ import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
 import { JobRunsLive } from "./repositories/jobRuns.ts";
+import { ImportTargetLive } from "./repositories/legacyImport.ts";
 import {
   AdmissionPeriodRepositoryLive,
   DepartmentRepositoryLive,
@@ -166,5 +167,26 @@ export const JobDatabaseLive = (
     Layer.mergeAll(
       Repositories,
       retentionRunLayer(config.retention).pipe(Layer.provide(AggregatesLayer))
+    )
+  );
+
+/**
+ * The database of the legacy importer: `ImportTarget` over a direct connection (not Hyperdrive), so prepared statements
+ * stay on; two connections are plenty for a sequential import. Only the importer's composition root builds it.
+ */
+export const ImportDatabaseLive = (config: {
+  readonly url: Redacted.Redacted;
+}) =>
+  ImportTargetLive.pipe(
+    Layer.provide(
+      Drizzle.layerPg.pipe(
+        Layer.provideMerge(
+          PgClient.layer({
+            applicationName: "vektorprogrammet-import",
+            maxConnections: 2,
+            url: config.url,
+          })
+        )
+      )
     )
   );

@@ -11,7 +11,7 @@
  * The Schemas below are the report's contract: the plan builds values of these
  * types, and consumers decode `reconciliation.json` with `ReportFromJson`.
  */
-import { Term } from "@vektorprogrammet/domain";
+import { TargetTable, Term } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Schema } from "effect";
 
 import {
@@ -20,14 +20,7 @@ import {
   writeReportFiles,
 } from "./reportFiles.ts";
 import { DROPPED_COLUMNS, TARGET_TABLES } from "./transform/plan.ts";
-import type {
-  ImportPlan,
-  TargetTable as TargetTableName,
-} from "./transform/plan.ts";
-
-const TargetTable: Schema.Codec<TargetTableName> = Schema.Literals(
-  Arr.map(TARGET_TABLES, ({ table }) => table)
-);
+import type { ImportPlan } from "./transform/plan.ts";
 
 export const QuarantinedRow = Schema.Struct({
   /** The legacy id (`articleId:departmentId` for tags, the row id for static content). */
@@ -135,7 +128,7 @@ const ReportJsonString = Schema.fromJsonString(ReconciliationReport, {
 /** Assembles the report from the plan and the row counts read back from the target. */
 export const buildReport = (
   plan: ImportPlan,
-  rowsOut: Readonly<Record<TargetTableName, number>>,
+  rowsOut: Readonly<Record<TargetTable, number>>,
   fileSource: FileSource
 ): ReconciliationReport => ({
   brokenReferences: plan.brokenReferences,

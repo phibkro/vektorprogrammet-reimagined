@@ -127,6 +127,8 @@ export * from "./organisation/department.ts";
 
 export * from "./organisation/fieldOfStudy.ts";
 
+export * from "./organisation/legacyImport.ts";
+
 // The package root exports the answers to the calendar questions, not the window arithmetic they are
 // built from (`semesterForDate`, `semesterWindow`, `windowContains`): outside the domain nobody can
 // assemble a second "current semester" or "admission is open" rule. `test/organisation/oneDefinition.test.ts`

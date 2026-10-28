@@ -2,14 +2,11 @@ import {
   EmailAddress,
   SemesterYear,
   SlackChannel,
+  TargetTable,
   osloParts,
   osloWallClock,
 } from "@vektorprogrammet/domain";
-import type {
-  FileKey,
-  StoredContentType,
-  Term,
-} from "@vektorprogrammet/domain";
+import type { FileKey, TargetRows, Term } from "@vektorprogrammet/domain";
 /**
  * The import plan: a pure function from the legacy snapshot and the resolved
  * files to the target rows and the reconciliation facts. Same input, same plan:
@@ -44,17 +41,33 @@ import { classifyReference, fileArea } from "./legacyPath.ts";
 
 const unresolvedFileKey = undefined;
 
-/** Target tables in insert (foreign-key) order, with the legacy table each comes from. */
-export const TARGET_TABLES = [
-  { source: "(files referenced by the tables below)", table: "public_file" },
-  { source: "department", table: "department" },
-  { source: "semester", table: "semester" },
-  { source: "field_of_study", table: "field_of_study" },
-  { source: "AdmissionPeriod", table: "admission_period" },
-  { source: "event", table: "social_event" },
-] as const;
+/** The legacy table that each target table comes from. */
+const SOURCES: Readonly<Record<TargetTable, string>> = {
+  admission_period: "AdmissionPeriod",
+  department: "department",
+  field_of_study: "field_of_study",
+  public_file: "(files referenced by the tables below)",
+  semester: "semester",
+  social_event: "event",
+};
 
-export type TargetTable = (typeof TARGET_TABLES)[number]["table"];
+/** Target tables in insert (foreign-key) order (the domain's declaration), with the legacy table each comes from. */
+export const TARGET_TABLES = Arr.map(TargetTable.literals, (table) => ({
+  source: SOURCES[table],
+  table,
+}));
+
+type PublicFileRow = TargetRows["public_file"][number];
+
+type DepartmentRow = TargetRows["department"][number];
+
+type SemesterRow = TargetRows["semester"][number];
+
+type FieldOfStudyRow = TargetRows["field_of_study"][number];
+
+type AdmissionPeriodRow = TargetRows["admission_period"][number];
+
+type SocialEventRow = TargetRows["social_event"][number];
 
 /** Legacy columns with no target, by decision. */
 export const DROPPED_COLUMNS = [
@@ -69,72 +82,6 @@ export const DROPPED_COLUMNS = [
     table: "AdmissionPeriod",
   },
 ] as const;
-
-interface PublicFileRow {
-  readonly key: FileKey;
-  readonly name: string;
-  readonly contentType: StoredContentType;
-  readonly size: number;
-  readonly sha256: string;
-  readonly uploadedBy: null;
-  readonly legacyPath: string;
-  readonly uploadedAt: DateTime.Utc;
-}
-
-interface DepartmentRow {
-  readonly id: number;
-  readonly name: string;
-  readonly shortName: string;
-  readonly email: string;
-  readonly city: string;
-  readonly address: string | null;
-  readonly active: boolean;
-  readonly slackChannel: string | null;
-  readonly logoKey: FileKey | null;
-  readonly latitude: number | null;
-  readonly longitude: number | null;
-}
-
-interface SemesterRow {
-  readonly id: number;
-  readonly term: Term;
-  readonly year: number;
-}
-
-interface FieldOfStudyRow {
-  readonly id: number;
-  readonly departmentId: number;
-  readonly name: string;
-  readonly shortName: string;
-}
-
-interface AdmissionPeriodRow {
-  readonly id: number;
-  readonly departmentId: number;
-  readonly semesterId: number;
-  readonly startsAt: DateTime.Utc;
-  readonly endsAt: DateTime.Utc;
-}
-
-interface SocialEventRow {
-  readonly id: number;
-  readonly title: string;
-  readonly description: string;
-  readonly startsAt: DateTime.Utc;
-  readonly endsAt: DateTime.Utc;
-  readonly link: string | null;
-  readonly departmentId: number;
-  readonly semesterId: number;
-}
-
-export interface TargetRows {
-  readonly public_file: readonly PublicFileRow[];
-  readonly department: readonly DepartmentRow[];
-  readonly semester: readonly SemesterRow[];
-  readonly field_of_study: readonly FieldOfStudyRow[];
-  readonly admission_period: readonly AdmissionPeriodRow[];
-  readonly social_event: readonly SocialEventRow[];
-}
 
 export interface ImportPlan {
   readonly rows: TargetRows;
