@@ -139,6 +139,7 @@ const modules: readonly Module[] = [
       "personalData/periods.ts",
       "personalData/retentions.ts",
       "personalData/consents.ts",
+      "personalData/retentionEnd.ts",
       "personalData/texts.ts"
     ),
     layer: "library",
