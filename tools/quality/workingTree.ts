@@ -2,6 +2,38 @@ import { Array as Arr, Effect, FileSystem, Path } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 /**
+ * The variables that tie git to one repository, as `git rev-parse --local-env-vars` prints them (git 2.55). A git hook
+ * runs with some of them set (a worktree's pre-push has `GIT_DIR` pointing at `.git/worktrees/<name>`), and they win
+ * over `-C`: under them `git -C <temporary directory> init` re-initialised the repository's own shared config and set
+ * `core.bare = true`, so the main checkout stopped being a working tree. Every git command here runs with them unset
+ * (an `undefined` value drops an inherited variable).
+ */
+const withoutRepository = {
+  GIT_ALTERNATE_OBJECT_DIRECTORIES: undefined,
+  GIT_COMMON_DIR: undefined,
+  GIT_CONFIG: undefined,
+  GIT_CONFIG_COUNT: undefined,
+  GIT_CONFIG_PARAMETERS: undefined,
+  GIT_DIR: undefined,
+  GIT_GRAFT_FILE: undefined,
+  GIT_IMPLICIT_WORK_TREE: undefined,
+  GIT_INDEX_FILE: undefined,
+  GIT_NO_REPLACE_OBJECTS: undefined,
+  GIT_OBJECT_DIRECTORY: undefined,
+  GIT_PREFIX: undefined,
+  GIT_REPLACE_REF_BASE: undefined,
+  GIT_SHALLOW_FILE: undefined,
+  GIT_WORK_TREE: undefined,
+};
+
+/** `git -C root …args`, run against `root` alone, whatever repository the calling process (a hook) was started in. */
+export const gitIn = (root: string, args: readonly string[]) =>
+  ChildProcess.make("git", ["-C", root, ...args], {
+    env: withoutRepository,
+    extendEnv: true,
+  });
+
+/**
  * The files of the working tree at `root` that `keep` accepts (a path relative to `root`): the files that git tracks and
  * the untracked ones that no `.gitignore` excludes. A build output (`.alchemy/`, `.wrangler/`, `dist/`, `node_modules/`)
  * is ignored by the repository's own rules and so is not listed, whatever it holds. `git ls-files -c` also lists a
@@ -15,14 +47,7 @@ export const workingTreePaths = Effect.fn("workingTreePaths")(
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
     const listing = yield* spawner.string(
-      ChildProcess.make("git", [
-        "-C",
-        root,
-        "ls-files",
-        "-c",
-        "-o",
-        "--exclude-standard",
-      ])
+      gitIn(root, ["ls-files", "-c", "-o", "--exclude-standard"])
     );
 
     return Arr.flatten(

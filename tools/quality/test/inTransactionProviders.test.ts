@@ -27,8 +27,9 @@ import {
   Path,
   Record as Rec,
 } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
+import { ChildProcessSpawner } from "effect/process";
 
+import { gitIn } from "../workingTree.ts";
 import { proofReferences } from "./support/proofReferences.ts";
 import { workingTreeSources } from "./support/sources.ts";
 
@@ -315,9 +316,7 @@ describe("InTransaction has few providers (spec 0018)", () => {
         const fs = yield* FileSystem.FileSystem;
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
         const tree = yield* fs.makeTempDirectoryScoped();
-        yield* spawner.string(
-          ChildProcess.make("git", ["-C", tree, "init", "-q"])
-        );
+        yield* spawner.string(gitIn(tree, ["init", "-q"]));
 
         const where = yield* Path.Path;
 
