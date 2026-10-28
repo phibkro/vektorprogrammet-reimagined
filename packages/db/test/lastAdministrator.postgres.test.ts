@@ -14,7 +14,6 @@ import type { PgClient } from "@effect/sql-pg";
  */
 import { assert, it } from "@effect/vitest";
 import { ImportTarget } from "@vektorprogrammet/domain";
-import type { TargetRows } from "@vektorprogrammet/domain";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { Array as Arr, Effect, Option, Predicate, Record as Rec } from "effect";
 
@@ -25,6 +24,7 @@ import {
   migratedTestDatabase,
   withClient,
 } from "./support/disposableDatabase.ts";
+import { noRows } from "./support/targetRows.ts";
 
 const migrationsFolder = new URL("../drizzle/", import.meta.url).pathname;
 
@@ -41,15 +41,6 @@ const REAL_STEPS: readonly Step[] = Arr.map(
   readMigrationFiles({ migrationsFolder }),
   (migration) => ({ name: migration.name, statements: migration.sql })
 );
-
-const noRows: TargetRows = {
-  admission_period: [],
-  department: [],
-  field_of_study: [],
-  public_file: [],
-  semester: [],
-  social_event: [],
-};
 
 /** A department, a field of study, a person with an Active account and a place that is valid for ten years. */
 const writeAdministrator = (client: PgClient.PgClient) =>

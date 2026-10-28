@@ -13,7 +13,6 @@
 import type { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
 import { ImportTarget } from "@vektorprogrammet/domain";
-import type { TargetRows } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -25,15 +24,7 @@ import {
   withClient,
 } from "./support/disposableDatabase.ts";
 import { roleDefault } from "./support/isolationLevel.ts";
-
-const noRows: TargetRows = {
-  admission_period: [],
-  department: [],
-  field_of_study: [],
-  public_file: [],
-  semester: [],
-  social_event: [],
-};
+import { noRows } from "./support/targetRows.ts";
 
 /** Records the level of the transaction that truncates `department`, which `replaceAll` does first. */
 const logTruncates = (client: PgClient.PgClient) =>
