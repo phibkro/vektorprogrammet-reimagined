@@ -1,0 +1,77 @@
+# Spec 0021: Retention arithmetic in Effect (ADR 0014, answer 3)
+
+**Status:** frozen when its PR opens; later changes are dated entries under [Revisions](#revisions) · **Source:** ADR 0014 (`docs/decisions/0014-store-capabilities.md`), answer 3: "Retention arithmetic: in Effect, one implementation. The domain computes the thresholds (Oslo calendar, last activity); adapters only filter by them. During migration, a property test uses today's PostgreSQL view (`person_last_activity_end`) as the oracle, because month arithmetic does not reverse exactly." · **Evidence:** the repository at main `ddb6ff1` (every `file:line` below was read at that head) · **Stacked on:** nothing; touches no transactional code (the run's lock, token and write paths are unchanged).
+
+## Journey
+
+A reviewer, an adapter author and an operator. Nothing a user sees moves.
+
+1. **The operator asks "when does this row's retention end?"** and gets one answer from one function in `packages/domain`: `retentionEnd`. The nightly run, the report and the alumni mail read it; PostgreSQL no longer computes a calendar date for any of them.
+2. **An adapter author writes the in-memory or SQLite store.** She reads what a run needs from the store: instants, a semester's term and year, a person's memberships, places and creation. She never writes `make_interval`, `at time zone 'Europe/Oslo'` as arithmetic, or a view. She compares what she read with what the domain returns.
+3. **A reviewer changes a period** (`personCore` from one year to eighteen months). The property tests, which compare the domain with today's PostgreSQL arithmetic over generated rows, still pass, and the retention run selects the same rows as before for every other period.
+4. **Someone makes the domain function off by one millisecond, reads the wall clock in UTC, reads the repeated hour as Effect does, or reverses the month arithmetic.** The property test fails, and prints the shrunk row.
+
+## Goal, constraints, values
+
+- **Goal:** the date at which each declared row's retention ends is a total, pure, deterministic function in the domain (Oslo calendar stated), equal to today's PostgreSQL arithmetic (the view `person_last_activity_end`, the function `semester_end`, `addDuration`'s `make_interval` expressions) for every row, period, trigger and date the tests generate, DST changes, month ends and leap days included. The nightly run, the report and the alumni candidates select rows by what the domain computes.
+- **Constraints:**
+  - No new service. The calculation is a plain function. The adapter reads facts and compares.
+  - The run's guarantees stay as they are: the decision for a person is taken under the person's lock, from facts read after the lock (spec 0006b); a report takes no lock and writes nothing (spec 0007b R4). `retention`, `retentionGate`, `retentionPeople` and `retentionCascade` pass unchanged.
+  - The record of processing and the privacy notice do not change: no period, trigger, text or approval moves (`bun run check:docs`).
+  - No shims. The view, the function and `addDuration` leave production; their definitions survive only as the test oracle (R6).
+  - The domain's source names no engine feature (`tools/quality/test/domainMechanism.test.ts`, spec 0018 falsifier 7); the three allowances that this spec's lines needed leave that list.
+- **Values:** one implementation of the arithmetic; the oracle's definition is today's, not a re-derivation of it; every falsifier shows its control failing.
+
+## Requirements
+
+**R1. `afterDuration(instant, duration)`: Oslo wall-clock arithmetic.** Read the instant on the Oslo wall clock, add the duration on the calendar (a month's end clamps: 31 January plus a month is the last day of February; 29 February plus a year is 28 February; the time of day is kept), and read the result back as an instant. A wall-clock time that does not exist (spring forward) moves forward by the gap; one that exists twice (fall back) is the second, standard-time occurrence. The last is PostgreSQL's reading and differs from Effect's default `compatible` (the first), so the function sets `disambiguation: "later"` itself and `DateTime.add` on a zoned value is not used. It replaces `afterDuration` of `personalData/alumni.ts` (same name and signature; the module is `retentionEnd.ts`). It is valid from 1980 (Norway's first summer time, so that Oslo's offset is one or two hours) to the year 9999, for the durations that the declarations use and the counts within a few hundred.
+
+**R2. Facts to a start, a start to an end.**
+
+- `lastActivityEnd(facts)` (the later of the end of the last membership and of the last admin place; the person's creation when there is neither: the view's `coalesce(greatest(…), created_at)`, so a membership that ends before the person was created still ends the activity), `semesterEnd` and `fiscalYearEnd` give the instant at which a trigger starts the period. `semesterEnd` and `fiscalYearEnd` are window arithmetic and stay out of the package root (`oneDefinition.test.ts`).
+- `retentionEnd(retention, start, consentCurrent)` is `afterDuration` of the start by the period, or by the longer one while the consent is current.
+
+**R3. Thresholds: what an adapter filters by.** For `now` and a duration the domain gives, and the adapter compares columns with:
+
+- `dueWallRanges(now, duration)`: the **exact** set of Oslo wall-clock readings whose period has ended, as a few half-open ranges. A column of instants is compared on its wall-clock reading (`col at time zone 'Europe/Oslo' >= from and < to`): the period of a start depends on its reading alone, so the two instants of the repeated hour are decided alike.
+- `semesterDueYears(now, duration)`: per term, the last year whose semester's period has ended; a row of that term and a year up to it is due.
+- `fiscalYearDueBefore(now, duration)`: the first instant that is not in an Oslo year whose fiscal year's period has ended.
+- `lastActivityDue(facts, retention, consentCurrent, now)`: whether a person's period has ended. The adapter reads the facts (`personalData/activity.ts`), so a rule that starts at the last activity is decided per person.
+- An instant is read at its millisecond (as `DateTime` and the Clock read it); PostgreSQL's microseconds are floored. The difference is under a millisecond of a period of days to years and is stated here, not hidden.
+
+**R4. The retention run reads facts and compares.** `expiredAt` of `personalData/sql.ts` is built from the thresholds. After the chunk's locks, `forPeople` reads each locked person's facts (`person.created_at`, `membership.end_term/end_year`, `admin_grant.until`, current consents), asks the domain, and selects the rows of the people that are due. The candidates are found the same way, from the facts of every person who still holds an unprocessed row of such a rule (`candidates`). The report reads the same facts without a lock. Rules that start at a column, a semester or a fiscal year are one SQL condition each, as before.
+
+**R5. The alumni candidates use the domain.** `AlumniRequests.candidates` reads facts and asks `isAlumniCandidate` (a pure function in `alumni.ts`, equal to the SQL it replaces).
+
+**R6. The view is removed, and kept as the oracle.** The view `person_last_activity_end` and the function `semester_end` are dropped by migration `drop_retention_oracle`, and `addDuration` and the compiled `expiredAt` leave `packages/db/src`. The tests keep them: `installOracle` re-runs the statements of the original migration (`20261027111351_person_last_activity_end`, which stays as history), and `test/support/retentionOracle.ts` holds the old compiled expressions and the old alumni statement, moved unchanged. The oracle is today's code, not a copy that could drift from it.
+
+## Falsifiers (each with a negative control)
+
+Tests: `packages/domain/test/personalData/retentionEnd.test.ts` (the domain against itself) and `packages/db/test/retentionOracle.postgres.test.ts` (the domain against PostgreSQL). Generators: `packages/domain/test/support/retentionGenerators.ts`.
+
+1. **Arithmetic equals PostgreSQL.** `afterDuration` equals `((s at time zone 'Europe/Oslo') + make_interval(…)) at time zone 'Europe/Oslo'` for 50,000 generated starts and durations, and again for 50,000 ends within two and a half hours of a change of the clock. _Controls (each falsified):_ the same arithmetic on UTC (a time-zone mistake); one day too many (an off-by-one); Effect's own reading of the repeated hour (the first occurrence), at a change of the clock.
+2. **The ranges are exactly the starts whose period has ended.** For a start, a duration and `now` within three days of the start's end (20,000 cases), within one millisecond of it (20,000), and within two and a half hours of a change of the clock (20,000), and for eleven starts around each (a day and an hour either side, a minute, a millisecond), `inWallRanges` equals `startIsDue`. The last due semester year is due, the next is not, every earlier one is (5,000); the fiscal bound separates the dates whose fiscal year has ended from those whose has not (5,000). _Controls:_ ranges one millisecond late (off-by-one); a start read on the UTC clock (time zone); the end read with Effect's default for the repeated hour.
+3. **The run's selection equals the oracle.** Over rows of a scratch table (an instant, a term and a year), each trigger (a column, a fiscal year, a semester), periods of days, months and years, and `now` near the end of the period (a column: 1,500 cases within three days of the end, 1,500 at the millisecond, 1,500 at a clock change; fiscal year: 1,000; semester: 1,000 and 500 at the millisecond; eleven to twenty-two rows each), the rows that `expiredAt` selects are exactly the rows that the oracle's `expiredAt` selects. _Controls:_ one millisecond early (off-by-one); an hour late (time zone); `start <= now - period` (month arithmetic reversed); the last due semester year one too early.
+4. **Last activity equals the view.** Over 300 generated groups of two to five people (creation, up to three memberships, up to two admin places, a `keepDetails` consent), `lastActivityEnd` equals the view's `at`, and at every instant where a decision changes (a millisecond before, at and after the end of the last activity, and a year and five years after it) the people that the domain says are due equal those that the oracle's `expiredAt` selects. _Control:_ a function that forgets the admin places is falsified.
+5. **Alumni candidates equal the SQL they replace.** Over 100 generated groups of people (with anonymised people and requests), at every instant where an answer changes (each membership's end and the end of the person core after the last activity, with a millisecond either side), the candidates equal the oracle's list, in the same order. _Control:_ a millisecond early is falsified.
+6. **The run is the run.** The existing retention tests pass unchanged (`retention`, `retentionGate`, `retentionPeople`, `retentionCascade`, `personalData*`, `jobRuns`), and so do the browser tests.
+7. **Nothing the operator reads moves.** `bun run check:docs` passes with no change to `docs/system/`; the domain mechanism scan passes with three allowances fewer.
+
+**Why these counts.** The generators' anchors are the 202 DST changes of 2000 to 2100, the first and last day of every month, 28 February and 29 February: 2,753 places. Three kinds of duration and a count each mean that every anchor meets every kind about seven times in 20,000 cases. The hour that repeats, which the uniform and anchored generators reach once in about ten thousand cases (the control for Effect's default needed 10,716 runs to fall on it in one measured run, which is why 20,000 cases of those generators alone would sometimes miss it), has a generator of its own that reaches it in about one case in ten. The off-by-one and the UTC controls fell in the first run. Each comparison with the database is 50,000 cases or 1,000 to 1,500 generated sets of eight to twenty-two rows, and takes seconds.
+
+## Decision: the view
+
+Removed from the schema, kept as the test oracle. Reasons: after this change nothing in production reads it, so a copy in the schema is a second implementation of a fact the domain owns (one home per fact); the store-neutral adapters of ADR 0014 would each have to carry it; and the oracle's value is that it is today's definition, which re-running the original migration gives exactly, with no copy to drift. The cost is one migration that drops two objects (reversible: the original migration's SQL).
+
+## Out of scope
+
+- An in-memory adapter that uses these functions (stage 4).
+- Approving any period.
+- Microsecond precision of a stored instant (R3).
+
+## Revisions
+
+- **2026-10-28, during the build: the threshold is a set of wall-clock ranges, not an instant.** The plan above was written as "a start before `dueBelow` has ended" with a band of starts decided one by one. The first property run falsified it: the calendar sum is not monotone in the start. A month's end clamps the day and keeps the time of day (30 March 23:00 plus six months is 30 September 23:00, and 31 March 00:00 is 30 September 00:00), and reading a wall-clock time back is not monotone at the hour that repeats and the hour that does not exist (PostgreSQL: 2025-10-26 00:59Z plus a month ends 2025-11-26 01:59Z, and 01:00Z, a minute later, ends 01:00Z). No instant separates the starts that have ended from those that have not, so `startWindow` and the per-value decisions are replaced by `dueWallRanges`, which builds the exact set in two steps (the target readings that end by `now`, then the source readings that the calendar sum maps into them), and the adapter compares the wall-clock reading of a column with its few ranges. R3 and falsifier 2 above are written for that design. The first design is not in the code.
+- **2026-10-28: the fall-back reading.** PostgreSQL reads a time that exists twice as the second (standard-time) occurrence and a missing time as shifted forward by the gap. Effect's `DateTime.add` on a zoned value reads the first. R1 therefore does the calendar sum on the wall clock read as UTC and resolves the result with `disambiguation: "later"`. The worked cases in the domain test were read from PostgreSQL 17.
+- **2026-10-28: the alumni candidates move with the view (R5, falsifier 5).** The plan listed only the retention run. `AlumniRequests.candidates` was the second reader of the view and of `addDuration`, so removing the view requires moving it; `isAlumniCandidate` is the pure rule and `activity.ts` reads its facts.
+- **2026-10-28: `semesterEnd` and `fiscalYearEnd` stay out of the package root** because `oneDefinition.test.ts` pins that the root exports answers to calendar questions and not the window arithmetic. The root names its exports one by one for this module.
