@@ -210,9 +210,9 @@ export const StoreGuarantees: readonly Guarantee[] = [
     id: "TX5",
     invariant: false,
     property:
-      "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope.",
+      "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope. A store adapter checks, before the first statement of a method that requires it, that the proof the program holds is the live transaction's own, and refuses one that is not: a proof made by hand, one used after its transaction ended, in another transaction, or where a nested scope runs.",
     rawWriter:
-      "provides the proof around a program that runs outside a transaction: nothing in the store refuses it, and a source check catches only accidental use (Effect keys a service by a string, so the proof can be made without naming it)",
+      "makes a proof by hand (Effect keys a service by a string, so it can be made without naming the service), keeps one past its transaction, or carries it into another: a program that uses the port is refused at first use and writes nothing; a writer that does not use the port is not asked for a proof at all",
     strength: "port-enforced",
   },
   {
