@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 2430e1c4d1f62e7f4e569172d8e66714e842ca65
-confirmed-at: 23de4e4f45752639bdc2eefafd4007bce9d1aa92
+sync-digest: 25f8942564260669b7832dbf93e8dfed2388d095
+confirmed-at: 0d340c398a9b1e8e76fa06ebebc3ffc014b9f14c
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -63,6 +63,8 @@ Spec 0018 (store guarantees as properties, 2026-10-28) changed two covered paths
 Spec 0018 review round 1 (2026-10-28) moved the explicit `BEGIN` of `transactional.ts` into an exported `atReadCommitted`, which `transactional` and the legacy importer's transaction both use (the importer is not a membership writer and is not covered). The statement that a command's transaction sends is the same, so no modeled statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 Spec 0018 review round 3 (2026-10-28) changed the first comment line of `packages/db/src/transactional.ts` ("The only provider" became "The one production provider … a source test guards against another") and nothing else of a covered file; the digest moved with the text. No statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
+
+Spec 0021 (retention arithmetic in Effect, 2026-10-28, review round 1) changed one covered path, `packages/db/drizzle`, with the migration `drop_retention_oracle`. It drops the view `person_last_activity_end`, which read `membership` and never wrote it, and the function `semester_end`. No writer, statement, lock or constraint of `membership` changed, and `membership_no_overlap` is untouched. The same spec changes how the nightly retention run decides who is due (the domain decides from facts that the run reads after it has locked the chunk of people, `personalData/activity.ts`); that writer is outside the model as before, and its statements on `membership` (the delete under the chunk's locks) are the same. The model ran again with `--code` on that tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones (`confirmed-at` is the head that the spec's pull request had when the migration was added).
 
 ## Writers outside the model (spec 0007b)
 

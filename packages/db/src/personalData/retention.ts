@@ -40,6 +40,7 @@ import type { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import type { Root } from "../aggregate/model.ts";
 import type { Drizzle } from "../internal/drizzle.ts";
+import { peopleDue, readPeople } from "./activity.ts";
 import { tally } from "./counts.ts";
 import { photosOf, releasePhotos } from "./photos.ts";
 import {
@@ -49,8 +50,10 @@ import {
   col,
   expiredAt,
   identifier,
+  personIn,
   personOf,
 } from "./sql.ts";
+import type { ActivityDue } from "./sql.ts";
 import { cascadesVia, ownedBy, propertyOf, tableOf } from "./tables.ts";
 
 const PERSON_CHUNK = 100;
@@ -150,27 +153,46 @@ const partition = (rules: readonly RetentionRule[]) => {
 };
 
 /** The rows of a rule that have expired at `now` and are not anonymised yet. */
-const dueAt = (rule: RetentionRule, now: DateTime.Utc): SQL =>
-  allOf(expiredAt(rule, now), notAnonymised(rule));
+const dueAt = (
+  rule: RetentionRule,
+  now: DateTime.Utc,
+  activity: ActivityDue
+): SQL => allOf(expiredAt(rule, now, activity), notAnonymised(rule));
+
+/** No rule is decided by a person's facts: a bulk rule, which has no person, and the search for candidates, which reads the facts itself. */
+const noOne: ActivityDue = () => sql`false`;
+
+/** A rule whose period starts when the person's last activity ends. */
+const startsAtLastActivity = (rule: RetentionRule): boolean =>
+  Predicate.isTagged(rule.retention.trigger, "LastActivityEnd");
+
+/** The rows of a rule whose person is one of the people whom the domain says are due, from their facts. */
+const activityOf =
+  (people: Parameters<typeof peopleDue>[0], now: DateTime.Utc): ActivityDue =>
+  (rule) =>
+    rule.key === null
+      ? sql`false`
+      : personIn(personOf(rule.table, rule.key), peopleDue(people, rule, now));
 
 /** A child is also due when deleting its parent cascades to it, even if the child's own period has not ended. */
 const plannedDueAt = (
   { rule, cascadeParents }: PlannedRule,
-  now: DateTime.Utc
+  now: DateTime.Utc,
+  activity: ActivityDue
 ): SQL => {
   const { key } = rule;
 
   if (!Predicate.isTagged(key, "Via") || cascadeParents.length === 0) {
-    return dueAt(rule, now);
+    return dueAt(rule, now, activity);
   }
 
   const throughParent = Arr.map(
     cascadeParents,
     (parent) =>
-      sql`${col(rule.table, key.column)} in (select ${col(key.parent, key.parentKey)} from ${identifier(key.parent)} where ${dueAt(parent, now)})`
+      sql`${col(rule.table, key.column)} in (select ${col(key.parent, key.parentKey)} from ${identifier(key.parent)} where ${dueAt(parent, now, activity)})`
   );
 
-  return sql`(${sql.join([dueAt(rule, now), ...throughParent], sql` or `)})`;
+  return sql`(${sql.join([dueAt(rule, now, activity), ...throughParent], sql` or `)})`;
 };
 
 /**
@@ -181,10 +203,11 @@ const dueForPeople = (
   planned: PlannedRule,
   key: NonNullable<RetentionRule["key"]>,
   now: DateTime.Utc,
-  ids: readonly number[]
+  ids: readonly number[],
+  activity: ActivityDue
 ): SQL =>
   allOf(
-    plannedDueAt(planned, now),
+    plannedDueAt(planned, now, activity),
     aboutPeople(planned.rule.table, key, { addresses: [], ids })
   );
 
@@ -205,27 +228,38 @@ const countRows = (
       Effect.orDie
     );
 
-/** The people who have a row that has expired, in ascending id order. A tombstone has none: its rows moved. */
-const candidates = (
+/**
+ * The people who have a row that has expired, in ascending id order: from the rows' own columns for most rules, and from
+ * the people's facts for a rule that starts at their last activity.
+ */
+const candidates = Effect.fnUntraced(function* candidates(
   db: Drizzle["Service"],
   perPerson: readonly PlannedRule[],
   now: DateTime.Utc
-): Effect.Effect<readonly number[]> =>
-  Arr.isReadonlyArrayNonEmpty(perPerson)
-    ? db
-        .execute<{ id: number }>(
-          sql`select distinct id from (${sql.join(
-            Arr.flatMap(perPerson, (planned) => {
-              const { rule } = planned;
+) {
+  const fromActivity = Arr.filter(perPerson, ({ rule }) =>
+    startsAtLastActivity(rule)
+  );
 
-              return rule.key === null
-                ? []
-                : [
-                    sql`select ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${plannedDueAt(planned, now)}`,
-                  ];
-            }),
-            sql` union `
-          )}) as candidate where id in (select id from person where merged_into is null) order by id`,
+  const fromRows = Arr.filter(
+    perPerson,
+    ({ rule }) => !startsAtLastActivity(rule)
+  );
+
+  const rowSelects = Arr.flatMap(fromRows, (planned) => {
+    const { rule } = planned;
+
+    return rule.key === null
+      ? []
+      : [
+          sql`select ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${plannedDueAt(planned, now, noOne)}`,
+        ];
+  });
+
+  const decided = Arr.isReadonlyArrayNonEmpty(rowSelects)
+    ? yield* db
+        .execute<{ id: number }>(
+          sql`select distinct id from (${sql.join(rowSelects, sql` union `)}) as candidate where id in (select id from person where merged_into is null) order by id`,
           "objects"
         )
         .pipe(
@@ -233,7 +267,39 @@ const candidates = (
           Effect.map((found) => Arr.map(found, ({ id }) => id)),
           Effect.orDie
         )
-    : Effect.succeed([]);
+    : [];
+
+  // A rule that starts at the person's last activity is decided from facts: the people who still hold a row it has not
+  // reached, among those whose period the domain says has ended. A tombstone has none: its rows moved.
+  const decidedByFacts = Arr.isReadonlyArrayNonEmpty(fromActivity)
+    ? yield* Effect.gen(function* byFacts() {
+        const people = yield* readPeople(db, sql`p.merged_into is null`);
+
+        return yield* Effect.forEach(fromActivity, ({ rule }) =>
+          rule.key === null
+            ? Effect.succeed([])
+            : Effect.map(
+                db
+                  .execute<{ id: number }>(
+                    sql`select distinct ${personOf(rule.table, rule.key)} as id from ${identifier(rule.table)} where ${allOf(notAnonymised(rule), sql`${personOf(rule.table, rule.key)} is not null`)}`,
+                    "objects"
+                  )
+                  .pipe(Effect.flatMap(decodeCandidates), Effect.orDie),
+                (holders) =>
+                  Arr.intersection(
+                    Arr.map(holders, ({ id }) => id),
+                    peopleDue(people, rule, now)
+                  )
+              )
+        );
+      })
+    : [];
+
+  return Arr.sort(
+    Arr.dedupe([...decided, ...Arr.flatten(decidedByFacts)]),
+    Order.Number
+  );
+});
 
 /** What a nightly run does with the rows that its rules select: change them through the people's locks, or count them. */
 interface Run {
@@ -271,7 +337,7 @@ const nightly = (
 ) => {
   const { inBulk, perPerson } = partition(rules);
 
-  /** The rules, in order, for one chunk of people. */
+  /** The rules, in order, for one chunk of people: the facts of the people are read after `run.people` has locked them. */
   const forPeople = Effect.fnUntraced(function* forPeople(
     chunk: readonly number[],
     now: DateTime.Utc
@@ -283,6 +349,13 @@ const nightly = (
       return nothing;
     }
 
+    const activity = activityOf(
+      Arr.some(perPerson, ({ rule }) => startsAtLastActivity(rule))
+        ? yield* readPeople(db, personIn(col("p", "id"), ids))
+        : [],
+      now
+    );
+
     return yield* Effect.forEach(perPerson, (planned) => {
       const { rule } = planned;
 
@@ -291,7 +364,7 @@ const nightly = (
           ? Effect.succeed(0)
           : run.rows(
               rule,
-              dueForPeople(planned, rule.key, now, ids),
+              dueForPeople(planned, rule.key, now, ids, activity),
               tokens,
               now
             ),
@@ -430,7 +503,7 @@ export const personalDataRetention = (
     now: DateTime.Utc
   ): Effect.Effect<number> =>
     Effect.gen(function* sweepChunk() {
-      const chunk = sql`ctid = any(array(select ctid from ${identifier(rule.table)} where ${dueAt(rule, now)} limit ${BULK_CHUNK}))`;
+      const chunk = sql`ctid = any(array(select ctid from ${identifier(rule.table)} where ${dueAt(rule, now, noOne)} limit ${BULK_CHUNK}))`;
       const rows = yield* apply(rule, chunk, [], now);
 
       return rows < BULK_CHUNK ? rows : rows + (yield* sweep(rule, now));
@@ -538,7 +611,7 @@ export const personalDataRetentionReport = (
   rules: readonly RetentionRule[] = retentionRules(catalog)
 ) => ({
   expire: nightly(db, rules, {
-    bulk: (rule, now) => countRows(db, rule, dueAt(rule, now)),
+    bulk: (rule, now) => countRows(db, rule, dueAt(rule, now, noOne)),
     people: (ids) => Effect.succeed({ ids, tokens: [] }),
     rows: (rule, where) => countRows(db, rule, where),
   }),
