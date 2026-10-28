@@ -106,7 +106,7 @@ export const WorkspaceDomain = declareDomain({
     viewIntegrations: {
       replaces: [],
       summary:
-        "See the integrations: the Google Workspace report and whether writes are on.",
+        "See the integrations: the Google Workspace report, whether writes are on, and the outbox: how many messages are delivered, waiting or failed, and each undelivered message's kind, state, attempts, next attempt and the class of its last error (never its content).",
     },
   },
   title: "Integrations",

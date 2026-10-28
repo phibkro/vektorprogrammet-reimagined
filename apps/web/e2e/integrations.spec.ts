@@ -45,6 +45,13 @@ test("an administrator requests a dry-run and reads the resulting report", async
     page.getByRole("heading", { level: 1, name: "Integrasjoner" })
   ).toBeVisible();
   await expect(page.getByText("Skrivemodus:")).toContainText("Av");
+  // Spec 0008b: what the outbox has not delivered is on this page, by state, never with a message's content.
+  await expect(
+    page.getByRole("heading", { name: "Utsendelser" })
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Levert: \d+ · Venter: \d+ · Mislyktes: \d+/u)
+  ).toBeVisible();
 
   const requests = await runDatabase(workspaceRequestCount);
   const completed = await runDatabase(completedWorkspaceRequestCount);

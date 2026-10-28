@@ -2,10 +2,12 @@
  * The Worker entry (Cloudflare's documented custom-entry pattern for TanStack
  * Start): `fetch` answers legacy redirects, then delegates to TanStack's
  * server entry with `{ env, ctx }` as the request context; `scheduled` runs the registered jobs that are due
- * (`@vektorprogrammet/domain` `JobRegistry`, spec 0008), on the cron triggers that the registry generates (`worker.config.ts`).
+ * (`@vektorprogrammet/domain` `JobRegistry`, spec 0008), on the cron triggers that the registry generates (`worker.config.ts`);
+ * `queue` is the outbox's consumer (spec 0008b): one handler for the outbox queue and its dead-letter queue.
  */
 import type {
   ExecutionContext,
+  MessageBatch,
   ScheduledController,
 } from "@cloudflare/workers-types";
 import handler from "@tanstack/react-start/server-entry";
@@ -20,7 +22,7 @@ import {
   legacyFileLocation,
   permanentRedirect,
 } from "./server/redirects";
-import { runAuthRequest, runQuery, runTick } from "./server/runtime";
+import { runAuthRequest, runQuery, runQueue, runTick } from "./server/runtime";
 
 validateAuthStartup(workerBindings.BETTER_AUTH_SECRET);
 
@@ -89,6 +91,10 @@ const fetch = (
 
 export default {
   fetch,
+  /** The outbox queue and its dead-letter queue (spec 0008b). It answers each message itself, so it returns when all are answered. */
+  queue(batch: MessageBatch, env: WorkerEnv): Promise<void> {
+    return runQueue(env, batch);
+  },
   scheduled(
     controller: ScheduledController,
     env: WorkerEnv,

@@ -6,7 +6,7 @@
  * visible there. A rolled-back command leaves neither a row nor a provider call. The negative control is a command that
  * calls the provider inside its transaction, which the same probe catches.
  *
- * Falsifier 3: a delivery that crashes after the provider answered and before the acknowledgement is claimed again and
+ * Falsifier 3: a delivery that crashes after the provider answered and before the acknowledgement (the process dies: an interruption, which no handler sees; a defect is recorded as the row's failure, spec 0008b R3) is claimed again and
  * sends again with the same key, and the keyed capture sink keeps the message once. The control is a sink that has no
  * key, which keeps it twice.
  */
@@ -17,13 +17,7 @@ import {
   migratedTestDatabase,
   withClient,
 } from "@vektorprogrammet/db/testing";
-import {
-  EmailAddress,
-  Outbox,
-  OutboxMessage,
-  SlackTarget,
-  validationFailed,
-} from "@vektorprogrammet/domain";
+import { Outbox, OutboxMessage, SlackTarget } from "@vektorprogrammet/domain";
 import type {
   OutboxMessageId,
   TransportMessage,
@@ -37,26 +31,19 @@ import {
   Predicate,
   Ref,
 } from "effect";
-import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { AccountDelivery } from "../src/server/accountDelivery";
 import { deliverOutbox } from "../src/server/outboxDelivery";
-import { runCommandOutcome } from "../src/server/runtime";
 import { MessageSender, captureSenderLayer } from "../src/server/senders";
 import { Transactor, transactorLayer } from "../src/server/transactor";
+import { email, requestOutcome } from "./support/commandOutcome";
+import { deliverPending } from "./support/deliveryLive";
 import { rowsIn as countRows } from "./support/rowCount";
 import { refusingWriter } from "./support/workspaceWorld";
 
 const T0 = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
-
-const email = OutboxMessage.cases.Email.make({
-  replyTo: null,
-  subject: "Henvendelse",
-  text: "Hei",
-  to: EmailAddress.make("avdeling@example.org"),
-});
 
 const slack = OutboxMessage.cases.SlackPost.make({
   target: SlackTarget.cases.Notifications.make({}),
@@ -111,6 +98,16 @@ const noOtherServices = Layer.mergeAll(
   refusingWriter
 );
 
+/** One delivery pass that dies (the process is interrupted) after the provider answered and before `markDelivered`: the crash that both tests of falsifier 3 run. */
+const crashingDelivery = <E, R>(sender: Layer.Layer<MessageSender, E, R>) =>
+  deliverPending.pipe(
+    Effect.updateService(OutboxDelivery, (real) =>
+      OutboxDelivery.of({ ...real, markDelivered: () => Effect.interrupt })
+    ),
+    Effect.provide(Layer.mergeAll(sender, noOtherServices)),
+    Effect.exit
+  );
+
 const reset = Effect.gen(function* reset() {
   const sql = yield* SqlClient;
 
@@ -125,34 +122,6 @@ const freshProbe = Effect.gen(function* probeFixture() {
     url: yield* TestDatabaseUrl,
   };
 });
-
-/** A command that queues one message, as `contact` does, in the transaction that the runner opens. */
-const enqueueOne = Effect.gen(function* enqueueOne() {
-  return yield* (yield* Outbox).enqueue([email]);
-});
-
-/** Exercises the actual request runtime, optionally failing after it queues the message. */
-const requestOutcome = (url: Redacted.Redacted, rollback: boolean) =>
-  Effect.promise(
-    async () =>
-      await runCommandOutcome(
-        transactorLayer.pipe(
-          Layer.provideMerge(DatabaseLive({ maxConnections: 4, url })),
-          Layer.orDie
-        ),
-        Effect.void,
-        () =>
-          rollback
-            ? Effect.andThen(
-                enqueueOne,
-                Effect.fail(
-                  validationFailed(["name"], "refused after queueing")
-                )
-              )
-            : enqueueOne,
-        new AbortController().signal
-      )
-  );
 
 layer(live, { excludeTestServices: true })(
   "the delivery boundary on PostgreSQL",
@@ -182,7 +151,7 @@ layer(live, { excludeTestServices: true })(
 
           assert.strictEqual(ids.length, 1);
 
-          yield* deliverOutbox({ ids, limit: ids.length }).pipe(
+          yield* deliverOutbox(ids).pipe(
             Effect.provide(
               Layer.mergeAll(probingProvider(seen), noOtherServices)
             )
@@ -215,7 +184,7 @@ layer(live, { excludeTestServices: true })(
           );
 
           // Whatever sweeps next finds nothing to send.
-          yield* deliverOutbox({ limit: 50 }).pipe(
+          yield* deliverPending.pipe(
             Effect.provide(
               Layer.mergeAll(probingProvider(seen), noOtherServices)
             )
@@ -269,20 +238,7 @@ layer(live, { excludeTestServices: true })(
               slack,
             ]);
 
-            const crashed = yield* Effect.exit(
-              deliverOutbox({ limit: 50 }).pipe(
-                Effect.updateService(OutboxDelivery, (real) =>
-                  OutboxDelivery.of({
-                    ...real,
-                    markDelivered: () =>
-                      Effect.die("the process died before the acknowledgement"),
-                  })
-                ),
-                Effect.provide(
-                  Layer.mergeAll(captureSenderLayer, noOtherServices)
-                )
-              )
-            );
+            const crashed = yield* crashingDelivery(captureSenderLayer);
 
             assert.isTrue(
               Exit.isFailure(crashed),
@@ -294,18 +250,19 @@ layer(live, { excludeTestServices: true })(
               "the provider answered"
             );
 
-            // The lease runs out; the next sweep claims both rows again, and the provider hears from them again.
+            // The lease runs out and the queue delivers the messages again (the consumer claims one row at a time, so the
+            // crash happened before the Slack row was claimed): the provider hears from the mail again, with the same key.
             yield* TestClock.adjust("121 seconds");
 
-            const again = yield* deliverOutbox({ limit: 50 }).pipe(
+            const again = yield* deliverPending.pipe(
               Effect.provide(
                 Layer.mergeAll(captureSenderLayer, noOtherServices)
               )
             );
 
             assert.deepStrictEqual(
-              Arr.map(again, (row) => row.outcome),
-              ["delivered", "delivered"]
+              Arr.map(again, (row) => row._tag),
+              ["Delivered", "Delivered"]
             );
             assert.strictEqual(
               yield* countRows("captured_mail"),
@@ -338,7 +295,7 @@ layer(live, { excludeTestServices: true })(
               Arr.map(statuses, (row) => [row.status, row.attempts]),
               [
                 ["delivered", 2],
-                ["delivered", 2],
+                ["delivered", 1],
               ]
             );
           })
@@ -363,20 +320,9 @@ layer(live, { excludeTestServices: true })(
               })
             );
 
-            const crashingSweep = deliverOutbox({ limit: 50 }).pipe(
-              Effect.updateService(OutboxDelivery, (real) =>
-                OutboxDelivery.of({
-                  ...real,
-                  markDelivered: () => Effect.die("crashed"),
-                })
-              ),
-              Effect.provide(Layer.mergeAll(keyless, noOtherServices)),
-              Effect.exit
-            );
-
-            yield* crashingSweep;
+            yield* crashingDelivery(keyless);
             yield* TestClock.adjust("121 seconds");
-            yield* deliverOutbox({ limit: 50 }).pipe(
+            yield* deliverPending.pipe(
               Effect.provide(Layer.mergeAll(keyless, noOtherServices))
             );
 

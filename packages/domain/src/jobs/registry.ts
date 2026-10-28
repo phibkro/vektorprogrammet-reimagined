@@ -29,7 +29,12 @@ export const semesters = make({
   summary: "Keeps the current and the next semester present.",
 });
 
-/** Delivers what the commands queued in the outbox (spec 0006 R1, spec 0007 R1). The rows are its work queue. */
+/**
+ * The safety net of the outbox queue (spec 0008b): puts the ids of the rows that no queue message covers any more back on
+ * the queue. A command's rows are published right after its commit and a job's after its chunk's, so the sweep finds
+ * only what a crash or a lost message left behind: rows pending longer than `DeliveryPolicy.requeueAfter`. The rows are
+ * the record of what must be sent; the consumer delivers them (spec 0006 R1, spec 0007 R1).
+ */
 export const outboxSweep = make({
   chunkSize: 50,
   chunksPerTick: 4,
@@ -39,7 +44,7 @@ export const outboxSweep = make({
   name: "outboxSweep",
   schedule: { cron: TICK_CRON, status: "approved" },
   summary:
-    "Delivers e-mails, Slack posts and credential and Workspace intents that a request could not send.",
+    "Puts the ids of outbox rows that no queue message covers any more (a crash between commit and enqueue, a lost message) back on the queue.",
 });
 
 /** The digest of memberships that end this semester (spec 0006). The ledger makes each leader's mail once. */
@@ -111,9 +116,9 @@ export const retention = make({
 });
 
 /**
- * In the order that a tick runs them in. The outbox sweep is last of the tick's jobs on purpose: it delivers what the
- * jobs before it queued (the digest, the alumni mail, the Workspace changes) in the same tick instead of the next one.
- * The retention run has its own cron, so it never runs in a tick of the others.
+ * In the order that a tick runs them in. The jobs before the outbox sweep publish the rows that their chunks enqueued
+ * as soon as the chunk commits (spec 0008b), so the sweep's place is no longer what delivers them in the same tick. The
+ * retention run has its own cron, so it never runs in a tick of the others.
  */
 export const Jobs = [
   semesters,

@@ -48,7 +48,7 @@ Each domain declares its commands as `Rpc.make` in one `RpcGroup` (`declaration.
 | Needs `InTransaction` (wrap with the runner) | Runs outside a transaction |
 | --- | --- |
 | `OrganisationEndpoints.*`, `ContentEndpoints.createSocialEvent`, `ContactEndpoints.submitContact`, `FilesEndpoints.createPublicFile`, every `TeamsEndpoints.*` | `storeUpload` (R2 put; **must not** be in a transaction); `currentSemester` and `findCurrentSemester` (reads); queries: `listSemestersNewestFirst`, `listFieldsOfStudy`, `servePublicFile`, `resolveLegacyFilePath` |
-| the jobs: `semesterJob` (`System("semesters")`), `endingSoonJob` (`System("endingSoon")`) | the outbox sweep (`sweepOutbox`, `System("outboxSweep")`): each claim and mark is its own statement |
+| the jobs: `semesterJob` (`System("semesters")`), `endingSoonJob` (`System("endingSoon")`) | the outbox's commands (`sweepOutbox`, `deliverOutbox`, `failOutbox`, all `System("outboxSweep")`): each claim and mark is its own statement |
 
 A job is provided `CurrentPrincipal` = `System(job)` by its runner (`apps/web`), and then passes through `authorize` like any command.
 

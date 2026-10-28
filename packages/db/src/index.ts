@@ -32,6 +32,8 @@ export {
   OutboxClaimToken,
   OutboxDelivery,
   type OutboxAck,
+  OutboxClaim,
+  type OutboxEnding,
 } from "./repositories/outbox.ts";
 
 export {

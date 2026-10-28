@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 5d89a267aefe2d123e1657020f2ae8022658758c
-confirmed-at: ec5f2274757f4305be5c246af230d936205714aa
+sync-digest: 00bab8876cd36ffac54cc7ee20fc745965c8bc8a
+confirmed-at: b1a2e3a88ab178c387b80c531fcea3ac8084aabe
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -55,6 +55,8 @@ The `sync-digest` is the digest of the covered paths at the last confirmation. `
 After the 0007d rebase, the model was run again with `--code`. The membership-machine additions declare metadata for effx; they do not change transitions. The added retention-report migration changes only the audit action constraint. Neither changes the modeled statements.
 
 After spec 0007b and spec 0008 met (the merge of main into the 0008 branch, 2026-10-27), the model ran again with `--code` on the merged tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed. Neither side's covered changes add a statement, lock or table to a membership command: 0007b's writers and its tombstone filter are described above, and the welcome claim, the address claims and the Workspace projection are the rows above and the `Address.tla` model. The `file:line` pointers that the merge moved were recomputed: `repositories/teams.ts` shifted by the seven lines of `PersonRepository.create` (the creation date and the optional address claim), the SQLSTATE mapping in `classifySqlFailure.ts` moved by 0007b's `isConstraintViolation` and the group-address outcome, and the `updatePerson` entry of `compose` now points at `accounts/commands.ts`, where the handler is.
+
+Spec 0008b (outbox delivery on Queues, 2026-10-28) changed two covered paths: `packages/db/src/schema.ts` and `packages/db/drizzle`, by one nullable column `outbox.queued_at` and its migration. The table is not `membership`, and no modeled statement, lock or constraint changed. The model ran again with `--code` on that tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed.
 
 ## Writers outside the model (spec 0007b)
 

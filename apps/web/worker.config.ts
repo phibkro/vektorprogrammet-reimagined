@@ -1,5 +1,5 @@
-import { Job, JobRegistry } from "@vektorprogrammet/domain";
-import { Config, Effect } from "effect";
+import { Job, JobRegistry, OutboxSweep } from "@vektorprogrammet/domain";
+import { Config, Duration, Effect, Option } from "effect";
 
 /**
  * Worker settings shared by `alchemy.run.ts` (deployed Workers) and
@@ -39,6 +39,20 @@ export const WORKER_MAIN = "src/server.ts";
  * Cloudflare Worker Preview of this stage's Worker (spec 0002); `production` is the production deployment.
  */
 export const BASE_STAGE = "main";
+
+/**
+ * What a stage is (spec 0002): `production`, the base stage `main`, or a pull request's Worker Preview of the base
+ * stage.
+ */
+export type StageKind = "production" | "base" | "preview";
+
+export const stageKind = (stage: string): StageKind => {
+  if (stage === "production") {
+    return "production";
+  }
+
+  return stage === BASE_STAGE ? "base" : "preview";
+};
 
 /** Production's bucket keeps the plain name; every other stage gets its own, so no stage can write production files. */
 export const publicFilesBucket = (stage: string): string =>
@@ -126,3 +140,67 @@ export const CRON_TRIGGERS: readonly string[] = Job.cronTriggers(
  * The browser test triggers the Worker's `scheduled` handler with it.
  */
 export const RETENTION_CRON: string = JobRegistry.retention.schedule.cron;
+
+/**
+ * The outbox's Cloudflare Queues (spec 0008b). The queue holds outbox row ids and nothing else; the dead-letter queue
+ * takes a message that was delivered `DeliveryPolicy.attempts` times without success, and its consumer ends the row.
+ * Previews bind neither (a Preview cannot own a queue consumer), so only `production` and the base stage have them.
+ */
+export const outboxQueueName = (stage: string): string => `vp-outbox-${stage}`;
+
+/** The dead-letter queue's name is the queue's, plus this: the Worker's one `queue` handler tells the two apart by it. */
+export const DEAD_LETTER_SUFFIX = "-dlq";
+
+export const outboxDeadLetterName = (stage: string): string =>
+  `${outboxQueueName(stage)}${DEAD_LETTER_SUFFIX}`;
+
+/** The names of a stage's queue and its dead-letter queue. */
+export interface OutboxQueueNames {
+  readonly deadLetter: string;
+  readonly queue: string;
+}
+
+/**
+ * The one decision of which stage has a queue (spec 0008b), read by `alchemy.run.ts` and tested. A Preview cannot own a
+ * queue consumer ("Queue consumers cannot target a Preview", Cloudflare's Previews documentation), and a Preview that
+ * produced to the base stage's queue would have its ids consumed by the base Worker against the base stage's
+ * database, so a Preview has none (`None`) and its Worker delivers in `waitUntil`. The base stage and production
+ * each have a pair named for their own stage.
+ */
+export const outboxQueuesFor = (
+  stage: string
+): Option.Option<OutboxQueueNames> =>
+  stageKind(stage) === "preview"
+    ? Option.none()
+    : Option.some({
+        deadLetter: outboxDeadLetterName(stage),
+        queue: outboxQueueName(stage),
+      });
+
+/**
+ * The consumer's settings. Cloudflare delivers a message `max_retries + 1` times, so `max_retries` is the declared number
+ * of attempts less one. A batch is at most ten messages (the default), and a message that waits for a retry waits as long
+ * as the policy's delay says, which the consumer sets per message (`message.retry({ delaySeconds })`), so `retryDelay` is
+ * only the queue's default for a retry that names none (a handler that threw).
+ */
+export const OUTBOX_CONSUMER = {
+  batchSize: 10,
+  maxRetries: OutboxSweep.DeliveryPolicy.attempts - 1,
+  maxWaitTimeMs: 5000,
+  retryDelay: Math.ceil(
+    Duration.toSeconds(OutboxSweep.DeliveryPolicy.retryBase)
+  ),
+} as const;
+
+/**
+ * The dead-letter queue's consumer. Its settings are the main consumer's on purpose: a message there names one row to
+ * end, and a batch is up to ten of them. A row that is held (a live claim) is looked at again after the lease, and
+ * `maxRetries` bounds those retries; when they run out Cloudflare drops the message, and the row, still pending, is put
+ * back on the queue by the sweep, so a dropped message costs time and never a row.
+ */
+export const DEAD_LETTER_CONSUMER = {
+  batchSize: 10,
+  maxRetries: OutboxSweep.DeliveryPolicy.attempts - 1,
+  maxWaitTimeMs: 5000,
+  retryDelay: OUTBOX_CONSUMER.retryDelay,
+} as const;

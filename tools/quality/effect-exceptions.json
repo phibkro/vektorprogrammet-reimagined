@@ -306,10 +306,17 @@
         "typescript/promise-function-async"
       ],
       "scope": {
-        "files": ["apps/web/test/deliveryBoundary.postgres.test.ts"],
-        "symbols": ["runCommandOutcome Promise boundary"]
+        "files": [
+          "apps/web/test/deliveryBoundary.postgres.test.ts",
+          "apps/web/test/outboxQueue.postgres.test.ts",
+          "apps/web/test/support/commandOutcome.ts"
+        ],
+        "symbols": [
+          "runCommandOutcome Promise boundary",
+          "runTick and runQueue Promise boundaries"
+        ]
       },
-      "reason": "The PostgreSQL delivery test exercises the actual Promise-returning request runtime inside an Effect test.",
+      "reason": "The PostgreSQL delivery tests exercise the actual Promise-returning request, scheduled and queue runtimes inside an Effect test.",
       "missingCapability": "The configured Promise lint requires an async thunk while the Effect diagnostic rejects async functions at that boundary.",
       "nativeAlternativesExamined": [
         "Effect.promise wraps the real runtime boundary and retains its Promise contract.",
@@ -375,11 +382,13 @@
         "files": [
           "apps/web/src/server/authError.ts",
           "apps/web/src/server/deliveryClaimLost.ts",
+          "apps/web/src/server/queueSendFailed.ts",
           "packages/db/src/aggregate/defects.ts"
         ],
         "symbols": [
           "AuthBoundaryFailure",
           "DeliveryClaimLost",
+          "QueueSendFailed",
           "LockOrderViolation",
           "LockNotHeld",
           "TransitionNotApplicable",

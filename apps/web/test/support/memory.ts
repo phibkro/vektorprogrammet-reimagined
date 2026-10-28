@@ -4,7 +4,11 @@
  * service contracts just far enough for the web runtime, routes and outbox
  * delivery to be exercised. Every value is a fake same-shape value.
  */
-import { OutboxClaimToken, OutboxDelivery } from "@vektorprogrammet/db";
+import {
+  OutboxClaim,
+  OutboxClaimToken,
+  OutboxDelivery,
+} from "@vektorprogrammet/db";
 import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
 import {
   AdmissionPeriodRepository,
@@ -22,6 +26,7 @@ import {
   NotFound,
   Outbox,
   OutboxMessageId,
+  OutboxReports,
   PublicFileRepository,
   SemesterId,
   SemesterRepository,
@@ -30,6 +35,7 @@ import {
   SocialEventRepository,
   WorkspaceReports,
   anonymous,
+  deliveryState,
 } from "@vektorprogrammet/domain";
 import type {
   AdmissionPeriod,
@@ -69,6 +75,7 @@ interface OutboxRow {
   status: "pending" | "delivered" | "dead";
   claimToken: OutboxClaimToken | null;
   nextAttemptAt: DateTime.Utc | null;
+  queuedAt?: DateTime.Utc | null;
   lastError: string | null;
 }
 
@@ -387,33 +394,57 @@ const repositories = Layer.effectContext(
         return "recorded" as const;
       });
 
-    const delivery = OutboxDelivery.of({
-      claimDue: ({ limit, ids }) =>
-        Effect.map(DateTime.now, (now) =>
-          Arr.map(
-            Arr.filter(
-              db.outbox,
-              (row) =>
-                row.status === "pending" &&
-                row.claimToken === null &&
-                (row.nextAttemptAt === null ||
-                  !DateTime.isGreaterThan(row.nextAttemptAt, now)) &&
-                (ids === undefined || ids.includes(row.id))
-            ).slice(0, limit),
-            (row): ClaimedOutboxMessage => {
-              row.attempts += 1;
-              row.claimToken = OutboxClaimToken.make(`claim-${takeId()}`);
+    const rowOf = (id: OutboxMessageId) =>
+      Option.getOrUndefined(
+        Arr.findFirst(db.outbox, (candidate) => candidate.id === id)
+      );
 
-              return {
-                attempts: row.attempts,
-                claimToken: row.claimToken,
-                createdAt: now,
-                id: row.id,
-                message: row.message,
-              };
-            }
-          )
-        ),
+    const delivery = OutboxDelivery.of({
+      claim: (id) =>
+        Effect.map(DateTime.now, (now) => {
+          const row = rowOf(id);
+
+          if (row === undefined || row.status !== "pending") {
+            return OutboxClaim.cases.Settled.make({});
+          }
+
+          if (row.claimToken !== null) {
+            return OutboxClaim.cases.Held.make({});
+          }
+
+          row.attempts += 1;
+          row.claimToken = OutboxClaimToken.make(`claim-${takeId()}`);
+
+          return OutboxClaim.cases.Claimed.make({
+            row: {
+              attempts: row.attempts,
+              claimToken: row.claimToken,
+              createdAt: now,
+              id: row.id,
+              message: row.message,
+            } satisfies ClaimedOutboxMessage,
+          });
+        }),
+      markDead: (id) =>
+        Effect.sync(() => {
+          const row = rowOf(id);
+
+          if (row === undefined || row.status !== "pending") {
+            return "settled" as const;
+          }
+
+          if (row.claimToken !== null) {
+            return "held" as const;
+          }
+
+          if (row.lastError === null) {
+            return "settled" as const;
+          }
+
+          row.status = "dead";
+
+          return "failed" as const;
+        }),
       markDelivered: (id, claimToken) =>
         updateClaim(id, claimToken, (row) => {
           row.status = "delivered";
@@ -423,13 +454,79 @@ const repositories = Layer.effectContext(
         updateClaim(id, claimToken, (row) => {
           row.claimToken = null;
           row.lastError = error;
-
-          if (next === "dead") {
-            row.status = "dead";
-          } else {
-            row.nextAttemptAt = next;
+          row.nextAttemptAt = next;
+        }),
+      markQueued: (ids) =>
+        Effect.map(DateTime.now, (now) => {
+          for (const row of db.outbox) {
+            if (row.status === "pending" && ids.includes(row.id)) {
+              row.queuedAt = now;
+            }
           }
         }),
+      recordFailure: (id, error, next) =>
+        Effect.sync(() => {
+          const row = rowOf(id);
+
+          if (
+            row === undefined ||
+            row.status !== "pending" ||
+            row.claimToken !== null
+          ) {
+            return "settled" as const;
+          }
+
+          row.lastError = error;
+          row.nextAttemptAt = next;
+
+          return "recorded" as const;
+        }),
+      stale: ({ before, limit }) =>
+        Effect.sync(() =>
+          Arr.take(
+            Arr.map(
+              Arr.filter(db.outbox, (row) => {
+                const last = row.queuedAt ?? row.nextAttemptAt;
+
+                return (
+                  row.status === "pending" &&
+                  row.claimToken === null &&
+                  (last === null || !DateTime.isGreaterThan(last, before))
+                );
+              }),
+              (row) => row.id
+            ),
+            limit
+          )
+        ),
+    });
+
+    const reports = OutboxReports.of({
+      overview: Effect.map(DateTime.now, (now) => ({
+        counts: {
+          delivered: Arr.filter(db.outbox, (row) => row.status === "delivered")
+            .length,
+          failed: Arr.filter(db.outbox, (row) => row.status === "dead").length,
+          pending: Arr.filter(db.outbox, (row) => row.status === "pending")
+            .length,
+        },
+        open: Arr.map(
+          Arr.filter(db.outbox, (row) => row.status !== "delivered"),
+          (row) => ({
+            attempts: row.attempts,
+            id: row.id,
+            kind: row.message._tag,
+            lastError: row.lastError,
+            nextAttemptAt: row.nextAttemptAt ?? now,
+            queuedAt: row.queuedAt ?? null,
+            state: deliveryState({
+              lastError: row.lastError,
+              queuedAt: row.queuedAt ?? null,
+              status: row.status === "dead" ? "dead" : "pending",
+            }),
+          })
+        ),
+      })),
     });
 
     const admissionPeriods = AdmissionPeriodRepository.of({
@@ -445,7 +542,8 @@ const repositories = Layer.effectContext(
       Context.add(FileStore, fileStore),
       Context.add(Outbox, outbox),
       Context.add(AuditLog, auditLog),
-      Context.add(OutboxDelivery, delivery)
+      Context.add(OutboxDelivery, delivery),
+      Context.add(OutboxReports, reports)
     );
   })
 );

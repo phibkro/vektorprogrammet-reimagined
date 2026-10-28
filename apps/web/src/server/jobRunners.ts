@@ -23,11 +23,12 @@ import type {
   WorkspaceDirectory,
   WorkspaceWriter,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Match } from "effect";
+import { Effect, Match } from "effect";
 import type { Crypto } from "effect";
 
 import type { AccountDelivery } from "./accountDelivery";
 import type { Runner } from "./jobs";
+import { OutboxPublisher } from "./outboxPublisher";
 import { withOutbox } from "./outboxSweep";
 import type { DatabaseServices } from "./runtime";
 import type { MessageSender } from "./senders";
@@ -37,6 +38,7 @@ export type TickServices =
   | DatabaseServices
   | AccountDelivery
   | MessageSender
+  | OutboxPublisher
   | WorkspaceDirectory
   | WorkspaceWriter
   | Crypto.Crypto
@@ -66,38 +68,38 @@ const oneShot = <A, R>(
 });
 
 /**
- * The outbox rows are the queue: each chunk claims up to `chunkSize` due rows (`SKIP LOCKED`, fenced by claim
- * tokens), provider calls included, none inside a transaction, which is why the sweep runs in `prepare`. A full chunk
- * means more may be due, so it goes on until the job's budget; what is left is found by the next tick's own claim.
+ * The safety net of the queue (spec 0008b): the outbox rows are the record, and the queue only carries their ids. Each chunk
+ * asks the command for up to `chunkSize` pending rows that no receipt covers any more (the rows that a crash between
+ * commit and enqueue, or a message the queue lost, left behind) and puts their ids on the queue again; the receipt is
+ * written by the publisher. It delivers nothing: the consumer does, and a duplicate message is harmless (the claim is
+ * conditional). Nothing here runs inside a transaction, which is why the sweep runs in `prepare`. A full chunk means more
+ * may be stale, so it goes on until the job's budget; what is left is found by the next tick.
  */
 const sweepOutbox = Effect.gen(function* sweep() {
   const { chunkSize: limit, chunksPerTick: budget } = JobRegistry.outboxSweep;
+  const publisher = yield* OutboxPublisher;
   let chunks = 0;
-  let rows = 0;
-  let delivered = 0;
+  let queued = 0;
 
   while (chunks < budget) {
-    const results = yield* withOutbox((client) =>
+    const { stale } = yield* withOutbox((client) =>
       client.sweepOutbox({ limit })
     );
 
     chunks += 1;
-    rows += results.length;
-    delivered += Arr.filter(
-      results,
-      (result) => result.outcome === "delivered"
-    ).length;
+    queued += stale.length;
+    yield* publisher.publish(stale);
 
-    if (results.length < limit) {
+    if (stale.length < limit) {
       break;
     }
   }
 
-  yield* Effect.logInfo("outbox delivery finished").pipe(
-    Effect.annotateLogs({ rows })
+  yield* Effect.logInfo("outbox sweep finished").pipe(
+    Effect.annotateLogs({ queued })
   );
 
-  return { delivered, rows };
+  return { queued };
 });
 
 /**

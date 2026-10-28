@@ -23,8 +23,7 @@ import { Array as Arr, Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { deliverOutbox } from "../src/server/outboxDelivery";
-import { live, origin } from "./support/deliveryLive";
+import { deliverPending, live, origin } from "./support/deliveryLive";
 
 const ALUMNA = 601;
 const ERASED = 602;
@@ -99,11 +98,11 @@ layer(live, { excludeTestServices: true })(
 
           assert.isTrue(erased.erased);
 
-          const receipts = yield* deliverOutbox({ limit: 10 });
+          const receipts = yield* deliverPending;
 
           assert.deepStrictEqual(
-            Arr.map(receipts, (receipt) => receipt.outcome),
-            ["delivered", "delivered"]
+            Arr.map(receipts, (receipt) => receipt._tag),
+            ["Delivered", "Delivered"]
           );
 
           const sent = yield* Schema.decodeUnknownEffect(mails)(

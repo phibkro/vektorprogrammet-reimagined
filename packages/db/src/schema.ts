@@ -680,6 +680,8 @@ export const outbox = pgTable(
     lastError: text("last_error"),
     nextAttemptAt: instant("next_attempt_at").notNull(),
     payload: jsonb("payload").notNull(),
+    /** When the queue last accepted this row's id (spec 0008b): the receipt of the queue, beside `delivered_at`. */
+    queuedAt: instant("queued_at"),
     status: outboxStatus("status").notNull().default("pending"),
   },
   (t) => [

@@ -10,8 +10,9 @@
  *   interrupts it (and rolls back an open transaction).
  * - Typed failures go through the one error table (`failureOf`); defects are
  *   logged and rethrown, which the framework answers with 500.
- * - After a command commits, the outbox ids it enqueued are delivered in
- *   `ctx.waitUntil`; the cron sweep picks up anything that fails.
+ * - After a command commits, the outbox ids it enqueued are published in `ctx.waitUntil`: put on the outbox queue where
+ *   the Worker has one, delivered right there in a Worker Preview, which has none (spec 0008b). The cron sweep puts back
+ *   what a crash or a lost message left without a queue message.
  */
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { CmsClient } from "@vektorprogrammet/cms-client";
@@ -25,7 +26,6 @@ import type {
 import {
   CurrentPrincipal,
   JobRegistry,
-  Outbox,
   SiteOrigin,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
@@ -46,7 +46,9 @@ import type {
   JobRun,
   LegalHolds,
   MembershipRepository,
+  Outbox,
   OutboxMessageId,
+  OutboxReports,
   PasswordHasher,
   PersonId,
   PersonRepository,
@@ -65,15 +67,7 @@ import type {
   WorkspaceWriter,
   RetentionRun,
 } from "@vektorprogrammet/domain";
-import {
-  Cause,
-  DateTime,
-  Effect,
-  Layer,
-  Predicate,
-  Redacted,
-  Ref,
-} from "effect";
+import { Cause, DateTime, Effect, Layer, Predicate, Redacted } from "effect";
 import type { Crypto } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
@@ -91,6 +85,15 @@ import { r2FileStoreLayer } from "./fileStore";
 import { runners } from "./jobRunners";
 import type { TickServices } from "./jobRunners";
 import { dispatchTick } from "./jobs";
+import {
+  OutboxPublisher,
+  capturingOutbox,
+  directPublisherLayer,
+  queuePublisherLayer,
+} from "./outboxPublisher";
+import type { DirectDeliveryServices } from "./outboxPublisher";
+import { handleBatch } from "./outboxQueue";
+import type { OutboxBatch } from "./outboxQueue";
 import { withOutbox } from "./outboxSweep";
 import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
@@ -148,6 +151,7 @@ export type DatabaseServices =
   | RetentionRun
   | PrincipalDirectory
   | Outbox
+  | OutboxReports
   | AuditLog
   | CapturedMessageStore
   | JobRun.JobRuns
@@ -242,29 +246,6 @@ export const runOutcome = <A, E extends RequestError, R>(
     ),
     { signal }
   );
-
-/** Collects the outbox ids a program enqueues, so they can be delivered after commit. */
-const capturingOutbox = <A, E, R>(program: Effect.Effect<A, E, R>) =>
-  Effect.gen(function* captureOutboxEffect() {
-    const enqueued = yield* Ref.make<readonly OutboxMessageId[]>([]);
-
-    const value = yield* program.pipe(
-      Effect.updateService(Outbox, (outbox) =>
-        Outbox.of({
-          enqueue: (messages) =>
-            outbox
-              .enqueue(messages)
-              .pipe(
-                Effect.tap((ids) =>
-                  Ref.update(enqueued, (all) => [...all, ...ids])
-                )
-              ),
-        })
-      )
-    );
-
-    return { enqueued: yield* Ref.get(enqueued), value };
-  });
 
 /** The successful result of a command plus the outbox ids committed with it. */
 export interface Committed<A> {
@@ -366,43 +347,69 @@ const runScheduled = <A, E, R>(
     )
   );
 
-export const runDelivery = (
-  env: WorkerEnv,
-  options?: {
-    readonly ids?: readonly OutboxMessageId[];
-    readonly limit: number;
+/**
+ * The publisher of the outbox ids that a commit named (spec 0008b): the queue's, where the Worker has the binding, which
+ * needs only the database for the receipt (`queued`); the direct one in a Worker Preview, which has no queue and delivers
+ * on the spot, to the capture sink, and needs the whole delivery stack (`direct`). Only the chosen layer is built.
+ */
+const publisherLayerFor = (
+  env: Pick<TickEnv, "OUTBOX_QUEUE">,
+  layers: {
+    readonly direct: Layer.Layer<DirectDeliveryServices>;
+    readonly queued: Layer.Layer<OutboxDelivery>;
   }
+): Layer.Layer<OutboxPublisher> =>
+  env.OUTBOX_QUEUE === undefined
+    ? directPublisherLayer.pipe(Layer.provide(layers.direct))
+    : queuePublisherLayer(env.OUTBOX_QUEUE).pipe(Layer.provide(layers.queued));
+
+/**
+ * After a command has committed: publish the ids it enqueued, with the request's own database connection pool gone, so
+ * on its own connection. Runs in `ctx.waitUntil`, so it never rejects; whatever it could not do is left to the sweep.
+ */
+export const runPublish = (
+  env: TickEnv,
+  ids: readonly OutboxMessageId[]
 ): Promise<void> =>
   runScheduled(
-    deliveryLayer(env),
-    withOutbox((client) =>
-      client.sweepOutbox(
-        options ?? { limit: JobRegistry.outboxSweep.chunkSize }
-      )
-    ).pipe(
-      Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
-      Effect.tap((results) =>
-        Effect.logInfo("outbox delivery finished").pipe(
-          Effect.annotateLogs({ rows: results.length })
-        )
-      )
-    )
+    publisherLayerFor(env, {
+      direct: deliveryLayer(env),
+      queued: databaseLayer(env),
+    }),
+    OutboxPublisher.use((publisher) => publisher.publish(ids))
   );
 
-/** Activation and reset wait for their own credential intent after the domain commit. */
+/**
+ * Activation and reset wait for their own credential intent after the domain commit: the rows are delivered here and
+ * now, by the same claim as the queue's consumer, and the caller reads what became of each.
+ */
 export const runDeliveryChecked = (
   env: WorkerEnv,
   ids: readonly OutboxMessageId[],
   signal: AbortSignal
 ) =>
   Effect.runPromise(
-    withOutbox((client) => client.sweepOutbox({ ids, limit: ids.length })).pipe(
+    withOutbox((client) => client.deliverOutbox({ ids })).pipe(
       Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
       Effect.provide(deliveryLayer(env)),
       Effect.orDie,
       logDefects
     ),
     { signal }
+  );
+
+/**
+ * One batch from Cloudflare Queues (spec 0008b): the outbox queue's messages deliver rows, the dead-letter queue's end
+ * them (`handleBatch`). The dead-letter queue's branch is built on the database layer only, and a delivery stack that
+ * cannot be built is recorded on the rows (`holdForUnavailableStack`). Every message is answered by the handler itself;
+ * it rejects only when the database layer cannot be built, and the queue then returns the whole batch.
+ */
+export const runQueue = (env: TickEnv, batch: OutboxBatch): Promise<void> =>
+  Effect.runPromise(
+    handleBatch(batch, {
+      database: databaseLayer(env),
+      delivery: deliveryLayer(env),
+    }).pipe(logDefects)
   );
 
 export const runSignInPerson = (
@@ -436,6 +443,7 @@ export type TickEnv = Pick<
   | "SEND_EMAIL"
   | "SITE_URL"
   | "SLACK_WEBHOOK_URL"
+  | "OUTBOX_QUEUE"
   | "WORKSPACE_MODE"
 > & {
   readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
@@ -465,13 +473,13 @@ const tickLayer = (env: TickEnv): Layer.Layer<TickServices | Transactor> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) => {
       const workspace = workspaceConfigFromEnv(deployment, env);
+      const delivery = deliveryLayer(env, jobDatabaseLayer(env));
 
       return Layer.mergeAll(
         workspaceDirectoryLayer(workspace),
         workspaceModeLayer(workspace),
-        transactorLayer.pipe(
-          Layer.provideMerge(deliveryLayer(env, jobDatabaseLayer(env)))
-        )
+        publisherLayerFor(env, { direct: delivery, queued: delivery }),
+        transactorLayer.pipe(Layer.provideMerge(delivery))
       );
     })
   );
@@ -498,8 +506,29 @@ export const runTick = (
   );
 
 /**
- * A prepared command in the live per-request Layer. On success its outbox rows
- * are delivered after the response, in `ctx.waitUntil`.
+ * What follows a command's outcome: nothing for a failure, and for a success the publication of the ids it committed,
+ * after the response. Exported for the test that runs a real command first (spec 0008b falsifier 1).
+ */
+export const publishCommitted = <A>(
+  scope: Pick<RequestScope, "ctx"> & { readonly env: TickEnv },
+  outcome: Outcome<Committed<A>>
+): Outcome<A> => {
+  if (Predicate.isTagged(outcome, "Failure")) {
+    return outcome;
+  }
+
+  const { value, enqueued } = outcome.value;
+
+  if (enqueued.length > 0) {
+    scope.ctx.waitUntil(runPublish(scope.env, enqueued));
+  }
+
+  return success(value);
+};
+
+/**
+ * A prepared command in the live per-request Layer. On success its outbox rows are published after the response, in
+ * `ctx.waitUntil` (`runPublish`); a rollback or a refusal published nothing.
  */
 export const runPreparedCommand = <
   B,
@@ -518,21 +547,7 @@ export const runPreparedCommand = <
     prepare,
     command,
     scope.signal
-  ).then((outcome) => {
-    if (Predicate.isTagged(outcome, "Failure")) {
-      return outcome;
-    }
-
-    const { value, enqueued } = outcome.value;
-
-    if (enqueued.length > 0) {
-      scope.ctx.waitUntil(
-        runDelivery(scope.env, { ids: enqueued, limit: enqueued.length })
-      );
-    }
-
-    return success(value);
-  });
+  ).then((outcome) => publishCommitted(scope, outcome));
 
 /** A command with nothing to prepare. */
 export const runCommand = <

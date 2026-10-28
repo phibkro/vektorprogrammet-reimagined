@@ -1,23 +1,90 @@
 /**
- * The handler of `sweepOutbox` (the `outboxSweep` job, spec 0006 R1). The domain declares the command and grants it to
- * `System("outboxSweep")` alone; the handler lives here because delivery needs the transports and `packages/db`'s
- * delivery side. Both the cron tick (every due row) and a command's `waitUntil` (the ids it just enqueued) run it as
- * that principal, through `authorize`, like every other command.
+ * The handlers of the outbox's three commands (the `outboxSweep` job, spec 0006 R1, spec 0008b). The domain declares them
+ * and grants them to `System("outboxSweep")` alone; the handlers live here because delivery needs the transports and
+ * `packages/db`'s delivery side. Everything that touches a row runs as that principal, through `authorize`, like every
+ * other command: the queue's consumer, the dead-letter queue's consumer, the Worker Preview's direct delivery and the
+ * cron sweep.
+ *
+ * Two in-process clients, because a client requires what all its handlers require: `withOutbox` (deliver and sweep:
+ * the transports, Better Auth, the Workspace writer) and `withEnding` (the dead-letter ending: the database only), so
+ * the dead-letter consumer builds no more than it uses.
  */
+import { OutboxDelivery } from "@vektorprogrammet/db";
 import { Commands, OutboxSweep } from "@vektorprogrammet/domain";
-import { Effect } from "effect";
+import { DateTime, Effect } from "effect";
+import { RpcGroup } from "effect/rpc";
 
-import { deliverOutbox } from "./outboxDelivery";
+import { RetryDelay, deliverOutbox, failOutbox } from "./outboxDelivery";
 
-export const OutboxHandlers = OutboxSweep.OutboxRpc.toLayer({
+const DeliveryRpc = RpcGroup.make(
+  OutboxSweep.sweepOutbox,
+  OutboxSweep.deliverOutbox
+);
+
+const EndingRpc = RpcGroup.make(
+  OutboxSweep.failOutbox,
+  OutboxSweep.recordOutboxFailure
+);
+
+const DeliveryHandlers = DeliveryRpc.toLayer({
+  deliverOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.deliverOutbox, {
+    resource: () => Effect.succeed({}),
+    run: ({ ids }) => deliverOutbox(ids),
+  }),
   sweepOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.sweepOutbox, {
     resource: () => Effect.succeed({}),
-    run: (options) => deliverOutbox(options),
+    run: ({ limit }) =>
+      Effect.gen(function* findStale() {
+        const delivery = yield* OutboxDelivery;
+        const now = yield* DateTime.now;
+
+        return {
+          stale: yield* delivery.stale({
+            before: DateTime.subtractDuration(
+              now,
+              OutboxSweep.DeliveryPolicy.requeueAfter
+            ),
+            limit,
+          }),
+        };
+      }),
   }),
 });
 
-/** The sweep behind the in-process client; see `Commands.inProcess`. */
-export const withOutbox = Commands.inProcess(
-  OutboxSweep.OutboxRpc,
-  OutboxHandlers
-);
+const EndingHandlers = EndingRpc.toLayer({
+  failOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.failOutbox, {
+    resource: () => Effect.succeed({}),
+    run: ({ ids }) => failOutbox(ids),
+  }),
+  recordOutboxFailure: OutboxSweep.OutboxDomain.handle(
+    OutboxSweep.recordOutboxFailure,
+    {
+      resource: () => Effect.succeed({}),
+      run: ({ failure, messages }) =>
+        Effect.gen(function* recordFailures() {
+          const delivery = yield* OutboxDelivery;
+          const now = yield* DateTime.now;
+          const delays = yield* RetryDelay;
+
+          const recorded = yield* Effect.forEach(messages, (message) =>
+            Effect.map(
+              delivery.recordFailure(
+                message.id,
+                failure,
+                DateTime.addDuration(now, delays(message.attempts))
+              ),
+              (outcome) => (outcome === "recorded" ? [message.id] : [])
+            )
+          );
+
+          return recorded.flat();
+        }),
+    }
+  ),
+});
+
+/** Deliver and sweep, behind the in-process client; see `Commands.inProcess`. */
+export const withOutbox = Commands.inProcess(DeliveryRpc, DeliveryHandlers);
+
+/** The dead-letter ending and the record of a delivery that could not start, behind their own in-process client. */
+export const withEnding = Commands.inProcess(EndingRpc, EndingHandlers);

@@ -83,8 +83,16 @@ const accountStatus = (present: boolean | null): string => {
   return present ? "Finnes" : "Mangler";
 };
 
+/** What each state of an undelivered message says to an administrator (spec 0008b). */
+const DELIVERY_STATE_TEXT = {
+  failed: "Mislyktes",
+  queued: "I kø",
+  retrying: "Prøver igjen",
+  waiting: "Venter på kø",
+} as const;
+
 const IntegrationsPage = () => {
-  const { mode, report } = routeApi.useLoaderData();
+  const { mode, outbox, report } = routeApi.useLoaderData();
 
   return (
     <>
@@ -107,6 +115,45 @@ const IntegrationsPage = () => {
       <p>
         Skrivemodus: <Badge>{mode === "write" ? "På" : "Av"}</Badge>
       </p>
+      <Card>
+        <CardContent>
+          <h2 className="text-lg font-semibold">Utsendelser</h2>
+          <p>
+            Levert: {outbox.counts.delivered} · Venter: {outbox.counts.pending}{" "}
+            · Mislyktes: {outbox.counts.failed}
+          </p>
+          {outbox.open.length === 0 ? (
+            <p>Alle meldinger er levert.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Melding</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Forsøk</TableHead>
+                  <TableHead>Neste forsøk</TableHead>
+                  <TableHead>Siste feil</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Arr.map(outbox.open, (row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.id}</TableCell>
+                    <TableCell>{row.kind}</TableCell>
+                    <TableCell>{DELIVERY_STATE_TEXT[row.state]}</TableCell>
+                    <TableCell>{row.attempts}</TableCell>
+                    <TableCell>
+                      {row.state === "failed" ? "–" : row.nextAttemptAt}
+                    </TableCell>
+                    <TableCell>{row.lastError ?? "–"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
       {report === null ? (
         <Alert>
           <AlertTitle>Ingen rapport ennå</AlertTitle>

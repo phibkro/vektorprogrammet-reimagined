@@ -1,6 +1,6 @@
 # State
 
-**Lifecycle:** build (spec 0008, integrations and scheduled jobs)
+**Lifecycle:** build (spec 0008b, outbox delivery on Cloudflare Queues; spec 0008 is merged)
 
 ## Done
 
@@ -24,7 +24,11 @@
 
 Spec 0008 is in build on its own branch, rebased onto spec 0007b by a merge: the job registry (which now also holds the retention run and the alumni consent mail of 0007b, so `scheduled` is one call), resumable reports, capture sinks and guarded Integrations page are implemented locally, and its tables are declared in the personal data catalog with proposed retention periods. Production Workspace credentials, the real Google adapter, the schedule and write approval remain open; see [the spec](docs/specs/0008-integrations-and-jobs.md).
 
+Spec 0008b (outbox delivery on Cloudflare Queues) is in build on its own branch, stacked on main after spec 0008: the outbox rows stay the only record, a queue message is an outbox id and nothing else, the Worker's `queue` handler delivers by id (one conditional claim) and its dead-letter queue's consumer ends a row the queue gave up on, `outboxSweep` only puts stale rows back on the queue, and the Integrations page shows what is not delivered. Queue, dead-letter queue and consumers are declared for `main` and `production` only (a Preview cannot own a queue consumer; it delivers in `waitUntil`). The attempts (8) and the sweep's threshold (10 minutes) are one declaration each, proposed. See [the spec](docs/specs/0008b-outbox-delivery-on-queues.md).
+
 ## Next
+
+0. After spec 0008b merges: deploy `main` and look in Cloudflare for the queues `vp-outbox-main` and `vp-outbox-main-dlq` and one consumer on each; send a contact message from the `main` URL and read the `queued_at` and `delivered` of its rows on the Integrations page (`Utsendelser`). The first deployed run of the queue, the consumer and the dead-letter route is `main`, not a Preview. Production's queues are created by the operator's first production deploy.
 
 1. The operator reviews the spec 0005 pull request and merges it. Its Worker Previews (the web app and the CMS) are the first deployed run of the CMS: they confirm that Hyperdrive is unaffected by `global_fetch_strictly_public`, that EmDash's bearer API answers on a Preview hostname and that the CMS Preview has a URL the web Preview can read.
 2. Check the base stage `main`'s log for "semester job finished" (the semester job runs on the cron tick every 10 minutes, since the spec 0003 merge).
@@ -40,6 +44,8 @@ Spec 0008 is in build on its own branch, rebased onto spec 0007b by a merge: the
 12. Check the spec 0007b pull request's Worker Preview: the contact form shows the privacy notice with its draft label, Min side answers both consents and downloads the file, and `scheduled` runs the retention cron on `main` (`17 2 * * *`, once a night). `main` is a preview deployment, so look for "retention run finished" in its log; production logs "retention report finished: nothing was changed" until its periods are approved.
 
 ## Blocked on the operator
+
+- **Queues Write for the CI token** (`vektorprogrammet-reimagined-ci`), before spec 0008b is merged: the push-to-`main` deploy creates the queue `vp-outbox-main`, its dead-letter queue and two consumers, and Cloudflare refuses that without the permission. The pull request's own Worker Preview deploy needs nothing new.
 
 - Authority to copy the production upload directories (file migration). Until then the importer reports every file as missing, and so does the rehearsal.
 - Approval of the proposed personal data values (spec 0007b R1 item 14 and R3 item 32): the periods marked `proposed` in `packages/domain/src/personalData/periods.ts` (the record of processing in `docs/system/administration.md` lists each with its value), the legal bases of the record (`basesApproval` in `texts.ts`: the operator's decisions fix periods and name no basis), the privacy notice and the three consent texts (`texts.ts`). Each is one declaration with an `approval` field, and approving is a one-line change; the generated documents and the notice on the contact form say what awaits approval until then. **Until the periods are approved, the production retention run only counts** (spec 0007b R4): it audits what it would delete or anonymise as `retention.reported` and changes nothing, so no data leaves production by a period that nobody decided. Approving the last proposed period is what turns it on.
