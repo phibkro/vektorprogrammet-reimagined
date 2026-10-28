@@ -29,6 +29,14 @@ import { CurrentLockScope, handUp, openScope } from "./aggregate/lockScope.ts";
 /** The statement that a top-level transaction begins with: the isolation floor of `InTransaction`, by name. */
 const BEGIN_READ_COMMITTED = "BEGIN ISOLATION LEVEL READ COMMITTED";
 
+/**
+ * Makes the transaction that `opens` starts begin at READ COMMITTED, in its own `BEGIN`. `transactional` and the legacy
+ * importer's one transaction both open theirs through it, so no transaction of this adapter that holds locks or writes in
+ * more than one statement begins at the role's default (spec 0018 R9).
+ */
+export const atReadCommitted = <A, E, R>(opens: Effect.Effect<A, E, R>) =>
+  Effect.provideService(opens, BeginTransaction, BEGIN_READ_COMMITTED);
+
 const inTransaction = InTransaction.of({ kind: "database-transaction" });
 
 const withLockScope = <A, E, R>(self: Effect.Effect<A, E, R>) =>
@@ -61,7 +69,7 @@ export const transactional = <A, E, R>(
             Effect.provideService(self, InTransaction, inTransaction)
           )
         )
-        .pipe(Effect.provideService(BeginTransaction, BEGIN_READ_COMMITTED))
+        .pipe(atReadCommitted)
     ),
     Effect.catchIf<E | SqlError, SqlError, never, never, never>(
       isSqlError,

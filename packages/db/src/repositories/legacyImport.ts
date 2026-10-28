@@ -2,7 +2,8 @@
  * The adapter of `ImportTarget` (declared by the domain): the PostgreSQL target, a Neon branch or a local database,
  * written through Drizzle over a direct connection, not through Hyperdrive (`ImportDatabaseLive`).
  *
- * `replaceAll` is the whole write in one transaction: truncate every Phase 1
+ * `replaceAll` is the whole write in one transaction, begun at READ COMMITTED like every `transactional` one (spec 0018
+ * R9): truncate every Phase 1
  * table the importer owns, insert the plan in foreign-key order, advance the
  * identity sequences past the kept legacy ids, and read the row counts back.
  * A failure anywhere, including a count that differs from the plan, rolls the
@@ -25,6 +26,7 @@ import type { SqlError } from "effect/sql/SqlError";
 
 import { Drizzle } from "../internal/drizzle.ts";
 import * as schema from "../schema.ts";
+import { atReadCommitted } from "../transactional.ts";
 
 type InsertError = EffectDrizzleQueryError | SqlError;
 
@@ -228,7 +230,7 @@ export const ImportTargetLive = Layer.effect(
 
         return rowsOut;
       },
-      client.withTransaction
+      (self) => client.withTransaction(self).pipe(atReadCommitted)
     );
 
     return ImportTarget.of({
