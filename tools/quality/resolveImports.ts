@@ -2,8 +2,9 @@ import { Array as Arr, Effect, FileSystem, Option } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-import { importSpecifiers } from "./importSpecifiers.ts";
-import type { Specifier } from "./importSpecifiers.ts";
+import { globMatches } from "./globImports.ts";
+import { importForms } from "./importSpecifiers.ts";
+import type { ComputedImport, Specifier } from "./importSpecifiers.ts";
 
 /** What an import names, once resolved. A `file` is a path from the repository root, after symlinks. */
 export type Target =
@@ -117,17 +118,23 @@ const makeResolver = Effect.fn("makeResolver")(function* makeResolver(
   };
 });
 
-/** The text of a source file and its imports, resolved. */
+/** The text of a source file, its imports resolved, and the loads of modules that no check can read. */
 export interface SourceFile {
   readonly path: string;
   readonly imports: readonly ResolvedImport[];
+  /** An `import(…)` or `import.meta.glob(…)` that names its modules by an expression, or a pattern that cannot be placed. */
+  readonly computed: readonly ComputedImport[];
   /** The text of the file, for the declared tolerated calls (`integrationCalls`). */
   readonly text: string;
   /** The file is a symbolic link: its imports are read at the link's place, and TypeScript reads the real file's. */
   readonly symlink: boolean;
 }
 
-/** Reads the files `paths` (from the repository root `root`), their imports, and what each import names. */
+/**
+ * Reads the files `paths` (from the repository root `root`), their imports, and what each import names. A literal
+ * `import.meta.glob` pattern is an import of every file among `paths` that it matches; a pattern that cannot be placed
+ * joins the loads that no check can read.
+ */
 export const readSources = Effect.fn("readSources")(function* readSources(
   root: string,
   paths: readonly string[]
@@ -140,15 +147,45 @@ export const readSources = Effect.fn("readSources")(function* readSources(
     Effect.gen(function* readSource() {
       const text = yield* fs.readFileString(`${root}/${file}`);
       const real = yield* fs.realPath(`${root}/${file}`);
+      const forms = importForms(file, text);
+
+      const globbed = Arr.map(forms.globs, ({ line, patterns }) => ({
+        line,
+        placed: Arr.map(patterns, (pattern) => ({
+          matches: globMatches(file, pattern, paths),
+          pattern,
+        })),
+      }));
 
       return {
-        imports: Arr.map(
-          importSpecifiers(file, text),
-          (found): ResolvedImport => ({
+        computed: [
+          ...forms.computed,
+          ...Arr.flatMap(globbed, ({ line, placed }) =>
+            Arr.flatMap(placed, ({ matches, pattern }) =>
+              Option.isNone(matches)
+                ? [{ line, text: `import.meta.glob("${pattern}")` }]
+                : []
+            )
+          ),
+        ],
+        imports: [
+          ...Arr.map(forms.specifiers, (found): ResolvedImport => ({
             ...found,
             target: resolve(file, found),
-          })
-        ),
+          })),
+          ...Arr.flatMap(globbed, ({ line, placed }) =>
+            Arr.flatMap(placed, ({ matches, pattern }) =>
+              Arr.map(
+                Option.getOrElse(matches, () => []),
+                (match): ResolvedImport => ({
+                  line,
+                  specifier: pattern,
+                  target: { kind: "file", path: match },
+                })
+              )
+            )
+          ),
+        ],
         path: file,
         symlink: real !== `${realRoot}/${file}`,
         text,

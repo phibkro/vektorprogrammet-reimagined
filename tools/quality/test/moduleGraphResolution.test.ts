@@ -58,6 +58,17 @@ const base = {
   [`${d}/team/a.ts`]: 'import "../vocab/ids.ts";\n',
 };
 
+/** `${name}`, the hole of a template literal, built so that no string of this file looks like a template. */
+const hole = Arr.join(["$", "{name}"], "");
+
+/** The two services that a file binds, under the names it gives them. */
+const bound = (mail: string, run: string) =>
+  `const ${run} = yield* Transactor;\nconst ${mail} = yield* MessageSender;\n`;
+
+/** `body` as the generator of an Effect program, where `yield*` is a delegation and not a multiplication. */
+const inGen = (body: string) =>
+  `export const layer = Effect.gen(function* () {\n${body}\n});\n`;
+
 const notTs = (path: string) =>
   `${path}: is a source file of the governed tree (${fixture.governed}) and not a .ts file; the module globs read .ts only, so rename it`;
 
@@ -393,18 +404,19 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
     );
   });
 
-  it("R9 (round 2): a tolerated integration call is keyed to the call itself: the entry holds while the call is inside the transaction and fails when it leaves, or when only the name stays", () => {
+  it("R9 (rounds 2 and 3): a tolerated integration call is keyed to the call itself, by the service its receiver is bound to: the entry holds while the call is inside the transaction and when a variable is renamed, and fails when the call leaves, when only the name stays, or when the name now belongs to another service", () => {
     const call = {
-      call: "sender.send",
+      call: { method: "send", service: "MessageSender" },
       file: "apps/web/src/server/delivery.ts",
       reason: "mails inside the transaction",
       retirementTrigger: "delivery restructured",
-      within: "transactor.run",
+      within: { method: "run", service: "Transactor" },
     };
 
     const tolerated: Declaration = { ...fixture, integrationCalls: [call] };
 
     const delivery = (text: string): SourceFile => ({
+      computed: [],
       imports: [],
       path: call.file,
       symlink: false,
@@ -412,20 +424,23 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
     });
 
     const stale = [
-      `integration call: ${call.file} no longer has sender.send(…) inside transactor.run(…) (delivery restructured); remove the entry from integrationCalls`,
+      `integration call: ${call.file} no longer has MessageSender.send(…) inside Transactor.run(…) (delivery restructured); remove the entry from integrationCalls`,
     ];
+
+    const inside = (mail: string, run: string) =>
+      inGen(
+        `${bound(mail, run)}const issueCode = () => ${run}.run(Effect.gen(function* () { yield* ${mail}.send(email, key); }));`
+      );
 
     // Control: the call is inside the transaction.
     assert.deepStrictEqual(
-      check(
-        [
-          ...clean,
-          delivery(
-            "const issueCode = () => transactor.run(Effect.gen(function* () { yield* sender.send(email, key); }));"
-          ),
-        ],
-        tolerated
-      ),
+      check([...clean, delivery(inside("sender", "transactor"))], tolerated),
+      []
+    );
+
+    // Round 3: the variables are renamed, and the call is still inside the transaction: the entry holds.
+    assert.deepStrictEqual(
+      check([...clean, delivery(inside("mailer", "tx"))], tolerated),
       []
     );
 
@@ -435,7 +450,25 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
         [
           ...clean,
           delivery(
-            "const issueCode = () => transactor.run(commit).pipe(Effect.andThen(sender.send(email, key)));"
+            inGen(
+              `${bound("sender", "transactor")}const issueCode = () => transactor.run(commit).pipe(Effect.andThen(sender.send(email, key)));`
+            )
+          ),
+        ],
+        tolerated
+      ),
+      stale
+    );
+
+    // A name that is spelled as before and belongs to another service is not the call.
+    assert.deepStrictEqual(
+      check(
+        [
+          ...clean,
+          delivery(
+            inGen(
+              "const transactor = yield* Transactor;\nconst sender = yield* Slack;\nconst issueCode = () => transactor.run(Effect.gen(function* () { yield* sender.send(email, key); }));"
+            )
           ),
         ],
         tolerated
@@ -457,4 +490,159 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
 
     assert.deepStrictEqual(check(clean, tolerated), stale);
   });
+
+  it.effect(
+    "R10 (round 3): `import x = require(…)` (also `import type` and `export import`) and a string-named `declare module` are imports, so an upward one is found",
+    () =>
+      Effect.gen(function* equalsAndAugmentations() {
+        const team = `${d}/team/a.ts`;
+
+        const forms = [
+          ['import type Team = require("../team/a.ts");', "import type"],
+          ['import Team = require("../team/a.ts");', "import"],
+          ['export import Team = require("../team/a.ts");', "export import"],
+          [
+            'declare module "../team/a.ts" { interface Probe { readonly x: 1 } }',
+            "declare module",
+          ],
+        ] as const;
+
+        for (const [text, form] of forms) {
+          assert.deepStrictEqual(
+            mentioning(
+              yield* findingsOf({ ...base, [kernel]: `${text}\n` }),
+              kernel
+            ),
+            [upward(1, team)],
+            form
+          );
+        }
+
+        // Control: the same file without one of these forms is clean, so each finding is that form's.
+        assert.deepStrictEqual(
+          mentioning(
+            yield* findingsOf({ ...base, [kernel]: "export const x = 1;\n" }),
+            kernel
+          ),
+          []
+        );
+      }),
+    120_000
+  );
+
+  it.effect(
+    "R11 (round 3): import.meta.glob with a literal pattern imports every file it matches, so a glob that reaches another unit or a higher layer is found, and one that stays in its own unit is not",
+    () =>
+      Effect.gen(function* globsAreImports() {
+        const redirects = "apps/web/src/server/redirects.ts";
+        const cmsFile = "apps/cms/build/page.ts";
+
+        const glob =
+          'export const pages = import.meta.glob("../../../cms/build/*.ts", { eager: true });\n';
+
+        // The same reach, written as a plain import: the finding to expect.
+        const plain = mentioning(
+          yield* findingsOf({
+            ...base,
+            [cmsFile]: "export const page = 1;\n",
+            [redirects]: 'import "../../../cms/build/page.ts";\n',
+          }),
+          redirects
+        );
+
+        assert.lengthOf(plain, 1);
+        assert.include(plain[0], "apps/cms");
+
+        const found = mentioning(
+          yield* findingsOf({
+            ...base,
+            [cmsFile]: "export const page = 1;\n",
+            [redirects]: glob,
+          }),
+          redirects
+        );
+
+        assert.lengthOf(found, 1);
+        assert.include(found[0], "apps/cms");
+
+        // A glob in the governed tree is an edge to each match, so an upward one is found like an upward import.
+        assert.deepStrictEqual(
+          mentioning(
+            yield* findingsOf({
+              ...base,
+              [kernel]: 'export const t = import.meta.glob("../team/*.ts");\n',
+            }),
+            kernel
+          ),
+          [upward(1, `${d}/team/a.ts`)]
+        );
+
+        // Control: a glob that stays in its own unit is no finding (the web tests glob their own sources this way).
+        assert.deepStrictEqual(
+          mentioning(
+            yield* findingsOf({
+              ...base,
+              "apps/web/src/a.ts": "export const a = 1;\n",
+              "apps/web/test/sources.test.ts":
+                'export const sources = import.meta.glob("../src/**/*.{ts,tsx}", { query: "?raw" });\n',
+            }),
+            "apps/web/"
+          ),
+          []
+        );
+      }),
+    120_000
+  );
+
+  it.effect(
+    "R12 (round 3): an import() or import.meta.glob() with a computed argument, or a pattern that cannot be placed, is a finding, and a literal one is not",
+    () =>
+      Effect.gen(function* computedLoadsFail() {
+        const lazy = "apps/web/src/server/lazy.ts";
+
+        const finding = (line: number, text: string) =>
+          `${lazy}:${line}: ${text} loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../`;
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* findingsOf({
+              ...base,
+              [lazy]: Arr.join(
+                [
+                  `export const a = (name: string) => import(\`../${hole}.ts\`);`,
+                  "export const b = (name: string) => import(name);",
+                  "export const c = import.meta.glob(pattern);",
+                  'export const d = import.meta.glob("/src/**/*.ts");',
+                  'export const e = import.meta.glob("./[ab].ts");',
+                ],
+                "\n"
+              ),
+            }),
+            lazy
+          ),
+          [
+            finding(1, `import(\`../${hole}.ts\`)`),
+            finding(2, "import(name)"),
+            finding(3, "import.meta.glob(pattern)"),
+            finding(4, 'import.meta.glob("/src/**/*.ts")'),
+            finding(5, 'import.meta.glob("./[ab].ts")'),
+          ]
+        );
+
+        // Control: a literal specifier and a placeable pattern are not findings.
+        assert.deepStrictEqual(
+          mentioning(
+            yield* findingsOf({
+              ...base,
+              [lazy]:
+                'export const a = () => import("./other.ts");\nexport const b = import.meta.glob("./*.ts");\n',
+              "apps/web/src/server/other.ts": "export const o = 1;\n",
+            }),
+            "apps/web/"
+          ),
+          []
+        );
+      }),
+    120_000
+  );
 });

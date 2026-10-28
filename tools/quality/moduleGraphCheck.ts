@@ -556,8 +556,9 @@ export const moduleGraphFindings = (
   );
 
   // The integration calls inside a transaction that are tolerated until their retirement trigger: each names a file and
-  // the call itself (`call` written inside `within`), so a restructure that moves the call out of the transaction
-  // makes the entry stale, and a name that merely stays does not keep it alive.
+  // the call itself (a method of a service, inside a method of another), as the file binds the services
+  // (`const x = yield* Service`), so a restructure that moves the call out of the transaction makes the entry stale, a
+  // name that merely stays does not keep it alive, and a variable that is renamed does not retire it.
   const staleCalls = Arr.flatMap(integrationCalls, (entry) =>
     Arr.some(
       files,
@@ -566,7 +567,7 @@ export const moduleGraphFindings = (
     )
       ? []
       : [
-          `integration call: ${entry.file} no longer has ${entry.call}(…) inside ${entry.within}(…) (${entry.retirementTrigger}); remove the entry from integrationCalls`,
+          `integration call: ${entry.file} no longer has ${entry.call.service}.${entry.call.method}(…) inside ${entry.within.service}.${entry.within.method}(…) (${entry.retirementTrigger}); remove the entry from integrationCalls`,
         ]
   );
 
@@ -578,6 +579,16 @@ export const moduleGraphFindings = (
           `${path}: is a symbolic link in the governed tree (${governed}); the module rules read real paths, so a link would hide an edge: import the real file, or move it`,
         ]
       : []
+  );
+
+  // A load that no check can read: `import(expr)` and `import.meta.glob(expr)` with a computed argument, and a glob
+  // pattern that cannot be placed. Its target is whatever the expression says at run time, so the check fails closed.
+  const unreadable = Arr.flatMap(files, ({ computed, path }) =>
+    Arr.map(
+      computed,
+      ({ line, text }) =>
+        `${path}:${line}: ${text} loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../`
+    )
   );
 
   return [
@@ -594,6 +605,7 @@ export const moduleGraphFindings = (
     ...Arr.sort(unitless, Order.String),
     ...Arr.sort(staleCalls, Order.String),
     ...Arr.sort(symlinks, Order.String),
+    ...Arr.sort(unreadable, Order.String),
     ...fileCycles,
   ];
 };

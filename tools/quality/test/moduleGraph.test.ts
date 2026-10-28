@@ -2,7 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect, Order } from "effect";
 
-import { importSpecifiers } from "../importSpecifiers.ts";
+import { importForms, importSpecifiers } from "../importSpecifiers.ts";
 import { baseline, declaration, integrationCalls } from "../moduleGraph.ts";
 import type { Declaration } from "../moduleGraph.ts";
 import { moduleGraphFindings, scanImports } from "../moduleGraphCheck.ts";
@@ -51,6 +51,13 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           "export const e = import(someVariable);",
           'export const f = "import { x } from \\"./nope.ts\\"";',
           '// import { y } from "./nope.ts"',
+          'import eq = require("./eq.ts");',
+          'export import re = require("./re.ts");',
+          'import type te = require("./te.ts");',
+          'declare module "./augmented.ts" { interface Probe { readonly x: 1 } }',
+          'declare module "cloudflare:workers" { export const env: unknown }',
+          "namespace Plain { export const z = 1 }",
+          "import ns = Plain.z;",
         ],
         "\n"
       )
@@ -62,6 +69,45 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       { line: 3, specifier: "@scope/pkg/sub" },
       { line: 4, specifier: "effect/rpc" },
       { line: 5, specifier: "node:fs" },
+      { line: 9, specifier: "./eq.ts" },
+      { line: 10, specifier: "./re.ts" },
+      { line: 11, specifier: "./te.ts" },
+      { line: 12, specifier: "./augmented.ts" },
+      { line: 13, specifier: "cloudflare:workers" },
+    ]);
+  });
+
+  it("reads the literal patterns of import.meta.glob, and names the loads that no check can read", () => {
+    const hole = Arr.join(["$", "{name}"], "");
+
+    const forms = importForms(
+      "probe.ts",
+      Arr.join(
+        [
+          'export const a = import.meta.glob("../src/**/*.{ts,tsx}", { eager: true });',
+          'export const b = import.meta.glob<string>(["./x/*.ts", "!./x/skip.ts"]);',
+          "export const c = import.meta.glob(pattern);",
+          'export const d = import.meta.glob(["./ok/*.ts", prefix + "*.ts"]);',
+          `export const e = import(\`./pages/${hole}.ts\`);`,
+          'export const f = import("./plain.ts");',
+        ],
+        "\n"
+      )
+    );
+
+    assert.deepStrictEqual(forms.globs, [
+      { line: 1, patterns: ["../src/**/*.{ts,tsx}"] },
+      { line: 2, patterns: ["./x/*.ts", "!./x/skip.ts"] },
+    ]);
+
+    assert.deepStrictEqual(forms.computed, [
+      { line: 3, text: "import.meta.glob(pattern)" },
+      { line: 4, text: 'import.meta.glob(["./ok/*.ts", prefix + "*.ts"])' },
+      { line: 5, text: `import(\`./pages/${hole}.ts\`)` },
+    ]);
+
+    assert.deepStrictEqual(forms.specifiers, [
+      { line: 6, specifier: "./plain.ts" },
     ]);
   });
 
@@ -596,9 +642,12 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       assert.deepStrictEqual(
         Arr.map(
           integrationCalls,
-          ({ file, within, call }) => `${file} ${within} ${call}`
+          ({ file, within, call }) =>
+            `${file} ${within.service}.${within.method} ${call.service}.${call.method}`
         ),
-        ["apps/web/src/server/accountDelivery.ts transactor.run sender.send"]
+        [
+          "apps/web/src/server/accountDelivery.ts Transactor.run MessageSender.send",
+        ]
       );
 
       assert.deepStrictEqual(

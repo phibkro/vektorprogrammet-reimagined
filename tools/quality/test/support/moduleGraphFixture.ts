@@ -1,6 +1,6 @@
 import { Array as Arr, Option } from "effect";
 
-import { importSpecifiers, resolveFrom } from "../../importSpecifiers.ts";
+import { importForms, resolveFrom } from "../../importSpecifiers.ts";
 import type { Declaration, Module } from "../../moduleGraph.ts";
 import { moduleGraphFindings } from "../../moduleGraphCheck.ts";
 import { packageNameOf, workspacePrefix } from "../../resolveImports.ts";
@@ -31,16 +31,21 @@ const targetOf = (path: string, specifier: string): Target => {
     : { kind: "external", name: packageNameOf(specifier) };
 };
 
-/** A file as the check reads it, from the text of the file. */
-export const parsed = (path: string, content: string): SourceFile => ({
-  imports: Arr.map(importSpecifiers(path, content), (found) => ({
-    ...found,
-    target: targetOf(path, found.specifier),
-  })),
-  path,
-  symlink: false,
-  text: content,
-});
+/** A file as the check reads it, from the text of the file (a glob is not expanded here: the cases that need the files on disk run in a temporary repository). */
+export const parsed = (path: string, content: string): SourceFile => {
+  const forms = importForms(path, content);
+
+  return {
+    computed: forms.computed,
+    imports: Arr.map(forms.specifiers, (found) => ({
+      ...found,
+      target: targetOf(path, found.specifier),
+    })),
+    path,
+    symlink: false,
+    text: content,
+  };
+};
 
 /** A file with the specifiers that it imports, one per line (the first on line 1). */
 export const source = (
