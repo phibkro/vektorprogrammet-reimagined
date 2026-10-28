@@ -13,6 +13,7 @@ import { Array as Arr, Effect, Layer, Option, Order, Ref } from "effect";
 import { cast } from "effect/Function";
 
 import { Drizzle } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { LockNotHeld, LockOrderViolation } from "./defects.ts";
 import {
   CurrentLockScope,
@@ -154,5 +155,7 @@ const makeLocks = (db: Drizzle["Service"], roots: DeclaredRoots) => {
 export const aggregateLocksLayer = (roots: DeclaredRoots) =>
   Layer.effect(
     AggregateLocks,
-    Effect.map(Drizzle, (db) => makeLocks(db, roots))
+    Effect.flatMap(Drizzle, (db) =>
+      verified("AggregateLocks", makeLocks(db, roots))
+    )
   );

@@ -1,7 +1,7 @@
 /**
- * What the lock construct treats as a defect (spec 0006b): a mistake in how a command or a declaration was written. The
- * first run that reaches it finds it, with no race needed, and none of them is recoverable, so none is in a typed
- * error channel.
+ * What the lock construct and the transaction proof treat as a defect (specs 0006b and 0019): a mistake in how a command
+ * or a declaration was written, or a proof that was forged. The first run that reaches it finds it, with no race
+ * needed, and none of them is recoverable, so none is in a typed error channel.
  */
 import { Schema } from "effect";
 
@@ -10,6 +10,14 @@ export class LockOrderViolation extends Schema.TaggedError<
   LockOrderViolation,
   { readonly brand: unique symbol }
 >()("LockOrderViolation", {
+  message: Schema.String,
+}) {}
+
+/** A method that requires `InTransaction` ran without the proof of the transaction that this fiber is in (spec 0019). */
+export class TransactionNotLive extends Schema.TaggedError<
+  TransactionNotLive,
+  { readonly brand: unique symbol }
+>()("TransactionNotLive", {
   message: Schema.String,
 }) {}
 

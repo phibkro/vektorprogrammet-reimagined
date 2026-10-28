@@ -11,7 +11,6 @@ import {
   OutboxMessage,
   OutboxReports,
   PersonId,
-  SlackTarget,
   Transactor,
 } from "@vektorprogrammet/domain";
 import type {
@@ -34,14 +33,8 @@ import { TestClock } from "effect/testing";
 
 import { postgresDatabase } from "./support/database.ts";
 import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
-import { AT } from "./support/fixtures.ts";
+import { AT, slack } from "./support/fixtures.ts";
 import { race } from "./support/race.ts";
-
-const slack = (text: string): OutboxMessage =>
-  OutboxMessage.cases.SlackPost.make({
-    target: SlackTarget.cases.Notifications.make({}),
-    text,
-  });
 
 /** Every test starts at `AT`; the clock is then the test's to move, so nothing below sets it again. */
 const atStart = TestClock.setTime(DateTime.toEpochMillis(AT));

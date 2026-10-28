@@ -405,7 +405,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
     );
 
     it.effect(
-      "a lock outside a transaction is refused, even where InTransaction is forged: a row lock taken in autocommit mode would be released at once",
+      "a lock outside a transaction is refused, even where InTransaction is forged: the adapter refuses the forged proof (spec 0019), and the lock registry still refuses a token outside a transaction",
       () =>
         Effect.gen(function* outsideTransaction() {
           const { fieldOfStudy } = yield* world("outside");
@@ -422,7 +422,22 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             )
           );
 
-          assert.isTrue(diedWith(exit, "LockNotHeld"), describeExit(exit));
+          assert.isTrue(
+            diedWith(exit, "TransactionNotLive"),
+            describeExit(exit)
+          );
+
+          // Defence in depth: where no proof is asked for, the registry itself refuses a token outside a transaction.
+          const registry = yield* Effect.exit(
+            Aggregates.use((aggregates) =>
+              aggregates.assertHeld(Person, forged(subject.id, "Person"))
+            )
+          );
+
+          assert.isTrue(
+            diedWith(registry, "LockNotHeld"),
+            describeExit(registry)
+          );
         })
     );
 

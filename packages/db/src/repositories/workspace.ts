@@ -45,6 +45,7 @@ import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import {
   account,
   department,
@@ -327,7 +328,10 @@ export const WorkspaceAssignmentsLive = Layer.effect(
       return yield* Effect.void;
     });
 
-    return WorkspaceAssignments.of({ assign });
+    return yield* verified(
+      "WorkspaceAssignments",
+      WorkspaceAssignments.of({ assign })
+    );
   })
 );
 
@@ -491,6 +495,9 @@ export const WorkspaceReportsLive = Layer.effect(
       );
     }).pipe(Effect.withSpan("WorkspaceReports.latest"));
 
-    return WorkspaceReports.of({ append, complete, latest, open, read });
+    return yield* verified(
+      "WorkspaceReports",
+      WorkspaceReports.of({ append, complete, latest, open, read })
+    );
   })
 );

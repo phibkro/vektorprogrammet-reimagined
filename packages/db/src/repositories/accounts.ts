@@ -25,6 +25,7 @@ import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots as aggregateRoots } from "../aggregate/declaration.ts";
 import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { account, fieldOfStudy, person } from "../schema.ts";
 import { activeAdminPlaces } from "./adminPlaces.ts";
 import {
@@ -257,16 +258,19 @@ export const AccountRepositoryLive = Layer.effect(
       }
     );
 
-    return AccountRepository.of({
-      find,
-      findActiveByPrivateEmail,
-      findLocked,
-      invite,
-      isLastActiveAdmin,
-      list,
-      transition,
-      updateProfile,
-      verifyEmail,
-    });
+    return yield* verified(
+      "AccountRepository",
+      AccountRepository.of({
+        find,
+        findActiveByPrivateEmail,
+        findLocked,
+        invite,
+        isLastActiveAdmin,
+        list,
+        transition,
+        updateProfile,
+        verifyEmail,
+      })
+    );
   })
 );
