@@ -55,7 +55,7 @@ Each finding: severity, file:line or run path, what is wrong in one sentence, an
 
 **Pass** when all of these hold: no open finding of medium or above; CI green on the head (including `Formal verification` when it ran); the verification evidence exists for every mapped feature. Low and nit findings go into the merge comment, or are fixed if cheap.
 
-- **Merge a passing PR** as the repository does: squash, title `<type>: <summary> (#<n>)`. If `main` moved since the head was reviewed, compute the expected tree with `git merge-tree --write-tree origin/main <reviewed head>`; after `git rebase origin/main`, require `git rev-parse HEAD^{tree}` to equal that expected tree. If the merge has conflicts or the trees differ, the code changed and the round restarts. When main's change touches files the PR touches, also require CI green on the rebased head before merging. Post the evidence summary as the merge comment.
+- **Merge a passing PR** with `.agents/skills/review-pr/merge.sh <n> "<type>: <summary>"` from the main checkout (squash, title `<type>: <summary> (#<n>)`). It refuses (exit 4) unless a round recorded by `record-round.sh` passed the PR's current head, waits for CI green on that head, and merges only that head (`--match-head-commit`). If `main` moved since the head was reviewed, it computes the expected tree with `git merge-tree --write-tree origin/main <reviewed head>` and refuses on conflicts (exit 2) or on files that both changed (exit 3): then rebase, require CI green on the rebased head, and record a new round on it. After a rebase without overlap, `git rev-parse HEAD^{tree}` must equal the expected tree.
 
 **Otherwise**, start a fixer: a separate agent in the PR's worktree, with the findings verbatim. It fixes the code and, for `maintenance` findings, the verification skills themselves (feature maps, path table, TLA+ model and coverage block, sync commit only after confirming the model against the new code). It commits, pushes, and reports. Then the next round, with fresh reviewers.
 
@@ -67,4 +67,8 @@ Each finding: severity, file:line or run path, what is wrong in one sentence, an
 
 ## 5. Record
 
-Each round leaves one PR comment: round number, reviewers' findings with severity, what the fixer changed (commits), and the evidence paths. The merge comment summarises all rounds.
+Every round is recorded on the PR, so the review is visible where the change is (the repository is public) and outlives the agents' transcripts. The lead posts it with `.agents/skills/review-pr/record-round.sh <n> <round> <pass|changes> <body-file>`: a GitHub review (comment) headed by the marker `<!-- review-round n=<round> head=<sha> verdict=<pass|changes> -->`, with the head read from GitHub. The body holds the reviewers' findings with severity, what the fixer changed (commits) and the evidence paths. `merge.sh` reads the marker, so a PR without a passing record on its head cannot be merged.
+
+A small change that needs no independent reviewers (docs, a one-line fix) still gets one round: the lead's own review, recorded with the reviewer named as `lead` and what was checked. The record says who reviewed, never that more happened than did.
+
+The PR body lists the rounds (number, head, verdict) once the PR passes.
