@@ -279,9 +279,9 @@ The operator said that tools have no dependencies on packages or apps. The measu
 | `tools/effx-conformance` | `packages/domain` (3 `src` files) | by design: it exports the kernel's declarations to effx |
 | `tools/oxlint` | `packages/db` (`no-owned-table-write.ts:4`) | a leak; ADR 0014 stage 5 moves the ownership declaration to the domain |
 | `tools/db-path-spike` | `packages/db`, `packages/domain`, `apps/web` (`alchemy.run.ts:22`, config) | a leak; a throwaway harness (torn down 2026-10-16) |
-| `tools/import` | `packages/domain`, `packages/db`, `packages/cms-client` (`src`) | not development tooling: it is a runtime program (legacy MySQL to PostgreSQL and EmDash). It fits `apps/` as a composition root, with its MySQL and EmDash adapters as integrations |
+| `tools/import` (today's name) | `packages/domain`, `packages/db`, `packages/cms-client` (`src`) | not development tooling: it is a runtime data migration (legacy MySQL to PostgreSQL and EmDash). It becomes `apps/legacy-migration`, a temporary integration (section 11) |
 
-The rule (accepted, rule 8): a tool may import a package's public declarations (its export map) and never an app, and nothing imports a tool. `docgen` and the Oxlint rules were on the operator's list of libraries. They have no runtime authority, but they never ship, so the rule keeps them in `tools/`. `tools/import` moves to `apps/`, because it is a runtime program.
+The rule (accepted, rule 8): a tool may import a package's public declarations (its export map) and never an app, and nothing imports a tool. `docgen` and the Oxlint rules were on the operator's list of libraries. They have no runtime authority, but they never ship, so the rule keeps them in `tools/`. `tools/import` moves to `apps/legacy-migration`, because it is a runtime program.
 
 ### 8. Colocation: category first (stage 4 layout)
 
@@ -295,7 +295,7 @@ packages/
   platform/
     postgres/    schema.ts  migrations/   iam/  membership/  organisation/  …  (one subdirectory per service)
   integrations/  emdash  mail  slack  turnstile  workspace-directory  …
-apps/            web  cms  import  (a background Worker, later)
+apps/            web  cms  legacy-migration  (a background Worker, later)
 tools/           docgen  effx-conformance  oxlint  quality
 ```
 
@@ -326,7 +326,7 @@ Whether each leaf directory is also a workspace package is the promotion questio
 | `tools/oxlint` → `packages/db` | The rule reads the adapter's ownership declaration | ADR 0014 stage 5 moves the declaration to the domain |
 | `apps/cms` ↔ `apps/web` | A config import and a seed-file read between two apps | Move `worker.config.ts` to a place both may import; stage 5 |
 | `apps/web/src/server` type cycle | 17 files through `env.ts` | Needed before the Worker split; stage 7 |
-| `tools/import` | A runtime program that sits in `tools/` | Moves to `apps/import`, with its MySQL and EmDash adapters as integrations (stage 5) |
+| `tools/import` | A runtime program that sits in `tools/` | Moves to `apps/legacy-migration`, a temporary integration with its MySQL and EmDash adapters (section 11; stage 5) |
 | `server/senders.ts` imports `./env`, `./deployment` | An integration that imports the app's composition types | Pass the configuration values in; stage 5 |
 
 ### 10. What an integration is, and four rules
@@ -347,6 +347,15 @@ Rules of the category:
 2. **Every integration declares its non-production stand-in** (a capture sink or a fake). Only production uses the real provider. This generalises today's structural rule for mail and Slack. A new integration without a stand-in fails the check. Own small spec.
 3. **Every integration declares the personal data it receives**: the columns or classes that leave us, the processor and its hosting region. The record of processing generates the recipients per processor (GDPR Art. 30). Own small spec. The Better Auth Infrastructure follow-up feeds it.
 4. **Provider secrets live only in the background Worker.** The public `fetch` Worker may not depend on an integration that holds a provider secret (mail, Slack, SMS, Workspace). Own spec, scheduled before production gets real provider secrets. Today one Worker holds all of them (`SEND_EMAIL`, `MAIL_FROM`, `SLACK_WEBHOOK_URL`), and the web Worker also holds two per-request secrets, `BETTER_AUTH_SECRET` and `TURNSTILE_SECRET_KEY`. That spec must say whether per-request secrets of this kind stay in the web Worker.
+
+### 11. `apps/legacy-migration`: a temporary integration
+
+`tools/import` is a **data migration**: an ETL that extracts the legacy MySQL database, transforms the legacy model into the new model (an anti-corruption layer, `transform/`), loads PostgreSQL and EmDash, and writes a reconciliation report that holds no personal data. It is deterministic and rerunnable. It moves to `apps/legacy-migration`.
+
+- **Category: integration, temporary.** The legacy system is another system with its own state and rules, and the program reads it from outside our transaction. Its two programs keep their verbs as names: `organisation` (MySQL → PostgreSQL: organisation data and department logos) and `content` (MySQL → EmDash: articles, texts and sponsors). Its loads go through the domain ports (`ImportTarget`) and the EmDash integration, never around them.
+- **Retirement trigger.** The production cutover is done and reconciled. After the last run, the app is deleted. Until then it stays deterministic and rerunnable.
+- **Rule 3 applies.** It carries personal data out of the legacy system, so it declares the data it receives. Spec 0013 (importing legacy teams, memberships, accounts and password hashes; named in specs 0006 and 0007, not written yet) extends it with the people migration.
+- **A data migration is not a schema migration.** The Drizzle migrations in `packages/db/drizzle/` (`db:migrate`) change the shape of the database. The glossary names both.
 
 ## Enforcement options
 
@@ -402,13 +411,14 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 | 3 | Split `shared/outbox.ts` (own spec): the library keeps `Outbox` and the enqueue contract; each service declares its messages; `catalog` assembles the union that delivery decodes. | Baseline loses `outbox.ts:12` and `:13`. The directory graph is acyclic: the exception in rule 7 is removed. | M |
 | 4 | Make directory = module. `git mv` the files to `packages/{libs,services,platform,integrations}/…`, rename `accounts` and `teams`, split `packages/cms-client` (content model to `services/content`, generated client to `integrations/emdash`), rewrite imports with a codemod, one module per change; the count of moved files is measured then (38 files change directory even without the category tree). Then generate the `no-restricted-imports` overrides. | F10 passes. The imports of `index.ts` and the docgen change, and nothing else. | M to L |
 | 4b | Follow-up spec: a domain `Content` port (reads) and a write port for the importer; the 9 call sites of `apps/web` use the port. | `apps/web` imports no `emdash` integration file; the importer's writes use the write port. | M |
-| 5 | Package rows and the top level: move `worker.config.ts` out of `apps/web`; move the `MessageSender`, `TurnstileVerifier` and `ContactRateLimiter` ports into the domain; stop integrations importing app types; the seed read goes through a package export; `tools/import` moves to `apps/import`; `tools/oxlint` stops importing `packages/db` (ADR 0014 stage 5); `tools/db-path-spike` stops importing `apps/web` or is deleted. | The package baseline is empty, and rule 8 holds with no baseline. | S to M |
+| 5 | Package rows and the top level: move `worker.config.ts` out of `apps/web`; move the `MessageSender`, `TurnstileVerifier` and `ContactRateLimiter` ports into the domain; stop integrations importing app types; the seed read goes through a package export; `tools/import` moves to `apps/legacy-migration`; `tools/oxlint` stops importing `packages/db` (ADR 0014 stage 5); `tools/db-path-spike` stops importing `apps/web` or is deleted. | The package baseline is empty, and rule 8 holds with no baseline. | S to M |
 | 6 | Fold `storeBoundary.ts` into the declaration. | `check:store-boundary` and `check:module-graph` are one command with the same findings as before. | S |
 | 7 | Generate `docs/system/modules.md` (the diagram and the tables above) from the declaration, checked by `check:docs`. Break the `apps/web/src/server` type cycle at `env.ts`, then split the background Worker by credentials (own ADR). | `check:docs` fails when the declaration and the document differ. Each Worker's `WorkerEnv` lists only its own secrets. | M |
 | 8 | Move the generic part of `kernel` to effx when a second domain uses it (ADR 0009). | effx pins it by commit. | — |
 | 9 | Follow-up spec: every integration declares a non-production stand-in (rule 2). | A new integration without one fails the check. | S |
-| 10 | Follow-up spec: every integration declares the personal data it receives, with processor and region (rule 3); the record of processing lists recipients per processor. Research Better Auth Infrastructure here. | `check:docs` shows a recipient for each integration that receives personal data. | M |
+| 10 | Follow-up spec: every integration declares the personal data it receives, with processor and region (rule 3); the record of processing lists recipients per processor. `apps/legacy-migration` declares its data too (spec 0013). Research Better Auth Infrastructure here. | `check:docs` shows a recipient for each integration that receives personal data. | M |
 | 11 | Follow-up spec: provider secrets only in the background Worker (rule 4). Before production gets real provider secrets. | The `fetch` Worker's composition root imports no integration that holds a provider secret. | M |
+| 12 | Retire `apps/legacy-migration` once the production cutover is done and reconciled (section 11). | The app and its integration adapters are deleted; the check and the documents still pass. | S |
 
 ## Considered options
 
@@ -437,10 +447,11 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 3. **Outbox messages are per service.** Each service declares the messages it enqueues. The `catalog` assembles the union, and delivery decodes it. Stage 3 does this split. No union in a library, and no move of `PasswordHash` or `WorkspaceChange` into `vocabulary`.
 4. **Globs first.** Stage 1 maps modules by file glob over today's layout. Directories move in stage 4.
 5. **Glossary.** The terms are in `GLOSSARY.md` (section "System structure"), added in the same pull request as this ADR.
-6. **Tools rule.** Accepted as proposed: a tool may import a package's public declarations and never an app; nothing imports a tool; tools never ship to a runtime. `tools/import` moves to `apps/` as an integration (stage 5). `tools/oxlint` → `packages/db` and `tools/db-path-spike` → `apps/web` are leaks to fix (stage 5).
+6. **Tools rule.** Accepted as proposed: a tool may import a package's public declarations and never an app; nothing imports a tool; tools never ship to a runtime. `tools/import` moves to `apps/legacy-migration` as a temporary integration (stage 5; section 11). `tools/oxlint` → `packages/db` and `tools/db-path-spike` → `apps/web` are leaks to fix (stage 5).
 7. **Layout.** Category first: `packages/{libs,services,platform,integrations}/<boundary>`, with a subdirectory per service inside a platform. Boundary first stays recorded as the considered alternative; reopen it when separate owners exist per boundary.
 8. **The CMS client splits.** `collections.ts` and `portableText.ts` (the content model) go to `packages/services/content`. `generated.ts` and `client.ts` (the OpenAPI-generated HTTP client of a running EmDash) go to `packages/integrations/emdash`. Stage 4 does the split; a follow-up spec (stage 4b) adds the domain ports. Evidence is in section 8.
 9. **Integration is defined by rules.** Platform is what our code runs on and stores its records in. Integration is another system with its own state and rules, outside our transaction, reached after commit, at least once, idempotent. Four rules (section 10): no integration call inside a transaction (stage 1b); a declared non-production stand-in; declared personal data received; provider secrets only in the background Worker. Rules 2 to 4 are follow-up specs (stages 9 to 11).
+10. **The data migration.** `tools/import` becomes `apps/legacy-migration` (an ETL: extract legacy MySQL, transform as an anti-corruption layer, load PostgreSQL and EmDash, reconcile). It is a temporary integration, retired when the production cutover is done and reconciled. Rule 3 applies. Its two programs are `organisation` and `content`. Spec 0013 is linked.
 
 No question is open. Follow-ups, not decided here: the specs of stages 4b, 9, 10 and 11, and research on Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail).
 
