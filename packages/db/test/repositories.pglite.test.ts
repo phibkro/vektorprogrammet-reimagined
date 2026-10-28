@@ -35,7 +35,7 @@ import {
   pipe,
 } from "effect";
 
-import { schema } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { Drizzle, pgliteDatabase } from "./support/database.ts";
 import {
   AT,

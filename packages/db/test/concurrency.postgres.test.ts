@@ -11,7 +11,7 @@ import type { Semester } from "@vektorprogrammet/domain";
 import { and, eq, sql } from "drizzle-orm";
 import { Array as Arr, Effect, Exit, pipe } from "effect";
 
-import { schema } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { race } from "./support/race.ts";
 

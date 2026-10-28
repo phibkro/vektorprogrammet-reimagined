@@ -25,7 +25,8 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import { schema, transactional } from "../src/index.ts";
+import { transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { AT, departmentDraft, slackChannel } from "./support/fixtures.ts";
 

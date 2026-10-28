@@ -11,7 +11,7 @@ const WRITES: Readonly<Record<string, true>> = {
   update: true,
 };
 
-/** The schema module of `packages/db`: `../schema.ts`, `./schema.ts`, `@vektorprogrammet/db/schema`. */
+/** The schema module of `packages/db`: `../schema.ts`, `./schema.ts`. */
 const SCHEMA_MODULE = /(?:^|\/)schema(?:\.[cm]?[jt]s)?$/u;
 
 interface Declared {
@@ -63,8 +63,8 @@ function importOf(
 
 /**
  * The name of the schema table that an expression stands for, when it is one: a table imported by name from the schema
- * module (`membership`), or a property of the schema namespace (`schema.membership`, from `import * as schema` or
- * `import { schema } from "@vektorprogrammet/db"`).
+ * module (`membership`), or a property of the schema namespace (`schema.membership`, from `import * as schema`). The
+ * package root of `packages/db` does not export the schema (spec 0017), so the schema module is imported by path.
  */
 function schemaTableName(
   sourceCode: SourceCode,
@@ -93,10 +93,8 @@ function schemaTableName(
     }
 
     const namespace =
-      (found.specifier.type === "ImportNamespaceSpecifier" &&
-        SCHEMA_MODULE.test(found.source)) ||
-      (found.specifier.type === "ImportSpecifier" &&
-        importedName(found.specifier) === "schema");
+      found.specifier.type === "ImportNamespaceSpecifier" &&
+      SCHEMA_MODULE.test(found.source);
 
     return namespace ? node.property.name : null;
   }

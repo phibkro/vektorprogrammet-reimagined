@@ -34,7 +34,8 @@ import type { SqlClient as SqlClientService } from "effect/sql/SqlClient";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { JobDatabaseLive, schema, transactional } from "../src/index.ts";
+import { JobDatabaseLive, transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import {
   Drizzle,
   postgresDatabase,

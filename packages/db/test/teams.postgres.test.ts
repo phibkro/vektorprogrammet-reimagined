@@ -43,11 +43,9 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import {
-  schema,
-  transactional,
-  violatedUniqueConstraint,
-} from "../src/index.ts";
+import { violatedUniqueConstraint } from "../src/classifySqlFailure.ts";
+import { transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { activateAccount } from "./support/accountsWorld.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { meetsHeldLock, race, raceReport } from "./support/race.ts";

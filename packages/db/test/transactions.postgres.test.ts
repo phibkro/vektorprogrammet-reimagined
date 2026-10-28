@@ -20,7 +20,8 @@ import { and, eq } from "drizzle-orm";
 import { Array as Arr, Deferred, Effect, Exit, Fiber, pipe } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 
-import { schema, transactional } from "../src/index.ts";
+import { transactional } from "../src/index.ts";
+import * as schema from "../src/schema.ts";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { AT } from "./support/fixtures.ts";
 
