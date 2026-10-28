@@ -61,8 +61,11 @@ export const serializableByDefault = Effect.gen(
   }
 );
 
-/** Creates `vp_db_test_<random>` through the admin URL; drops it (forcibly) on release. */
-const disposableDatabase = Layer.effect(
+/**
+ * An empty database of its own, created through the admin URL and dropped (forcibly) on release: `TestDatabaseUrl`
+ * names it. A test that applies the migrations one at a time starts here.
+ */
+export const disposableDatabase = Layer.effect(
   TestDatabaseUrl,
   Effect.gen(function* disposableDatabase() {
     const admin = yield* adminUrl;
