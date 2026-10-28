@@ -210,9 +210,9 @@ export const StoreGuarantees: readonly Guarantee[] = [
     id: "TX5",
     invariant: false,
     property:
-      "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope. A store adapter checks, before the first statement of a method that requires it, that the proof the program holds is the live transaction's own, and refuses one that is not: a proof made by hand, one used after its transaction ended, in another transaction, or where a nested scope runs.",
+      "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope. A store adapter checks, before the first statement of a method that requires it, that the proof the program holds is the one of the innermost live transaction level of its connection, and refuses one that is not: a proof made by hand, one used after its transaction ended, one of another transaction, or one of an outer level while a nested scope is live. Not stopped: a whole context captured inside a live level and provided elsewhere writes into that level while it lives (spec 0019 R7).",
     rawWriter:
-      "makes a proof by hand (Effect keys a service by a string, so it can be made without naming the service), keeps one past its transaction, or carries it into another: a program that uses the port is refused at first use and writes nothing; a writer that does not use the port is not asked for a proof at all",
+      "makes a proof by hand (Effect keys a service by a string, so it can be made without naming the service), keeps one past its transaction, or uses one beside a nested scope: a program that uses the port is refused at first use and writes nothing; a writer that does not use the port is not asked for a proof at all; a program that carries a live level's whole context out of it is accepted and writes into that level (R7)",
     strength: "port-enforced",
   },
   {

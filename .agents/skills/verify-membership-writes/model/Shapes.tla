@@ -48,7 +48,7 @@ CurrentCode == [
         createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:241-242
         deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:393, 403
         syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:237, one person
-        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:323, 373
+        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:318, the lock taken in authorization at teams/personResource.ts:33
     ],
     \* The statements of each call, in order.
     repo |-> [
@@ -70,7 +70,7 @@ CurrentCode == [
         remove   |-> <<"deleteRow">>                   \* teams.ts:634-663, Aggregates.remove (aggregates.ts:360-364, onHeld :144-162)
     ],
     \* A lock that would come before one that the transaction holds is a defect
-    \* before any statement is sent (db/aggregate/locks.ts:93-104,
+    \* before any statement is sent (db/aggregate/locks.ts:96-104,
     \* lockScope.ts:36-44). The order: the admin list, then persons by id
     \* (domain/shared/aggregate.ts:36-39).
     orderCheck |-> TRUE,
@@ -136,7 +136,7 @@ ListAfterPerson ==
     [CurrentCode EXCEPT !.compose = [CurrentCode.compose EXCEPT
         !.deleteAdminGrant = <<"lock", "lockList">>]]
 
-\* The same order, and the registry does not refuse it (locks.ts:95-104
+\* The same order, and the registry does not refuse it (locks.ts:96-104
 \* deleted): `createAdminGrant` holds the list and waits for the person, and
 \* `deleteAdminGrant` holds the person and waits for the list.
 ListAfterPersonUnchecked == [ListAfterPerson EXCEPT !.orderCheck = FALSE]
