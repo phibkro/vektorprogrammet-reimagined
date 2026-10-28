@@ -427,7 +427,7 @@ export class Auth extends Context.Service<
   }
 >()("@vektorprogrammet/web/server/Auth") {}
 
-interface AuthEnvironment extends Pick<
+export interface AuthEnvironment extends Pick<
   WorkerEnv,
   "BETTER_AUTH_SECRET" | "SITE_URL"
 > {
