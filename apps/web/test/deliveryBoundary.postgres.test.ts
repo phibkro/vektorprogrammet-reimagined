@@ -326,7 +326,7 @@ layer(live, { excludeTestServices: true })(
               Effect.updateService(OutboxDelivery, (real) =>
                 OutboxDelivery.of({
                   ...real,
-                  markDelivered: () => Effect.die("crashed"),
+                  markDelivered: () => Effect.interrupt,
                 })
               ),
               Effect.provide(Layer.mergeAll(keyless, noOtherServices)),

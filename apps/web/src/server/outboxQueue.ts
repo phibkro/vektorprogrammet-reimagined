@@ -207,7 +207,8 @@ const isOutboxId = Schema.is(OutboxSweep.QueueBody);
  * The delivery stack could not be built (a sender or auth binding is missing or refused): no message can be delivered,
  * and no claim was ever taken, so nothing says why the rows wait. Record the class on each row that a message names, with
  * the next attempt dated by the policy, then retry each message with the policy's delay for its own count: after the
- * declared deliveries the dead-letter queue ends the rows (they have a recorded failure) and the page shows them failed.
+ * declared deliveries the dead-letter queue ends the rows (they have a recorded failure) and the page shows them failed. A
+ * row that the recording did not take (delivered, ended or held meanwhile) is acknowledged: it needs no more messages.
  * Recording is best effort and database-only: when the database is down too, nothing is recorded, which is an outage and
  * not a fault of the rows.
  */
@@ -222,19 +223,23 @@ const holdForUnavailableStack = (
         : []
     );
 
-    yield* withEnding((client) =>
+    const recorded = yield* withEnding((client) =>
       client.recordOutboxFailure({
         failure: "delivery stack unavailable",
         messages: named,
       })
     ).pipe(
+      Effect.asSome,
       Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep")),
       Effect.provide(database),
       Effect.catchCause((cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.interrupt
-          : Effect.logError("outbox failure could not be recorded").pipe(
-              Effect.annotateLogs({ class: defectClass(cause) })
+          : Effect.as(
+              Effect.logError("outbox failure could not be recorded").pipe(
+                Effect.annotateLogs({ class: defectClass(cause) })
+              ),
+              Option.none<readonly OutboxSweep.QueueBody[]>()
             )
       )
     );
@@ -244,7 +249,11 @@ const holdForUnavailableStack = (
     yield* apply(
       batch.messages,
       Arr.map(batch.messages, (message) =>
-        isOutboxId(message.body)
+        isOutboxId(message.body) &&
+        Option.match(recorded, {
+          onNone: () => true,
+          onSome: (ids) => Arr.contains(ids, message.body),
+        })
           ? retryAfter(Math.ceil(Duration.toSeconds(delays(message.attempts))))
           : ack
       )
