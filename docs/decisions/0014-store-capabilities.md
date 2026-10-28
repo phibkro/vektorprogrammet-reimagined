@@ -233,7 +233,7 @@ Today every staff write records audit in the command's transaction (`audit/audit
 | Stage | Change | Done when (falsifier) |
 | --- | --- | --- |
 | 0 | Accept this ADR. Record the drivers. | Done: accepted 2026-10-28. |
-| 1 | Move `OutboxDelivery`, `SessionDirectory`, `CapturedMessageStore` and `Transactor` to the domain. Stop exporting `schema`. Put Better Auth's domain reads and the importer behind ports. | No `@vektorprogrammet/db` import outside composition roots and adapter tests. An import-boundary lint fails otherwise. |
+| 1 | Move `OutboxDelivery`, `SessionDirectory`, `CapturedMessageStore` and `Transactor` to the domain. Stop exporting `schema`. Put Better Auth's domain reads and the importer behind ports. | No `@vektorprogrammet/db` import outside composition roots and adapter tests. An import-boundary lint fails otherwise. Done by spec 0017 (`docs/specs/0017-store-ports.md`): `bun run check:store-boundary` and the lint in `vp check`. |
 | 2 | Write each guarantee as a property. Add `InTransaction` to `Outbox.enqueue`, `AuditLog.record`, `DigestLedger.claim` and `AlumniRequests.claim`. State the isolation level. | Type tests fail when one of them is called outside a transaction. |
 | 3 | Extract the contract suites from the PostgreSQL tests. Make them take an adapter Layer and its broken variants. Run them on PostgreSQL and PGlite. | Every control fails five times out of five without its mechanism. |
 | 4 | Build the in-memory adapter that passes the suites. Delete the ad-hoc fakes. | Domain and web tests use it, and the suites pass. |
