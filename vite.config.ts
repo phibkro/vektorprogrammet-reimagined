@@ -8,6 +8,10 @@ import shadcn from "ultracite/oxlint/shadcn";
 import { defineConfig } from "vite-plus";
 
 import { diagnosticRules } from "./tools/quality/diagnosticRules.ts";
+import {
+  boundaryOverrides,
+  restrictedImportPatterns,
+} from "./tools/quality/storeBoundary.ts";
 
 export const tsgoRules = diagnosticRules.lint;
 
@@ -325,12 +329,15 @@ export default defineConfig({
                   message:
                     "The domain is pure and must not depend on the database or application layer.",
                 },
-                ...restrictedSourcePatterns,
+                ...restrictedImportPatterns(["db"], restrictedSourcePatterns),
               ],
             },
           ],
         },
       },
+      // Where `@vektorprogrammet/db` and the database engine packages may be imported (spec 0017). Each allowance is
+      // one override, because a later override replaces this rule's options instead of adding to them.
+      ...boundaryOverrides(restrictedSourcePatterns),
       {
         // The domain's Effect Schema declarations intentionally export both a runtime value and a same-named type (TypeScript itself rejects every other redeclaration).
         files: [
@@ -385,6 +392,7 @@ export default defineConfig({
           "tools/import/src/target.ts",
           "tools/import/src/report.ts",
           "tools/quality/checkEffectExceptions.ts",
+          "tools/quality/checkStoreBoundary.ts",
           "tools/db-path-spike/src/worker.ts",
           "tools/db-path-spike/src/worker/checks.ts",
           "tools/db-path-spike/src/worker/http.ts",
@@ -691,7 +699,7 @@ export default defineConfig({
       ],
       "no-restricted-imports": [
         "error",
-        { patterns: restrictedSourcePatterns },
+        { patterns: restrictedImportPatterns([], restrictedSourcePatterns) },
       ],
       // Workspace modules consistently use lower camelCase filenames.
       "unicorn/filename-case": ["error", { case: "camelCase" }],

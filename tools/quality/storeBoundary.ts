@@ -1,0 +1,264 @@
+/**
+ * Where the store adapter and the database engine packages may be imported (spec 0017, ADR 0014 stage 1).
+ *
+ * `@vektorprogrammet/db` is the PostgreSQL adapter. Code outside it asks for a capability from `@vektorprogrammet/domain`
+ * (a port) and a composition root provides the adapter's Layer. This module is the one declaration of that rule:
+ *
+ * - `restricted` says which module specifiers are restricted, in groups;
+ * - `allowances` says which files may import which group, and why;
+ * - the root `vite.config.ts` builds Oxlint's `no-restricted-imports` options from both (`restrictedImportPatterns`,
+ *   `boundaryOverrides`), so the lint and `checkStoreBoundary.ts` cannot disagree about a specifier;
+ * - `checkStoreBoundary.ts` fails on a file that imports a restricted module without an allowance, and on an allowance
+ *   that no file needs, so the list can only shrink.
+ *
+ * A file must be covered by at most one allowance: a later Oxlint override replaces the rule's options instead of adding
+ * to them, so two covering entries would make the lint stricter than the declaration says.
+ */
+import { Array as Arr, Record as Rec } from "effect";
+import type { Option } from "effect";
+
+export type Group = "db" | "drizzle" | "pg" | "sql-pg";
+
+interface Restriction {
+  readonly message: string;
+  /** Regular expressions over a module specifier (the Rust and the JavaScript syntax agree on these). */
+  readonly regexes: readonly string[];
+}
+
+export const restricted: Readonly<Record<Group, Restriction>> = {
+  db: {
+    message:
+      "`@vektorprogrammet/db` is the PostgreSQL adapter: import the port from `@vektorprogrammet/domain`, and let a composition root provide the adapter's Layer (spec 0017).",
+    regexes: ["^@vektorprogrammet/db(?:/|$)", "(?:^|/)packages/db(?:/|$)"],
+  },
+  drizzle: {
+    message:
+      "Drizzle is an adapter detail of `packages/db`: go through a domain port (spec 0017).",
+    regexes: ["^drizzle-orm(?:/|$)"],
+  },
+  pg: {
+    message:
+      "`pg` is the PostgreSQL driver: only Better Auth's own adapter (`apps/web/src/server/auth.ts`) and adapter tests use it (spec 0017).",
+    regexes: ["^pg(?:/|$)"],
+  },
+  "sql-pg": {
+    message:
+      "`@effect/sql-pg` is the PostgreSQL client of `packages/db`: go through a domain port (spec 0017).",
+    regexes: ["^@effect/sql-pg(?:lite)?(?:/|$)"],
+  },
+};
+
+export const groups: readonly Group[] = Rec.keys(restricted);
+
+export interface Allowance {
+  /** Paths from the repository root; `*` stops at a slash and `**` crosses slashes. */
+  readonly files: readonly string[];
+  readonly allows: readonly Group[];
+  readonly reason: string;
+  /** Present only on a temporary entry: the step of spec 0017 whose commit removes it. */
+  readonly until?: string;
+}
+
+const adapterTest = ["db", "pg", "sql-pg"] as const satisfies readonly Group[];
+
+export const allowances: readonly Allowance[] = [
+  {
+    allows: groups,
+    files: ["packages/db/**"],
+    reason: "The adapter itself.",
+  },
+  {
+    allows: ["db"],
+    files: ["apps/web/src/server/runtime.ts"],
+    reason:
+      "Composition root of the Worker: builds `DatabaseLive` and `JobDatabaseLive` per request, delivery and job scope.",
+  },
+  {
+    allows: ["pg"],
+    files: ["apps/web/src/server/auth.ts"],
+    reason:
+      "Better Auth's own `pg` adapter (ADR 0014, answer 4; exception EX-0017). It reads no domain table.",
+  },
+  {
+    allows: adapterTest,
+    files: [
+      "apps/web/test/**/*.postgres.test.ts",
+      "apps/web/test/**/*.worker.test.ts",
+    ],
+    reason:
+      "Adapter tests: each builds the real database Layer against a disposable PostgreSQL (spec 0017, resolution 1).",
+  },
+  {
+    allows: ["db"],
+    files: [
+      "apps/web/test/support/commandOutcome.ts",
+      "apps/web/test/support/deliveryLive.ts",
+      "apps/web/test/support/outboxQueue.worker.ts",
+      "apps/web/test/support/workspaceDatabase.ts",
+    ],
+    reason:
+      "Test support that builds the real database Layer for the adapter tests above.",
+  },
+  {
+    allows: ["db"],
+    files: ["apps/web/e2e/support/database.ts"],
+    reason: "Browser-test harness: creates and migrates a disposable database.",
+  },
+  {
+    allows: ["sql-pg"],
+    files: [
+      "apps/web/e2e/support/probes.ts",
+      "apps/web/e2e/support/publicFile.ts",
+    ],
+    reason:
+      "Browser-test probes read and seed domain tables with raw SQL; they become adapter tests or use the ports in ADR 0014 stages 3 and 4.",
+  },
+  {
+    allows: ["db"],
+    files: ["apps/cms/scripts/checkBundle.ts"],
+    reason: "Bundle check: creates a disposable database for the CMS Worker.",
+  },
+  {
+    allows: groups,
+    files: ["tools/db-path-spike/**"],
+    reason:
+      "Slice 0000 harness: it checks Worker, Hyperdrive, `@effect/sql-pg` and Drizzle on the real platform, so it is an adapter-level test by design.",
+  },
+  {
+    allows: ["db", "sql-pg"],
+    files: ["tools/import/test/roundTrip.test.ts"],
+    reason:
+      "Round trip from real MySQL to a disposable PostgreSQL: an adapter test of `ImportTarget`.",
+  },
+  {
+    allows: ["db"],
+    files: ["tools/oxlint/anti-slop/rules/no-owned-table-write.ts"],
+    reason:
+      "The rule reads the adapter's ownership declaration; ADR 0014 stage 5 moves that declaration into the domain. Oxlint does not lint this directory, so the check is what covers it.",
+  },
+  // Temporary entries: every file below imports the adapter for a port or fixture that spec 0017 moves to the domain.
+  // Each step deletes the entries it fixes, and the check fails on an entry whose file no longer imports the adapter.
+  {
+    allows: ["db"],
+    files: ["apps/web/src/server/transactor.ts"],
+    reason: "Declares `Transactor` in the web app.",
+    until: "step 1 (Transactor)",
+  },
+  {
+    allows: ["db"],
+    files: ["apps/web/src/server/senders.ts"],
+    reason: "Imports `CapturedMessageStore` from the adapter.",
+    until: "step 2 (CapturedMessageStore)",
+  },
+  {
+    allows: ["db"],
+    files: ["apps/web/src/server/accounts.ts"],
+    reason: "Imports `SessionDirectory` from the adapter.",
+    until: "step 3 (SessionDirectory)",
+  },
+  {
+    allows: ["db"],
+    files: [
+      "apps/web/src/server/accountDelivery.ts",
+      "apps/web/src/server/outboxDelivery.ts",
+      "apps/web/src/server/outboxPublisher.ts",
+      "apps/web/src/server/outboxQueue.ts",
+      "apps/web/src/server/outboxSweep.ts",
+      "apps/web/test/outboxDelivery.test.ts",
+      "apps/web/test/outboxPublisher.test.ts",
+      "apps/web/test/support/memory.ts",
+    ],
+    reason: "Imports `OutboxDelivery` and its schemas from the adapter.",
+    until: "step 4 (OutboxDelivery)",
+  },
+  {
+    allows: ["db"],
+    files: [
+      "apps/web/src/server/principal.ts",
+      "apps/web/test/sandbox.test.ts",
+      "apps/web/e2e/accounts.spec.ts",
+      "apps/web/e2e/personalData.spec.ts",
+      "apps/web/e2e/shell.spec.ts",
+      "apps/web/e2e/teams.spec.ts",
+      "apps/web/e2e/support/panel.ts",
+    ],
+    reason: "Imports the local fixture people from the adapter.",
+    until: "step 5 (local people)",
+  },
+  {
+    allows: ["db", "drizzle", "sql-pg"],
+    files: ["tools/import/src/target.ts"],
+    reason: "The importer writes PostgreSQL directly.",
+    until: "step 7 (ImportTarget)",
+  },
+];
+
+const escape = (text: string): string =>
+  text.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);
+
+/** A path segment pattern: `*` matches anything but a slash. */
+const star = (part: string): string =>
+  Arr.join(Arr.map(part.split("*"), escape), "[^/]*");
+
+/** A path glob as a regular expression: `**` crosses slashes (`**` and a slash match any number of directories), `*` does not. */
+export const globToRegExp = (glob: string): RegExp => {
+  const source = Arr.join(
+    Arr.map(glob.split("**/"), (part) =>
+      Arr.join(Arr.map(part.split("**"), star), ".*")
+    ),
+    "(?:.*/)?"
+  );
+
+  return new RegExp(`^${source}$`, "u");
+};
+
+export const groupOf = (specifier: string): Option.Option<Group> =>
+  Arr.findFirst(groups, (group) =>
+    Arr.some(restricted[group].regexes, (regex) =>
+      new RegExp(regex, "u").test(specifier)
+    )
+  );
+
+export const coveredBy = (path: string): readonly Allowance[] =>
+  Arr.filter(allowances, (allowance) =>
+    Arr.some(allowance.files, (glob) => globToRegExp(glob).test(path))
+  );
+
+/** What Oxlint's `no-restricted-imports` takes for a module pattern. */
+interface Pattern {
+  readonly message: string;
+  readonly regex: string;
+}
+
+/**
+ * Oxlint's `no-restricted-imports` patterns for a file that may import `allowed`: every other group, then whatever the
+ * caller restricts everywhere (workspace source paths).
+ */
+export const restrictedImportPatterns = (
+  allowed: readonly Group[],
+  everywhere: readonly Pattern[]
+): Pattern[] => {
+  const denied = Arr.filter(groups, (group) => !allowed.includes(group));
+
+  return [
+    ...Arr.flatMap(denied, (group) =>
+      Arr.map(restricted[group].regexes, (regex) => ({
+        message: restricted[group].message,
+        regex,
+      }))
+    ),
+    ...everywhere,
+  ];
+};
+
+/** One Oxlint override per allowance: the files it covers get the patterns of every group it does not allow. */
+export const boundaryOverrides = (everywhere: readonly Pattern[]) =>
+  Arr.map(allowances, (allowance) => ({
+    files: [...allowance.files],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: restrictedImportPatterns(allowance.allows, everywhere) },
+      ] satisfies ["error", { patterns: Pattern[] }],
+    },
+  }));
