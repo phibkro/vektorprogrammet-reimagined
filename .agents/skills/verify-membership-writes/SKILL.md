@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 2a4a920b52b3c568381b39121cc35ea366026695
-confirmed-at: 12f23ddeb24001e00ced99411014079abf0abdba
+sync-digest: 6277865b072a70c1134fb8850769954b1437176a
+confirmed-at: 8c81249230ed1b8bd107cb76fc871d0d16141444
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -48,7 +48,7 @@ packages/domain/src/shared/transactor.ts
 | `MembershipMachine` (`declaration.ts:274-352`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
 | `membership_no_overlap` (`drizzle/20261026221817_membership_no_overlap`) | the exclusion constraint on person, team and term |
 | `classifySqlFailure` (`classifySqlFailure.ts:99-158`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
-| `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED) |
+| `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED, begun by an explicit `BEGIN ISOLATION LEVEL READ COMMITTED` since spec 0018) |
 
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change"). The confirmation of 2026-10-27 (spec 0007b) covers the commands in `compose`: the aggregate writes now accept several locks and use `IN`, which for the one token held by these commands selects the same rows as before. The tombstone filter and the writers in the next section are outside the model.
 
@@ -57,6 +57,8 @@ After the 0007d rebase, the model was run again with `--code`. The membership-ma
 After spec 0007b and spec 0008 met (the merge of main into the 0008 branch, 2026-10-27), the model ran again with `--code` on the merged tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed. Neither side's covered changes add a statement, lock or table to a membership command: 0007b's writers and its tombstone filter are described above, and the welcome claim, the address claims and the Workspace projection are the rows above and the `Address.tla` model. The `file:line` pointers that the merge moved were recomputed: `repositories/teams.ts` shifted by the seven lines of `PersonRepository.create` (the creation date and the optional address claim), the SQLSTATE mapping in `classifySqlFailure.ts` moved by 0007b's `isConstraintViolation` and the group-address outcome, and the `updatePerson` entry of `compose` now points at `accounts/commands.ts`, where the handler is.
 
 Spec 0008b (outbox delivery on Queues, 2026-10-28) changed two covered paths: `packages/db/src/schema.ts` and `packages/db/drizzle`, by one nullable column `outbox.queued_at` and its migration. The table is not `membership`, and no modeled statement, lock or constraint changed. The model ran again with `--code` on that tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed.
+
+Spec 0018 (store guarantees as properties, 2026-10-28) changed two covered paths that matter to the model. `packages/db/src/transactional.ts` now begins a top-level transaction with `BEGIN ISOLATION LEVEL READ COMMITTED`, so the level that the model always assumed (the PostgreSQL default, "READ COMMITTED" above) is stated by the code and no longer depends on the role's default; no statement, lock or constraint that a command issues changed. `packages/domain/src/shared/aggregate.ts` and the Teams and Accounts service files changed their documentation and add `InTransaction` to the signatures of the methods that take a `Locked` token: types only. The model ran again with `--code` on that tree: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 ## Writers outside the model (spec 0007b)
 
