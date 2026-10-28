@@ -23,6 +23,10 @@ A port is a service the domain declares and a store implements; `packages/db` ho
 | `SignInDirectory` | `accounts/signInDirectory.ts` | The four reads that Better Auth's callbacks need of a person: the person of a user, the identity behind an address, the sign-in address, the profile to create a user from. |
 | `ImportTarget` | `organisation/legacyImport.ts` | The legacy import's one transaction over `TargetTable`s. |
 
+## Store guarantees (spec 0018, ADR 0014 stage 2)
+
+`shared/guarantees.ts` declares each guarantee a store keeps as a property of an abstract store (records, keys, transactions, committed state), with its capability, its strength (`store-enforced`: it holds against every writer, the importer and migrations included; `port-enforced`: only against writers that use the port), whether it is an invariant, the port methods that carry it and what a raw writer would try. An invariant is store-enforced, with one named exception, the last administrator (LK7). `shared/transactionModes.ts` declares what every port method asks of a transaction (`Requires`, `Standalone`, `Joins`, `Read`, `Outside`, `Opens`), and a type test checks each row against the method's type. `docs/system/store-guarantees.md` is both, rendered (`bun run docs`). `InTransaction` promises ReadCommittedWithLocks (TX3): a read after a lock sees the record as of the lock or later, and nothing is promised across two reads of unlocked records, so a program that needs one state reads it in one call (`exportOf`, `PrincipalDirectory`) or locks.
+
 ## Aggregate locks (spec 0006b)
 
 A person's own rows (memberships, admin places, the account and its codes) are written only by a transaction that holds the person's row lock. `shared/aggregate.ts` declares the contract; `packages/db` makes the tokens and checks them.
