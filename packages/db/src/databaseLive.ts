@@ -43,6 +43,7 @@ import {
   retentionRunLayer,
 } from "./repositories/personalData.ts";
 import { SessionDirectoryLive } from "./repositories/sessions.ts";
+import { SignInDirectoryLive } from "./repositories/signIn.ts";
 import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
 import {
   AdminGrantRepositoryLive,
@@ -86,6 +87,7 @@ const Repositories = Layer.mergeAll(
   CodeRepositoryLive,
   CapturedMessageStoreLive,
   SessionDirectoryLive,
+  SignInDirectoryLive,
   PersonRepositoryLive,
   TeamRepositoryLive,
   PositionRepositoryLive,

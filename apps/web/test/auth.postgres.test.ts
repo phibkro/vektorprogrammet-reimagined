@@ -7,11 +7,22 @@ import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
+  withClient,
 } from "@vektorprogrammet/db/testing";
 import {
+  AUTH_TABLES,
+  AuthTablesDatabaseUrl,
+  authTablesRole,
+} from "@vektorprogrammet/db/testing/auth-tables-role";
+import {
   ReadOnlyDatabaseUrl,
+  assertPermissionDenied,
   readOnlyRole,
 } from "@vektorprogrammet/db/testing/read-only-role";
+import type {
+  AccountRepository,
+  SignInDirectory,
+} from "@vektorprogrammet/domain";
 import {
   AccountEndpoints,
   AggregateLocks,
@@ -33,6 +44,7 @@ import {
   Effect,
   Exit,
   Fiber,
+  FiberSet,
   Layer,
   Option,
   Predicate,
@@ -60,19 +72,29 @@ const origin = "https://auth.example";
 const secret = "local-fake-signing-secret-only-123456789";
 
 const live = Layer.unwrap(
-  Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-    Layer.mergeAll(
-      DatabaseLive({ maxConnections: 8, url }),
+  Effect.gen(function* live() {
+    const url = yield* TestDatabaseUrl;
+    const authUrl = yield* AuthTablesDatabaseUrl;
+    const database = DatabaseLive({ maxConnections: 8, url });
+
+    // Better Auth's pool is the role that holds privileges on its four tables only (spec 0017, falsifier 6), and the
+    // application's own database layer, built once, answers what the library asks of the domain.
+    return Layer.mergeAll(
+      database,
       authLayer({
         BETTER_AUTH_SECRET: secret,
-        HYPERDRIVE: { connectionString: Redacted.value(url) },
+        HYPERDRIVE: { connectionString: Redacted.value(authUrl) },
         SITE_URL: origin,
-      }),
+      }).pipe(Layer.provide(database)),
       passwordHasherLayer,
       webCryptoLayer
-    )
-  )
-).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+    );
+  })
+).pipe(
+  Layer.provideMerge(authTablesRole),
+  Layer.provideMerge(migratedTestDatabase),
+  Layer.orDie
+);
 
 const seed = Effect.gen(function* seedAuthPeople() {
   const sql = yield* SqlClient;
@@ -176,10 +198,18 @@ const refusedCommand = (exit: Exit.Exit<unknown, unknown>) =>
   );
 
 const mutantAuth = (url: Redacted.Redacted) =>
-  Effect.acquireRelease(
-    Effect.sync(() => new Pool({ connectionString: Redacted.value(url) })),
-    (owned) => Effect.promise(() => owned.end())
-  ).pipe(Effect.map((pool) => makeAuth(pool, secret, origin)));
+  Effect.gen(function* buildMutant() {
+    const run = yield* FiberSet.makeRuntimePromise<
+      AccountRepository | SignInDirectory
+    >();
+
+    const pool = yield* Effect.acquireRelease(
+      Effect.sync(() => new Pool({ connectionString: Redacted.value(url) })),
+      (owned) => Effect.promise(() => owned.end())
+    );
+
+    return makeAuth(pool, secret, origin, run);
+  });
 
 layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
   excludeTestServices: true,
@@ -415,14 +445,14 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         yield* sql`update auth_session set expires_at = now() + interval '363 days', updated_at = now() - interval '2 days' where user_id = 'auth-102'`;
         const reader = yield* ReadOnlyDatabaseUrl;
 
-        const readerLayer = Layer.merge(
-          DatabaseLive({ maxConnections: 2, url: reader }),
-          authLayer({
-            BETTER_AUTH_SECRET: secret,
-            HYPERDRIVE: { connectionString: Redacted.value(reader) },
-            SITE_URL: origin,
-          })
-        ).pipe(Layer.orDie);
+        const readerLayer = authLayer({
+          BETTER_AUTH_SECRET: secret,
+          HYPERDRIVE: { connectionString: Redacted.value(reader) },
+          SITE_URL: origin,
+        }).pipe(
+          Layer.provideMerge(DatabaseLive({ maxConnections: 2, url: reader })),
+          Layer.orDie
+        );
 
         const headers = new Headers({ cookie });
 
@@ -758,6 +788,148 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
           401
         );
       })
+  );
+
+  it.effect(
+    "an address that two identities answer to is refused like a wrong password",
+    () =>
+      Effect.gen(function* ambiguousAddress() {
+        const sql = yield* SqlClient;
+        yield* sql`update account set state = 'Active' where person_id = 102`;
+        yield* sql`update auth_account set password = ${bcryptFixtures[0]} where user_id = 'auth-102'`;
+
+        const wrong = yield* signIn(
+          "new-private@example.org",
+          "not the password"
+        );
+
+        const wrongBody = yield* text(wrong);
+
+        // Person 102's private address is person 103's company address too: two identities answer to it.
+        yield* sql`update person set email = 'shared@example.org' where id = 102`;
+        yield* sql`update person set company_email = 'shared@example.org' where id = 103`;
+        const refused = yield* signIn("shared@example.org", fixturePassword);
+
+        yield* sql`update person set email = 'new-private@example.org' where id = 102`;
+        yield* sql`update person set company_email = null where id = 103`;
+
+        assert.strictEqual(refused.status, wrong.status);
+        assert.strictEqual(yield* text(refused), wrongBody);
+
+        const admitted = yield* signIn(
+          "new-private@example.org",
+          fixturePassword
+        );
+
+        assert.strictEqual(admitted.status, 200);
+      })
+  );
+
+  it.effect(
+    "signInPerson signs a person in by the address of their own identity, and refuses a person without one",
+    () =>
+      Effect.gen(function* signInByPerson() {
+        const sql = yield* SqlClient;
+        yield* sql`update account set state = 'Active' where person_id = 102`;
+        yield* sql`update auth_account set password = ${bcryptFixtures[0]} where user_id = 'auth-102'`;
+        // After activation the person's private address is the identity's own, which is what `signInPerson` signs in by.
+        yield* sql`update person set email = 'active@example.org', company_email = null where id = 102`;
+        yield* sql`insert into person ${sql.insert({
+          email: "ingen@example.org",
+          email_verified: true,
+          field_of_study_id: 101,
+          id: 104,
+          name: "Ingen Identitet",
+        })}`;
+        const auth = yield* Auth;
+
+        const signedIn = yield* auth.signInPerson({
+          headers: new Headers({ origin, "user-agent": "person-client" }),
+          password: fixturePassword,
+          personId: PersonId.make(102),
+        });
+
+        assert.strictEqual(signedIn.status, 200);
+        assert.isTrue(Predicate.isString(cookieOf(signedIn)));
+
+        const refused = yield* Effect.flip(
+          auth.signInPerson({
+            headers: new Headers({ origin }),
+            password: fixturePassword,
+            personId: PersonId.make(104),
+          })
+        );
+
+        assert.strictEqual(refused._tag, "AuthBoundaryFailure");
+        yield* sql`delete from person where id = 104`;
+      })
+  );
+
+  it.effect(
+    "Better Auth's pool is a role with privileges on its four tables and on no domain table",
+    () =>
+      Effect.gen(function* poolRole() {
+        const authUrl = yield* AuthTablesDatabaseUrl;
+
+        const read = (table: string) =>
+          Effect.exit(
+            withClient(authUrl, (client) =>
+              client.unsafe(`select 1 from ${table} limit 1`)
+            )
+          );
+
+        // The control: the restriction bites on the domain's tables, and does not on Better Auth's own.
+        for (const table of ["person", "account", "membership", "audit_log"]) {
+          assertPermissionDenied(yield* read(table));
+        }
+
+        for (const table of AUTH_TABLES) {
+          assert.isTrue(Exit.isSuccess(yield* read(table)));
+        }
+      })
+  );
+
+  it.effect(
+    "a store that is down admits no one: the session hook rejects and no session is written",
+    () =>
+      Effect.gen(function* failClosed() {
+        const sql = yield* SqlClient;
+        const url = yield* TestDatabaseUrl;
+        yield* sql`update account set state = 'Active' where person_id = 102`;
+        yield* sql`update auth_account set password = ${bcryptFixtures[0]} where user_id = 'auth-102'`;
+        yield* sql`delete from auth_session where user_id = 'auth-102'`;
+        const failing = yield* FiberSet.makeRuntimePromise();
+
+        const pool = yield* Effect.acquireRelease(
+          Effect.sync(
+            () => new Pool({ connectionString: Redacted.value(url) })
+          ),
+          (owned) => Effect.promise(() => owned.end())
+        );
+
+        // Every domain read of this instance dies, as it does when the database is unreachable.
+        const down = makeAuth(pool, secret, origin, () =>
+          failing(Effect.die("the store is down"))
+        );
+
+        const attempt = yield* Effect.exit(
+          Effect.tryPromise(() =>
+            down.handler(
+              signInRequest("new-private@example.org", fixturePassword)
+            )
+          )
+        );
+
+        const admitted =
+          Exit.isSuccess(attempt) && attempt.value.status === 200;
+
+        assert.isFalse(admitted);
+
+        const sessions =
+          yield* sql`select id from auth_session where user_id = 'auth-102'`;
+
+        assert.lengthOf(sessions, 0);
+      }).pipe(Effect.scoped)
   );
 
   it.effect(

@@ -49,6 +49,8 @@ export * from "./accounts/principal.ts";
 
 export * from "./accounts/sessionDirectory.ts";
 
+export * from "./accounts/signInDirectory.ts";
+
 // every domain's declaration, and the one grant table that `authorize` reads
 export * from "./declarations.ts";
 

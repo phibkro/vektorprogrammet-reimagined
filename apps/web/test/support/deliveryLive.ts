@@ -7,6 +7,10 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
+import {
+  AuthTablesDatabaseUrl,
+  authTablesRole,
+} from "@vektorprogrammet/db/testing/auth-tables-role";
 import type { CapturedMessageStore } from "@vektorprogrammet/domain";
 import { OutboxMessageId, SiteOrigin } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Layer, Redacted } from "effect";
@@ -24,19 +28,27 @@ import { workspaceWriterLayer } from "../../src/server/workspace";
 /** The origin that the links of the mail name. */
 export const origin = "https://mail.example";
 
-/** The delivery stack with the transport that `sender` is: the capture sink, or a test's own provider. */
+/**
+ * The delivery stack with the transport that `sender` is: the capture sink, or a test's own provider. Better Auth's pool
+ * is the role that holds privileges on the four `auth_*` tables only (spec 0017, falsifier 6), so every delivery here
+ * proves that the library reads no domain table; the application's own database layer is built once and serves both.
+ */
 export const liveWith = (
   sender: Layer.Layer<MessageSender, never, CapturedMessageStore>
 ) =>
   Layer.unwrap(
-    Effect.map(Effect.service(TestDatabaseUrl), (url) => {
+    Effect.gen(function* buildDelivery() {
+      const url = yield* TestDatabaseUrl;
+      const authUrl = yield* AuthTablesDatabaseUrl;
+      const database = DatabaseLive({ maxConnections: 8, url });
+
       const infrastructure = Layer.mergeAll(
-        DatabaseLive({ maxConnections: 8, url }),
+        database,
         authLayer({
           BETTER_AUTH_SECRET: "local-fake-signing-secret-only-123456789",
-          HYPERDRIVE: { connectionString: Redacted.value(url) },
+          HYPERDRIVE: { connectionString: Redacted.value(authUrl) },
           SITE_URL: origin,
-        }),
+        }).pipe(Layer.provide(database)),
         passwordHasherLayer,
         webCryptoLayer,
         workspaceWriterLayer({ deployment: "local", mode: "dry-run" }),
@@ -47,7 +59,11 @@ export const liveWith = (
 
       return accountDeliveryLayer.pipe(Layer.provideMerge(capture));
     })
-  ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+  ).pipe(
+    Layer.provideMerge(authTablesRole),
+    Layer.provideMerge(migratedTestDatabase),
+    Layer.orDie
+  );
 
 export const live = liveWith(captureSenderLayer);
 

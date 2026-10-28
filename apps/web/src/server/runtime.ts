@@ -56,6 +56,7 @@ import type {
   PublicFileRepository,
   SemesterRepository,
   SessionDirectory,
+  SignInDirectory,
   SocialEventRepository,
   TeamRepository,
   SystemJob,
@@ -159,6 +160,7 @@ export type DatabaseServices =
   | OutboxDelivery
   | SessionDirectory
   | Transactor
+  | SignInDirectory
   | SqlClient.SqlClient;
 
 /** Every service a request program may require. */
@@ -205,10 +207,11 @@ export const liveRequestLayer = (
           url: scope.env.CMS_URL,
         })
       ).pipe(
+        // Better Auth asks the domain through the same database layer that serves the request (one pool).
         Layer.provideMerge(
-          Layer.merge(
-            databaseLayer(scope.env),
-            authLayer(scope.env).pipe(Layer.orDie)
+          authLayer(scope.env).pipe(
+            Layer.orDie,
+            Layer.provideMerge(databaseLayer(scope.env))
           )
         ),
         Layer.provide(FetchHttpClient.layer)
@@ -293,9 +296,10 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
 
 /**
  * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the
- * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one.
+ * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one. Better Auth asks the domain through that same
+ * database layer (one build, shared by reference). Exported for tests.
  */
-const deliveryLayer = (
+export const deliveryLayer = (
   env: TickEnv,
   database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Layer.Layer<
@@ -318,7 +322,7 @@ const deliveryLayer = (
               Layer.provideMerge(database)
             ),
             workspaceWriterLayer(workspaceConfigFromEnv(deployment, env)),
-            authLayer(env).pipe(Layer.orDie),
+            authLayer(env).pipe(Layer.orDie, Layer.provide(database)),
             webCryptoLayer,
             Layer.succeed(SiteOrigin)(env.SITE_URL)
           )
@@ -420,7 +424,7 @@ export const runSignInPerson = (
 ): Promise<Response> =>
   Effect.runPromise(
     Auth.use((auth) => auth.signInPerson(input)).pipe(
-      Effect.provide(authLayer(env)),
+      Effect.provide(authLayer(env).pipe(Layer.provide(databaseLayer(env)))),
       Effect.orDie,
       logDefects
     ),
@@ -578,6 +582,9 @@ export const runAuthRequest = (
       }
 
       return yield* (yield* Auth).handle(request);
-    }).pipe(Effect.provide(authLayer(env)), Effect.orDie),
+    }).pipe(
+      Effect.provide(authLayer(env).pipe(Layer.provide(databaseLayer(env)))),
+      Effect.orDie
+    ),
     { signal: request.signal }
   );
