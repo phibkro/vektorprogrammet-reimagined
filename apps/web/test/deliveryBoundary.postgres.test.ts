@@ -98,6 +98,16 @@ const noOtherServices = Layer.mergeAll(
   refusingWriter
 );
 
+/** One delivery pass that dies (the process is interrupted) after the provider answered and before `markDelivered`: the crash that both tests of falsifier 3 run. */
+const crashingDelivery = <E, R>(sender: Layer.Layer<MessageSender, E, R>) =>
+  deliverPending.pipe(
+    Effect.updateService(OutboxDelivery, (real) =>
+      OutboxDelivery.of({ ...real, markDelivered: () => Effect.interrupt })
+    ),
+    Effect.provide(Layer.mergeAll(sender, noOtherServices)),
+    Effect.exit
+  );
+
 const reset = Effect.gen(function* reset() {
   const sql = yield* SqlClient;
 
@@ -228,19 +238,7 @@ layer(live, { excludeTestServices: true })(
               slack,
             ]);
 
-            const crashed = yield* Effect.exit(
-              deliverPending.pipe(
-                Effect.updateService(OutboxDelivery, (real) =>
-                  OutboxDelivery.of({
-                    ...real,
-                    markDelivered: () => Effect.interrupt,
-                  })
-                ),
-                Effect.provide(
-                  Layer.mergeAll(captureSenderLayer, noOtherServices)
-                )
-              )
-            );
+            const crashed = yield* crashingDelivery(captureSenderLayer);
 
             assert.isTrue(
               Exit.isFailure(crashed),
@@ -322,18 +320,7 @@ layer(live, { excludeTestServices: true })(
               })
             );
 
-            const crashingSweep = deliverPending.pipe(
-              Effect.updateService(OutboxDelivery, (real) =>
-                OutboxDelivery.of({
-                  ...real,
-                  markDelivered: () => Effect.interrupt,
-                })
-              ),
-              Effect.provide(Layer.mergeAll(keyless, noOtherServices)),
-              Effect.exit
-            );
-
-            yield* crashingSweep;
+            yield* crashingDelivery(keyless);
             yield* TestClock.adjust("121 seconds");
             yield* deliverPending.pipe(
               Effect.provide(Layer.mergeAll(keyless, noOtherServices))
