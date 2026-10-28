@@ -1,10 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Modules sit in layers, and a check enforces their dependency graph
 
-Proposed on 2026-10-28. Evidence: repository at main `797e9e4`. The numbers for spec 0018 come from its open branch `spec/0018-store-guarantees` at `4e81d8c` (not merged). Every number below comes from a measurement of the code, not from memory (see "How this was measured" and "Evidence limits").
+Accepted by the operator on 2026-10-28, with the answers in "Resolutions". Evidence: repository at main `797e9e4`. The numbers for spec 0018 come from its open branch `spec/0018-store-guarantees` at `4e81d8c` (not merged). Every number below comes from a measurement of the code, not from memory (see "How this was measured" and "Evidence limits").
 
 ## Operator direction (2026-10-28)
 
@@ -13,12 +13,16 @@ These points are binding for this ADR.
 - **The monorepo stays.** All pieces version together. There are no per-service package versions.
 - **A piece moves to its own repository only when it has a different owner, release cadence, consumers or access boundary.** The repository pins it by commit. Today only effx qualifies, and it is already separate.
 - **What we want is good module boundaries and an enforced dependency graph.** We do not want more repositories or more packages for their own sake.
-- **Taxonomy.** A **library** has no runtime and no authority. A **service** declares commands, ports and rules, and depends on libraries. A **platform** implements them: adapters, Workers, the CMS app. An **integration** is a platform piece with an external dependency.
+- **Taxonomy.** A **library** has no runtime and no authority. A **service** declares commands, ports and rules, and depends on libraries. A **platform** implements the services: adapters, Workers, the CMS app. An **integration** is a platform piece whose dependency is the runtime of an external system, not only external code or a declaration.
 - **Proposed groupings.**
   - Libraries: kernel (its generic part goes to effx), transactions (`Transactor`, `InTransaction`), the outbox pattern, the personal-data annotation vocabulary, `cms-client`, docgen, the Oxlint rules.
   - Services: IAM (accounts, codes, sessions, grants), Organisation lifecycle (semesters, departments, admission, fields of study), Membership and teams (IAM depends on it, not the reverse), Content, Files, Contact, Audit (the legal record, not observability), Privacy (export, erasure, retention, record of processing).
   - Platform: the database adapters, the web Worker (`fetch`), the background Worker (scheduled and queue; split before production secrets, by credentials), the CMS app, and Triggers (cron and outbox events as one construct; each service declares its own jobs).
   - Integrations: mail, Slack, SMS, Turnstile, Workspace directory sync.
+
+- **Category rules.** Libraries import libraries. Services import libraries, and services that they declare. Libraries never import services. The platform implements services (Cloudflare, Neon and PostgreSQL). Order: libraries < services < platform ≈ integrations.
+- **The top level stays `apps/`, `packages/` and `tools/`.** `apps/` are deploy units and composition roots; they depend mainly on platform implementations. `tools/` is development tooling: nothing in `apps/` or `packages/` imports it, and it never ships to a runtime.
+- **Colocation (the layout of stage 4).** Category first: `packages/{libs,services,platform,integrations}/<boundary>`, with a subdirectory per service inside a platform (for example `platform/postgres/iam`). Boundary first is the considered alternative.
 
 ## Context
 
@@ -114,20 +118,36 @@ On the 0018 branch the domain has 110 files and 545 file edges (115 type-only). 
 
 A **module** is a named group of files inside a package. It is the unit of the declared graph. A module is not a package and has no version. Promotion goes in one direction and only on evidence: a module becomes a workspace package when a second consumer needs it without the rest, and a package becomes its own repository (pinned by commit) when it has a different owner, release cadence, consumers or access boundary. Today only effx meets that test.
 
-`packages/domain` stays one package. Splitting it into packages now would add a `package.json`, `tsconfig`, knip entry and test configuration for each part. It would also split the barrel `index.ts` that 36 files of `apps/web` import. The enforced graph gives the benefit of a package boundary at none of that cost.
+Until stage 4, `packages/domain` stays one package. Splitting it into packages now would add a `package.json`, `tsconfig`, knip entry and test configuration for each part, and would split the barrel `index.ts` that 36 files of `apps/web` import. The enforced graph gives the benefit of a package boundary at none of that cost. Stage 4 moves the files to the category tree (section 8); whether a leaf directory also becomes a workspace package follows the promotion rule above, and the check's globs are the same either way.
 
-### 2. Four layers
+### 2. Three categories, and two sub-rungs inside services
 
-| Layer | May import | Imported by | Examples |
+This is the core rule. A row is the importer; a cell says what it may import.
+
+| Importer ↓ | library | service | platform | integration |
+| --- | --- | --- | --- | --- |
+| **library** | declared libraries | never | never | never |
+| **service** | declared libraries | declared services (the declared graph is acyclic) | never | never |
+| **platform** | yes | yes: it implements their ports | declared platform pieces | never |
+| **integration** | yes | yes: it implements their ports | never | its own piece only |
+
+Order: **libraries < services < platform ≈ integrations.** Platform and integrations have the same rank. Neither imports the other. An app (a deploy unit) composes both.
+
+- A **library** has no runtime and no authority. It imports `effect` and other libraries it declares.
+- A **service** declares commands, ports and rules for one part of the organisation's work.
+- The **platform** implements the ports of services on Cloudflare and Neon/PostgreSQL: the database adapters, the Workers, the R2 and Queue bindings.
+- An **integration** is a platform piece whose dependency is the runtime of an external system: a mail provider, Slack, Turnstile's verify call, Google Workspace. External code alone (Better Auth as a library, `sanitize-html`) does not make an integration.
+
+Inside the service category the domain has two sub-rungs of composition. They order services among themselves, so the headline order stays three-way.
+
+| Sub-rung | May import | Imported by | Examples |
 | --- | --- | --- | --- |
-| **library** | other libraries it declares, and `effect` | libraries, services, catalogs, assembly, platform | `vocabulary`, `kernel`, `transactions`, `outbox`, `annotations` |
-| **service** | libraries, and services it declares | services that declare it, catalogs, Privacy, assembly, platform | `audit`, `organisation`, `membership`, `iam`, `triggers`, `workspace`, `content`, `files`, `contact` |
+| **service** (leaf) | libraries, and services it declares | services that declare it, catalogs, Privacy, assembly, platform, integrations | `audit`, `organisation`, `membership`, `iam`, `triggers`, `workspace`, `content`, `files`, `contact` |
 | **catalog** | libraries and services | Privacy, assembly, platform | the personal-data catalog, the job registry, the outbox message union |
-| **assembly** | everything in `packages/domain` | platform and tools | `declarations.ts`, `index.ts`, `localPeople.ts`, the store-guarantee catalogs of spec 0018 |
+| **Privacy** (a service that reads the catalog) | libraries, services, the catalog | assembly, platform | `privacy` |
+| **assembly** | everything in `packages/domain` | platform, integrations, tools | `declarations.ts`, `index.ts`, `localPeople.ts`, the store-guarantee catalogs of spec 0018 |
 
-Privacy is a service, but it reads the catalog, so it sits between catalog and assembly (`privacy` may import `catalog`; `catalog` may not import `privacy`). The **platform** layer is outside `packages/domain`: `packages/db`, `apps/web`, the future background Worker, `apps/cms`, `tools/import`. It may import the domain and nothing in the domain imports it. An **integration** is a platform piece that talks to an outside system.
-
-This adds one rung (catalog) to the operator's three. The measurement is the reason: no service imports a catalog, the personal-data catalog imports the declarations of nine target services, and Privacy reads the catalog. Without the rung, either Privacy or the catalogs form a cycle.
+The measurement is the reason for the sub-rungs: no service imports a catalog, the personal-data catalog imports the declarations of nine target services, and Privacy reads the catalog. Without them, either Privacy or the catalogs form a cycle.
 
 ### 3. Target modules and file groups
 
@@ -155,7 +175,7 @@ Modules are file globs over the current layout. No file must move for the declar
 
 The `*/personalData.ts` file of each service stays with its owner. Each service declares its own stored data (ADR 0004, ADR 0014 stage 5).
 
-Moving every file into a directory with its module's name would change the directory of 38 files and rename two directories (`accounts` → `iam`, `teams` → `membership`; 22 more files). That is optional, and stage 4 of the plan does it.
+Moving every file into a directory with its module's name would change the directory of 38 files and rename two directories (`accounts` → `iam`, `teams` → `membership`; 22 more files). Stage 4 of the plan does it, into the category tree of section 8.
 
 ### 4. The graph is data
 
@@ -217,31 +237,79 @@ flowchart BT
 3. The declared graph has no cycle, and the real graph has no edge that the declaration lacks.
 4. A declared edge that no file needs fails. The list can only shrink (the same ratchet as `storeBoundary.ts`).
 5. A library imports only `effect`, other declared libraries and nothing else: no `node:` module, no `cloudflare:`, no workspace package. A service imports the same, plus `sanitize-html` where its row says so.
-6. Package rows: `packages/domain` imports no workspace package. `packages/db` imports only `packages/domain`. A platform piece imports the domain, `packages/db` and `packages/cms-client`. No piece imports an `apps/*` package. The known leaks in the package table of the Context are the starting baseline, each with a reason, and the list can only shrink.
+6. Package rows: `packages/domain` imports no workspace package. `packages/db` imports only `packages/domain`. A platform piece imports the domain, `packages/db` and `packages/cms-client`. The known leaks in the package table of the Context are the starting baseline, each with a reason, and the list can only shrink.
 7. While a baseline exists, the check allows exactly the baselined edges. When the baseline is empty, the check removes the exception, and the graph must be acyclic.
+8. Top level: nothing in `apps/` or `packages/` imports `tools/` (measured: 0 edges today). No piece imports an `apps/*` package. A tool imports a package only through its export map (its declarations), never an app. Section 7 has the evidence.
 
-### 6. Platform and integrations
+### 6. Platform, integrations and the apps that compose them
 
-The platform pieces and where today's code sits. The "service port" column says where the port that the piece implements is declared.
+Where today's code sits. "Port declared in" says where the port that the piece implements is declared.
 
-| Piece | Today | Port declared in | Note |
-| --- | --- | --- | --- |
-| Database adapters | `packages/db` | `packages/domain` (ADR 0014 stage 1) | modules inside: `schema`, `aggregate`, `repositories`, `personalData`, `wiring` |
-| Web Worker (`fetch`) | `apps/web/src/server/` `accountPost`, `accounts`, `auth`, `contact*`, `panel*`, `principal`, `publicFiles`, `redirects`, `shell`, `teams`, and the routes |  | holds `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `CMS_TOKEN`, `CONTACT_RATE_LIMIT`, `PUBLIC_FILES` |
-| Background Worker (scheduled and queue) | the same Worker: `jobRunners`, `jobs`, `outboxQueue`, `outboxSweep`, `outboxDelivery`, `retentionMode` |  | needs the job database role, `OUTBOX_QUEUE`, `SEND_EMAIL`, `MAIL_FROM`, `SLACK_WEBHOOK_URL`; Workspace credentials are not provisioned yet (spec 0008) |
-| Shared composition | `server/runtime.ts`, `scope.ts`, `env.ts`, `deployment.ts` |  | one `WorkerEnv` holds both Workers' credentials; `runtime.ts` builds the request, tick and queue scopes |
-| Triggers | `jobs/*`, `outbox/*` in the domain; `jobRunners.ts`, `outboxQueue.ts` in `apps/web` | `triggers` | each service declares its own jobs; the registry is a catalog |
-| Mail, Slack | `server/senders.ts` | **`apps/web`** (`MessageSender`) | port in the platform: moves to `triggers` |
-| Turnstile | `server/turnstile.ts` | **`apps/web`** (`TurnstileVerifier`) | port in the platform: moves to `contact` |
-| Contact rate limit | `server/rateLimit.ts` | **`apps/web`** (`ContactRateLimiter`) | port in the platform: moves to `contact` |
-| Workspace directory sync | `server/workspace.ts` | `workspace` | fits |
-| Public files (R2) | `server/fileStore.ts` | `files` | fits |
-| SMS | none | none | no code yet |
-| CMS | `apps/cms`, `packages/cms-client` |  | third-party product behind a typed library |
+| Piece | Category | Today | Port declared in | Note |
+| --- | --- | --- | --- | --- |
+| Database adapters (Neon PostgreSQL through Hyperdrive) | platform | `packages/db` | `packages/domain` (ADR 0014 stage 1) | one schema, one migration history; modules inside: `schema`, `aggregate`, `repositories`, `personalData`, `wiring` |
+| Web Worker (`fetch`) | app, composing platform | `apps/web/src/server/` `accountPost`, `accounts`, `contact*`, `panel*`, `principal`, `publicFiles`, `redirects`, `shell`, `teams`, and the routes |  | holds `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `CMS_TOKEN`, `CONTACT_RATE_LIMIT`, `PUBLIC_FILES` |
+| Background Worker (scheduled and queue) | app, composing platform | the same Worker: `jobRunners`, `jobs`, `outboxQueue`, `outboxSweep`, `outboxDelivery`, `retentionMode` |  | needs the job database role, `OUTBOX_QUEUE`, `SEND_EMAIL`, `MAIL_FROM`, `SLACK_WEBHOOK_URL`; Workspace credentials are not provisioned yet (spec 0008) |
+| Shared composition | app | `server/runtime.ts`, `scope.ts`, `env.ts`, `deployment.ts` |  | one `WorkerEnv` holds both Workers' credentials; `runtime.ts` builds the request, tick and queue scopes |
+| Triggers | service (domain side), platform (runtime side) | `jobs/*`, `outbox/*` in the domain; `jobRunners.ts`, `outboxQueue.ts` in `apps/web` | `triggers` | each service declares its own jobs; the registry is a catalog |
+| Authentication | platform | Better Auth 1.7.14 in `apps/web/src/server/auth.ts`, `password.ts`, `authError.ts`, `authStartup.ts`; its own `pg` pool on Hyperdrive; four `auth_*` tables | `iam` (`AccountRepository`, `SignInDirectory`, `SessionDirectory`) | external code in our runtime, so platform and not an integration (ADR 0014, answer 4) |
+| Better Auth Infrastructure | integration, if adopted | not used | none yet | a paid managed add-on of Better Auth: [dashboard, audit logs, security](https://better-auth.com/docs/infrastructure/introduction), [email](https://better-auth.com/docs/infrastructure/services/email), [SMS](https://better-auth.com/docs/infrastructure/services/sms); [pricing](https://better-auth.com/pricing). **Not evaluated in this ADR.** Follow-up: research Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail) |
+| Mail, Slack | integration | `server/senders.ts` | **`apps/web`** (`MessageSender`) | port in the platform: moves to `triggers`; the file imports `./env` and `./deployment` of the app |
+| Turnstile | integration | `server/turnstile.ts` | **`apps/web`** (`TurnstileVerifier`) | port in the platform: moves to `contact` |
+| Workspace directory sync | integration | `server/workspace.ts` | `workspace` | fits; Google credentials not provisioned |
+| Contact rate limit | platform (Cloudflare binding) | `server/rateLimit.ts` | **`apps/web`** (`ContactRateLimiter`) | port in the platform: moves to `contact` |
+| Public files (R2) | platform (Cloudflare binding) | `server/fileStore.ts` | `files` | fits |
+| SMS | integration | none | none | no code yet |
+| CMS | app, plus a library | `apps/cms` (EmDash, a third-party product), `packages/cms-client` (typed client) |  | the client is a library; the app is a deploy unit |
 
 The split of the background Worker is its own decision. This ADR gives the rule that makes it checkable: the two Workers share the domain and the adapters, and neither imports the other. A secret reaches only the Worker whose row lists it.
 
-### 7. What does not fit, and what we do about it
+### 7. The top level: `apps/`, `packages/`, `tools/`
+
+- **`apps/`**: deploy units and composition roots. They depend mainly on platform implementations, and nothing imports an app.
+- **`packages/`**: libraries, services, platform and integrations.
+- **`tools/`**: development tooling. It never ships to a runtime. Nothing in `apps/` or `packages/` imports it (measured: no import edge into `tools/` from either; only the root `vite.config.ts`, which is build-time configuration, imports `tools/quality/*.ts`).
+
+The operator said that tools have no dependencies on packages or apps. The measured edges say that this holds in part:
+
+| Tool | Imports today | Reading |
+| --- | --- | --- |
+| `tools/quality` | no workspace package; reads sources as files | fits |
+| `tools/docgen` | `packages/domain` (2 `src` files) | by design: the documents are generated from the declarations, which are the root |
+| `tools/effx-conformance` | `packages/domain` (3 `src` files) | by design: it exports the kernel's declarations to effx |
+| `tools/oxlint` | `packages/db` (`no-owned-table-write.ts:4`) | a leak; ADR 0014 stage 5 moves the ownership declaration to the domain |
+| `tools/db-path-spike` | `packages/db`, `packages/domain`, `apps/web` (`alchemy.run.ts:22`, config) | a leak; a throwaway harness (torn down 2026-10-16) |
+| `tools/import` | `packages/domain`, `packages/db`, `packages/cms-client` (`src`) | not development tooling: it is a runtime program (legacy MySQL to PostgreSQL and EmDash). It fits `apps/` as a composition root, with its MySQL and EmDash adapters as integrations |
+
+The rule (accepted, rule 8): a tool may import a package's public declarations (its export map) and never an app, and nothing imports a tool. `docgen` and the Oxlint rules were on the operator's list of libraries. They have no runtime authority, but they never ship, so the rule keeps them in `tools/`. `tools/import` moves to `apps/`, because it is a runtime program.
+
+### 8. Colocation: category first (stage 4 layout)
+
+Decided: **category first**.
+
+```text
+packages/
+  libs/          vocabulary  kernel  transactions  outbox  annotations  cms-client
+  services/      audit  files  content  organisation  membership  iam  contact  workspace  triggers  privacy
+                 catalog  assembly                      (the domain-side sub-rungs)
+  platform/
+    postgres/    schema.ts  migrations/   iam/  membership/  organisation/  …  (one subdirectory per service)
+  integrations/  mail  slack  turnstile  workspace-directory  …
+apps/            web  cms  (a background Worker, later)  (import, if tools/import moves)
+tools/           docgen  effx-conformance  oxlint  quality
+```
+
+Reasons:
+
+- The dependency rules are between categories. The path then states the rule, and one glob enforces it (`packages/libs/**` imports only `packages/libs/**` and `effect`).
+- Libraries have no boundary. `kernel` and `vocabulary` belong to no service, so a boundary-first tree has no place for them.
+- A platform implements many services over **one** schema and **one** migration history (`packages/db`: the Drizzle schema is the single source). A boundary-first tree would scatter that schema across services. Category first keeps it in `platform/postgres` and gives each service a subdirectory.
+
+**Considered: boundary first**, `packages/<boundary>/{lib,service,platform}`. It keeps one concern together and suits one team per boundary. Reopen it when separate owners exist per boundary (the operator's repository-split test).
+
+Whether each leaf directory is also a workspace package is the promotion question of Decision 1, and the stage 4 change decides the package roots when it measures the move. The globs work the same in both cases.
+
+### 9. What does not fit, and what we do about it
 
 | Item | Why it does not fit | Plan |
 | --- | --- | --- |
@@ -256,6 +324,8 @@ The split of the background Worker is its own decision. This ADR gives the rule 
 | `tools/oxlint` → `packages/db` | The rule reads the adapter's ownership declaration | ADR 0014 stage 5 moves the declaration to the domain |
 | `apps/cms` ↔ `apps/web` | A config import and a seed-file read between two apps | Move `worker.config.ts` to a place both may import; stage 5 |
 | `apps/web/src/server` type cycle | 17 files through `env.ts` | Needed before the Worker split; stage 7 |
+| `tools/import` | A runtime program that sits in `tools/` | Moves to `apps/import`, with its MySQL and EmDash adapters as integrations (stage 5) |
+| `server/senders.ts` imports `./env`, `./deployment` | An integration that imports the app's composition types | Pass the configuration values in; stage 5 |
 
 ## Enforcement options
 
@@ -303,12 +373,12 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 
 | Stage | Change | Done when (falsifier) | Size |
 | --- | --- | --- | --- |
-| 0 | Operator accepts or amends this ADR (open questions below). | Status changes. | — |
+| 0 | Operator accepts the ADR with the answers in "Resolutions". | Done: accepted 2026-10-28. | — |
 | 1 | Write `moduleGraph.ts` with modules as globs over the current layout, the check, its tests and the `ready` and CI hooks. Baseline: the 3 upward edges (`shared/outbox.ts:12`, `:13`, `workspace/commands.ts:26`) and the package leaks. Turn on `import/no-cycle` for `packages/**`. | F1 to F9 pass. The check reports exactly the baseline on the real tree. | M |
 | 2 | `workspace` declares its own sync job. `jobs/registry.ts` imports it. | Baseline loses `workspace/commands.ts:26`. `registry.test.ts` passes (it checks that declaration, command, runner and document agree). | S |
 | 3 | Split `shared/outbox.ts` (own spec): the library keeps `Outbox` and the enqueue contract; each service declares its messages; `catalog` assembles the union that delivery decodes. | Baseline loses `outbox.ts:12` and `:13`. The directory graph is acyclic: the exception in rule 7 is removed. | M |
-| 4 | Make directory = module: `git mv` the 38 files, rename `accounts` and `teams`, rewrite imports with a codemod, one module per change. Then generate the `no-restricted-imports` overrides. | F10 passes. The imports of `index.ts` and the docgen change, and nothing else. | M |
-| 5 | Package rows: move `worker.config.ts` out of `apps/web`; move the `MessageSender`, `TurnstileVerifier` and `ContactRateLimiter` ports into the domain; the seed read goes through a package export. | The package baseline is empty. | S to M |
+| 4 | Make directory = module. `git mv` the files to `packages/{libs,services,platform,integrations}/…`, rename `accounts` and `teams`, rewrite imports with a codemod, one module per change; the count of moved files is measured then (38 files change directory even without the category tree). Then generate the `no-restricted-imports` overrides. | F10 passes. The imports of `index.ts` and the docgen change, and nothing else. | M to L |
+| 5 | Package rows and the top level: move `worker.config.ts` out of `apps/web`; move the `MessageSender`, `TurnstileVerifier` and `ContactRateLimiter` ports into the domain; stop integrations importing app types; the seed read goes through a package export; `tools/import` moves to `apps/import`; `tools/oxlint` stops importing `packages/db` (ADR 0014 stage 5); `tools/db-path-spike` stops importing `apps/web` or is deleted. | The package baseline is empty, and rule 8 holds with no baseline. | S to M |
 | 6 | Fold `storeBoundary.ts` into the declaration. | `check:store-boundary` and `check:module-graph` are one command with the same findings as before. | S |
 | 7 | Generate `docs/system/modules.md` (the diagram and the tables above) from the declaration, checked by `check:docs`. Break the `apps/web/src/server` type cycle at `env.ts`, then split the background Worker by credentials (own ADR). | `check:docs` fails when the declaration and the document differ. Each Worker's `WorkerEnv` lists only its own secrets. | M |
 | 8 | Move the generic part of `kernel` to effx when a second domain uses it (ADR 0009). | effx pins it by commit. | — |
@@ -322,6 +392,7 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 | **C. One repository per service, pinned by commit.** | Rejected. The operator's test (different owner, cadence, consumers or access boundary) fails for every piece except effx. Versions would move apart for no reason. |
 | **D. dependency-cruiser or Nx.** | Rejected. dependency-cruiser does not read this tree (TypeScript 7). Nx adds a project graph for one rule. See the options table. |
 | **E. A declared module graph and a check, in the tree (chosen).** | One declaration, one check, and the same declaration generates the lint and the documents. |
+| **F. Boundary-first layout.** `packages/<boundary>/{lib,service,platform}`. | Not chosen: libraries have no boundary, and one schema serves many services. Reopen when separate owners exist per boundary. |
 
 ## Consequences and costs
 
@@ -332,13 +403,17 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 - **[INFERENCE] A new service (ADR 0011 units, ADR 0013 activities, ADR 0012 elections) declares its layer and `uses` in the same change as its first file.** I did not model them. They look like services above `membership`, `triggers` and `outbox`, below `catalog`.
 - **Cost of the check:** about 300 lines in `tools/quality`, a test file, and one more command in `ready` [estimate; the throwaway measurement scripts were 60 to 70 lines each].
 
-## Open questions for the operator
+## Resolutions (operator, 2026-10-28)
 
-1. **Two additions to your taxonomy.** `vocabulary` (a library of closed sets, ids, errors, calendar and principal shapes) and the `catalog` rung. Recommended: yes. The measurement shows no acyclic layout without them.
-2. **`triggers` as one service.** It holds `jobs/{job,runs,problems}` and `outbox/*` (delivery, status, captured, declaration). Recommended: yes, as you said (cron and outbox events as one construct). Its measured edges form no cycle.
-3. **Per-service outbox messages (stage 3).** Each service declares the messages it enqueues and `catalog` assembles the union. The alternative is to keep one union in a library and move `PasswordHash` and `WorkspaceChange` into `vocabulary`. That is cheaper but grows `vocabulary`. Recommended: per-service.
-4. **Globs before directories.** Stage 1 maps modules by file glob over today's layout. Stage 4 renames directories. Recommended: yes, so that enforcement does not wait for 38 file moves.
-5. **GLOSSARY.** The terms library, service, catalog and assembly are new. Recommended: add them to `GLOSSARY.md` when this ADR is accepted.
+1. **Taxonomy.** Accepted: `vocabulary` is a library, `catalog` and `assembly` are sub-rungs inside the service category. The headline order stays libraries < services < platform ≈ integrations.
+2. **`triggers`** is one service: `jobs/{job,runs,problems}` and `outbox/*` (delivery, status, captured, declaration).
+3. **Outbox messages are per service.** Each service declares the messages it enqueues. The `catalog` assembles the union, and delivery decodes it. Stage 3 does this split. No union in a library, and no move of `PasswordHash` or `WorkspaceChange` into `vocabulary`.
+4. **Globs first.** Stage 1 maps modules by file glob over today's layout. Directories move in stage 4.
+5. **Glossary.** The terms are in `GLOSSARY.md` (section "System structure"), added in the same pull request as this ADR.
+6. **Tools rule.** Accepted as proposed: a tool may import a package's public declarations and never an app; nothing imports a tool; tools never ship to a runtime. `tools/import` moves to `apps/` as an integration (stage 5). `tools/oxlint` → `packages/db` and `tools/db-path-spike` → `apps/web` are leaks to fix (stage 5).
+7. **Layout.** Category first: `packages/{libs,services,platform,integrations}/<boundary>`, with a subdirectory per service inside a platform. Boundary first stays recorded as the considered alternative; reopen it when separate owners exist per boundary.
+
+No question is open. Follow-up, not decided here: research Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail).
 
 ## Evidence limits
 
@@ -350,3 +425,5 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 - I did not run `vp check` or the test suite for this ADR. It changes no code.
 - Not run: eslint-plugin-boundaries and Nx (judged from their requirements, not from an experiment). dependency-cruiser was run once, at 18.7.0, and failed as described.
 - Effort sizes are estimates.
+- Section 7's tool and app edges come from the package-level scan above (`@vektorprogrammet/*` specifiers and relative paths between packages). A path that reaches another package by a string, not an import, is not counted.
+- The category-first tree in section 8 is not measured. Stage 4 measures it before it moves a file.
