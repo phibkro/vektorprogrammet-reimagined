@@ -36,7 +36,8 @@ Spec 0008 is in build on its own branch, rebased onto spec 0007b by a merge: the
 8. ADR 0011, “Units, roles and decisions,” is accepted (operator, 2026-10-27), including Emergency's least-privilege grants. Its remaining design questions are listed at the end of `docs/decisions/0011-units-roles-and-decisions.md`; the kernel change is a later spec.
 9. ADR 0012, “Elections,” is accepted (operator, 2026-10-27). Its open questions and bylaw assumptions are listed at the end of `docs/decisions/0012-elections.md`; the build is a later spec.
 10. ADR 0013, “Activities,” is accepted (operator, 2026-10-27). Its open questions are listed at the end of `docs/decisions/0013-activities.md`; the build is a later spec.
-11. Check the spec 0007b pull request's Worker Preview: the contact form shows the privacy notice with its draft label, Min side answers both consents and downloads the file, and `scheduled` runs the retention cron on `main` (`17 2 * * *`, once a night). `main` is a preview deployment, so look for "retention run finished" in its log; production logs "retention report finished: nothing was changed" until its periods are approved.
+11. ADR 0014, “Store capabilities,” is accepted (operator, 2026-10-28), with the operator's answers to its eight questions. Its staged plan is in `docs/decisions/0014-store-capabilities.md`; stages 1 to 6 are later specs, and stage 4 (the contract-tested in-memory adapter) is the pilot.
+12. Check the spec 0007b pull request's Worker Preview: the contact form shows the privacy notice with its draft label, Min side answers both consents and downloads the file, and `scheduled` runs the retention cron on `main` (`17 2 * * *`, once a night). `main` is a preview deployment, so look for "retention run finished" in its log; production logs "retention report finished: nothing was changed" until its periods are approved.
 
 ## Blocked on the operator
 
