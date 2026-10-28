@@ -14,8 +14,7 @@
  * the day a provider offers one the transport below passes the key to it.
  */
 import type { SendEmail } from "@cloudflare/workers-types";
-import { CapturedMessageStore } from "@vektorprogrammet/db";
-import { slackChannelOf } from "@vektorprogrammet/domain";
+import { CapturedMessageStore, slackChannelOf } from "@vektorprogrammet/domain";
 import type { TransportMessage } from "@vektorprogrammet/domain";
 import { Context, Effect, Layer, Match, Redacted, Schema } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";

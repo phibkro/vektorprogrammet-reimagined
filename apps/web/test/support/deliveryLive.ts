@@ -3,11 +3,11 @@
  * password hasher and the capture sender, so a test delivers outbox messages as the Worker does and reads the mailbox.
  */
 import { DatabaseLive } from "@vektorprogrammet/db";
-import type { CapturedMessageStore } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
+import type { CapturedMessageStore } from "@vektorprogrammet/domain";
 import { OutboxMessageId, SiteOrigin } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";

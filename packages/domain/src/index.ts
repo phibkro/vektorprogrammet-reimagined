@@ -79,6 +79,8 @@ export * as Audit from "./audit/declaration.ts";
 // outbox delivery (the job `outboxSweep`; the handlers are in apps/web) and what an administrator reads of it
 export * as OutboxSweep from "./outbox/declaration.ts";
 
+export * from "./outbox/captured.ts";
+
 export * from "./outbox/status.ts";
 
 // scheduled jobs (spec 0008): the declarations, the due rules, the record of runs and the completeness check

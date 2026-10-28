@@ -140,12 +140,6 @@ export const allowances: readonly Allowance[] = [
   // Each step deletes the entries it fixes, and the check fails on an entry whose file no longer imports the adapter.
   {
     allows: ["db"],
-    files: ["apps/web/src/server/senders.ts"],
-    reason: "Imports `CapturedMessageStore` from the adapter.",
-    until: "step 2 (CapturedMessageStore)",
-  },
-  {
-    allows: ["db"],
     files: ["apps/web/src/server/accounts.ts"],
     reason: "Imports `SessionDirectory` from the adapter.",
     until: "step 3 (SessionDirectory)",

@@ -4,11 +4,9 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, describe, it } from "@effect/vitest";
+import { DEFAULT_LOCAL_PERSON } from "@vektorprogrammet/db";
 import {
   CapturedMessageStore,
-  DEFAULT_LOCAL_PERSON,
-} from "@vektorprogrammet/db";
-import {
   DepartmentId,
   EmailAddress,
   OutboxMessage as OutboxMessageSchema,

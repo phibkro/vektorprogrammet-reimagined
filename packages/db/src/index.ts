@@ -15,8 +15,6 @@ export {
 
 export { transactional } from "./transactional.ts";
 
-export { CapturedMessageStore } from "./repositories/capturedMessages.ts";
-
 export {
   SessionDirectory,
   type SessionActivity,

@@ -19,10 +19,11 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, layer } from "@effect/vitest";
-import { CapturedMessageStore, OutboxDelivery } from "@vektorprogrammet/db";
+import { OutboxDelivery } from "@vektorprogrammet/db";
 import { TestDatabaseUrl } from "@vektorprogrammet/db/testing";
 import {
   AccountEndpoints,
+  CapturedMessageStore,
   CodeToken,
   CurrentPrincipal,
   JobRegistry,
