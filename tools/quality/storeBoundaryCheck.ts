@@ -117,7 +117,7 @@ export const boundaryFindings = (
       return needed
         ? []
         : [
-            `${glob}: allowance${allowance.until === undefined ? "" : ` (until ${allowance.until})`} is not needed: no matching file imports ${Arr.join(allowance.allows, ", ")}`,
+            `${glob}: allowance is not needed: no matching file imports ${Arr.join(allowance.allows, ", ")}`,
           ];
     })
   );

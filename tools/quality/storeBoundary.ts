@@ -55,8 +55,6 @@ export interface Allowance {
   readonly files: readonly string[];
   readonly allows: readonly Group[];
   readonly reason: string;
-  /** Present only on a temporary entry: the step of spec 0017 whose commit removes it. */
-  readonly until?: string;
 }
 
 const adapterTest = ["db", "pg", "sql-pg"] as const satisfies readonly Group[];
