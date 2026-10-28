@@ -19,7 +19,6 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, layer } from "@effect/vitest";
-import { OutboxDelivery } from "@vektorprogrammet/db";
 import { TestDatabaseUrl } from "@vektorprogrammet/db/testing";
 import {
   AccountEndpoints,
@@ -27,6 +26,7 @@ import {
   CodeToken,
   CurrentPrincipal,
   JobRegistry,
+  OutboxDelivery,
   OutboxSweep,
   Transactor,
   codePrincipal,

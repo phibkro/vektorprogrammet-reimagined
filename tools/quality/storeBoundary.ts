@@ -141,21 +141,6 @@ export const allowances: readonly Allowance[] = [
   {
     allows: ["db"],
     files: [
-      "apps/web/src/server/accountDelivery.ts",
-      "apps/web/src/server/outboxDelivery.ts",
-      "apps/web/src/server/outboxPublisher.ts",
-      "apps/web/src/server/outboxQueue.ts",
-      "apps/web/src/server/outboxSweep.ts",
-      "apps/web/test/outboxDelivery.test.ts",
-      "apps/web/test/outboxPublisher.test.ts",
-      "apps/web/test/support/memory.ts",
-    ],
-    reason: "Imports `OutboxDelivery` and its schemas from the adapter.",
-    until: "step 4 (OutboxDelivery)",
-  },
-  {
-    allows: ["db"],
-    files: [
       "apps/web/src/server/principal.ts",
       "apps/web/test/sandbox.test.ts",
       "apps/web/e2e/accounts.spec.ts",

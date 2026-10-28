@@ -18,7 +18,6 @@ import type { ExecutionContext } from "@cloudflare/workers-types";
 import type { CmsClient } from "@vektorprogrammet/cms-client";
 import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
-import type { OutboxDelivery } from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
   JobRegistry,
@@ -45,6 +44,7 @@ import type {
   LegalHolds,
   MembershipRepository,
   Outbox,
+  OutboxDelivery,
   OutboxMessageId,
   OutboxReports,
   PasswordHasher,

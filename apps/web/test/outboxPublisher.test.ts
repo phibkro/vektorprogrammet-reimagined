@@ -4,8 +4,7 @@
  * left to the sweep.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { OutboxDelivery } from "@vektorprogrammet/db";
-import { OutboxMessageId } from "@vektorprogrammet/domain";
+import { OutboxDelivery, OutboxMessageId } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Exit, Layer } from "effect";
 
 import {

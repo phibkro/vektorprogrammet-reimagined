@@ -13,6 +13,7 @@ import {
   DepartmentRepository,
   FieldOfStudyRepository,
   Outbox,
+  OutboxDelivery,
   OutboxMessage,
   PublicFileRepository,
   SemesterId,
@@ -34,7 +35,7 @@ import {
   pipe,
 } from "effect";
 
-import { OutboxDelivery, schema } from "../src/index.ts";
+import { schema } from "../src/index.ts";
 import { Drizzle, pgliteDatabase } from "./support/database.ts";
 import {
   AT,

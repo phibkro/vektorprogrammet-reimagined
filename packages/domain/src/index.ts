@@ -83,6 +83,8 @@ export * as OutboxSweep from "./outbox/declaration.ts";
 
 export * from "./outbox/captured.ts";
 
+export * from "./outbox/delivery.ts";
+
 export * from "./outbox/status.ts";
 
 // scheduled jobs (spec 0008): the declarations, the due rules, the record of runs and the completeness check

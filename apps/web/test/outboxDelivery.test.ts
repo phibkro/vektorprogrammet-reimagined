@@ -1,7 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
-import { OutboxClaimToken, OutboxDelivery } from "@vektorprogrammet/db";
 import {
   EmailAddress,
+  OutboxClaimToken,
+  OutboxDelivery,
   OutboxMessageId,
   OutboxMessage as OutboxMessageSchema,
   OutboxSweep,

@@ -11,7 +11,7 @@
  * key, which keeps it twice.
  */
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive, OutboxDelivery } from "@vektorprogrammet/db";
+import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
@@ -19,6 +19,7 @@ import {
 } from "@vektorprogrammet/db/testing";
 import {
   Outbox,
+  OutboxDelivery,
   OutboxMessage,
   SlackTarget,
   Transactor,

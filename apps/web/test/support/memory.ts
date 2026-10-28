@@ -5,12 +5,6 @@
  * delivery to be exercised. Every value is a fake same-shape value.
  */
 import {
-  OutboxClaim,
-  OutboxClaimToken,
-  OutboxDelivery,
-} from "@vektorprogrammet/db";
-import type { ClaimedOutboxMessage } from "@vektorprogrammet/db";
-import {
   AdmissionPeriodRepository,
   AlreadyExists,
   AuditLog,
@@ -25,6 +19,9 @@ import {
   InTransaction,
   NotFound,
   Outbox,
+  OutboxClaim,
+  OutboxClaimToken,
+  OutboxDelivery,
   OutboxMessageId,
   OutboxReports,
   PublicFileRepository,
@@ -41,6 +38,7 @@ import {
 import type {
   AdmissionPeriod,
   AuditEntry,
+  ClaimedOutboxMessage,
   Department,
   EntityName,
   FieldOfStudy,

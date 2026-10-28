@@ -18,12 +18,12 @@
  *   sweep puts it back.
  */
 import type { Message } from "@cloudflare/workers-types";
-import type { OutboxDelivery } from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
   OutboxSweep,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
+import type { OutboxDelivery } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,

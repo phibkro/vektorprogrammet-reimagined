@@ -1,10 +1,9 @@
 /** Interprets account outbox intents after domain commit. */
-import { OutboxDelivery } from "@vektorprogrammet/db";
-import type { ClaimedOutboxMessage, OutboxAck } from "@vektorprogrammet/db";
 import {
   AccountRepository,
   AggregateLocks,
   CodeRepository,
+  OutboxDelivery,
   OutboxMessage,
   PersonRepository,
   PersonalDataDeclaration,
@@ -14,7 +13,11 @@ import {
   lifetimeWords,
   mintCode,
 } from "@vektorprogrammet/domain";
-import type { Account } from "@vektorprogrammet/domain";
+import type {
+  Account,
+  ClaimedOutboxMessage,
+  OutboxAck,
+} from "@vektorprogrammet/domain";
 import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
 
 import { Auth } from "./auth";

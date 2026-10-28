@@ -21,15 +21,6 @@ export {
 } from "./classifySqlFailure.ts";
 
 export {
-  ClaimedOutboxMessage,
-  OutboxClaimToken,
-  OutboxDelivery,
-  type OutboxAck,
-  OutboxClaim,
-  type OutboxEnding,
-} from "./repositories/outbox.ts";
-
-export {
   DEFAULT_LOCAL_PERSON,
   LOCAL_FAKE_PASSWORD,
   LOCAL_PEOPLE,

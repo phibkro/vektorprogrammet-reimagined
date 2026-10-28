@@ -7,12 +7,16 @@
 import { assert, layer } from "@effect/vitest";
 import {
   Outbox,
+  OutboxDelivery,
   OutboxMessage,
   OutboxReports,
   PersonId,
   SlackTarget,
 } from "@vektorprogrammet/domain";
-import type { OutboxMessageId } from "@vektorprogrammet/domain";
+import type {
+  ClaimedOutboxMessage,
+  OutboxMessageId,
+} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -26,8 +30,6 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { OutboxDelivery } from "../src/index.ts";
-import type { ClaimedOutboxMessage } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { AT } from "./support/fixtures.ts";
 import { race } from "./support/race.ts";
