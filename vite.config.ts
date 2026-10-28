@@ -195,6 +195,7 @@ const effectConfig: EffectConfigInput = {
         "packages/cms-client/test/collections.test.ts",
         "apps/web/test/textSlots.test.ts",
         "tools/docgen/test/render.test.ts",
+        "tools/docgen/test/storeGuarantees.test.ts",
         "tools/effx-conformance/test/conformance.test.ts",
         "packages/db/test/accounts.postgres.test.ts",
         "packages/db/test/adminList.postgres.test.ts",
