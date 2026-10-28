@@ -1,17 +1,17 @@
 /**
  * A test Worker over the real consumer (spec 0008b, falsifier 4): the Worker's own `queue` handler logic
- * (`consumeBatch`: decode, deliver by id, `ack` or `retry`, the dead-letter queue's ending) over the real database, with
+ * (`consumeDelivery` and `consumeEnding`: decode, deliver by id, `ack` or `retry`, the dead-letter queue's ending) over the real database, with
  * a provider that fails a scripted number of times and a retry delay of zero. Miniflare runs it against real Queues, so the
  * retries, the attempt count and the dead-letter route are the runtime's.
  */
 import type { MessageBatch, Queue } from "@cloudflare/workers-types";
-import { DatabaseLive } from "@vektorprogrammet/db";
+import { DatabaseLive, OutboxDelivery } from "@vektorprogrammet/db";
 import { Array as Arr, Duration, Effect, Layer, Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { AccountDelivery } from "../../src/server/accountDelivery";
 import { RetryDelay } from "../../src/server/outboxDelivery";
-import { consumeBatch } from "../../src/server/outboxQueue";
+import { consumeDelivery, consumeEnding } from "../../src/server/outboxQueue";
 import { DeliveryFailed, MessageSender } from "../../src/server/senders";
 import { DEAD_LETTER_SUFFIX } from "../../worker.config";
 import { refusingWriter } from "./workspaceWorld";
@@ -96,7 +96,20 @@ export default {
           { discard: true }
         );
 
-        yield* consumeBatch(batch, batch.queue.endsWith(DEAD_LETTER_SUFFIX));
+        yield* batch.queue.endsWith(DEAD_LETTER_SUFFIX)
+          ? consumeEnding(batch)
+          : consumeDelivery(batch).pipe(
+              // `FAIL_FIRST` is "outage": the database is unreachable for every delivery (a claim that dies), and
+              // only for those: the dead-letter queue's ending runs against the real database.
+              Effect.updateService(OutboxDelivery, (real) =>
+                env.FAIL_FIRST === "outage"
+                  ? OutboxDelivery.of({
+                      ...real,
+                      claim: () => Effect.die("the database is unreachable"),
+                    })
+                  : real
+              )
+            );
       }).pipe(Effect.provide(servicesFor(env)))
     ),
 };

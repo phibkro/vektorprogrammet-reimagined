@@ -9,13 +9,14 @@
  *   fails is logged by its class and leaves the row without a receipt, so the sweep puts it back after
  *   `DeliveryPolicy.requeueAfter`. Cancellation does not reach the call: `Queue.sendBatch` takes no signal, so an
  *   interrupted publisher can leave a message the receipt does not mention, and the sweep sends it again (a duplicate
- *   is harmless: the claim is conditional).
+ *   is harmless: the claim needs the row to be pending with no live claim, so it finds it delivered or held).
  * - `directPublisherLayer`: a Worker Preview has no queue (a Queue's one consumer is the deployed Worker, which would read
  *   a Preview's ids in its own database; spec 0008b R1 item 2), so the ids are delivered here and now, to the capture
  *   sink. It is the same delivery, by the same claim, with no queue between.
  *
- * `publish` never fails: it runs after the commit, where there is nothing to roll back, and what it could not do is
- * left to the sweep. Its failures are logged with counts and classes, never with a body.
+ * `publish` never fails, and neither does it die (an interruption excepted): it runs after the commit, where there is
+ * nothing to roll back, and what it could not do is left to the sweep. A chunk that failed does not stop the others.
+ * Its failures are logged with counts and classes, never with a body.
  *
  * Retires when Previews can own a queue consumer: the binding then goes to Previews and the direct layer goes away.
  */
@@ -30,7 +31,15 @@ import type {
   OutboxMessageId,
   WorkspaceWriter,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Context, Effect, Layer, Ref } from "effect";
+import {
+  Array as Arr,
+  Cause,
+  Context,
+  Effect,
+  Layer,
+  Predicate,
+  Ref,
+} from "effect";
 
 import type { AccountDelivery } from "./accountDelivery";
 import { withOutbox } from "./outboxSweep";
@@ -83,13 +92,23 @@ export const queuePublisherLayer = (
           Arr.chunksOf(ids, SEND_BATCH_LIMIT),
           (chunk) =>
             sendChunk(chunk).pipe(
-              Effect.catchTag("QueueSendFailed", (failure) =>
-                Effect.logWarning("outbox queue send failed").pipe(
-                  Effect.annotateLogs({
-                    cause: String(failure.cause),
-                    ids: chunk.length,
-                  })
-                )
+              // A send that failed (a typed `QueueSendFailed`) and one that did not get to write the receipt (the
+              // database died after the queue accepted the ids: a defect) are the same to the caller: nothing here
+              // may fail the command or the job chunk that has already committed, and the other chunks still go.
+              Effect.catchCause((cause) =>
+                Cause.hasInterruptsOnly(cause)
+                  ? Effect.interrupt
+                  : Effect.logWarning("outbox queue publication failed").pipe(
+                      Effect.annotateLogs({
+                        class: Predicate.isTagged(
+                          Cause.squash(cause),
+                          "QueueSendFailed"
+                        )
+                          ? "QueueSendFailed"
+                          : "defect",
+                        ids: chunk.length,
+                      })
+                    )
               )
             ),
           { discard: true }
@@ -133,10 +152,17 @@ export const directPublisherLayer: Layer.Layer<
               Effect.annotateLogs({ rows: results.length })
             )
           ),
-          Effect.catch((error) =>
-            Effect.logError("outbox delivery was refused").pipe(
-              Effect.annotateLogs({ error: error._tag })
-            )
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.interrupt
+              : Effect.logError("outbox delivery failed after the commit").pipe(
+                  Effect.annotateLogs({
+                    class: Predicate.isTagged(Cause.squash(cause), "Forbidden")
+                      ? "Forbidden"
+                      : "defect",
+                    ids: ids.length,
+                  })
+                )
           )
         );
       }

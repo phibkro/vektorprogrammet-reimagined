@@ -31,7 +31,11 @@ import { OutboxMessageId } from "../shared/ids.ts";
 export const DeliveryPolicy = {
   /** Deliveries of one message before the queue gives up and the dead-letter queue marks the row failed. */
   attempts: 8,
-  /** How long a pending row may go without a receipt before the sweep puts its id on the queue again. */
+  /**
+   * How long a pending row may go without a receipt before the sweep puts its id on the queue again. The sweep runs on
+   * the ten-minute tick, so a row that a crash between commit and enqueue left without a message is delivered at most
+   * `requeueAfter` plus one tick later (about 20 minutes, with the queue's own latency), not within the threshold.
+   */
   requeueAfter: Duration.minutes(10),
   /** The first retry's delay; each later one doubles it (spec 0008's schedule). */
   retryBase: Duration.minutes(5),

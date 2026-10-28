@@ -42,20 +42,10 @@ import {
   cmsMediaBucket,
   emdashOrigin,
   neonOrigin,
-  outboxDeadLetterName,
-  outboxQueueName,
+  outboxQueuesFor,
   publicFilesBucket,
+  stageKind,
 } from "./worker.config";
-
-type StageKind = "production" | "base" | "preview";
-
-const stageKind = (stage: string): StageKind => {
-  if (stage === "production") {
-    return "production";
-  }
-
-  return stage === BASE_STAGE ? "base" : "preview";
-};
 
 const OBSERVABILITY = {
   enabled: true,
@@ -143,19 +133,21 @@ const cms = Effect.gen(function* deployCms() {
  * would have its ids consumed by the base Worker against the base stage's database. So only production and the base
  * stage have a queue, and a Preview's Worker finds no `OUTBOX_QUEUE` and delivers in `waitUntil`.
  */
-const outboxQueues = (stage: string, kind: StageKind) =>
-  kind === "preview"
-    ? Effect.succeedNone
-    : Effect.gen(function* declareOutboxQueues() {
+const outboxQueues = (stage: string) =>
+  Option.match(outboxQueuesFor(stage), {
+    onNone: () => Effect.succeedNone,
+    onSome: (names) =>
+      Effect.gen(function* declareOutboxQueues() {
         return Option.some({
           deadLetter: yield* Cloudflare.Queues.Queue("OutboxDeadLetter", {
-            name: outboxDeadLetterName(stage),
+            name: names.deadLetter,
           }),
           outbox: yield* Cloudflare.Queues.Queue("Outbox", {
-            name: outboxQueueName(stage),
+            name: names.queue,
           }),
         });
-      });
+      }),
+  });
 
 type OutboxQueues = Effect.Success<ReturnType<typeof outboxQueues>>;
 
@@ -274,7 +266,7 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
 
     const github = yield* GitHub.GitHubEnv;
 
-    const queues = yield* outboxQueues(stage, kind);
+    const queues = yield* outboxQueues(stage);
 
     const worker = yield* Cloudflare.Website.Vite("Web", {
       compatibility: { date: COMPATIBILITY_DATE, flags: COMPATIBILITY_FLAGS },

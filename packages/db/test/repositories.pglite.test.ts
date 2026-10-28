@@ -446,10 +446,7 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
           ),
           "recorded"
         );
-        assert.strictEqual(
-          yield* delivery.markDead(second.id, "gave up"),
-          "failed"
-        );
+        assert.strictEqual(yield* delivery.markDead(second.id), "failed");
         assert.deepStrictEqual(
           yield* claimTags,
           ["Settled", "Settled"],

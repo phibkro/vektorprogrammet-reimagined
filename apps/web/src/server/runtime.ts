@@ -93,7 +93,7 @@ import {
   queuePublisherLayer,
 } from "./outboxPublisher";
 import type { DirectDeliveryServices } from "./outboxPublisher";
-import { consumeBatch } from "./outboxQueue";
+import { consumeDelivery, consumeEnding } from "./outboxQueue";
 import type { OutboxBatch } from "./outboxQueue";
 import { withOutbox } from "./outboxSweep";
 import { passwordHasherLayer } from "./password";
@@ -400,16 +400,17 @@ export const runDeliveryChecked = (
   );
 
 /**
- * One batch from Cloudflare Queues (spec 0008b): the outbox queue's messages deliver rows, the dead-letter queue's end
- * them (`consumeBatch`). It answers each message itself, so it rejects only when the stack could not be built, and the
+ * One batch from Cloudflare Queues (spec 0008b). Ending a row needs the database and nothing else, so a missing sender or
+ * auth binding cannot stop the dead-letter queue's consumer from ending rows.: the outbox queue's messages deliver rows (`consumeDelivery`), the
+ * dead-letter queue's end them (`consumeEnding`, on the database layer only). It answers each message itself, so it rejects only when the stack could not be built, and the
  * queue then returns the whole batch.
  */
 export const runQueue = (env: TickEnv, batch: OutboxBatch): Promise<void> =>
   Effect.runPromise(
-    consumeBatch(batch, batch.queue.endsWith(DEAD_LETTER_SUFFIX)).pipe(
-      Effect.provide(deliveryLayer(env)),
-      logDefects
-    )
+    (batch.queue.endsWith(DEAD_LETTER_SUFFIX)
+      ? consumeEnding(batch).pipe(Effect.provide(databaseLayer(env)))
+      : consumeDelivery(batch).pipe(Effect.provide(deliveryLayer(env)))
+    ).pipe(logDefects)
   );
 
 export const runSignInPerson = (

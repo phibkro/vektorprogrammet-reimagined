@@ -236,28 +236,35 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             yield* delivery.markDelivered(delivered, second.claimToken);
             yield* claimOrFail(held, 30);
 
+            assert.strictEqual(yield* delivery.markDead(failing), "failed");
+            assert.strictEqual(yield* delivery.markDead(delivered), "settled");
             assert.strictEqual(
-              yield* delivery.markDead(failing, "gave up"),
-              "failed"
-            );
-            assert.strictEqual(
-              yield* delivery.markDead(delivered, "gave up"),
-              "settled"
-            );
-            assert.strictEqual(
-              yield* delivery.markDead(held, "gave up"),
+              yield* delivery.markDead(held),
               "held",
               "a live claim is not overruled"
             );
             assert.strictEqual(
-              yield* delivery.markDead(never, "gave up"),
-              "failed"
+              yield* delivery.markDead(never),
+              "settled",
+              "a row on which no provider failure was recorded is not ended: the queue's attempts went elsewhere"
             );
             assert.strictEqual(
-              yield* delivery.markDead(failing, "gave up"),
+              yield* delivery.markDead(failing),
               "settled",
               "a second ending of the same row does nothing"
             );
+
+            // The control: the ending as it was (pending and unclaimed is all it asked) would have ended that row.
+            const oldEnding = yield* sql<{
+              readonly id: number;
+            }>`update outbox set status = 'dead' where id = ${Number(never)} and status = 'pending' and claimed_until is null returning id`;
+
+            assert.strictEqual(
+              oldEnding.length,
+              1,
+              "without the recorded failure the same row is ended"
+            );
+            yield* sql`update outbox set status = 'pending' where id = ${Number(never)}`;
 
             const rows = yield* sql<{
               readonly id: number;
@@ -271,7 +278,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                 ["dead", "slack StatusCodeError"],
                 ["delivered", null],
                 ["pending", null],
-                ["dead", "gave up"],
+                ["pending", null],
               ]
             );
 
@@ -311,7 +318,8 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             const planted = `$2b$12$${"a".repeat(53)}`;
             yield* sql`update outbox set payload = jsonb_set(payload, '{passwordHash}', to_jsonb(${planted}::text)) where id in (${Number(ended)}, ${Number(sent)})`;
 
-            yield* delivery.markDead(ended, "gave up");
+            yield* sql`update outbox set last_error = 'send_email rejected' where id = ${Number(ended)}`;
+            yield* delivery.markDead(ended);
 
             const row = yield* claimOrFail(sent, 30);
             yield* delivery.markDelivered(sent, row.claimToken);
@@ -425,7 +433,14 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               "slack StatusCodeError",
               DateTime.add(AT, { minutes: 5 })
             );
-            yield* delivery.markDead(failed, "gave up");
+            const failedRow = yield* claimOrFail(failed, 30);
+            yield* delivery.markFailed(
+              failed,
+              failedRow.claimToken,
+              "send_email rejected",
+              AT
+            );
+            yield* delivery.markDead(failed);
 
             const sentRow = yield* claimOrFail(delivered, 30);
             yield* delivery.markDelivered(delivered, sentRow.claimToken);
@@ -444,7 +459,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                 Arr.map((row) => [row.id, row.state, row.lastError])
               ),
               [
-                [failed, "failed", "gave up"],
+                [failed, "failed", "send_email rejected"],
                 [retrying, "retrying", "slack StatusCodeError"],
                 [queued, "queued", null],
                 [waiting, "waiting", null],

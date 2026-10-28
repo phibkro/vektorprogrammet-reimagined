@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { OutboxClaimToken } from "@vektorprogrammet/db";
+import { OutboxClaimToken, OutboxDelivery } from "@vektorprogrammet/db";
 import {
   EmailAddress,
   OutboxMessageId,
@@ -23,7 +23,8 @@ import { TestClock } from "effect/testing";
 
 import { AccountDelivery } from "../src/server/accountDelivery";
 import { deliverOutbox, failOutbox } from "../src/server/outboxDelivery";
-import { withOutbox } from "../src/server/outboxSweep";
+import { deliveryDecisions } from "../src/server/outboxQueue";
+import { withEnding, withOutbox } from "../src/server/outboxSweep";
 import { DeliveryFailed, MessageSender } from "../src/server/senders";
 import { makeTables, memoryLayer } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
@@ -224,26 +225,28 @@ describe("outbox delivery by id (spec 0008b)", () => {
             { ...pendingRow("a"), lastError: "transport down" },
             { ...pendingRow("b"), status: "delivered" as const },
             { ...pendingRow("c"), claimToken: OutboxClaimToken.make("live") },
+            pendingRow("d"),
           ],
         });
 
-        const results = yield* failOutbox(ids("a", "b", "c", "missing")).pipe(
-          Effect.provide(services(tables, false))
-        );
+        const results = yield* failOutbox(
+          ids("a", "b", "c", "d", "missing")
+        ).pipe(Effect.provide(services(tables, false)));
 
         assert.deepStrictEqual(
           pipe(
             results,
             Arr.map((result) => result._tag)
           ),
-          ["Failed", "Settled", "Held", "Settled"]
+          ["Failed", "Settled", "Held", "Settled", "Settled"]
         );
         assert.deepStrictEqual(
           pipe(
             tables.outbox,
             Arr.map((row) => row.status)
           ),
-          ["dead", "delivered", "pending"]
+          ["dead", "delivered", "pending", "pending"],
+          "row d never failed at a provider (the queue's attempts went on an outage): it stays pending for the sweep"
         );
         assert.strictEqual(
           tables.outbox[0]?.lastError,
@@ -255,6 +258,58 @@ describe("outbox delivery by id (spec 0008b)", () => {
         const sent: OutboxMessage[] = [];
         yield* run(tables, false, ["a"], sent);
         assert.strictEqual(sent.length, 0);
+      })
+  );
+
+  it.effect(
+    "an outage that makes every delivery die retries the message with the policy's delay for its own delivery count, not a flat one",
+    () =>
+      Effect.gen(function* backoffOfDefects() {
+        const tables = makeTables({ outbox: [pendingRow("1")] });
+
+        const outage = Layer.mergeAll(
+          services(tables, false),
+          Layer.mock(AccountDelivery, {})
+        );
+
+        const delays = yield* Effect.forEach(
+          Arr.range(1, OutboxSweep.DeliveryPolicy.attempts),
+          (attempts) =>
+            deliveryDecisions([{ attempts, body: "1" }]).pipe(
+              Effect.updateService(OutboxDelivery, (real) =>
+                OutboxDelivery.of({
+                  ...real,
+                  claim: () => Effect.die("the database is unreachable"),
+                })
+              ),
+              Effect.provide(outage),
+              Effect.map((decisions) =>
+                Arr.map(decisions, (decision) =>
+                  Predicate.isTagged(decision, "Retry")
+                    ? decision.afterSeconds
+                    : -1
+                )
+              )
+            )
+        );
+
+        assert.deepStrictEqual(
+          delays.flat(),
+          Arr.map(Arr.range(1, OutboxSweep.DeliveryPolicy.attempts), (n) =>
+            Math.ceil(seconds(n))
+          ),
+          "each delivery's retry waits the policy's delay for its count"
+        );
+        assert.isAbove(
+          delays.flat().at(-1) ?? 0,
+          delays.flat()[0] ?? 0,
+          "and the delay grows: the attempts last hours, not minutes"
+        );
+        assert.strictEqual(
+          tables.outbox[0]?.status,
+          "pending",
+          "nothing was written to the row"
+        );
       })
   );
 });
@@ -295,7 +350,7 @@ const commands = [
   [
     "failOutbox",
     (principal: Principal) =>
-      withOutbox((client) => client.failOutbox({ ids: [] })).pipe(
+      withEnding((client) => client.failOutbox({ ids: [] })).pipe(
         Effect.provide(layerFor(principal)),
         verdictOf
       ),

@@ -8,6 +8,9 @@
 import type { Queue } from "@cloudflare/workers-types";
 import { Array as Arr, Effect } from "effect";
 
+import { consumeDelivery, consumeEnding } from "../../src/server/outboxQueue";
+import type { ConsumedMessage } from "../../src/server/outboxQueue";
+
 interface Waiting {
   readonly body: string;
   readonly attempts: number;
@@ -144,3 +147,9 @@ export const fakeQueue = (): FakeQueue => {
     waiting: () => Arr.map(waiting, (message) => message.body),
   };
 };
+
+/** The Worker's `queue` handler as the fake queue calls it: the dead-letter queue's batches end rows, the others deliver. */
+export const consumeBatch = (
+  batch: { readonly messages: readonly ConsumedMessage[] },
+  dead: boolean
+) => (dead ? consumeEnding(batch) : consumeDelivery(batch));

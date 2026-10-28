@@ -425,7 +425,7 @@ const repositories = Layer.effectContext(
             } satisfies ClaimedOutboxMessage,
           });
         }),
-      markDead: (id, error) =>
+      markDead: (id) =>
         Effect.sync(() => {
           const row = rowOf(id);
 
@@ -437,8 +437,11 @@ const repositories = Layer.effectContext(
             return "held" as const;
           }
 
+          if (row.lastError === null) {
+            return "settled" as const;
+          }
+
           row.status = "dead";
-          row.lastError ??= error;
 
           return "failed" as const;
         }),

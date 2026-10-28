@@ -11,8 +11,11 @@
  * - A row that is delivered, failed, gone or taken over is acknowledged; a duplicate message is the common case.
  * - A row under another live claim is looked at again after the lease; a failed delivery after the policy's retry delay.
  *   Each retry is one of the message's `DeliveryPolicy.attempts` deliveries, and the queue ends it after the last.
- * - A defect (the database is unreachable, say) retries the message after the first retry delay, and an interruption
- *   is not turned into a retry.
+ * - A defect (the database is unreachable, say) retries the message with the policy's delay for the message's own
+ *   delivery count (`Message.attempts`), so an outage spends the same hours of attempts as a provider's failures
+ *   do, and an interruption is not turned into a retry. What the queue gives up on after the last attempt is ended
+ *   only if a provider failure was recorded (`markDead`): a row that never reached a provider stays pending, and the
+ *   sweep puts it back.
  */
 import type { Message } from "@cloudflare/workers-types";
 import {
@@ -31,7 +34,8 @@ import {
   Schema,
 } from "effect";
 
-import { withOutbox } from "./outboxSweep";
+import { RetryDelay } from "./outboxDelivery";
+import { withEnding, withOutbox } from "./outboxSweep";
 
 /** What the consumer tells the queue about one message. */
 export const QueueDecisions = Schema.TaggedUnion({
@@ -46,11 +50,6 @@ const ack: QueueDecision = QueueDecisions.cases.Ack.make({});
 const retryAfter = (afterSeconds: number): QueueDecision =>
   QueueDecisions.cases.Retry.make({ afterSeconds });
 
-/** The delay of a retry that has no better estimate: the first one of the policy. */
-const FIRST_RETRY_SECONDS = Math.ceil(
-  Duration.toSeconds(OutboxSweep.retryDelay(1))
-);
-
 const decodeBody = Schema.decodeUnknownEffect(OutboxSweep.QueueBody);
 
 /**
@@ -58,10 +57,10 @@ const decodeBody = Schema.decodeUnknownEffect(OutboxSweep.QueueBody);
  * interruption. A body that does not decode is acknowledged (and logged by what it was, never by what it held).
  */
 const decide = <E, R>(
-  decoded: Effect.Effect<OutboxSweep.QueueBody, Schema.SchemaError>,
+  message: Incoming,
   act: (id: OutboxSweep.QueueBody) => Effect.Effect<QueueDecision, E, R>
 ) =>
-  decoded.pipe(
+  decodeBody(message.body).pipe(
     Effect.matchEffect({
       onFailure: () =>
         Effect.as(
@@ -73,12 +72,20 @@ const decide = <E, R>(
     Effect.catchCauseIf(
       (cause) => !Cause.hasInterruptsOnly(cause),
       (cause) =>
-        Effect.as(
-          Effect.logError("outbox queue message could not be handled").pipe(
-            Effect.annotateLogs({ cause: Cause.pretty(cause) })
-          ),
-          retryAfter(FIRST_RETRY_SECONDS)
-        )
+        Effect.gen(function* retryDefect() {
+          yield* Effect.logError(
+            "outbox queue message could not be handled"
+          ).pipe(
+            Effect.annotateLogs({
+              attempts: message.attempts,
+              cause: Cause.pretty(cause),
+            })
+          );
+
+          return retryAfter(
+            Math.ceil(Duration.toSeconds((yield* RetryDelay)(message.attempts)))
+          );
+        })
     )
   );
 
@@ -106,31 +113,37 @@ const deliveryDecision = (id: OutboxSweep.QueueBody) =>
 
 const endingDecision = (id: OutboxSweep.QueueBody) =>
   Effect.map(
-    withOutbox((client) => client.failOutbox({ ids: [id] })),
+    withEnding((client) => client.failOutbox({ ids: [id] })),
     decisionOf
   );
 
 /** The decisions for a batch, in order, as the system principal of the outbox: rows are claimed one at a time. */
 const decisionsFor = <E, R>(
-  bodies: readonly unknown[],
+  messages: readonly Incoming[],
   act: (id: OutboxSweep.QueueBody) => Effect.Effect<QueueDecision, E, R>
 ) =>
-  Effect.forEach(bodies, (body) => decide(decodeBody(body), act), {
+  Effect.forEach(messages, (message) => decide(message, act), {
     concurrency: 1,
   }).pipe(
     Effect.provideService(CurrentPrincipal, systemPrincipal("outboxSweep"))
   );
 
 /** The decisions for a batch of an outbox queue's messages. */
-export const deliveryDecisions = (bodies: readonly unknown[]) =>
-  decisionsFor(bodies, deliveryDecision);
+export const deliveryDecisions = (messages: readonly Incoming[]) =>
+  decisionsFor(messages, deliveryDecision);
 
 /** The decisions for a batch of the dead-letter queue's messages. */
-export const endingDecisions = (bodies: readonly unknown[]) =>
-  decisionsFor(bodies, endingDecision);
+export const endingDecisions = (messages: readonly Incoming[]) =>
+  decisionsFor(messages, endingDecision);
 
-/** What the consumer needs of a queue message: its body, and the two answers it may give. */
-export type ConsumedMessage = Pick<Message, "ack" | "body" | "retry">;
+/** What the consumer needs of a queue message: its body, how often it was delivered, and the two answers it may give. */
+export type ConsumedMessage = Pick<
+  Message,
+  "ack" | "attempts" | "body" | "retry"
+>;
+
+/** What a decision reads of a message. */
+type Incoming = Pick<ConsumedMessage, "attempts" | "body">;
 
 /** A batch as the consumer needs it: the queue it came from, and its messages. */
 export interface OutboxBatch {
@@ -156,21 +169,23 @@ export const apply = (
   });
 
 /**
- * One batch. `dead` says it came from the dead-letter queue. A failure inside the program, which the decisions
- * already turn into retries, never reaches here; one that does (the layer could not be built) rejects the handler, and
- * the queue then returns the whole batch.
+ * One batch of the outbox queue: deliver the rows its messages name, then answer each message. A failure inside the
+ * program, which the decisions already turn into retries, never reaches here; one that does (the layer could not be
+ * built) rejects the handler, and the queue then returns the whole batch.
  */
-export const consumeBatch = Effect.fn("consumeOutboxBatch")(
-  function* consumeBatch(
-    batch: { readonly messages: readonly ConsumedMessage[] },
-    dead: boolean
-  ) {
-    const bodies = Arr.map(batch.messages, (message) => message.body);
+export const consumeDelivery = Effect.fn("consumeOutboxBatch")(
+  function* consumeDelivery(batch: {
+    readonly messages: readonly ConsumedMessage[];
+  }) {
+    yield* apply(batch.messages, yield* deliveryDecisions(batch.messages));
+  }
+);
 
-    const decisions = yield* dead
-      ? endingDecisions(bodies)
-      : deliveryDecisions(bodies);
-
-    yield* apply(batch.messages, decisions);
+/** One batch of the dead-letter queue: end the rows that its messages name, then answer each message. */
+export const consumeEnding = Effect.fn("consumeDeadLetterBatch")(
+  function* consumeEnding(batch: {
+    readonly messages: readonly ConsumedMessage[];
+  }) {
+    yield* apply(batch.messages, yield* endingDecisions(batch.messages));
   }
 );

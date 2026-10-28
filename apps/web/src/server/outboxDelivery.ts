@@ -31,15 +31,10 @@ export const RetryDelay = Context.Reference<
 export const LEASE_SECONDS = 120;
 
 /**
- * What a row's `last_error` says when the dead-letter queue ends it and no delivery had left a class there: a class,
- * never a message. A row that failed keeps the class of its last failure, which is the more useful of the two.
- */
-const DEAD_LETTER_REASON = "gave up after the declared attempts";
-
-/**
  * Hands one claimed row to whoever owns its kind: the account flows (`IssueCode`, `SetCredential`, their own
  * transaction), the Workspace writer (`WorkspaceChange`) or the message transport (`Email`, `SlackPost`, with the
- * row's id as the key that stays the same however often the row is claimed). Then it records the delivery.
+ * row's id as the key, which the capture sink keeps a message once by; the production senders pass it to no provider, so a send
+ * that succeeded before `markDelivered` committed is sent again: at least once). Then it records the delivery.
  */
 const deliverClaim = Effect.fnUntraced(function* deliverClaim(
   row: ClaimedOutboxMessage
@@ -132,21 +127,18 @@ export const failOutbox = Effect.fn("failOutbox")(function* failOutbox(
   return yield* Effect.forEach(
     ids,
     (id) =>
-      Effect.map(
-        delivery.markDead(id, DEAD_LETTER_REASON),
-        (ending): OutboxSweep.EndingResult => {
-          if (ending === "failed") {
-            return OutboxSweep.EndingResult.cases.Failed.make({ id });
-          }
-
-          return ending === "held"
-            ? OutboxSweep.EndingResult.cases.Held.make({
-                afterSeconds: LEASE_SECONDS,
-                id,
-              })
-            : OutboxSweep.EndingResult.cases.Settled.make({ id });
+      Effect.map(delivery.markDead(id), (ending): OutboxSweep.EndingResult => {
+        if (ending === "failed") {
+          return OutboxSweep.EndingResult.cases.Failed.make({ id });
         }
-      ),
+
+        return ending === "held"
+          ? OutboxSweep.EndingResult.cases.Held.make({
+              afterSeconds: LEASE_SECONDS,
+              id,
+            })
+          : OutboxSweep.EndingResult.cases.Settled.make({ id });
+      }),
     { concurrency: 1 }
   );
 });

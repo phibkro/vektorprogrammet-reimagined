@@ -21,7 +21,8 @@
  *   queue owns the retry schedule and the number of attempts; a failed
  *   delivery releases the claim and says when the next one is due
  *   (`markFailed`), and the dead-letter queue's consumer ends a row that the
- *   queue gave up on (`markDead`, which never takes a row under a live claim).
+ *   queue gave up on (`markDead`, which takes only a row on which a provider
+ *   failure was recorded, and never one under a live claim).
  * - Receipts: `markQueued` records that the queue accepted the id (`queued_at`);
  *   `stale` lists the pending rows that no receipt covers any more, which the
  *   cron sweep puts back on the queue.
@@ -50,6 +51,7 @@ import {
   desc,
   eq,
   inArray,
+  isNotNull,
   isNull,
   lte,
   ne,
@@ -116,7 +118,11 @@ export class OutboxDelivery extends Context.Service<
   {
     /**
      * Claims the row `id` for `leaseSeconds` if it is pending and no live claim holds it. Whether it is due is not asked:
-     * the queue schedules retries, and a duplicate message that comes early costs one extra attempt of an idempotent send.
+     * the queue schedules retries. A duplicate message that comes early is harmless because the claim needs `pending`
+     * and no live claim: it finds the row delivered (`Settled`) or under the first delivery's claim (`Held`), so it
+     * is an earlier retry, never a second send. A provider can still hear of a row twice when its send succeeded and
+     * `markDelivered` did not commit (at least once); the row's id is only a key for providers that use one, and
+     * the production senders pass none.
      */
     readonly claim: (
       id: OutboxMessageId,
@@ -133,11 +139,13 @@ export class OutboxDelivery extends Context.Service<
       error: string,
       next: DateTime.Utc
     ) => Effect.Effect<OutboxAck>;
-    /** The queue gave up on the row: `dead` (keeping the class of its last error, or `error` when it has none) unless it is delivered, already dead or under a live claim. */
-    readonly markDead: (
-      id: OutboxMessageId,
-      error: string
-    ) => Effect.Effect<OutboxEnding>;
+    /**
+     * The queue gave up on the row: `dead`, but only when a provider failure was recorded (`last_error` is set) and the
+     * row is still pending with no live claim. A row that never reached a provider (the queue's attempts went on an
+     * outage of the database, say) is `settled`, stays pending and is put back on the queue by the sweep. A live claim
+     * answers `held`; a delivered or dead row, `settled`.
+     */
+    readonly markDead: (id: OutboxMessageId) => Effect.Effect<OutboxEnding>;
     /** The receipt of the queue: it accepted these ids now. Rows that are not pending are left as they are. */
     readonly markQueued: (
       ids: readonly OutboxMessageId[]
@@ -331,8 +339,7 @@ export const OutboxDeliveryLive = Layer.effect(
     );
 
     const markDead = Effect.fn("OutboxDelivery.markDead")(function* markDead(
-      id: OutboxMessageId,
-      error: string
+      id: OutboxMessageId
     ) {
       const nowDate = DateTime.toDateUtc(yield* DateTime.now);
 
@@ -341,11 +348,10 @@ export const OutboxDeliveryLive = Layer.effect(
         .set({
           claimToken: null,
           claimedUntil: null,
-          lastError: sql`coalesce(${outbox.lastError}, ${error})`,
           payload: withoutCredential,
           status: "dead",
         })
-        .where(takeable(id, nowDate))
+        .where(and(takeable(id, nowDate), isNotNull(outbox.lastError)))
         .returning({ id: outbox.id })
         .pipe(Effect.orDie);
 
@@ -353,7 +359,20 @@ export const OutboxDeliveryLive = Layer.effect(
         return "failed" as const;
       }
 
-      return yield* whyNot(id);
+      const [row] = yield* db
+        .select({
+          claimedUntil: outbox.claimedUntil,
+          status: outbox.status,
+        })
+        .from(outbox)
+        .where(eq(outbox.id, Number(id)))
+        .pipe(Effect.orDie);
+
+      return row?.status === "pending" &&
+        row.claimedUntil !== null &&
+        row.claimedUntil > nowDate
+        ? ("held" as const)
+        : ("settled" as const);
     });
 
     const markQueued = Effect.fn("OutboxDelivery.markQueued")(

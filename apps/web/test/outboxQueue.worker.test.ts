@@ -1,6 +1,6 @@
 /**
  * Spec 0008b falsifier 4 in the real Queues runtime. Miniflare runs the Worker's consumer (`support/outboxQueue.worker.ts`:
- * the real `consumeBatch` over the real database) against real queues configured as `OUTBOX_CONSUMER` and
+ * the real `consumeDelivery` and `consumeEnding` over the real database) against real queues configured as `OUTBOX_CONSUMER` and
  * `DEAD_LETTER_CONSUMER` say, so the attempt count, the retries and the route to the dead-letter queue are the runtime's:
  *
  * - a provider that fails 3 times and then answers: the row ends `delivered`, after four deliveries of one message;
@@ -41,6 +41,12 @@ const QUEUE = outboxQueueName("test");
 const DEAD_LETTER = outboxDeadLetterName("test");
 const DECLARED_DELIVERIES = OutboxSweep.DeliveryPolicy.attempts;
 
+/** What one message that is never delivered looks like in the consumer's log: every declared delivery, then the dead-letter queue's. */
+const EVERY_DELIVERY_THEN_THE_DEAD_LETTER_QUEUE = [
+  ...Arr.makeBy(DECLARED_DELIVERIES, (index) => [QUEUE, index + 1] as const),
+  [DEAD_LETTER, 1] as const,
+];
+
 const mail = OutboxMessage.cases.Email.make({
   replyTo: null,
   subject: "Henvendelse",
@@ -71,6 +77,9 @@ const hyperdriveUrl = (url: RedactedValue.Redacted) =>
 
     return parsed.toString();
   }).pipe(Effect.orDie);
+
+/** What a queue message may hold: the id of an outbox row and nothing else. */
+const isOnlyAnId = Schema.is(OutboxSweep.QueueBody);
 
 const reset = Effect.gen(function* reset() {
   const sql = yield* SqlClient;
@@ -137,7 +146,7 @@ const until = (
 
 /** One Miniflare with the consumer of both queues, a provider that fails its first `failFirst` calls, and a queue pair as given. */
 const runScenario = (options: {
-  readonly failFirst: number;
+  readonly failFirst: number | "outage";
   readonly withDeadLetterQueue: boolean;
   readonly waitFor: (observed: Observed) => boolean;
 }) =>
@@ -188,7 +197,22 @@ const runScenario = (options: {
 
       assert.strictEqual(yield* Effect.promise(() => sent.text()), "sent");
 
-      return { id, observed: yield* until(id, options.waitFor, 40) };
+      const observed = yield* until(id, options.waitFor, 40);
+
+      // Falsifier 5 on this scenario's own traffic: every body the consumer was given is an outbox id.
+      const sql = yield* SqlClient;
+
+      const bodies = yield* sql<{
+        readonly body: string;
+      }>`select body from queue_log`;
+
+      assert.isAbove(bodies.length, 0, "the scenario left traffic to scan");
+      assert.deepStrictEqual(
+        Arr.filter(bodies, (entry) => !isOnlyAnId(entry.body)),
+        []
+      );
+
+      return { id, observed };
     })
   );
 
@@ -251,13 +275,7 @@ layer(live, { excludeTestServices: true })(
           assert.strictEqual(observed.calls, DECLARED_DELIVERIES);
           assert.deepStrictEqual(
             observed.deliveries,
-            [
-              ...Arr.makeBy(
-                DECLARED_DELIVERIES,
-                (index) => [QUEUE, index + 1] as const
-              ),
-              [DEAD_LETTER, 1],
-            ],
+            EVERY_DELIVERY_THEN_THE_DEAD_LETTER_QUEUE,
             "the declared deliveries, then one delivery to the dead-letter queue"
           );
         }),
@@ -292,21 +310,41 @@ layer(live, { excludeTestServices: true })(
     );
 
     it.effect(
-      "falsifier 5 on real traffic: every message the consumer was given is an outbox id",
+      "an infrastructure outage for every delivery leaves the row pending, not dead: the dead-letter ending needs a recorded provider failure",
       () =>
-        Effect.gen(function* scanLog() {
-          const sql = yield* SqlClient;
+        Effect.gen(function* outage() {
+          const { id, observed } = yield* runScenario({
+            failFirst: "outage",
+            waitFor: (state) =>
+              Arr.some(state.deliveries, ([queue]) => queue === DEAD_LETTER),
+            withDeadLetterQueue: true,
+          });
 
-          const bodies = yield* sql<{
-            readonly body: string;
-          }>`select body from queue_log`;
-
-          assert.isAbove(bodies.length, 0, "the last scenario left traffic");
-          assert.isTrue(
-            Arr.every(bodies, (entry) =>
-              Schema.is(OutboxSweep.QueueBody)(entry.body)
-            )
+          assert.deepStrictEqual(
+            observed.deliveries,
+            EVERY_DELIVERY_THEN_THE_DEAD_LETTER_QUEUE,
+            "the declared deliveries went on the outage, and the dead-letter queue heard of the message"
           );
+          assert.strictEqual(observed.calls, 0, "no provider was ever tried");
+
+          // Let the dead-letter consumer finish its answer before looking at the row.
+          yield* Effect.sleep("2 seconds");
+          assert.strictEqual(
+            (yield* observe(id)).status,
+            "pending",
+            "the row never failed at a provider: it is not ended, and the sweep puts it back"
+          );
+          assert.isNull(observed.lastError);
+        }),
+      { timeout: 90_000 }
+    );
+
+    it.effect(
+      "the scan of a queue body: an outbox id passes, an address does not",
+      () =>
+        Effect.sync(() => {
+          assert.isTrue(isOnlyAnId("42"));
+          assert.isFalse(isOnlyAnId("avdeling@example.org"));
         })
     );
   }

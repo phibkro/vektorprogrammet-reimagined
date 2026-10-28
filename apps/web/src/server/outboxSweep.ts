@@ -4,21 +4,29 @@
  * `packages/db`'s delivery side. Everything that touches a row runs as that principal, through `authorize`, like every
  * other command: the queue's consumer, the dead-letter queue's consumer, the Worker Preview's direct delivery and the
  * cron sweep.
+ *
+ * Two in-process clients, because a client requires what all its handlers require: `withOutbox` (deliver and sweep:
+ * the transports, Better Auth, the Workspace writer) and `withEnding` (the dead-letter ending: the database only), so
+ * the dead-letter consumer builds no more than it uses.
  */
 import { OutboxDelivery } from "@vektorprogrammet/db";
 import { Commands, OutboxSweep } from "@vektorprogrammet/domain";
 import { DateTime, Effect } from "effect";
+import { RpcGroup } from "effect/rpc";
 
 import { deliverOutbox, failOutbox } from "./outboxDelivery";
 
-export const OutboxHandlers = OutboxSweep.OutboxRpc.toLayer({
+const DeliveryRpc = RpcGroup.make(
+  OutboxSweep.sweepOutbox,
+  OutboxSweep.deliverOutbox
+);
+
+const EndingRpc = RpcGroup.make(OutboxSweep.failOutbox);
+
+const DeliveryHandlers = DeliveryRpc.toLayer({
   deliverOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.deliverOutbox, {
     resource: () => Effect.succeed({}),
     run: ({ ids }) => deliverOutbox(ids),
-  }),
-  failOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.failOutbox, {
-    resource: () => Effect.succeed({}),
-    run: ({ ids }) => failOutbox(ids),
   }),
   sweepOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.sweepOutbox, {
     resource: () => Effect.succeed({}),
@@ -40,8 +48,15 @@ export const OutboxHandlers = OutboxSweep.OutboxRpc.toLayer({
   }),
 });
 
-/** The commands behind the in-process client; see `Commands.inProcess`. */
-export const withOutbox = Commands.inProcess(
-  OutboxSweep.OutboxRpc,
-  OutboxHandlers
-);
+const EndingHandlers = EndingRpc.toLayer({
+  failOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.failOutbox, {
+    resource: () => Effect.succeed({}),
+    run: ({ ids }) => failOutbox(ids),
+  }),
+});
+
+/** Deliver and sweep, behind the in-process client; see `Commands.inProcess`. */
+export const withOutbox = Commands.inProcess(DeliveryRpc, DeliveryHandlers);
+
+/** The dead-letter ending, behind its own in-process client. */
+export const withEnding = Commands.inProcess(EndingRpc, EndingHandlers);

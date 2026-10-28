@@ -49,7 +49,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { AccountDelivery } from "../src/server/accountDelivery";
 import { success } from "../src/server/errors";
 import { capturingOutbox } from "../src/server/outboxPublisher";
-import { consumeBatch, deliveryDecisions } from "../src/server/outboxQueue";
+import { deliveryDecisions } from "../src/server/outboxQueue";
 import { publishCommitted, runQueue, runTick } from "../src/server/runtime";
 import type { TickEnv } from "../src/server/runtime";
 import {
@@ -60,7 +60,7 @@ import {
 import { Transactor, transactorLayer } from "../src/server/transactor";
 import { email, enqueueEmail, requestOutcome } from "./support/commandOutcome";
 import { liveWith, origin } from "./support/deliveryLive";
-import { fakeQueue } from "./support/fakeQueue";
+import { consumeBatch, fakeQueue } from "./support/fakeQueue";
 import type { FakeQueue } from "./support/fakeQueue";
 import { leaderOf } from "./support/principals";
 import { rowsIn } from "./support/rowCount";
@@ -164,6 +164,23 @@ const freshRun = Effect.gen(function* freshRun() {
     url: yield* TestDatabaseUrl,
     ...waitUntil(),
   };
+});
+
+/** A batch of one message that writes its answers (`ack` or `retry`) to `answers`. */
+const answeringBatch = (id: string, queue: string, answers: string[]) => ({
+  messages: [
+    {
+      ack: () => {
+        answers.push("ack");
+      },
+      attempts: 1,
+      body: id,
+      retry: () => {
+        answers.push("retry");
+      },
+    },
+  ],
+  queue,
 });
 
 const ROUNDS = 300;
@@ -371,7 +388,9 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
                 const id = yield* enqueueEmail;
                 const calls = yield* Ref.make<readonly string[]>([]);
 
-                const delivery = deliveryDecisions([id]).pipe(
+                const delivery = deliveryDecisions([
+                  { attempts: 1, body: id },
+                ]).pipe(
                   Effect.provide(
                     Layer.mergeAll(provider(calls), noOtherServices)
                   )
@@ -474,20 +493,7 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
                     SEND_EMAIL: sendEmail,
                     SLACK_WEBHOOK_URL: "https://hooks.example.org/unused",
                   },
-                  {
-                    messages: [
-                      {
-                        ack: () => {
-                          answers.push("ack");
-                        },
-                        body: id,
-                        retry: () => {
-                          answers.push("retry");
-                        },
-                      },
-                    ],
-                    queue: "vp-outbox-test",
-                  }
+                  answeringBatch(id, "vp-outbox-test", answers)
                 );
               });
 
@@ -508,6 +514,51 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
             { answers: ["ack"], captured: 0, sends: 1 },
             "the control: the same consumer in production does reach the binding"
           );
+        })
+    );
+
+    it.effect(
+      "the dead-letter consumer builds the database only: with the production senders unconfigured it still ends a failed row, while the delivery consumer cannot start",
+      () =>
+        Effect.gen(function* endingNeedsOnlyTheDatabase() {
+          yield* reset;
+
+          const sql = yield* SqlClient;
+          const url = yield* TestDatabaseUrl;
+
+          const outcome = yield* requestOutcome(url, false);
+
+          const id = Predicate.isTagged(outcome, "Success")
+            ? Option.getOrThrow(Arr.head(outcome.value.enqueued))
+            : yield* Effect.die("the command enqueued one message");
+
+          yield* sql`update outbox set last_error = 'send_email rejected' where id = ${Number(id)}`;
+
+          /** Production, with none of its sender bindings: the senders refuse to build. */
+          const unconfigured = envFor(url, undefined, "production");
+          const answers: string[] = [];
+
+          const batch = (queueName: string) =>
+            answeringBatch(id, queueName, answers);
+
+          const delivering = yield* Effect.exit(
+            Effect.promise(() =>
+              runQueue(unconfigured, batch("vp-outbox-test"))
+            )
+          );
+
+          assert.isTrue(
+            Exit.isFailure(delivering),
+            "the control: the delivery consumer needs the senders and fails to start"
+          );
+          assert.deepStrictEqual(answers, []);
+
+          yield* Effect.promise(() =>
+            runQueue(unconfigured, batch("vp-outbox-test-dlq"))
+          );
+
+          assert.deepStrictEqual(answers, ["ack"]);
+          assert.strictEqual((yield* rowState(id)).status, "dead");
         })
     );
 
