@@ -40,6 +40,12 @@ const findingsAt = (
     (finding) => finding.startsWith(path)
   );
 
+const groupsIn = (path: string, specifier: string) =>
+  Arr.map(
+    restrictedImports(path, `import { x } from "${specifier}";\n`),
+    (found) => found.group
+  );
+
 describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
   it("a glob's `**` crosses directories (also none) and its `*` stops at a slash", () => {
     const tests = globToRegExp("apps/web/test/**/*.postgres.test.ts");
@@ -123,6 +129,33 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
         [7, "pg"],
       ]
     );
+  });
+
+  it("resolves a relative specifier against the importing file, so a sibling package's `../../db` is the adapter", () => {
+    assert.deepStrictEqual(
+      groupsIn("packages/domain/src/a.ts", "../../db/src/schema.ts"),
+      ["db"]
+    );
+
+    assert.deepStrictEqual(
+      groupsIn("packages/cms-client/src/deep/a.ts", "../../../db/src/index.ts"),
+      ["db"]
+    );
+
+    assert.deepStrictEqual(
+      groupsIn("packages/domain/test/a.ts", "../../db/test/support/x.ts"),
+      ["db"]
+    );
+
+    // Inside the adapter, a relative import stays in the adapter and is allowed there.
+    assert.deepStrictEqual(
+      groupsIn("packages/db/src/repositories/a.ts", "../schema.ts"),
+      ["db"]
+    );
+
+    // A directory that is merely named `db` somewhere else is not the adapter.
+    assert.deepStrictEqual(groupsIn("apps/cms/src/a.ts", "../db/index.ts"), []);
+    assert.deepStrictEqual(groupsIn("apps/web/src/a.ts", "./db/other.ts"), []);
   });
 
   describe("findings", () => {
@@ -233,6 +266,13 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
 
     const everyLine = Arr.map(imports, (_line, index) => index + 1);
 
+    const siblingImports = [
+      'import { a } from "../../db/src/schema.ts";',
+      'import { b } from "../../db/test/support/disposableDatabase.ts";',
+    ];
+
+    const siblingLines = Arr.map(siblingImports, (_line, index) => index + 1);
+
     const probes = {
       // An allowance that allows `db`, `pg` and `sql-pg`, but not Drizzle.
       adapterTest: {
@@ -242,6 +282,15 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       clean: {
         content: text(['import { ok } from "@vektorprogrammet/domain";']),
         file: "apps/web/src/server/storeBoundaryProbeClean.ts",
+      },
+      // Packages beside `packages/db`: no allowance covers them.
+      cmsClientSibling: {
+        content: text(siblingImports),
+        file: "packages/cms-client/src/storeBoundaryProbe.ts",
+      },
+      domainSibling: {
+        content: text(siblingImports),
+        file: "packages/domain/src/storeBoundaryProbe.ts",
       },
       // An allowance of every group.
       harness: {
@@ -322,6 +371,17 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
 
                   // Inside an allowance of every group, and with nothing restricted imported: nothing fails.
                   assert.deepStrictEqual(flagged(probes.harness.file), []);
+
+                  // A sibling package reaches the adapter as `../../db/…`, with no `packages/` in the specifier.
+                  assert.deepStrictEqual(
+                    flagged(probes.domainSibling.file),
+                    siblingLines
+                  );
+
+                  assert.deepStrictEqual(
+                    flagged(probes.cmsClientSibling.file),
+                    siblingLines
+                  );
                   assert.deepStrictEqual(flagged(probes.clean.file), []);
                 })
               ),

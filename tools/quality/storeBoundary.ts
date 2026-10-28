@@ -28,7 +28,7 @@ interface Restriction {
 const restricted: Readonly<Record<Group, Restriction>> = {
   db: {
     message:
-      "`@vektorprogrammet/db` is the PostgreSQL adapter: import the port from `@vektorprogrammet/domain`, and let a composition root provide the adapter's Layer (spec 0017).",
+      "`@vektorprogrammet/db` is the PostgreSQL adapter: code outside it asks for a port that `@vektorprogrammet/domain` declares, and a composition root provides the adapter's Layer (spec 0017).",
     regexes: ["^@vektorprogrammet/db(?:/|$)", "(?:^|/)packages/db(?:/|$)"],
   },
   drizzle: {
@@ -141,6 +141,17 @@ export const allowances: readonly Allowance[] = [
       "Composition root of the importer: builds `ImportDatabaseLive`, the one place that names the adapter.",
   },
 ];
+
+/**
+ * A package beside `packages/db` reaches it as `../../db/…`, a specifier with no `packages/` in it. Oxlint cannot resolve
+ * a path, so the lint restricts that spelling in `packages/**`, where `..` leads to `packages/`; a `db` directory
+ * elsewhere (`apps/cms/db`) is not the adapter. `checkStoreBoundary.ts` resolves every relative specifier against its
+ * file and needs no pattern.
+ */
+export const siblingAdapterPattern = {
+  message: restricted.db.message,
+  regex: String.raw`^(?:\.\./)+db(?:/|$)`,
+};
 
 const escape = (text: string): string =>
   text.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);

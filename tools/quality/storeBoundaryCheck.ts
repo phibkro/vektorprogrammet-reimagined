@@ -32,6 +32,43 @@ const stringLiteral = /^(?<quote>["'`])(?<value>[^"'`$]*)\k<quote>$/u;
 const literalOf = (argument: string): Option.Option<string> =>
   Option.fromNullishOr(stringLiteral.exec(argument.trim())?.groups?.value);
 
+/** `specifier`, a relative path written in the file `importer`, as a path from the repository root. */
+const resolveFrom = (importer: string, specifier: string): string =>
+  Arr.join(
+    Arr.reduce(
+      specifier.split("/"),
+      Arr.dropRight(importer.split("/"), 1),
+      (parts, segment) => {
+        if (segment === ".") {
+          return parts;
+        }
+
+        return segment === ".."
+          ? Arr.dropRight(parts, 1)
+          : Arr.append(parts, segment);
+      }
+    ),
+    "/"
+  );
+
+/**
+ * The group of a module specifier written in the file `importer`. A relative specifier is also resolved against the
+ * importer, so a package beside `packages/db` that writes `../../db/src/schema.ts` is found: resolved, that is
+ * `packages/db/src/schema.ts`. Only the adapter is looked for in a resolved path, which names no package of its own.
+ */
+const groupOfImport = (
+  importer: string,
+  specifier: string
+): Option.Option<Group> =>
+  specifier.startsWith(".")
+    ? Option.orElse(groupOf(specifier), () =>
+        Option.filter(
+          groupOf(resolveFrom(importer, specifier)),
+          (group) => group === "db"
+        )
+      )
+    : groupOf(specifier);
+
 /** Every import, `export … from` and `import("…")` of `text` that names a restricted module. */
 export const restrictedImports = (
   path: string,
@@ -59,7 +96,7 @@ export const restrictedImports = (
   ];
 
   return Arr.flatMap(requests, (request) =>
-    Option.match(groupOf(request.value), {
+    Option.match(groupOfImport(path, request.value), {
       onNone: () => [],
       onSome: (group): ImportSite[] => [
         { group, line: lineOf(request.start), path, specifier: request.value },

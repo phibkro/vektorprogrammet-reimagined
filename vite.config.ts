@@ -11,6 +11,7 @@ import { diagnosticRules } from "./tools/quality/diagnosticRules.ts";
 import {
   boundaryOverrides,
   restrictedImportPatterns,
+  siblingAdapterPattern,
 } from "./tools/quality/storeBoundary.ts";
 
 export const tsgoRules = diagnosticRules.lint;
@@ -312,6 +313,22 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     overrides: [
       ...effectConfigResult.overrides,
+      // A package beside `packages/db` reaches the adapter as `../../db/…` (spec 0017); `boundaryOverrides` below
+      // replace this for the files that an allowance covers, `packages/db/**` among them.
+      {
+        files: ["packages/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: restrictedImportPatterns(
+                [],
+                [...restrictedSourcePatterns, siblingAdapterPattern]
+              ),
+            },
+          ],
+        },
+      },
       {
         files: ["packages/domain/**"],
         rules: {
@@ -320,15 +337,14 @@ export default defineConfig({
             {
               patterns: [
                 {
-                  group: [
-                    "@vektorprogrammet/db",
-                    "@vektorprogrammet/db/*",
-                    "apps/*",
-                  ],
+                  group: ["apps/*"],
                   message:
-                    "The domain is pure and must not depend on the database or application layer.",
+                    "The domain is pure and must not depend on the application layer.",
                 },
-                ...restrictedImportPatterns(["db"], restrictedSourcePatterns),
+                ...restrictedImportPatterns(
+                  [],
+                  [...restrictedSourcePatterns, siblingAdapterPattern]
+                ),
               ],
             },
           ],
