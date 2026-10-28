@@ -24,6 +24,7 @@ import { Route as SkolerRouteImport } from './routes/skoler'
 import { Route as SlettetRouteImport } from './routes/slettet'
 import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-passord'
 import { Route as ApiEksportRouteImport } from './routes/api/eksport'
+import { Route as ApiIsolationRouteImport } from './routes/api/isolation'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
@@ -116,6 +117,11 @@ const TilbakestillPassordRoute = TilbakestillPassordRouteImport.update({
 const ApiEksportRoute = ApiEksportRouteImport.update({
   id: '/api/eksport',
   path: '/api/eksport',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIsolationRoute = ApiIsolationRouteImport.update({
+  id: '/api/isolation',
+  path: '/api/isolation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FilerKeyRoute = FilerKeyRouteImport.update({
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/slettet': typeof SlettetRoute
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
+  '/api/isolation': typeof ApiIsolationRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/slettet': typeof SlettetRoute
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
+  '/api/isolation': typeof ApiIsolationRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -298,6 +306,7 @@ export interface FileRoutesById {
   '/slettet': typeof SlettetRoute
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
+  '/api/isolation': typeof ApiIsolationRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -335,6 +344,7 @@ export interface FileRouteTypes {
     | '/slettet'
     | '/tilbakestill-passord'
     | '/api/eksport'
+    | '/api/isolation'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/slettet'
     | '/tilbakestill-passord'
     | '/api/eksport'
+    | '/api/isolation'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/slettet'
     | '/tilbakestill-passord'
     | '/api/eksport'
+    | '/api/isolation'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -440,6 +452,7 @@ export interface RootRouteChildren {
   SlettetRoute: typeof SlettetRoute
   TilbakestillPassordRoute: typeof TilbakestillPassordRoute
   ApiEksportRoute: typeof ApiEksportRoute
+  ApiIsolationRoute: typeof ApiIsolationRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
   NyhetSlugRoute: typeof NyhetSlugRoute
@@ -555,6 +568,13 @@ declare module '@tanstack/react-router' {
       path: '/api/eksport'
       fullPath: '/api/eksport'
       preLoaderRoute: typeof ApiEksportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/isolation': {
+      id: '/api/isolation'
+      path: '/api/isolation'
+      fullPath: '/api/isolation'
+      preLoaderRoute: typeof ApiIsolationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/filer/$key': {
@@ -731,6 +751,7 @@ const rootRouteChildren: RootRouteChildren = {
   SlettetRoute: SlettetRoute,
   TilbakestillPassordRoute: TilbakestillPassordRoute,
   ApiEksportRoute: ApiEksportRoute,
+  ApiIsolationRoute: ApiIsolationRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,
   NyhetSlugRoute: NyhetSlugRoute,
@@ -743,3 +764,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

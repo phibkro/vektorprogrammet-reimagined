@@ -126,6 +126,30 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: devenv shell -- bash -c 'cd apps/web && GITHUB_SHA="$HEAD_SHA" bunx alchemy deploy --stage "$STAGE" --yes'
 
+      # Spec 0018, falsifier 4 (the deployed path): a domain transaction begins at READ COMMITTED through Hyperdrive too.
+      # The Preview's own route reads `current_setting('transaction_isolation')` inside `Transactor.run`; the URL is the
+      # one that the deploy's pull request comment holds. A new Worker may need a moment before it answers.
+      - name: Check the isolation level through Hyperdrive
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          url="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PULL_REQUEST}/comments" --paginate \
+            --jq '[.[] | select(.body | startswith("### Preview"))] | last | .body' \
+            | sed -n 's/^\*\*URL:\*\* //p' | head -n 1)"
+          test -n "$url"
+          level=""
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            level="$(curl -fsS --max-time 20 "${url%/}/api/isolation" || true)"
+            [ -n "$level" ] && break
+            sleep 6
+          done
+          echo "isolation level on the Preview: ${level:-none}"
+          test "$level" = "read committed"
+
   cleanup:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
