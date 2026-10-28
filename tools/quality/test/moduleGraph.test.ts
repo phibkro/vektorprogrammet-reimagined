@@ -1,145 +1,37 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, FileSystem, Option, Order } from "effect";
+import { Array as Arr, Effect, Order } from "effect";
 
 import { importSpecifiers } from "../importSpecifiers.ts";
 import { baseline, declaration, integrationCalls } from "../moduleGraph.ts";
-import type { Declaration, Module } from "../moduleGraph.ts";
+import type { Declaration } from "../moduleGraph.ts";
 import { moduleGraphFindings, scanImports } from "../moduleGraphCheck.ts";
-import type { SourceFile } from "../moduleGraphCheck.ts";
+import { moduleGraphProbes } from "../probes.ts";
+import type { SourceFile } from "../resolveImports.ts";
 import { lintProbes } from "./support/lintProbes.ts";
+import {
+  at,
+  check,
+  clean,
+  d,
+  fixture,
+  importing,
+  mentioning,
+  parsed,
+  replacing,
+  source,
+} from "./support/moduleGraphFixture.ts";
 
 const root = new URL("../../../", import.meta.url).pathname;
 
-const d = "packages/domain/src";
-
-/** The finding for a file that imports its own package by its name. */
-const own = (unit: string, name: string, line: number, path: string) =>
-  `${path}:${line}: ${unit} imports its own package by its name (@vektorprogrammet/${name}); a file imports its own package's files by a relative path, so that the module rules see the edge`;
-
-/** A file with the specifiers that it imports, one per line (the first on line 1). */
-const source = (
-  path: string,
-  ...specifiers: readonly string[]
-): SourceFile => ({
-  imports: Arr.map(specifiers, (specifier, index) => ({
-    line: index + 1,
-    specifier,
-  })),
-  path,
-  text: Arr.join(specifiers, "\n"),
-});
-
-const makeModule = (
-  name: string,
-  layer: Module["layer"],
-  uses: Module["uses"],
-  extra: Partial<Module> = {}
-): Module => ({ files: [`${d}/${name}/*.ts`], layer, name, uses, ...extra });
-
-/**
- * A small declaration with the shapes of ADR 0015: a vocabulary and a kernel (libraries), services that use each other
- * in one direction, a catalog above them, Privacy above the catalog and an assembly above all. Every declared edge is
- * used by `clean`, so `clean` has no finding, and each test changes one thing.
- */
-const fixture: Declaration = {
-  acyclic: ["packages/**/*.ts"],
-  baseline: [],
-  governed: `${d}/**`,
-  integrationCalls: [],
-  modules: [
-    makeModule("vocab", "library", []),
-    makeModule("kernel", "library", ["vocab"]),
-    makeModule("team", "service", ["vocab"]),
-    makeModule("login", "service", ["team", "vocab"]),
-    makeModule("contact", "service", ["vocab"], {
-      packages: ["sanitize-html"],
-    }),
-    makeModule("catalog", "catalog", ["login", "team"]),
-    makeModule("privacy", "privacy", ["catalog"]),
-    {
-      files: [`${d}/index.ts`],
-      layer: "assembly",
-      name: "assembly",
-      uses: "all",
-    },
-  ],
-  units: [
-    { root: "packages/domain", uses: [] },
-    { root: "packages/db", uses: ["packages/domain"] },
-    { root: "packages/cms-client", uses: [] },
-    { root: "apps/web", uses: ["packages/domain", "packages/db"] },
-    { root: "apps/cms", uses: [] },
-  ],
-};
-
-const clean: readonly SourceFile[] = [
-  source(`${d}/vocab/ids.ts`, "effect"),
-  source(`${d}/kernel/a.ts`, "../vocab/ids.ts", "effect/rpc"),
-  source(`${d}/team/a.ts`, "../vocab/ids.ts"),
-  source(`${d}/login/a.ts`, "../team/a.ts", "../vocab/ids.ts"),
-  source(`${d}/contact/a.ts`, "../vocab/ids.ts", "sanitize-html"),
-  source(`${d}/catalog/a.ts`, "../login/a.ts", "../team/a.ts"),
-  source(`${d}/privacy/a.ts`, "../catalog/a.ts"),
-  source(`${d}/index.ts`, "./privacy/a.ts"),
-  source("packages/db/src/a.ts", "@vektorprogrammet/domain", "effect"),
-  source("packages/cms-client/src/a.ts", "effect"),
-  source(
-    "apps/web/src/server/a.ts",
-    "@vektorprogrammet/domain",
-    "@vektorprogrammet/db"
-  ),
-  source("apps/cms/src/a.ts", "astro"),
-];
-
-const check = (
-  files: readonly SourceFile[],
-  within: Declaration = fixture
-): readonly string[] => moduleGraphFindings(within, files);
-
-/** `clean` with the `added` files, which replace a file of the same path. */
-const replacing = (...added: readonly SourceFile[]): readonly SourceFile[] => [
-  ...Arr.filter(
-    clean,
-    (file) => !Arr.some(added, (other) => other.path === file.path)
-  ),
-  ...added,
-];
-
-/** `clean` with more imports in `path`, after the ones it has. */
-const importing = (path: string, ...more: readonly string[]) =>
-  Arr.map(clean, (file) =>
-    file.path === path
-      ? source(
-          path,
-          ...Arr.map(file.imports, ({ specifier }) => specifier),
-          ...more
-        )
-      : file
-  );
-
-const mentioning = (findings: readonly string[], text: string) =>
-  Arr.filter(findings, (finding) => finding.includes(text));
-
-/** The finding about the import at `site` (`path:line`), or an empty text when there is none. */
-const at = (findings: readonly string[], site: string): string =>
-  Option.getOrElse(
-    Arr.findFirst(findings, (finding) => finding.startsWith(`${site}:`)),
-    () => ""
-  );
-
-/** A probe file as the check reads it: its path and the imports in its text. */
+/** A probe file as the check reads it. */
 const asSource = ({
   content,
   file,
 }: {
   readonly content: string;
   readonly file: string;
-}): SourceFile => ({
-  imports: importSpecifiers(file, content),
-  path: file,
-  text: content,
-});
+}): SourceFile => parsed(file, content);
 
 describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
   it("the fixture is clean, so each case below changes one thing", () => {
@@ -562,21 +454,21 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       cycleA: {
         content:
           'import { b } from "./moduleGraphProbeCycleB.ts";\n\nexport const a = b;\n',
-        file: "packages/cms-client/src/moduleGraphProbeCycleA.ts",
+        file: moduleGraphProbes.cycleA,
       },
       cycleB: {
         content:
           'import type { a } from "./moduleGraphProbeCycleA.ts";\n\nexport const b = 1;\n\nexport type T = typeof a;\n',
-        file: "packages/cms-client/src/moduleGraphProbeCycleB.ts",
+        file: moduleGraphProbes.cycleB,
       },
       flatA: {
         content:
           'import { b } from "./moduleGraphProbeFlatB.ts";\n\nexport const a = b;\n',
-        file: "packages/cms-client/src/moduleGraphProbeFlatA.ts",
+        file: moduleGraphProbes.flatA,
       },
       flatB: {
         content: "export const b = 1;\n",
-        file: "packages/cms-client/src/moduleGraphProbeFlatB.ts",
+        file: moduleGraphProbes.flatB,
       },
     } as const;
 
@@ -639,167 +531,6 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
     );
   });
 
-  describe("review round 1: probes, resolution, extensions, tolerated calls", () => {
-    const ids = `${d}/vocab/ids.ts`;
-    const kernel = `${d}/kernel/a.ts`;
-
-    const upwardText = (target: string) =>
-      `${kernel}:3: imports ${target} (module team, service), an upward import from module kernel (library)`;
-
-    it.effect(
-      "R2: a scratch probe that another test wrote is invisible to the scan, and the same file under another name is not",
-      () =>
-        Effect.gen(function* probeIsInvisible() {
-          const fs = yield* FileSystem.FileSystem;
-          const probe = `${root}${d}/storeBoundaryProbeRace.ts`;
-          const other = `${root}${d}/storeBoundaryRace.ts`;
-
-          const withFile = (file: string) =>
-            Effect.scoped(
-              Effect.acquireUseRelease(
-                fs.writeFileString(file, 'import "node:fs";\n'),
-                () =>
-                  Effect.map(scanImports(root), (files) =>
-                    moduleGraphFindings(declaration, files)
-                  ),
-                () => fs.remove(file, { force: true }).pipe(Effect.orDie)
-              )
-            );
-
-          assert.deepStrictEqual(yield* withFile(probe), []);
-
-          // Control: without the probe name the same file is found.
-          assert.lengthOf(
-            mentioning(yield* withFile(other), "storeBoundaryRace.ts"),
-            1
-          );
-        }).pipe(Effect.provide(NodeServices.layer)),
-      120_000
-    );
-
-    it("R4: a `.js` specifier names the `.ts` file beside it, so an upward import written so is found", () => {
-      assert.deepStrictEqual(check(importing(kernel, "../team/a.js")), [
-        upwardText(`${d}/team/a.ts`),
-      ]);
-
-      // Control: the same import written `.ts` or with no extension is the same finding.
-      assert.deepStrictEqual(check(importing(kernel, "../team/a.ts")), [
-        upwardText(`${d}/team/a.ts`),
-      ]);
-
-      assert.deepStrictEqual(check(importing(kernel, "../team/a")), [
-        upwardText(`${d}/team/a.ts`),
-      ]);
-    });
-
-    it("R4: `.mjs` names the `.mts` file beside it", () => {
-      const mts = `${d}/team/b.mts`;
-
-      assert.deepStrictEqual(
-        mentioning(
-          check([...importing(kernel, "../team/b.mjs"), source(mts, "effect")]),
-          "b.m"
-        ),
-        [
-          `${mts}: is a source file of the governed tree (${fixture.governed}) and not a .ts file; the module globs read .ts only, so rename it`,
-        ]
-      );
-    });
-
-    it("R4: a relative import that resolves to no source file fails closed; a data file, a bundler query and the root config do not", () => {
-      assert.deepStrictEqual(check(importing(ids, "./missing.ts")), [
-        `${ids}:2: imports ./missing.ts, which resolves to no source file (the check fails closed: an import it cannot place is not one it can approve)`,
-      ]);
-
-      assert.lengthOf(check(importing(ids, "../team")), 1);
-
-      // Control: a JSON file, a stylesheet with a query and the root config are plain files.
-      assert.deepStrictEqual(
-        check(
-          importing(
-            ids,
-            "./seed.json",
-            "./styles.css?url",
-            "../../../../vite.config.ts"
-          )
-        ),
-        []
-      );
-    });
-
-    it("R4: a file that imports its own package by name is flagged, and an import of another declared unit is not", () => {
-      assert.deepStrictEqual(
-        check(importing("apps/web/src/server/a.ts", "@vektorprogrammet/web")),
-        [own("apps/web", "web", 3, "apps/web/src/server/a.ts")]
-      );
-
-      assert.deepStrictEqual(
-        check(importing(ids, "@vektorprogrammet/domain")),
-        [own("packages/domain", "domain", 2, ids)]
-      );
-
-      // Control: `apps/web` imports `@vektorprogrammet/domain`, which it declares (`clean` holds it).
-      assert.deepStrictEqual(check(clean), []);
-    });
-
-    it("R5: a source file in the governed tree that is not `.ts` fails, whatever its extension", () => {
-      for (const extension of [".mts", ".cts", ".tsx", ".js"]) {
-        const path = `${d}/team/x${extension}`;
-
-        assert.deepStrictEqual(
-          mentioning(
-            check(replacing(source(path, "sanitize-html", "../kernel/a.ts"))),
-            path
-          ),
-          [
-            `${path}: is a source file of the governed tree (${fixture.governed}) and not a .ts file; the module globs read .ts only, so rename it`,
-          ]
-        );
-      }
-
-      // Control: the same file as `.ts` is a member of its module, and its imports are checked.
-      assert.deepStrictEqual(
-        check(replacing(source(`${d}/team/x.ts`, "../vocab/ids.ts"))),
-        []
-      );
-    });
-
-    it("R1: a tolerated integration call names its trigger, and an entry that its code has outlived fails", () => {
-      const call = {
-        file: "apps/web/src/server/delivery.ts",
-        reason: "mails inside the transaction",
-        retirementTrigger: "delivery restructured",
-        symbol: "issueCode",
-      };
-
-      const tolerated: Declaration = { ...fixture, integrationCalls: [call] };
-
-      const delivery = (text: string): SourceFile => ({
-        imports: [],
-        path: call.file,
-        text,
-      });
-
-      // Control: the file still mentions its symbol.
-      assert.deepStrictEqual(
-        check([...clean, delivery("export const issueCode = 1;")], tolerated),
-        []
-      );
-
-      const stale = [
-        `integration call: ${call.file} no longer mentions issueCode (delivery restructured); remove the entry from integrationCalls`,
-      ];
-
-      // The symbol is gone from the file, or the file is.
-      assert.deepStrictEqual(
-        check([...clean, delivery("export const other = 1;")], tolerated),
-        stale
-      );
-
-      assert.deepStrictEqual(check(clean, tolerated), stale);
-    });
-  });
-
   describe("F9: the real tree", () => {
     it.effect(
       "reports exactly the baselined imports, and one more import adds one finding",
@@ -835,11 +566,20 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           // A new real import, `contact` using `iam`, which no declared edge allows, is one more finding.
           const mutated = Arr.map(files, (file) =>
             file.path === `${d}/contact/commands.ts`
-              ? source(
-                  file.path,
-                  ...Arr.map(file.imports, ({ specifier }) => specifier),
-                  "../accounts/declaration.ts"
-                )
+              ? {
+                  ...file,
+                  imports: [
+                    ...file.imports,
+                    {
+                      line: 9999,
+                      specifier: "../accounts/declaration.ts",
+                      target: {
+                        kind: "file" as const,
+                        path: `${d}/accounts/declaration.ts`,
+                      },
+                    },
+                  ],
+                }
               : file
           );
 
@@ -854,8 +594,11 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
       // One call of another system inside a transaction that the type bound does not see (review round 1).
       assert.deepStrictEqual(
-        Arr.map(integrationCalls, ({ file, symbol }) => `${file} ${symbol}`),
-        ["apps/web/src/server/accountDelivery.ts issueCode"]
+        Arr.map(
+          integrationCalls,
+          ({ file, within, call }) => `${file} ${within} ${call}`
+        ),
+        ["apps/web/src/server/accountDelivery.ts transactor.run sender.send"]
       );
 
       assert.deepStrictEqual(

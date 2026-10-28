@@ -447,9 +447,11 @@ export default defineConfig({
         rules: { "max-classes-per-file": "off" },
       },
       {
-        // Effect Data tagged variants use this exact empty payload representation; the type rule resolves it to {}.
+        // Effect Data tagged variants use this exact empty payload representation; the type rule resolves it to {}. The
+        // integration-port type test pins that a requirement bound of `{}` admits every service (spec 0020), so it names it.
         files: [
           "packages/domain/src/shared/capabilities.ts",
+          "packages/domain/test/shared/integrationPorts.types.test.ts",
           "tools/import/src/transform/legacyPath.ts",
         ],
         rules: { "typescript/no-generated-empty-object-type": "off" },

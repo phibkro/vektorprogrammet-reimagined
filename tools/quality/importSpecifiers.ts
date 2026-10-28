@@ -1,5 +1,6 @@
-import { Array as Arr, Option, Predicate } from "effect";
-import { parseSync } from "oxc-parser";
+import { Array as Arr, Option, Order, Predicate } from "effect";
+import { parseSync, Visitor } from "oxc-parser";
+import type { Program } from "oxc-parser";
 
 /** One module specifier written in a source file, with the line it starts on. */
 export interface Specifier {
@@ -14,15 +15,37 @@ const literalOf = (argument: string): Option.Option<string> =>
   Option.fromNullishOr(stringLiteral.exec(argument.trim())?.groups?.value);
 
 /**
- * Every static `import`, `export … from` and `import("…")` with a literal argument in `text`, the file `path` (its
- * extension picks the parser's language). Text that only mentions a package (a string, a comment) is not an import.
- * `checkStoreBoundary.ts` and `checkModuleGraph.ts` read the imports of the repository through this one function.
+ * The specifiers of the type-level `import("…")` in `program` (`typeof import("./x.ts")`, `import("./x.ts").T`): a
+ * `TSImportType` node, which `module` does not list. The argument is a plain string literal or it is not a specifier.
+ */
+const typeImports = (
+  program: Program
+): readonly (readonly [number, string])[] => {
+  const found: (readonly [number, string])[] = [];
+
+  new Visitor({
+    TSImportType({ source }) {
+      // A computed argument is a parse recovery with an empty string: no specifier.
+      if (source.value !== "") {
+        found.push([source.start, source.value]);
+      }
+    },
+  }).visit(program);
+
+  return found;
+};
+
+/**
+ * Every static `import`, `export … from`, `import("…")` and type-level `import("…")` with a literal argument in `text`,
+ * the file `path` (its extension picks the parser's language), in the order of the file. Text that only mentions a package
+ * (a string, a comment) is not an import. `checkStoreBoundary.ts` and `checkModuleGraph.ts` read the imports of the
+ * repository through this one function.
  */
 export const importSpecifiers = (
   path: string,
   text: string
 ): readonly Specifier[] => {
-  const { module } = parseSync(path, text);
+  const { module, program } = parseSync(path, text);
   const lineOf = (offset: number) => text.slice(0, offset).split("\n").length;
 
   const requests = [
@@ -41,12 +64,16 @@ export const importSpecifiers = (
         }
       )
     ),
+    ...Arr.map(typeImports(program), ([start, value]) => ({ start, value })),
   ];
 
-  return Arr.map(requests, (request) => ({
-    line: lineOf(request.start),
-    specifier: request.value,
-  }));
+  return Arr.sort(
+    Arr.map(requests, (request) => ({
+      line: lineOf(request.start),
+      specifier: request.value,
+    })),
+    Order.mapInput(Order.Number, ({ line }: Specifier) => line)
+  );
 };
 
 /** `specifier`, a relative path written in the file `importer`, as a path from the repository root. */

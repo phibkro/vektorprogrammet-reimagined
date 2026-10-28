@@ -1,26 +1,12 @@
-import {
-  Array as Arr,
-  Effect,
-  FileSystem,
-  Option,
-  Order,
-  Path,
-  Record as Rec,
-} from "effect";
+import { Array as Arr, Effect, Option, Order } from "effect";
 
-import { importSpecifiers, resolveFrom } from "./importSpecifiers.ts";
-import type { Specifier } from "./importSpecifiers.ts";
+import { callsWithin } from "./callSites.ts";
 import { layerRank } from "./moduleGraph.ts";
 import type { Declaration, Module, Unit } from "./moduleGraph.ts";
+import { readSources } from "./resolveImports.ts";
+import type { ResolvedImport, SourceFile } from "./resolveImports.ts";
 import { globToRegExp } from "./storeBoundary.ts";
 import { workingTreePaths } from "./workingTree.ts";
-
-export interface SourceFile {
-  readonly path: string;
-  readonly imports: readonly Specifier[];
-  /** The text of the file, for the declared tolerated calls (`integrationCalls`). */
-  readonly text: string;
-}
 
 const sourcePattern = /\.[cm]?[jt]sx?$/u;
 
@@ -28,16 +14,9 @@ const sourcePattern = /\.[cm]?[jt]sx?$/u;
 const isScanned = (path: string): boolean =>
   sourcePattern.test(path) && /^(?:packages|apps|tools)\//u.test(path);
 
-type Target =
-  | { readonly kind: "file"; readonly path: string }
-  | { readonly kind: "unresolved" }
-  | { readonly kind: "workspace"; readonly name: string }
-  | { readonly kind: "external"; readonly name: string };
-
 /** One import, with the file it is written in and what it names. */
-interface Use extends Specifier {
+interface Use extends ResolvedImport {
   readonly path: string;
-  readonly target: Target;
 }
 
 /** A broken rule. `from` and `to` are the ends of the `Tolerated` entry that covers it. */
@@ -56,16 +35,7 @@ interface UnitEdge {
   readonly use: Use;
 }
 
-const workspacePrefix = "@vektorprogrammet/";
-
 const site = (use: Use): string => `${use.path}:${use.line}`;
-
-/** `effect` for `effect/rpc`, `@scope/name` for `@scope/name/sub`, `node:fs` for itself. */
-const packageNameOf = (specifier: string): string =>
-  Arr.join(
-    Arr.take(specifier.split("/"), specifier.startsWith("@") ? 2 : 1),
-    "/"
-  );
 
 const baseName = (root: string): string =>
   root.slice(root.lastIndexOf("/") + 1);
@@ -75,79 +45,6 @@ const unitOf = (units: readonly Unit[], path: string): Option.Option<Unit> =>
 
 const unitNamed = (units: readonly Unit[], name: string): Option.Option<Unit> =>
   Arr.findFirst(units, ({ root }) => baseName(root) === name);
-
-const sourceExtensions = [".ts", ".tsx", ".mts", ".cts"] as const;
-
-/**
- * The extension that the importer wrote for the file it names, under `moduleResolution: nodenext`: a specifier that
- * ends `.js` names the `.ts` (or `.tsx`) file beside it, `.mjs` the `.mts`, `.cjs` the `.cts`.
- */
-const swaps = {
-  ".cjs": [".cts"],
-  ".js": [".ts", ".tsx"],
-  ".jsx": [".tsx"],
-  ".mjs": [".mts"],
-} as const;
-
-/** `.json`, `.css` and the like: a file that is not source, so no scan lists it and no module rule applies to it. */
-const dataFile = /\.(?!(?:[cm]?[jt]sx?)$)[a-z0-9]+$/iu;
-
-const scannedRoot = /^(?:packages|apps|tools)\//u;
-
-/** The scanned file that the path of a relative import names, a data file as itself, or `unresolved`. */
-const resolveRelative = (
-  paths: ReadonlySet<string>,
-  resolved: string
-): Target => {
-  const dot = resolved.lastIndexOf(".");
-  const extension = dot > resolved.lastIndexOf("/") ? resolved.slice(dot) : "";
-
-  const stem =
-    dot > resolved.lastIndexOf("/") ? resolved.slice(0, dot) : resolved;
-
-  const found = Arr.findFirst(
-    [
-      resolved,
-      ...Arr.flatMap(Rec.toEntries(swaps), ([from, swapExtensions]) =>
-        from === extension
-          ? Arr.map(swapExtensions, (ext) => `${stem}${ext}`)
-          : []
-      ),
-      ...Arr.map(sourceExtensions, (ext) => `${resolved}${ext}`),
-      ...Arr.map(sourceExtensions, (ext) => `${resolved}/index${ext}`),
-    ],
-    (candidate) => paths.has(candidate)
-  );
-
-  if (Option.isSome(found)) {
-    return { kind: "file", path: found.value };
-  }
-
-  // A data file, and a file outside the directories that the scan reads (the root `vite.config.ts`), is a plain file.
-  return dataFile.test(resolved) || !scannedRoot.test(resolved)
-    ? { kind: "file", path: resolved }
-    : { kind: "unresolved" };
-};
-
-const targetOf = (
-  paths: ReadonlySet<string>,
-  importer: string,
-  { specifier }: Specifier
-): Target => {
-  if (specifier.startsWith(".")) {
-    // A bundler query (`styles.css?url`) is not part of the path.
-    return resolveRelative(
-      paths,
-      resolveFrom(importer, specifier.replace(/\?.*$/u, ""))
-    );
-  }
-
-  const name = packageNameOf(specifier);
-
-  return name.startsWith(workspacePrefix)
-    ? { kind: "workspace", name: name.slice(workspacePrefix.length) }
-    : { kind: "external", name };
-};
 
 const owns = (module: Module, path: string): boolean =>
   Arr.some(module.files, (glob) => globToRegExp(glob).test(path)) &&
@@ -354,14 +251,34 @@ export const moduleGraphFindings = (
   const isGoverned = (path: string): boolean => governedPattern.test(path);
 
   const uses: readonly Use[] = Arr.flatMap(files, ({ imports, path }) =>
-    Arr.map(imports, (specifier) => ({
-      ...specifier,
-      path,
-      target: targetOf(paths, path, specifier),
-    }))
+    Arr.map(imports, (found) => ({ ...found, path }))
   );
 
-  // An import that resolves to no source file fails; the others are edges.
+  // A governed file that imports a source file of its own unit that no module owns (`lib/`, `test/`): that file is
+  // beyond every module rule, so an edge through it would go unseen. Another unit is the unit rules' business.
+  const unowned = Arr.flatMap(uses, (use): Violation[] => {
+    if (!isGoverned(use.path) || use.target.kind !== "file") {
+      return [];
+    }
+
+    const { path: target } = use.target;
+
+    const sameUnit = Option.exists(unitOf(units, use.path), ({ root }) =>
+      target.startsWith(`${root}/`)
+    );
+
+    return sameUnit && sourcePattern.test(target) && !isGoverned(target)
+      ? [
+          {
+            from: use.path,
+            text: `${site(use)}: imports ${target}, a source file of its own package that no module owns (${governed}): its imports are beyond every module rule, so the governed tree may not import it`,
+            to: target,
+          },
+        ]
+      : [];
+  });
+
+  // An import that resolves to no file fails; the others are edges.
   const unresolved = Arr.flatMap(uses, (use): Violation[] =>
     use.target.kind === "unresolved"
       ? [
@@ -543,6 +460,7 @@ export const moduleGraphFindings = (
     ...externalViolations,
     ...unitViolations,
     ...unresolved,
+    ...unowned,
   ];
 
   const covered = (violation: Violation): boolean =>
@@ -637,17 +555,29 @@ export const moduleGraphFindings = (
       )
   );
 
-  // The integration calls inside a transaction that are tolerated until their retirement trigger: each names a file
-  // and a symbol that must still be there, so an entry that its code has outlived fails.
-  const staleCalls = Arr.flatMap(integrationCalls, (call) =>
+  // The integration calls inside a transaction that are tolerated until their retirement trigger: each names a file and
+  // the call itself (`call` written inside `within`), so a restructure that moves the call out of the transaction
+  // makes the entry stale, and a name that merely stays does not keep it alive.
+  const staleCalls = Arr.flatMap(integrationCalls, (entry) =>
     Arr.some(
       files,
-      ({ path, text }) => path === call.file && text.includes(call.symbol)
+      ({ path, text }) =>
+        path === entry.file && callsWithin(path, text, entry.within, entry.call)
     )
       ? []
       : [
-          `integration call: ${call.file} no longer mentions ${call.symbol} (${call.retirementTrigger}); remove the entry from integrationCalls`,
+          `integration call: ${entry.file} no longer has ${entry.call}(…) inside ${entry.within}(…) (${entry.retirementTrigger}); remove the entry from integrationCalls`,
         ]
+  );
+
+  // A symbolic link in the governed tree: its imports would be read at the link's place and TypeScript reads the real
+  // file's, so the file would sit in two modules and its edges in neither.
+  const symlinks = Arr.flatMap(files, ({ path, symlink }) =>
+    symlink && isGoverned(path)
+      ? [
+          `${path}: is a symbolic link in the governed tree (${governed}); the module rules read real paths, so a link would hide an edge: import the real file, or move it`,
+        ]
+      : []
   );
 
   return [
@@ -663,6 +593,7 @@ export const moduleGraphFindings = (
     ...Arr.sort(idle, Order.String),
     ...Arr.sort(unitless, Order.String),
     ...Arr.sort(staleCalls, Order.String),
+    ...Arr.sort(symlinks, Order.String),
     ...fileCycles,
   ];
 };
@@ -671,19 +602,5 @@ export const moduleGraphFindings = (
 export const scanImports = Effect.fn("scanImports")(function* scanImports(
   root: string
 ) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-
-  const paths = yield* workingTreePaths(root, isScanned);
-
-  return yield* Effect.forEach(paths, (file) =>
-    Effect.map(
-      fs.readFileString(path.join(root, file)),
-      (text): SourceFile => ({
-        imports: importSpecifiers(file, text),
-        path: file,
-        text,
-      })
-    )
-  );
+  return yield* readSources(root, yield* workingTreePaths(root, isScanned));
 });

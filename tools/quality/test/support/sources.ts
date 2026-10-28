@@ -54,5 +54,5 @@ export const workingTreeSources = (
  */
 export const domainSources = readSources(
   new URL("../../../../packages/domain/src", import.meta.url).pathname,
-  (path) => path.endsWith(".ts") && !isProbe(path)
+  (path) => path.endsWith(".ts") && !isProbe(`packages/domain/src/${path}`)
 );

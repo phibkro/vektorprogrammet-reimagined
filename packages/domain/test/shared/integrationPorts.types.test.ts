@@ -11,7 +11,7 @@
  * captured port, `Effect.serviceOption`, the ambient context) and a generic bound of `object` are not refused.
  */
 import { describe, it } from "@effect/vitest";
-import { Context, Effect } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
 import type { Outbox } from "../../src/shared/outbox.ts";
@@ -75,6 +75,30 @@ const throughContext = (transactor: Run) =>
     Effect.map(Effect.context(), Context.getOption(WorkspaceDirectory))
   );
 
+/** A service of no marker whose Layer captures the directory when it is built. */
+class Wrapper extends Context.Service<
+  Wrapper,
+  { readonly accounts: WorkspaceDirectory["Service"]["accounts"] }
+>()("@vektorprogrammet/domain/test/Wrapper") {}
+
+const wrapperLayer = Layer.effect(
+  Wrapper,
+  Effect.gen(function* capturesTheDirectory() {
+    const directory = yield* WorkspaceDirectory;
+
+    return Wrapper.of({ accounts: directory.accounts });
+  })
+);
+
+const throughWrapper = (transactor: Run) =>
+  transactor.run(
+    Effect.gen(function* callsTheWrapper() {
+      const wrapper = yield* Wrapper;
+
+      return yield* wrapper.accounts;
+    })
+  );
+
 describe("no integration call inside a transaction (spec 0020, F11)", () => {
   it("marks the ports of other systems and no store port", () => {
     expectTypeOf<WorkspaceDirectory>().toExtend<IntegrationPort>();
@@ -124,8 +148,21 @@ describe("no integration call inside a transaction (spec 0020, F11)", () => {
       Effect.Services<ReturnType<typeof throughContext>>
     >().toEqualTypeOf<never>();
 
-    // A bound of `object` (and of `{}`) admits every service, ports too: no type closes this, because the requirements
-    // of this repository include identifiers with no common property (`SqlClient` is a plain interface).
+    // An unmarked service whose Layer captures a port: the program requires the wrapper, which is no integration, and
+    // the port is in the Layer's requirements, where `Transactor.run` does not look.
+    expectTypeOf<Accepts<Wrapper>>().toEqualTypeOf<true>();
+
+    expectTypeOf<
+      Effect.Services<ReturnType<typeof throughWrapper>>
+    >().toEqualTypeOf<Wrapper>();
+
+    expectTypeOf<
+      Layer.Services<typeof wrapperLayer>
+    >().toEqualTypeOf<WorkspaceDirectory>();
+
+    // A bound of `object` or of `{}` admits every service, ports too: no type closes this, because the requirements of
+    // this repository include identifiers with no common property (`SqlClient` is a plain interface).
     expectTypeOf<Accepts<object>>().toEqualTypeOf<true>();
+    expectTypeOf<Accepts<Record<never, never>>>().toEqualTypeOf<true>();
   });
 });

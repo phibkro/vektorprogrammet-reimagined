@@ -2,6 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect, Option, Order } from "effect";
 
+import { storeBoundaryProbes } from "../probes.ts";
 import { allowances, globToRegExp, groupOf } from "../storeBoundary.ts";
 import {
   boundaryFindings,
@@ -252,30 +253,30 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       // An allowance that allows `db`, `pg` and `sql-pg`, but not Drizzle.
       adapterTest: {
         content: text(imports),
-        file: "apps/web/test/storeBoundaryProbe.postgres.test.ts",
+        file: storeBoundaryProbes.adapterTest,
       },
       clean: {
         content: text(['import { ok } from "@vektorprogrammet/domain";']),
-        file: "apps/web/src/server/storeBoundaryProbeClean.ts",
+        file: storeBoundaryProbes.clean,
       },
       // Packages beside `packages/db`: no allowance covers them.
       cmsClientSibling: {
         content: text(siblingImports),
-        file: "packages/cms-client/src/storeBoundaryProbe.ts",
+        file: storeBoundaryProbes.cmsClientSibling,
       },
       domainSibling: {
         content: text(siblingImports),
-        file: "packages/domain/src/storeBoundaryProbe.ts",
+        file: storeBoundaryProbes.domainSibling,
       },
       // An allowance of every group.
       harness: {
         content: text(imports),
-        file: "tools/db-path-spike/storeBoundaryProbe.ts",
+        file: storeBoundaryProbes.harness,
       },
       // No allowance covers it.
       restricted: {
         content: text(imports),
-        file: "apps/web/src/server/storeBoundaryProbe.ts",
+        file: storeBoundaryProbes.restricted,
       },
     } as const;
 
