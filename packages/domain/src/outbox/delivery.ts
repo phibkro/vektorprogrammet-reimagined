@@ -6,22 +6,21 @@
  * Delivery contract (FX009):
  * - Ordering: none. Queues delivers at least once and in no order, and no message
  *   kind needs one (spec 0008b).
- * - Claims: `claim` takes one row by id in one conditional `UPDATE … RETURNING`
- *   (`status = 'pending'` and no live claim), so two deliveries of one id never
- *   both hold it; a claim expires after `leaseSeconds`. The other delivery is
- *   told why: `Held` (a live claim: look again after its lease) or `Settled`
- *   (the row is delivered, failed or gone: nothing to do).
- * - Fencing: `markDelivered`/`markFailed` change a row only while its claim
- *   token is current; otherwise they report `claimLost` and write nothing.
+ * - Claims (LS1): `claim` takes one row by id in one conditional write (the row is pending and no live claim holds
+ *   it), so two deliveries of one id never both hold it; a claim expires after `leaseSeconds`. The other delivery is
+ *   told why: `Held` (a live claim: look again after its lease) or `Settled` (the row is delivered, failed or gone:
+ *   nothing to do).
+ * - Fencing (LS2): `markDelivered`/`markFailed` change a row only while its claim token is current; otherwise they
+ *   report `claimLost` and write nothing. `markDelivered` joins the caller's transaction when there is one (LS4): the
+ *   acknowledgement then commits or rolls back with the caller's writes, and it commits alone otherwise.
  * - Attempts and dead letters: `attempts` counts claims, for the record. The
  *   queue owns the retry schedule and the number of attempts; a failed
  *   delivery releases the claim and says when the next one is due
  *   (`markFailed`), and the dead-letter queue's consumer ends a row that the
  *   queue gave up on (`markDead`, which takes only a row on which a provider
  *   failure was recorded, and never one under a live claim).
- * - Receipts: `markQueued` records that the queue accepted the id (`queued_at`);
- *   `stale` lists the pending rows that no receipt covers any more, which the
- *   cron sweep puts back on the queue.
+ * - Receipts: `markQueued` records that the queue accepted the id; `stale` lists the pending rows that no receipt
+ *   covers any more, which the cron sweep puts back on the queue.
  * - Every timestamp comes from Effect's `Clock`.
  */
 import { Context, Schema } from "effect";

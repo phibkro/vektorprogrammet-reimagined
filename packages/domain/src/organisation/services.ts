@@ -40,10 +40,8 @@ export class SemesterRepository extends Context.Service<
       semester: Semester
     ) => Effect.Effect<Option.Option<StoredSemester>>;
     /**
-     * RULE-237: atomic find-or-create on the unique (term, year) constraint, one statement:
-     * `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`
-     * (spec 0001, R1). Concurrent calls all get the single row. Only the scheduled semester job
-     * calls it (spec 0003); a read never does.
+     * RULE-237: atomic find-or-create on the unique (term, year) key, one step (UK3; spec 0001, R1). Concurrent calls
+     * all get the single record. Only the scheduled semester job calls it (spec 0003); a read never does.
      */
     readonly ensure: (semester: Semester) => Effect.Effect<StoredSemester>;
   }

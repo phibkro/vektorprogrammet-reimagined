@@ -140,7 +140,7 @@ export class MembershipRepository extends Context.Service<
     ) => Effect.Effect<readonly ActiveMembership[]>;
     /**
      * Inserts the locked person's membership (the owner is the lock's). A person's memberships in one team never
-     * overlap: the database's exclusion constraint refuses an overlap, and that is `AlreadyExists`.
+     * overlap (NO1): the store refuses an overlap, and that is `AlreadyExists` (NO3).
      */
     readonly insert: (
       locked: Locked<"Person">,
@@ -148,9 +148,9 @@ export class MembershipRepository extends Context.Service<
     ) => Effect.Effect<Membership, AlreadyExists>;
     /**
      * Moves the end of the locked person's membership that is Active in `activeIn` and whose end is still
-     * `observedEnd`: `UPDATE … SET end = $new WHERE id = $1 AND person = $locked AND end = $observed AND active`. A
-     * row in any other state, one that someone else changed since it was read, or one that is not theirs, is a
-     * `Conflict`. A new end that overlaps another membership of the person in the team is `AlreadyExists`.
+     * `observedEnd` (CW1). A membership in any other state, one that someone else changed since it was read, or one
+     * that is not theirs, is a `Conflict`. A new end that overlaps another membership of the person in the team is
+     * `AlreadyExists`.
      */
     readonly setEnd: (
       locked: Locked<"Person">,
@@ -162,9 +162,8 @@ export class MembershipRepository extends Context.Service<
       }
     ) => Effect.Effect<Membership, Conflict | AlreadyExists>;
     /**
-     * Removes the locked person's membership that is Planned in `current` and still has the term the caller read:
-     * `DELETE … WHERE id = $1 AND person = $locked AND term = $observed AND start > current`. Anything else is a
-     * `Conflict`.
+     * Removes the locked person's membership that is Planned in `current` and still has the term the caller read
+     * (CW1). Anything else is a `Conflict`.
      */
     readonly remove: (
       locked: Locked<"Person">,

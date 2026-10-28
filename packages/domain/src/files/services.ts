@@ -1,4 +1,4 @@
-/** C11 services: the public-file registry (Postgres) and the object store (R2). */
+/** C11 services: the public-file registry and the object store (R2). */
 import { Context } from "effect";
 import type { Effect, Option, Stream } from "effect";
 
@@ -16,8 +16,8 @@ export class PublicFileRepository extends Context.Service<
       legacyPath: string
     ) => Effect.Effect<Option.Option<PublicFile>>;
     /**
-     * Registers the file; idempotent on `key` (`ON CONFLICT (key) DO NOTHING`,
-     * then returns the stored row, which wins over the argument).
+     * Registers the file; idempotent on `key` (UK3): a second call changes nothing and returns the stored record, which
+     * wins over the argument.
      */
     readonly register: (file: PublicFile) => Effect.Effect<PublicFile>;
   }

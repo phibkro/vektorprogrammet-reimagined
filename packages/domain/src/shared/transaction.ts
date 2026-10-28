@@ -2,8 +2,8 @@
  * Proof that a program runs inside a transaction of the store.
  *
  * Commands never open a transaction; they *require* `InTransaction`, so a command that is not wrapped does not
- * type-check. Only a `Transactor` provides it (`packages/db`'s runner for PostgreSQL, and the test compositions over
- * in-memory layers). See `src/README.md`.
+ * type-check. Only a `Transactor` provides it (the store adapter's runner in `packages/db`, and the test compositions
+ * over in-memory layers). See `src/README.md`.
  *
  * What the proof promises (spec 0018; the guarantees are declared in `guarantees.ts`):
  * - TX1: everything written under it becomes visible together or not at all; a typed failure, a defect or an

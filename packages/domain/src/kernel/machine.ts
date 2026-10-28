@@ -3,9 +3,10 @@
  * the command that applies it, the states it starts from and the state it ends in, and may carry a guard. The one
  * table drives the runtime check (`can`), the controls the UI shows, the generated diagram and the property tests.
  *
- * A state is either stored (applied as `UPDATE … SET state = to WHERE id = $1 AND state = from`, ADR 0007) or
- * calculated from other facts, such as a membership's term and the current semester. The table does not care: it
- * answers which command may start from which state, and the caller reads the state its own way. The changes that time
+ * A state is either stored (applied by a write that holds only while the record is still in the state the transition
+ * starts from, ADR 0007 and guarantee CW1) or calculated from other facts, such as a membership's term and the
+ * current semester. The table does not care: it answers which command may start from which state, and the caller
+ * reads the state its own way. The changes that time
  * makes to a calculated state are declared as well (`calculated`), each with a guard over the context, so that a
  * formal model can fire them (effx spec 0032 R1) and the table can be checked against the calculation.
  *

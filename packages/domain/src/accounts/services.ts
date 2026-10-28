@@ -36,9 +36,9 @@ export class AccountRepository extends Context.Service<
       locked: Locked<"Person">
     ) => Effect.Effect<Account, AlreadyExists>;
     /**
-     * Applies one transition of the Account machine to the locked person's account:
-     * `UPDATE … SET state = to WHERE person = $locked AND state = ANY(from)`. An account that is not in a state the
-     * transition starts from (any more) is a `Conflict`.
+     * Applies one transition of the Account machine to the locked person's account, only while the account is in a
+     * state that the transition starts from, judged on its newest committed state (CW1). An account that is not in
+     * such a state (any more) is a `Conflict`.
      */
     readonly transition: (
       locked: Locked<"Person">,

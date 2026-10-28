@@ -42,7 +42,7 @@ export const slackChannelOf = (target: SlackTarget): string =>
     })
   );
 
-/** Persisted as jsonb by `packages/db`; decode with this schema on read. */
+/** Persisted as JSON by `packages/db`; decode with this schema on read. */
 export const OutboxMessage = Schema.TaggedUnion({
   Email: {
     replyTo: Schema.NullOr(EmailAddress),

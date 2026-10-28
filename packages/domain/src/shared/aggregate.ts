@@ -15,7 +15,7 @@
  * `createAdminGrant` and `deleteAdminGrant` lock the list first, and the two decision reads of the rule
  * (`AccountRepository.isLastActiveAdmin` and `AdminGrantRepository.revoke`) take its token (spec 0006b R2).
  *
- * `packages/db` declares which tables each root owns, implements `AggregateLocks` with `SELECT … FOR NO KEY UPDATE`,
+ * `packages/db` declares which tables each root owns, implements `AggregateLocks` with row locks (guarantees LK1 to LK7),
  * and is the only place that makes a token. This module declares only what the domain needs: the roots in their
  * global lock order, the token, and the service that takes the lock.
  *
@@ -51,7 +51,7 @@ declare const lockedBrand: unique symbol;
  * row: a spread such as `{ ...held, id: 7 }` copies the brand, and `id` is an ordinary property, so it type-checks as
  * a token of row 7. What ties a token to its row is a run-time check: a repository asks the transaction's lock
  * registry each time it uses a token, and a token that the running transaction does not hold (made by hand,
- * respelled for another row, from another transaction, from a savepoint that was rolled back) dies as `LockNotHeld`
+ * respelled for another row, from another transaction, from a nested scope that failed) dies as `LockNotHeld`
  * and never reads or writes (spec 0006b R3).
  */
 export interface Locked<Root extends EntityName> {
@@ -64,16 +64,16 @@ export class AggregateLocks extends Context.Service<
   AggregateLocks,
   {
     /**
-     * `SELECT … FOR NO KEY UPDATE` on the row, and its token. Locking a row that this transaction already holds
-     * returns the token without a statement. `NotFound` when the root has no such row.
+     * Locks the record and returns its token (LK1). Locking a record that this transaction already holds returns the
+     * token and takes nothing (LK3). `NotFound` when the root has no such record, or the record is merged away (LK4).
      */
     readonly lock: <Root extends AggregateRoot>(
       root: Root,
       id: number
     ) => Effect.Effect<Locked<Root>, NotFound, InTransaction>;
     /**
-     * The rows of one root in ascending id order, in one statement, and a token for each (in that order). A command
-     * that needs several rows asks for all of them here, before its first decision read.
+     * The records of one root in ascending id order, locked together, and a token for each (in that order; LK2). A
+     * command that needs several records asks for all of them here, before its first decision read.
      */
     readonly lockAll: <Root extends AggregateRoot>(
       root: Root,

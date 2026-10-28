@@ -3,9 +3,9 @@
  * period due or a command asked for it. `packages/db` implements it with one row per `(job, period)`.
  *
  * Contract (FX009, FX010):
- * - `claim` never waits. A new period is claimed by `INSERT … ON CONFLICT DO NOTHING`; a `partial` period, or a
- *   `running` one whose lease has expired, is taken over by one conditional update; a `done` or `failed` one is
- *   `Finished`, and a `running` one under a live lease is `Taken`. Exactly one caller of a period is `Claimed`.
+ * - `claim` never waits. A new period is claimed by recording it if no record of it exists (CL1); a `partial` period,
+ *   or a `running` one whose lease has expired, is taken over by one conditional write; a `done` or `failed` one is
+ *   `Finished`, and a `running` one under a live lease is `Taken`. Exactly one caller of a period is `Claimed` (CL2).
  * - Fencing: every write after the claim carries the `attempt` of its claim. A runner whose period was taken over
  *   finds no row to write and gets `LeaseLost`, which rolls its chunk back, so a stale runner cannot add to the run.
  * - `advance` and `finish` require `InTransaction`: the chunk's rows and its cursor commit together, or neither
