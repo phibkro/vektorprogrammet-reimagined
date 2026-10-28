@@ -3,7 +3,7 @@ import { inspect } from "node:util";
 /** Spec 0007 falsifiers 2 and 5: the installed Better Auth adapter against real PostgreSQL. */
 import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive, SessionDirectory } from "@vektorprogrammet/db";
+import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
@@ -21,6 +21,7 @@ import {
   PasswordHash,
   PersonId,
   PrincipalDirectory,
+  SessionDirectory,
   anonymous,
   mintCode,
 } from "@vektorprogrammet/domain";

@@ -16,11 +16,6 @@ export {
 export { transactional } from "./transactional.ts";
 
 export {
-  SessionDirectory,
-  type SessionActivity,
-} from "./repositories/sessions.ts";
-
-export {
   classifySqlFailure,
   violatedUniqueConstraint,
 } from "./classifySqlFailure.ts";

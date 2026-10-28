@@ -1,29 +1,19 @@
-/** Read-only session projection: last seen is derived from the latest audited command. */
+/** The adapter of `SessionDirectory` (declared by the domain): last seen is derived from the latest audited command. */
+import { SessionDirectory } from "@vektorprogrammet/domain";
 import type { PersonId as PersonIdValue } from "@vektorprogrammet/domain";
 import { and, eq, gt, sql } from "drizzle-orm";
-import { Context, DateTime, Effect, Layer, Schema } from "effect";
+import { DateTime, Effect, Layer, Schema } from "effect";
 
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
 import { auditLog, authSession, authUser } from "../schema.ts";
 
-const StoredSession = Schema.Struct({
+/** A session row as the driver returns it: `Date`s, which `DateTimeUtcFromDate` turns into the domain's `DateTime.Utc`. */
+export const StoredSession = Schema.Struct({
   createdAt: Schema.DateTimeUtcFromDate,
   id: Schema.NonEmptyString,
   lastSeen: Schema.DateTimeUtcFromDate,
   userAgent: Schema.NullOr(Schema.String),
 });
-
-export type SessionActivity = typeof StoredSession.Type;
-
-export class SessionDirectory extends Context.Service<
-  SessionDirectory,
-  {
-    readonly byPerson: (
-      personId: PersonIdValue,
-      now: DateTime.Utc
-    ) => Effect.Effect<readonly SessionActivity[]>;
-  }
->()("@vektorprogrammet/db/SessionDirectory") {}
 
 export const SessionDirectoryLive = Layer.effect(
   SessionDirectory,
