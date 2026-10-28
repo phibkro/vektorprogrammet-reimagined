@@ -19,12 +19,9 @@ import {
   assertPermissionDenied,
   readOnlyRole,
 } from "@vektorprogrammet/db/testing/read-only-role";
-import type {
-  AccountRepository,
-  SignInDirectory,
-} from "@vektorprogrammet/domain";
 import {
   AccountEndpoints,
+  AccountRepository,
   AggregateLocks,
   CodeRepository,
   CurrentPrincipal,
@@ -33,6 +30,7 @@ import {
   PersonId,
   PrincipalDirectory,
   SessionDirectory,
+  SignInDirectory,
   anonymous,
   mintCode,
 } from "@vektorprogrammet/domain";
@@ -49,6 +47,7 @@ import {
   Option,
   Predicate,
   Redacted,
+  Ref,
   Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -61,6 +60,7 @@ import {
   makeAuth,
   wrongPasswordResponse,
 } from "../src/server/auth";
+import type { RunDomain } from "../src/server/auth";
 import { isAuthSecret } from "../src/server/authStartup";
 import { hashPassword, passwordHasherLayer } from "../src/server/password";
 import { resolvePrincipal } from "../src/server/principal";
@@ -196,6 +196,49 @@ const refusedCommand = (exit: Exit.Exit<unknown, unknown>) =>
   Option.filter(Exit.findErrorOption(exit), Schema.is(Forbidden)).pipe(
     Option.map((refusal) => refusal.command)
   );
+
+/**
+ * The runner of Better Auth's Promise callbacks over the real ports, except for the read that `down` names: that one
+ * counts the call in `reached` and dies, as every read does when the database is unreachable.
+ */
+const domainRunner = (
+  down?: "match" | "personOfUser" | "find",
+  reached?: Ref.Ref<number>
+) =>
+  Effect.gen(function* buildRunner() {
+    const run = yield* FiberSet.makeRuntimePromise();
+    const directory = yield* SignInDirectory;
+    const accounts = yield* AccountRepository;
+
+    const dead = Effect.andThen(
+      reached === undefined
+        ? Effect.void
+        : Ref.update(reached, (count) => count + 1),
+      Effect.die("the store is down")
+    );
+
+    const broken = SignInDirectory.of({
+      ...directory,
+      match: down === "match" ? () => dead : directory.match,
+      personOfUser:
+        down === "personOfUser" ? () => dead : directory.personOfUser,
+    });
+
+    const brokenAccounts = AccountRepository.of({
+      ...accounts,
+      find: down === "find" ? () => dead : accounts.find,
+    });
+
+    const runner: RunDomain = (effect) =>
+      run(
+        effect.pipe(
+          Effect.provideService(SignInDirectory, broken),
+          Effect.provideService(AccountRepository, brokenAccounts)
+        )
+      );
+
+    return runner;
+  });
 
 /** A `pg` pool on `url` that the scope closes. */
 const ownedPool = (url: Redacted.Redacted) =>
@@ -893,43 +936,56 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
       })
   );
 
-  it.effect(
-    "a store that is down admits no one: the session hook rejects and no session is written",
-    () =>
-      Effect.gen(function* failClosed() {
-        const sql = yield* SqlClient;
-        const url = yield* TestDatabaseUrl;
-        yield* sql`update account set state = 'Active' where person_id = 102`;
-        yield* sql`update auth_account set password = ${bcryptFixtures[0]} where user_id = 'auth-102'`;
-        yield* sql`delete from auth_session where user_id = 'auth-102'`;
-        const failing = yield* FiberSet.makeRuntimePromise();
+  // Better Auth asks the domain from three places, and each must fail closed on its own: a runner that kills every read
+  // is refused by the first, `hooks.before`, and says nothing about the session hook behind it (spec 0017, falsifier 6).
+  for (const down of ["match", "personOfUser", "find"] as const) {
+    it.effect(
+      `a store that is down admits no one: with \`${down}\` dead the sign-in is refused and no session is written`,
+      () =>
+        Effect.gen(function* failClosed() {
+          const sql = yield* SqlClient;
+          const url = yield* AuthTablesDatabaseUrl;
+          yield* sql`update account set state = 'Active' where person_id = 102`;
+          yield* sql`update auth_account set password = ${bcryptFixtures[0]} where user_id = 'auth-102'`;
+          yield* sql`delete from auth_session where user_id = 'auth-102'`;
 
-        const pool = yield* ownedPool(url);
+          const admits = (run: RunDomain) =>
+            Effect.gen(function* attemptSignIn() {
+              const pool = yield* ownedPool(url);
+              const instance = makeAuth(pool, secret, origin, run);
 
-        // Every domain read of this instance dies, as it does when the database is unreachable.
-        const down = makeAuth(pool, secret, origin, () =>
-          failing(Effect.die("the store is down"))
-        );
+              const attempt = yield* Effect.exit(
+                Effect.tryPromise(() =>
+                  instance.handler(
+                    signInRequest("active@example.org", fixturePassword)
+                  )
+                )
+              );
 
-        const attempt = yield* Effect.exit(
-          Effect.tryPromise(() =>
-            down.handler(
-              signInRequest("new-private@example.org", fixturePassword)
-            )
-          )
-        );
+              return Exit.isSuccess(attempt) && attempt.value.status === 200;
+            }).pipe(Effect.scoped);
 
-        const admitted =
-          Exit.isSuccess(attempt) && attempt.value.status === 200;
+          // Control: the same request with every read alive is admitted and writes its session, so the refusal below
+          // is the dead read's.
+          assert.isTrue(yield* admits(yield* domainRunner()));
+          assert.lengthOf(
+            yield* sql`select id from auth_session where user_id = 'auth-102'`,
+            1
+          );
+          yield* sql`delete from auth_session where user_id = 'auth-102'`;
 
-        assert.isFalse(admitted);
+          const reached = yield* Ref.make(0);
 
-        const sessions =
-          yield* sql`select id from auth_session where user_id = 'auth-102'`;
+          assert.isFalse(yield* admits(yield* domainRunner(down, reached)));
+          assert.isAbove(yield* Ref.get(reached), 0);
 
-        assert.lengthOf(sessions, 0);
-      }).pipe(Effect.scoped)
-  );
+          assert.lengthOf(
+            yield* sql`select id from auth_session where user_id = 'auth-102'`,
+            0
+          );
+        }).pipe(Effect.scoped)
+    );
+  }
 
   it.effect(
     "missing or short signing secrets fail closed before opening a deployed auth pool",
