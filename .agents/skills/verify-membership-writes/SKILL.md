@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 2430e1c4d1f62e7f4e569172d8e66714e842ca65
-confirmed-at: 23de4e4f45752639bdc2eefafd4007bce9d1aa92
+sync-digest: 6b8b76cd02cf00cb45004b98668ea7c1c505efaf
+confirmed-at: 878b8587b2e169d359785cb7c860d90663686a90
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -63,6 +63,8 @@ Spec 0018 (store guarantees as properties, 2026-10-28) changed two covered paths
 Spec 0018 review round 1 (2026-10-28) moved the explicit `BEGIN` of `transactional.ts` into an exported `atReadCommitted`, which `transactional` and the legacy importer's transaction both use (the importer is not a membership writer and is not covered). The statement that a command's transaction sends is the same, so no modeled statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 Spec 0018 review round 3 (2026-10-28) changed the first comment line of `packages/db/src/transactional.ts` ("The only provider" became "The one production provider … a source test guards against another") and nothing else of a covered file; the digest moved with the text. No statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
+
+Spec 0019 (the live transaction proof, 2026-10-28) changed covered paths: `transactional.ts` makes a fresh `InTransaction` proof for each level (`withLiveProof`, in the new `packages/db/src/live.ts`, which is not covered because it issues no statement), and `repositories/{teams,accounts,workspace}.ts` and `aggregate/locks.ts` build their services through `verified`, which runs a check of that proof in front of each method that requires `InTransaction`, before the method's first statement. The check reads two context entries and a `WeakMap` and sends nothing, so no modeled statement, lock, order or constraint changed; the lines that `Shapes.tla` cites in `teams.ts` and `locks.ts` moved by the added import and the wrapped `return`, not by any statement. The model ran again with `--code`: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 ## Writers outside the model (spec 0007b)
 
