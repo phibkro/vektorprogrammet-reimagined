@@ -138,9 +138,9 @@ jobs:
       # role's default (must be `read committed`: the statements outside a transaction run at it). The route answers 200
       # only when all three hold (`isolationProblems` in `apps/web/src/server/isolation.ts` is the one statement of
       # that), so this step needs nothing but the status. The URL is the `url:` that the deploy step itself printed, and
-      # it must be a `workers.dev` host of this pull request's stage: not a pull request comment, because anyone can
-      # comment on a public repository and point the step at a host of their own. A new Worker may need a moment before
-      # it answers.
+      # it must match, as a whole, `https://pr-<this pull request>-<labels>.workers.dev`: not a pull request comment,
+      # because anyone can comment on a public repository and point the step at a host of their own, and not a prefix
+      # and a suffix, which `user@host` and a path can both satisfy. A new Worker may need a moment before it answers.
       - name: Check the isolation level through Hyperdrive
         if: github.event_name == 'pull_request'
         shell: bash
@@ -150,11 +150,13 @@ jobs:
           set -euo pipefail
           url="$(sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/deploy.log" \
             | sed -nE "s/^[[:space:]]*url: '([^']+)'[[:space:]]*$/\1/p" | tail -n 1)"
-          case "$url" in
-            "https://pr-${PULL_REQUEST}-"*.workers.dev) ;;
-            *) echo "::error::the deploy printed no Worker URL of this pull request (got: ${url:-none})"; exit 1 ;;
-          esac
-          test -n "$url"
+          # The whole URL, not a prefix and a suffix: `https://pr-47-x@evil.example.com/#.workers.dev` and
+          # `https://pr-47-x.evil.example.com/a.workers.dev` both begin and end as a Worker URL and name another host.
+          pattern="^https://pr-${PULL_REQUEST}-[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev/?$"
+          if ! [[ $url =~ $pattern ]]; then
+            echo "::error::the deploy printed no Worker URL of this pull request (got: ${url:-none})"
+            exit 1
+          fi
           body="$RUNNER_TEMP/isolation.json"
           status=""
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
