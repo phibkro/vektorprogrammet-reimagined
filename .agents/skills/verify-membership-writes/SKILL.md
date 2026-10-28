@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 6277865b072a70c1134fb8850769954b1437176a
-confirmed-at: 8c81249230ed1b8bd107cb76fc871d0d16141444
+sync-digest: f47c7344bdc726d310fab0c3c28a9c6df8aa3318
+confirmed-at: 6d7bcbefbc2be47fb60dbd14ed91247ee46ff302
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -59,6 +59,8 @@ After spec 0007b and spec 0008 met (the merge of main into the 0008 branch, 2026
 Spec 0008b (outbox delivery on Queues, 2026-10-28) changed two covered paths: `packages/db/src/schema.ts` and `packages/db/drizzle`, by one nullable column `outbox.queued_at` and its migration. The table is not `membership`, and no modeled statement, lock or constraint changed. The model ran again with `--code` on that tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed.
 
 Spec 0018 (store guarantees as properties, 2026-10-28) changed two covered paths that matter to the model. `packages/db/src/transactional.ts` now begins a top-level transaction with `BEGIN ISOLATION LEVEL READ COMMITTED`, so the level that the model always assumed (the PostgreSQL default, "READ COMMITTED" above) is stated by the code and no longer depends on the role's default; no statement, lock or constraint that a command issues changed. `packages/domain/src/shared/aggregate.ts` and the Teams and Accounts service files changed their documentation and add `InTransaction` to the signatures of the methods that take a `Locked` token: types only. The model ran again with `--code` on that tree: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
+
+Spec 0018 review round 1 (2026-10-28) moved the explicit `BEGIN` of `transactional.ts` into an exported `atReadCommitted`, which `transactional` and the legacy importer's transaction both use (the importer is not a membership writer and is not covered). The statement that a command's transaction sends is the same, so no modeled statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 ## Writers outside the model (spec 0007b)
 
