@@ -1,16 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import {
-  Array as Arr,
-  Effect,
-  FileSystem,
-  Option,
-  Order,
-  Record as Rec,
-  Schema,
-  Stream,
-} from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
+import { Array as Arr, Effect, Option, Order } from "effect";
 
 import { allowances, globToRegExp, groupOf } from "../storeBoundary.ts";
 import {
@@ -19,6 +9,7 @@ import {
   scanRepository,
 } from "../storeBoundaryCheck.ts";
 import type { ImportSite } from "../storeBoundaryCheck.ts";
+import { lintProbes } from "./support/lintProbes.ts";
 
 const root = new URL("../../../", import.meta.url).pathname;
 
@@ -234,22 +225,6 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
    * sees a probe.
    */
   describe("the lint", () => {
-    const Diagnostics = Schema.fromJsonString(
-      Schema.Struct({
-        diagnostics: Schema.Array(
-          Schema.Struct({
-            code: Schema.String,
-            filename: Schema.String,
-            labels: Schema.Array(
-              Schema.Struct({ span: Schema.Struct({ line: Schema.Int }) })
-            ),
-          })
-        ),
-      })
-    );
-
-    const decodeDiagnostics = Schema.decodeUnknownEffect(Diagnostics);
-
     const imports = [
       'import { a } from "@vektorprogrammet/db";',
       'import type { B } from "@vektorprogrammet/db";',
@@ -308,90 +283,41 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       "fails every form outside an allowed path, and only the group that an allowance leaves out inside one",
       () =>
         Effect.gen(function* probesAreLinted() {
-          const fs = yield* FileSystem.FileSystem;
-          const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+          const diagnostics = yield* lintProbes(root, probes);
 
-          yield* Effect.acquireUseRelease(
-            Effect.forEach(
-              Rec.values(probes),
-              ({ content, file }) =>
-                fs.writeFileString(`${root}${file}`, content),
-              { discard: true }
-            ),
-            () =>
-              Effect.scoped(
-                Effect.gen(function* lintProbes() {
-                  const child = yield* spawner.spawn(
-                    ChildProcess.make(
-                      "bunx",
-                      [
-                        "vp",
-                        "lint",
-                        "--format",
-                        "json",
-                        ...Arr.map(Rec.values(probes), ({ file }) => file),
-                      ],
-                      { cwd: root, extendEnv: true, stdin: "ignore" }
-                    )
-                  );
-
-                  const stdout = yield* child.stdout.pipe(
-                    Stream.decodeText(),
-                    Stream.mkString
-                  );
-
-                  const { diagnostics } = yield* decodeDiagnostics(stdout);
-
-                  const flagged = (file: string): readonly number[] => {
-                    const restricted = Arr.filter(
-                      diagnostics,
-                      (item) =>
-                        item.filename === file &&
-                        item.code === "eslint(no-restricted-imports)"
-                    );
-
-                    return Arr.sort(
-                      Arr.dedupe(
-                        Arr.flatMap(restricted, (item) =>
-                          Arr.map(item.labels, (label) => label.span.line)
-                        )
-                      ),
-                      Order.Number
-                    );
-                  };
-
-                  // Outside every allowance: each of the eleven forms fails.
-                  assert.deepStrictEqual(
-                    flagged(probes.restricted.file),
-                    everyLine
-                  );
-
-                  // Inside an allowance that leaves Drizzle out: only the Drizzle line (6) fails.
-                  assert.deepStrictEqual(flagged(probes.adapterTest.file), [6]);
-
-                  // Inside an allowance of every group, and with nothing restricted imported: nothing fails.
-                  assert.deepStrictEqual(flagged(probes.harness.file), []);
-
-                  // A sibling package reaches the adapter as `../../db/…`, with no `packages/` in the specifier.
-                  assert.deepStrictEqual(
-                    flagged(probes.domainSibling.file),
-                    siblingLines
-                  );
-
-                  assert.deepStrictEqual(
-                    flagged(probes.cmsClientSibling.file),
-                    siblingLines
-                  );
-                  assert.deepStrictEqual(flagged(probes.clean.file), []);
-                })
+          const flagged = (file: string): readonly number[] =>
+            Arr.sort(
+              Arr.dedupe(
+                Arr.flatMap(diagnostics, (item) =>
+                  item.filename === file &&
+                  item.code === "eslint(no-restricted-imports)"
+                    ? item.lines
+                    : []
+                )
               ),
-            () =>
-              Effect.forEach(
-                Rec.values(probes),
-                ({ file }) => fs.remove(`${root}${file}`, { force: true }),
-                { discard: true }
-              ).pipe(Effect.orDie)
+              Order.Number
+            );
+
+          // Outside every allowance: each of the eleven forms fails.
+          assert.deepStrictEqual(flagged(probes.restricted.file), everyLine);
+
+          // Inside an allowance that leaves Drizzle out: only the Drizzle line (6) fails.
+          assert.deepStrictEqual(flagged(probes.adapterTest.file), [6]);
+
+          // Inside an allowance of every group, and with nothing restricted imported: nothing fails.
+          assert.deepStrictEqual(flagged(probes.harness.file), []);
+
+          // A sibling package reaches the adapter as `../../db/…`, with no `packages/` in the specifier.
+          assert.deepStrictEqual(
+            flagged(probes.domainSibling.file),
+            siblingLines
           );
+
+          assert.deepStrictEqual(
+            flagged(probes.cmsClientSibling.file),
+            siblingLines
+          );
+          assert.deepStrictEqual(flagged(probes.clean.file), []);
         }).pipe(Effect.provide(NodeServices.layer)),
       180_000
     );

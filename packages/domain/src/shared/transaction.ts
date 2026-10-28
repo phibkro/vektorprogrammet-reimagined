@@ -27,3 +27,31 @@ export class InTransaction extends Context.Service<
   InTransaction,
   { readonly kind: "database-transaction" }
 >()("@vektorprogrammet/domain/shared/InTransaction") {}
+
+/** The key of the marker that an integration port carries. It exists only in types: no value has it at run time. */
+export const IntegrationTypeId = "~@vektorprogrammet/domain/IntegrationPort";
+
+export type IntegrationTypeId = typeof IntegrationTypeId;
+
+/**
+ * A service that reaches another system, with its own state and rules, outside our transaction: mail, Slack, Turnstile,
+ * the Google Workspace directory (ADR 0015, section 10). Rule 1 of that category: no integration call inside a
+ * transaction. A port declares it by writing, in its class body, `declare readonly [IntegrationTypeId]:
+ * IntegrationTypeId` and `implements IntegrationPort`; the property is a phantom, so the Layer that provides the port
+ * is unchanged. `Transactor.run` takes only programs whose requirements are `NotAnIntegration`, so a call that could
+ * hold a transaction open while a provider answers, or that a rollback cannot take back, does not type-check
+ * (falsifier F11, spec 0020). Run it before the transaction opens or after it has committed.
+ */
+export interface IntegrationPort {
+  readonly [IntegrationTypeId]: IntegrationTypeId;
+}
+
+/**
+ * What `Transactor.run` allows a program to require: a service that is not an integration port, since an unmarked
+ * service has no `[IntegrationTypeId]`. Intersected with `object` because a type whose properties are all optional is
+ * "weak", and TypeScript then refuses a source that shares no property with it (every service that is not a port).
+ * A function that passes a program to `Transactor.run` for a requirement `R` of its own constrains `R` the same way.
+ */
+export type NotAnIntegration = object & {
+  readonly [IntegrationTypeId]?: never;
+};

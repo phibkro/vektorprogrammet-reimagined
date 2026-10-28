@@ -14,7 +14,12 @@ import {
   SignInDirectory,
   passwordAllowed,
 } from "@vektorprogrammet/domain";
-import type { PasswordHash, SignInProfile } from "@vektorprogrammet/domain";
+import type {
+  IntegrationPort,
+  PasswordHash,
+  SignInProfile,
+  IntegrationTypeId,
+} from "@vektorprogrammet/domain";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getSessionCookie } from "better-auth/cookies";
@@ -403,29 +408,38 @@ const routes: AuthRoutes = {
   "/sign-out": "POST",
 };
 
-export class Auth extends Context.Service<
-  Auth,
-  {
-    readonly session: (headers: Headers) => Effect.Effect<
-      {
-        readonly cookiePresent: boolean;
-        readonly value: typeof ForeignSession.Type;
-      },
-      AuthBoundaryFailure
-    >;
-    readonly handle: (
-      request: Request
-    ) => Effect.Effect<Response, AuthBoundaryFailure>;
-    readonly signInPerson: (input: {
-      readonly personId: PersonId;
-      readonly password: string;
-      readonly headers: Headers;
-    }) => Effect.Effect<Response, AuthBoundaryFailure>;
-    readonly setCredential: (
-      input: CredentialInput
-    ) => Effect.Effect<void, AuthBoundaryFailure>;
-  }
->()("@vektorprogrammet/web/server/Auth") {}
+/**
+ * Better Auth: an integration (ADR 0015, section 10): it has its own state and rules and writes outside the domain
+ * transaction, so `Transactor.run` refuses a program that requires it.
+ */
+export class Auth
+  extends Context.Service<
+    Auth,
+    {
+      readonly session: (headers: Headers) => Effect.Effect<
+        {
+          readonly cookiePresent: boolean;
+          readonly value: typeof ForeignSession.Type;
+        },
+        AuthBoundaryFailure
+      >;
+      readonly handle: (
+        request: Request
+      ) => Effect.Effect<Response, AuthBoundaryFailure>;
+      readonly signInPerson: (input: {
+        readonly personId: PersonId;
+        readonly password: string;
+        readonly headers: Headers;
+      }) => Effect.Effect<Response, AuthBoundaryFailure>;
+      readonly setCredential: (
+        input: CredentialInput
+      ) => Effect.Effect<void, AuthBoundaryFailure>;
+    }
+  >()("@vektorprogrammet/web/server/Auth")
+  implements IntegrationPort
+{
+  declare readonly [IntegrationTypeId]: IntegrationTypeId;
+}
 
 export interface AuthEnvironment extends Pick<
   WorkerEnv,

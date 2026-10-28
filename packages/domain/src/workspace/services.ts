@@ -15,7 +15,11 @@ import type { Semester } from "../organisation/semester.ts";
 import type { Locked } from "../shared/aggregate.ts";
 import type { AlreadyExists, Conflict } from "../shared/errors.ts";
 import type { TeamId } from "../shared/ids.ts";
-import type { InTransaction } from "../shared/transaction.ts";
+import type {
+  IntegrationTypeId,
+  InTransaction,
+  IntegrationPort,
+} from "../shared/transaction.ts";
 import type { WorkspaceChange } from "./change.ts";
 import type { CompanyEmail } from "./companyEmail.ts";
 import type {
@@ -58,39 +62,55 @@ export type WorkspaceReadFailure =
   | WorkspaceNotConfigured
   | WorkspaceProviderFailed;
 
-/** The Google Workspace directory, read only. Addresses are lower case. */
-export class WorkspaceDirectory extends Context.Service<
-  WorkspaceDirectory,
-  {
-    /** Every company account of the domain. */
-    readonly accounts: Effect.Effect<
-      readonly CompanyEmail[],
-      WorkspaceReadFailure
-    >;
-    /** Every group address of the domain. */
-    readonly groups: Effect.Effect<
-      readonly CompanyEmail[],
-      WorkspaceReadFailure
-    >;
-    /** The members of one group, or `"missing"` when the directory has no such group. */
-    readonly members: (
-      group: CompanyEmail
-    ) => Effect.Effect<
-      readonly CompanyEmail[] | "missing",
-      WorkspaceReadFailure
-    >;
-  }
->()("@vektorprogrammet/domain/workspace/WorkspaceDirectory") {}
+/**
+ * The Google Workspace directory, read only. Addresses are lower case. An integration port (ADR 0015, section 10):
+ * `Transactor.run` refuses a program that requires it.
+ */
+export class WorkspaceDirectory
+  extends Context.Service<
+    WorkspaceDirectory,
+    {
+      /** Every company account of the domain. */
+      readonly accounts: Effect.Effect<
+        readonly CompanyEmail[],
+        WorkspaceReadFailure
+      >;
+      /** Every group address of the domain. */
+      readonly groups: Effect.Effect<
+        readonly CompanyEmail[],
+        WorkspaceReadFailure
+      >;
+      /** The members of one group, or `"missing"` when the directory has no such group. */
+      readonly members: (
+        group: CompanyEmail
+      ) => Effect.Effect<
+        readonly CompanyEmail[] | "missing",
+        WorkspaceReadFailure
+      >;
+    }
+  >()("@vektorprogrammet/domain/workspace/WorkspaceDirectory")
+  implements IntegrationPort
+{
+  declare readonly [IntegrationTypeId]: IntegrationTypeId;
+}
 
-/** The only way to change the directory. Each change is a statement of state, so applying one twice is harmless. */
-export class WorkspaceWriter extends Context.Service<
-  WorkspaceWriter,
-  {
-    readonly apply: (
-      change: WorkspaceChange
-    ) => Effect.Effect<void, WorkspaceWriteRefused | WorkspaceProviderFailed>;
-  }
->()("@vektorprogrammet/domain/workspace/WorkspaceWriter") {}
+/**
+ * The only way to change the directory. Each change is a statement of state, so applying one twice is harmless. An
+ * integration port (ADR 0015, section 10).
+ */
+export class WorkspaceWriter
+  extends Context.Service<
+    WorkspaceWriter,
+    {
+      readonly apply: (
+        change: WorkspaceChange
+      ) => Effect.Effect<void, WorkspaceWriteRefused | WorkspaceProviderFailed>;
+    }
+  >()("@vektorprogrammet/domain/workspace/WorkspaceWriter")
+  implements IntegrationPort
+{
+  declare readonly [IntegrationTypeId]: IntegrationTypeId;
+}
 
 /**
  * Whether the projection may queue changes. `dry-run` unless the deployment says `write`; reading it is the whole of

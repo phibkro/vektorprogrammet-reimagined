@@ -219,6 +219,25 @@
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
+      "id": "EX-0050",
+      "scope": {
+        "files": [
+          "packages/domain/test/shared/integrationPorts.types.test.ts",
+          "apps/web/test/integrationInTransaction.types.test.ts"
+        ],
+        "directives": ["@ts-expect-error"]
+      },
+      "reason": "Spec 0020 falsifier F11 (ADR 0015, rule 1 of the integration category): a program that requires an integration port must not type-check as the argument of Transactor.run, and the directive fails the type check itself the day one starts to compile.",
+      "nativeAlternativesExamined": [
+        "Vitest expectTypeOf asserts the shape of a type, and the bound of a generic function's type parameter is not part of its instantiated signature, so it cannot show that a call is rejected.",
+        "An assertion on the constraint type alone (WorkspaceDirectory does not extend NotAnIntegration) would not be tied to Transactor.run, which a change to its signature could loosen.",
+        "A compile-fail fixture project would run a second type check for the same claim."
+      ],
+      "owner": ".",
+      "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
+      "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
+    },
+    {
       "id": "EX-0030",
       "rules": ["FX012", "unicorn/throw-new-error"],
       "scope": {
