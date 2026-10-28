@@ -213,11 +213,14 @@ export class AdminGrantRepository extends Context.Service<
 export class DigestLedger extends Context.Service<
   DigestLedger,
   {
-    /** `true` when this call recorded the digest, `false` when an earlier one already had. */
+    /**
+     * `true` when this call recorded the digest, `false` when an earlier one already had (CL1, CL2). The ledger row and
+     * the outbox row commit together, so it requires the transaction (CL3).
+     */
     readonly claim: (
       personId: PersonId,
       semester: Semester
-    ) => Effect.Effect<boolean>;
+    ) => Effect.Effect<boolean, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/teams/DigestLedger") {}
 

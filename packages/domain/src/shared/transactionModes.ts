@@ -140,8 +140,8 @@ export const TransactionModes = {
   },
   AdmissionPeriodRepository: { list: "Read" },
   AggregateLocks: { lock: "Requires", lockAll: "Requires" },
-  AlumniRequests: { candidates: "Read", claim: "Standalone" },
-  AuditLog: { latest: "Read", record: "Standalone" },
+  AlumniRequests: { candidates: "Read", claim: "Requires" },
+  AuditLog: { latest: "Read", record: "Requires" },
   CapturedMessageStore: { record: "Standalone" },
   CodeRepository: {
     consume: "Standalone",
@@ -155,7 +155,7 @@ export const TransactionModes = {
     list: "Read",
     update: "Standalone",
   },
-  DigestLedger: { claim: "Standalone" },
+  DigestLedger: { claim: "Requires" },
   FieldOfStudyRepository: {
     create: "Standalone",
     findById: "Read",
@@ -185,7 +185,7 @@ export const TransactionModes = {
     remove: "Standalone",
     setEnd: "Standalone",
   },
-  Outbox: { enqueue: "Standalone" },
+  Outbox: { enqueue: "Requires" },
   OutboxDelivery: {
     claim: "Standalone",
     markDead: "Standalone",

@@ -12,6 +12,7 @@ import {
   OutboxReports,
   PersonId,
   SlackTarget,
+  Transactor,
 } from "@vektorprogrammet/domain";
 import type {
   ClaimedOutboxMessage,
@@ -49,12 +50,13 @@ const services = Effect.gen(function* services() {
     outbox: yield* Outbox,
     reports: yield* OutboxReports,
     sql: yield* SqlClient,
+    transactor: yield* Transactor,
   };
 });
 
 const one = Effect.fnUntraced(function* one(text: string) {
-  const { outbox } = yield* services;
-  const [id] = yield* outbox.enqueue([slack(text)]);
+  const { outbox, transactor } = yield* services;
+  const [id] = yield* transactor.run(outbox.enqueue([slack(text)]));
 
   if (id === undefined) {
     return yield* Effect.die("one message was enqueued and no id came back");
@@ -384,20 +386,22 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         () =>
           Effect.gen(function* effectProgram() {
             yield* atStart;
-            const { outbox, delivery, sql } = yield* services;
+            const { outbox, delivery, sql, transactor } = yield* services;
 
-            const [ended, sent] = yield* outbox.enqueue([
-              OutboxMessage.cases.SetCredential.make({
-                passwordHash: null,
-                personId: PersonId.make(1),
-                revokeSessions: false,
-              }),
-              OutboxMessage.cases.SetCredential.make({
-                passwordHash: null,
-                personId: PersonId.make(2),
-                revokeSessions: false,
-              }),
-            ]);
+            const [ended, sent] = yield* transactor.run(
+              outbox.enqueue([
+                OutboxMessage.cases.SetCredential.make({
+                  passwordHash: null,
+                  personId: PersonId.make(1),
+                  revokeSessions: false,
+                }),
+                OutboxMessage.cases.SetCredential.make({
+                  passwordHash: null,
+                  personId: PersonId.make(2),
+                  revokeSessions: false,
+                }),
+              ])
+            );
 
             if (ended === undefined || sent === undefined) {
               assert.fail("two intents were queued");

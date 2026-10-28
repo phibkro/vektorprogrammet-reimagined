@@ -13,6 +13,7 @@ import { PasswordHash } from "../accounts/passwordHasher.ts";
 import { WorkspaceChange } from "../workspace/change.ts";
 import { PersonId } from "./ids.ts";
 import type { OutboxMessageId } from "./ids.ts";
+import type { InTransaction } from "./transaction.ts";
 import { EmailAddress } from "./validation.ts";
 
 /** A Slack channel name such as `#avdeling-trondheim`. */
@@ -80,9 +81,13 @@ export type TransportMessage = Extract<
 export class Outbox extends Context.Service<
   Outbox,
   {
-    /** Inserts the messages in the current transaction; returns their ids in order. */
+    /**
+     * Inserts the messages in the current transaction and returns their ids in order. It requires the transaction: a
+     * message that commits apart from the writes that made it due is a message sent for a change that never was, or the
+     * reverse (CL3).
+     */
     readonly enqueue: (
       messages: NonEmptyReadonlyArray<OutboxMessage>
-    ) => Effect.Effect<readonly OutboxMessageId[]>;
+    ) => Effect.Effect<readonly OutboxMessageId[], never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/shared/Outbox") {}

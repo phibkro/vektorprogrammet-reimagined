@@ -77,12 +77,15 @@ export class AlumniRequests extends Context.Service<
     readonly candidates: (
       now: DateTime.Utc
     ) => Effect.Effect<readonly PersonId[]>;
-    /** One request per person and engagement end: `true` for the call that made it, `false` after. */
+    /**
+     * One request per person and engagement end: `true` for the call that made it, `false` after (CL1, CL2). It
+     * commits with the e-mail that it asks for and its audit row, so it requires the transaction (CL3).
+     */
     readonly claim: (
       locked: Locked<"Person">,
       engagementEnd: DateTime.Utc,
       requestedAt: DateTime.Utc
-    ) => Effect.Effect<boolean>;
+    ) => Effect.Effect<boolean, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/personalData/AlumniRequests") {}
 

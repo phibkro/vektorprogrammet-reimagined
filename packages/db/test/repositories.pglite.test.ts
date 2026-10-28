@@ -35,6 +35,7 @@ import {
   pipe,
 } from "effect";
 
+import { transactional } from "../src/index.ts";
 import * as schema from "../src/schema.ts";
 import { Drizzle, pgliteDatabase } from "./support/database.ts";
 import {
@@ -376,16 +377,18 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
         const outbox = yield* Outbox;
         const delivery = yield* OutboxDelivery;
 
-        const ids = yield* outbox.enqueue([
-          OutboxMessage.cases.SlackPost.make({
-            target: SlackTarget.cases.Notifications.make({}),
-            text: "første",
-          }),
-          OutboxMessage.cases.SlackPost.make({
-            target: SlackTarget.cases.Notifications.make({}),
-            text: "andre",
-          }),
-        ]);
+        const ids = yield* transactional(
+          outbox.enqueue([
+            OutboxMessage.cases.SlackPost.make({
+              target: SlackTarget.cases.Notifications.make({}),
+              text: "første",
+            }),
+            OutboxMessage.cases.SlackPost.make({
+              target: SlackTarget.cases.Notifications.make({}),
+              text: "andre",
+            }),
+          ])
+        );
 
         const claimAll = Effect.forEach(ids, (id) => delivery.claim(id, 60));
 
@@ -461,26 +464,30 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
     () =>
       Effect.gen(function* effectProgram() {
         const audit = yield* AuditLog;
-        yield* audit.record({
-          action: "department.created",
-          at: AT,
-          client: "browser",
-          entity: "Department",
-          entityKey: "77",
-          principal: AuditPrincipal.cases.Person.make({
-            personId: PersonId.make(7),
-          }),
-          sessionId: "test-session",
-        });
-        yield* audit.record({
-          action: "endingSoon.sent",
-          at: AT,
-          client: "scheduler",
-          entity: "Person",
-          entityKey: "8",
-          principal: AuditPrincipal.cases.System.make({ job: "endingSoon" }),
-          sessionId: null,
-        });
+        yield* transactional(
+          audit.record({
+            action: "department.created",
+            at: AT,
+            client: "browser",
+            entity: "Department",
+            entityKey: "77",
+            principal: AuditPrincipal.cases.Person.make({
+              personId: PersonId.make(7),
+            }),
+            sessionId: "test-session",
+          })
+        );
+        yield* transactional(
+          audit.record({
+            action: "endingSoon.sent",
+            at: AT,
+            client: "scheduler",
+            entity: "Person",
+            entityKey: "8",
+            principal: AuditPrincipal.cases.System.make({ job: "endingSoon" }),
+            sessionId: null,
+          })
+        );
         const db = yield* Drizzle;
 
         const rows = yield* db

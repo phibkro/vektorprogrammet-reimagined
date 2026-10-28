@@ -8,6 +8,7 @@ import { Context, DateTime, Effect, Match, Predicate, Schema } from "effect";
 import { AuditClient, SystemJob } from "../kernel/principal.ts";
 import type { Principal } from "../kernel/principal.ts";
 import { EntityName, PersonId } from "../shared/ids.ts";
+import type { InTransaction } from "../shared/transaction.ts";
 
 export const AuditAction = Schema.Literals([
   "department.created",
@@ -75,8 +76,10 @@ export type AuditEntry = typeof AuditEntry.Type;
 export class AuditLog extends Context.Service<
   AuditLog,
   {
-    /** Inserts one audit row in the current transaction. */
-    readonly record: (entry: AuditEntry) => Effect.Effect<void>;
+    /** Inserts one audit row in the current transaction, which it requires: the row commits with the write it records (CL3). */
+    readonly record: (
+      entry: AuditEntry
+    ) => Effect.Effect<void, never, InTransaction>;
     /** The newest rows first, at most `limit`. */
     readonly latest: (limit: number) => Effect.Effect<readonly AuditEntry[]>;
   }

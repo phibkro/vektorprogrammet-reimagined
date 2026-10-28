@@ -60,7 +60,12 @@ import {
   MessageSender,
   captureSenderLayer,
 } from "../src/server/senders";
-import { email, enqueueEmail, requestOutcome } from "./support/commandOutcome";
+import {
+  commitEmail,
+  email,
+  enqueueEmail,
+  requestOutcome,
+} from "./support/commandOutcome";
 import { liveWith, origin } from "./support/deliveryLive";
 import { consumeBatch, fakeQueue } from "./support/fakeQueue";
 import type { FakeQueue } from "./support/fakeQueue";
@@ -392,7 +397,7 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
           const exits = yield* Effect.forEach(Arr.range(1, ROUNDS), (round) =>
             Effect.exit(
               Effect.gen(function* oneRound() {
-                const id = yield* enqueueEmail;
+                const id = yield* commitEmail;
                 const calls = yield* Ref.make<readonly string[]>([]);
 
                 const delivery = deliveryDecisions([
@@ -449,7 +454,7 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
 
           const counts = yield* Effect.forEach(Arr.range(1, ROUNDS), () =>
             Effect.gen(function* oneRound() {
-              const id = yield* enqueueEmail;
+              const id = yield* commitEmail;
               const calls = yield* Ref.make<readonly string[]>([]);
 
               yield* Effect.all([unclaimed(id, calls), unclaimed(id, calls)], {
@@ -479,7 +484,7 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
             Effect.gen(function* consumeIn() {
               yield* reset;
 
-              const id = yield* enqueueEmail;
+              const id = yield* commitEmail;
               const sends: unknown[] = [];
 
               const sendEmail: SendEmail = {
