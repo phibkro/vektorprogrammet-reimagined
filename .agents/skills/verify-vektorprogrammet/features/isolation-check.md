@@ -32,3 +32,4 @@ Steps:
 - The route answers `500` on purpose when the store is not what the domain promises; a `500` here is the check working, not a crash. Read the body before you call it a fault.
 - The levels are what the store names them in lower case (`read committed`, `serializable`); the route compares exactly those strings.
 - Production's `404` and Hyperdrive's behaviour are not drivable here. The Hyperdrive half is the pull request's `deploy` job (its log prints `isolation report on the Preview: HTTP 200` and the JSON); do not claim it verified from this stack.
+- The role-default assertion covers the test server and every pull request's Preview (the `main` stage answers the route too, but no job asks it). Production answers `404` and asserts nothing about its role's default until it is deployed; STATE.md names the follow-up (spec 0018 R18). A green isolation step on a pull request says nothing about production's role.

@@ -11,7 +11,9 @@
  * at, is `read committed`. The route answers 200 when no problem is found and 500 with the problems when one is.
  *
  * A production Worker answers an empty 404 and opens no domain transaction: the route is a check of previews and local
- * runs, and the answer there is `None` before the store is asked.
+ * runs (the `main` stage, a preview deployment, answers it too, but no job asks it), and the answer on production is
+ * `None` before the store is asked. So nothing asserts the role's default on production yet: STATE.md names the
+ * follow-up, to be done when production is deployed (spec 0018 R18).
  */
 import { IsolationProbe } from "@vektorprogrammet/domain";
 import type { IsolationReport } from "@vektorprogrammet/domain";
