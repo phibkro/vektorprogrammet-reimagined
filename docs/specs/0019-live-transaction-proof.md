@@ -1,0 +1,98 @@
+# Spec 0019: The transaction proof is the live transaction's own (spec 0018 R20; `STATE.md` next item 14)
+
+**Status:** frozen when its PR opens; later changes are dated entries under [Revisions](#revisions) · **Source:** spec 0018 R20 and its out-of-scope list ("a run-time refusal of a forged `InTransaction` by every writing adapter … is the next spec"), the operator's decision on review round 3 of PR #47 (2026-10-28), `docs/specs/0006b-races-by-construction.md` (the `Locked` token) · **Evidence:** the repository at main `ddb6ff1`; every `file:line` below was read at that head · **Stacked on:** spec 0018 (merged, PR #47). No schema, no migration, no change to a command, a grant row or a generated document of an existing domain except the wording of guarantee TX5.
+
+## Journey
+
+1. **A reviewer forges the proof.** She writes `Context.makeUnsafe(new Map([[InTransaction.key, { kind: "database-transaction" }]]))` and provides it around `Outbox.enqueue`, outside any transaction. Today it type-checks, passes the source scan (spec 0018 falsifier 6) and commits an outbox row with no command behind it (round 3 of PR #47 did exactly this with five spellings). After this spec, the adapter's first act is to ask whether the proof it was handed is the live transaction's own; it is not, and the program dies with `TransactionNotLive`. No row is written.
+2. **A developer leaks the proof.** A command returns the `InTransaction` it read inside `Transactor.run`, and a later program provides it around `AuditLog.record`. The transaction it named has ended. The adapter refuses it, in another transaction too, and in a transaction that is live at the same time on another connection.
+3. **A reviewer reads one declaration.** `TransactionModes` already says which methods are `Requires`; the adapter's check is generated from the same declaration, so a method that requires `InTransaction` and does not verify it cannot be added by forgetting a line. A test walks that declaration through the real layers.
+4. **The source scan changes its job.** `tools/quality/test/inTransactionProviders.test.ts` stays, and says what it is: a lint against accidental provision, which fails at review time what the adapter would refuse at first use. It is no longer the only thing between a forgery and a write, and the documents stop saying that it is.
+5. **Nothing a user sees moves.** Every command runs inside `Transactor.run`, which provides the live proof.
+
+## Goal, constraints, values
+
+- **Goal:** `transactional` (so every `Transactor.run`) mints a fresh proof for each transaction level; every adapter method whose port type requires `InTransaction` verifies, before its first statement, that the proof the running program holds is the innermost live level's own, and is a defect (`TransactionNotLive`) otherwise. The six forgeries of round 3 each die at first use. The scan is reframed as a lint.
+- **Constraints:**
+  - **Cost is an identity comparison.** Two context lookups and one `WeakMap` read per call; no statement, no allocation per call, no change to a statement's text. The latency of `createMembership` is measured before and after.
+  - **No new requirement on a command and no domain type changes.** `InTransaction` keeps its shape (`{ kind: "database-transaction" }`); what is new is that an adapter compares its identity. The in-memory compositions (`packages/domain/test/support/inMemory.ts`, `apps/web/test/support/memory.ts`) keep providing a plain value: they are not adapters of the store and keep TX1 to TX3 by their own tests.
+  - **One declaration, no per-method memory.** The methods that verify are the `Requires` rows of `TransactionModes`, not a second list.
+  - **Domain stays pure.** The domain gains wording and no code. Everything new is in `packages/db`.
+  - **No shims.** The documents and tests that said "a later spec" are changed in the same commits.
+- **Values:** a defect found by the first run that reaches it beats a scan; the check lives where the write does; one home per fact; the smallest change that makes the six forgeries fail.
+
+## The construction
+
+**What the proof is.** Each transaction level that `transactional` opens gets its own proof object, `InTransaction.of({ kind: "database-transaction" })`, made inside the level and provided to the program inside it (a nested `transactional` is a savepoint and a level of its own, as for the lock scope, spec 0006b). The proof's identity is its value: the adapter compares by reference, so a structural copy (`{ ...proof }`, a literal of the same shape) is a forgery.
+
+**What says it is live.** `live.ts` in `packages/db` holds a module-private `WeakMap` from a level's `TransactionConnection` value (the `[connection, depth]` pair that Effect's `SqlClient.withTransaction` makes afresh for each level and puts in the program's context under the client's own key: `effect/src/sql/SqlClient.ts:600-615`) to that level's proof. `transactional` adds the pair on entering the level and removes it when the level's program ends, whatever its exit (a scoped acquire/release, so it also runs on interruption), before the commit. Nothing outside the module can add an entry, so a program cannot make a proof that the map holds, whatever it does with `Context`; the key of the map is the connection's own pair, so a proof of another level never matches this fiber's level.
+
+**What the adapter checks.** `verified(name, sql, service)` wraps the adapter's service. For every key of `TransactionModes[name]` whose mode is `Requires`, the method is replaced by one that first reads the program's `InTransaction` and the fiber's own `sql.transactionService`, and dies as `TransactionNotLive` unless `live.get(level) === proof`, then runs the method. It runs before the method's first statement; a method that checks nothing in its own body is covered the same. The check is one place, so a `Requires` method that an adapter adds is covered with no edit.
+
+| Forgery of round 3 (and the others this spec lists) | Why the check refuses it |
+| --- | --- |
+| `Context.makeUnsafe` with the key string | the value is not the proof that the map holds for this level |
+| `Context.addUnsafe` + `Layer.succeedContext` | same |
+| `{ key } as unknown as typeof InTransaction` with a literal value | same (and the cast service is only a key) |
+| a plain generator's `yield*` value provided as the proof | same |
+| a proof captured in a transaction and used after it ends | the entry was removed when its level ended, and the fiber's level is another pair or none |
+| the proof of transaction A used in transaction B (after A ended, and while A is live on another connection) | B's level maps to B's proof, which is not A's |
+| a program that erases the requirement by a cast and provides nothing | there is no proof in the context |
+| the proof of an outer level used where a nested level is live | the innermost level's own proof is the only one that matches |
+
+**What it does not stop.** A program that can reach the module's `WeakMap` (it is not exported) or the `SqlClient` and forge `Effect`'s own `TransactionConnection` entry for a connection it reserved, and does not call `Transactor.run`, is writing SQL with the client itself, which the store boundary (spec 0017) already keeps to `packages/db` and the composition roots. Writes outside the adapters are not in scope here.
+
+## The `Requires` methods that verify
+
+All of them, by the declaration. At `ddb6ff1` that is 50 methods of 24 ports (`TransactionModes`, rows of mode `Requires`): `AccountRepository` (5), `AdminGrantRepository` (2), `AggregateLocks` (2), `AlumniRequests`, `AuditLog`, `CodeRepository` (2), `ConsentRepository` (2), `DigestLedger`, `JobRuns` (3), `LegalHolds`, `MembershipRepository` (5), `Outbox`, `PersonRepository` (2), `PersonalDataStore` (3), `RetentionRun`, `TeamRepository` (2), `WelcomeLedger`, `WorkspaceAssignments`, `WorkspaceReports` (3). The number is read from the declaration by the test, not written into it.
+
+Methods of a port that are `Standalone`, `Joins`, `Read`, `Outside` or `Opens` do not verify: they promise nothing about a transaction.
+
+## Falsifiers
+
+Each has a negative control that is shown failing. **A control for the check itself** is the mutation of the real adapter: `verified` made the identity, then each case below is rerun and must now be accepted (the forgery gets through), which is what shows the case tests the check and not the forgery's own failure.
+
+1. **Each forgery dies at first use, and writes nothing.** `packages/db/test/liveProof.postgres.test.ts`: for each forgery in the table (and the outer-proof and nested cases), the program calls a real `Requires` method of a real port (`Outbox.enqueue`, which writes without a token, and `AuditLog.record`) and ends in a defect whose tag is `TransactionNotLive`; the table holds no row afterwards. **Controls:** (a) the same program through `Transactor.run` succeeds and writes (so the method is callable and the forgery is the only difference); (b) the forged contexts really carry a value that `yield* InTransaction` returns (round 3's own observation), so the forgery is real; (c) mutation: replace the comparison with `true`: every case of 1 fails (the forgery is accepted and writes), restore.
+2. **No `Requires` method escapes.** The same file reads `TransactionModes`, and for every method of mode `Requires` of every port that `DatabaseLive` provides (and `JobDatabaseLive`'s `RetentionRun`) calls the method with no arguments under a forged proof; each must die as `TransactionNotLive` before it reads its arguments. **Controls:** (a) the sweep counts the methods it reached and the test fails if the count differs from the declaration's (a port left unwrapped, or a layer that is not walked, shows as a count short); (b) mutation: build one port's layer without `verified`: the sweep names the method that did not die as `TransactionNotLive`.
+3. **A leaked proof is dead after its transaction, in the next one and beside a live one.** In the same file: a proof returned from `Transactor.run` and provided to `Outbox.enqueue` (a) outside any transaction, (b) in a later transaction, (c) in a transaction that runs at the same time as the one that made it, held open by a `Deferred` (two connections, 100 rounds of the race in fresh state). **Controls:** the same three programs with the proof of their own transaction succeed.
+4. **A nested level's proof is its own.** A `transactional` inside a `transactional`: the inner program with the inner proof succeeds; the inner program with the outer proof dies; after the inner level ends, the outer program with the inner proof dies, and with the outer proof succeeds. A nested level that fails removes its entry (the proof it held is dead) and the outer level still verifies its own.
+5. **A failed or interrupted level removes its entry.** The map has no entry for a level after a typed failure, a defect or an interruption of its program, and none after commit: observed through the proof captured in each case (it is refused afterwards).
+6. **No behaviour change.** `bun run test:all` passes; the assertions of the existing suites are untouched except the one that said a forged proof is refused by the lock (`aggregates.postgres.test.ts`, "even where InTransaction is forged"), whose forgery is now refused one step earlier by this check and keeps its assertion that no lock is taken. The membership model passes (`transactional.ts` is a covered file). `bun run e2e` passes.
+7. **The scan says what it is.** `tools/quality/test/inTransactionProviders.test.ts`, `support/proofReferences.ts`, `docs`, `AGENTS.md`, `packages/db/README.md` and `packages/domain/src/README.md` describe the scan as a lint against accidental provision that fails at review time what the adapter refuses at first use, and cite this spec; none says that the unforgeable construction is a later spec. The one place in `packages/db/src` that reads the service as a value is allowed with its reason (`live.ts`), and the scan's own control (a provider added to `apps/web/src/server/runtime.ts` fails) still fails.
+
+**Latency report (not a falsifier).** `createMembership` through `Transactor.run` on local PostgreSQL 18 (devenv), 120 rounds of which the first 20 are warmups, three runs, main `ddb6ff1` against the branch. [INFERENCE: two `Map` reads and one `WeakMap` read per `Requires` call and one `WeakMap` write and delete per transaction are below the 0.1 ms of noise between runs; measure to confirm.]
+
+## Migration order
+
+Every step is one commit, lowercase Conventional Commit, green under `devenv shell -- bunx vp check` plus the tests of the packages it touches.
+
+| # | Commit | Gate beyond `vp check` |
+| --- | --- | --- |
+| 0 | `docs(spec): the live transaction proof (spec 0019)`: this file | none |
+| 1 | `feat(db): mint a live proof for each transaction level`: `live.ts` (the map, `TransactionNotLive`, the registration), `transactional` registers and provides the level's proof, the cases of falsifiers 4 and 5 | falsifiers 4, 5 |
+| 2 | `feat(db): every requires method verifies the live proof`: `verified`, every repository layer that has a `Requires` method wraps its service, the sweep and the forgeries, the controls, the one changed assertion of `aggregates.postgres.test.ts` | falsifiers 1 to 3, 6; the mutation controls |
+| 3 | `docs: the scan is a lint, the check is the proof`: TX5's wording and its generated page, the scan's comments, `AGENTS.md`, the READMEs, spec 0018's cross-reference (a Revision, not an edit of the frozen text), `STATE.md`, the exception entry | falsifier 7; `bun run check:docs` |
+
+Final gate: `devenv shell -- bun run ready` after the last edit; `bun run e2e` (a production adapter path changes); the membership model (`devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh`, `transactional.ts` is covered); the latency report.
+
+## Out of scope
+
+- **Making `Locked` unforgeable by the same map.** The token is already checked against the lock scope of the live transaction (spec 0006b, `aggregate/locks.ts`); the scope is read from the context like the proof was, and a program that forges the scope by its key string can still forge a token. The same registry would close it (the scope as an entry of the map), and its cost is one more lookup per lock; not asked for here.
+- **A proof that the Transactor is the production one in a composition root** (a test composition providing a plain proof to a production adapter): the adapter now refuses it, which is the point; the in-memory compositions sit over in-memory repositories.
+- **Stages 3 to 6 of ADR 0014** and every item that spec 0018 left out.
+
+## Resolutions of the open questions
+
+1. **The proof carries nothing new; its identity is the proof.** A proof that carries a transaction id would be a value that a forger can copy; a proof that is the registered object cannot be copied. The domain type is unchanged.
+2. **The live side is the connection's own pair, not a second `Reference`.** A `Context.Reference` set by `transactional` (as `CurrentLockScope` is) is a string-keyed entry too: a forger that knows its key can set it to match a forged proof. The map is module-private, and its key is the pair that the client makes, so there is no string to forge.
+3. **Every nested level is a level.** A savepoint rolls back on its own and releases its own locks (TX2), so a proof that is valid for the innermost level only is the same boundary as the lock scope's.
+4. **The check wraps, it does not repeat in each method.** A per-method call is a thing to forget; the declaration is exhaustive by type, so the wrapper is too, and falsifier 2 walks it.
+5. **The number is 0019**, the next free: `docs/specs/` holds 0018 as its highest at `ddb6ff1`; Adr15Stage1 holds 0020 and RetentionEffect 0021.
+
+## Checks the build runs and reports
+
+`devenv shell -- bunx vp check` (format, lint, the type check with the Effect diagnostics), `bun run test:all`, `bun run check:docs`, `bun run check:exceptions`, `bun run check:store-boundary`, the knip and jscpd steps of `bun run ready`, `bun run e2e`, the membership model, and the mutations of falsifiers 1 and 2 each run once and restored. There is no `effect-house` overlay in this repository; `AGENTS.md` names the gates. The build is against Effect 4.0.6; the report names each API for which the installed guidance had no entry.
+
+## Revisions
+
+Entries written while building, dated, in the order of the commits. Each says what the build did differently from the text above and why.
