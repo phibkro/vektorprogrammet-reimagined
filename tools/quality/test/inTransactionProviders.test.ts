@@ -27,8 +27,16 @@ const PROVIDERS = new Set([
   "sync",
 ]);
 
-/** The lines of the calls in `text` that hand `InTransaction` to a function that provides a service, or make its value. */
+/**
+ * The lines of the calls in `text` that hand `InTransaction` to a function that provides a service, or make its value.
+ * A file that never writes the name cannot provide it (an alias of the import still writes it), so it is not parsed: the
+ * scan reads every file of three directories, and a two-CPU runner parsed them all in more than the test's five seconds.
+ */
 export const providers = (path: string, text: string): readonly number[] => {
+  if (!text.includes("InTransaction")) {
+    return [];
+  }
+
   const found: number[] = [];
 
   const written = (node: { readonly start: number; readonly end: number }) =>
@@ -151,6 +159,8 @@ describe("InTransaction has few providers (spec 0018)", () => {
           [],
           "an allowance that no file needs"
         );
-      })
+      }),
+    // The scan lists the whole tree, node_modules included, before it filters; a two-CPU runner took more than 5 s.
+    60_000
   );
 });
