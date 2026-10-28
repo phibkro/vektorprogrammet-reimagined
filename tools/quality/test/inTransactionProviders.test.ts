@@ -49,10 +49,10 @@ interface Allowance {
 
 const allowances: readonly Allowance[] = [
   {
-    calls: 3,
+    calls: 4,
     path: "packages/db/src/live.ts",
     reason:
-      "the one production provider (`withLiveProof`, which `transactional` runs each level in) and the check of the proof that every `Requires` method of an adapter makes (`verify`); it makes the proof of each level and holds it in a private map",
+      "the one production provider (`liveLevel`, which `transactional` runs each level in: the proof of each level, made and provided in two places) and the check of the proof that every `Requires` method of an adapter makes (`verify`); it holds the proofs in a private stack of levels",
   },
   {
     calls: 1,

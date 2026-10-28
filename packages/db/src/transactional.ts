@@ -3,8 +3,8 @@
  * transaction's own, and `live.ts` has how an adapter checks it).
  *
  * Runs `self` in `SqlClient.withTransaction` (a savepoint when already inside
- * one) with that level's own `InTransaction` provided (`withLiveProof`: a fresh proof for each level, taken back when
- * the level's program ends). A typed failure, a defect or an
+ * one) with that level's own `InTransaction` provided (`liveLevel`: a fresh proof for each level, owned by the fiber
+ * that opened it, taken back when the level ends). A typed failure, a defect or an
  * interruption rolls back every row the program wrote: domain rows, the audit
  * row and the outbox rows. A failing BEGIN or COMMIT is an infrastructure
  * failure and therefore a defect.
@@ -28,7 +28,7 @@ import { isSqlError } from "effect/sql/SqlError";
 import type { SqlError } from "effect/sql/SqlError";
 
 import { CurrentLockScope, handUp, openScope } from "./aggregate/lockScope.ts";
-import { withLiveProof } from "./live.ts";
+import { liveLevel } from "./live.ts";
 
 /** The statement that a top-level transaction begins with: the isolation floor of `InTransaction`, by name. */
 const BEGIN_READ_COMMITTED = "BEGIN ISOLATION LEVEL READ COMMITTED";
@@ -65,9 +65,9 @@ export const transactional = <A, E, R>(
 > =>
   SqlClient.pipe(
     Effect.flatMap((sql) =>
-      sql
-        .withTransaction(withLockScope(withLiveProof(sql, self)))
-        .pipe(atReadCommitted)
+      liveLevel(sql, (live) =>
+        sql.withTransaction(withLockScope(live(self))).pipe(atReadCommitted)
+      )
     ),
     Effect.catchIf<E | SqlError, SqlError, never, never, never>(
       isSqlError,

@@ -24,6 +24,9 @@ import {
   AuditLog,
   CodeRepository,
   ConsentRepository,
+  ContactEndpoints,
+  CurrentPrincipal,
+  DepartmentRepository,
   DigestLedger,
   InTransaction,
   JobRun,
@@ -41,7 +44,9 @@ import {
   WelcomeLedger,
   WorkspaceAssignments,
   WorkspaceReports,
+  anonymous,
 } from "@vektorprogrammet/domain";
+import type { Duration } from "effect";
 import {
   Array as Arr,
   Cause,
@@ -61,9 +66,16 @@ import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 
 import { transactional } from "../src/index.ts";
+import { verified } from "../src/live.ts";
 import { postgresDatabase, postgresJobDatabase } from "./support/database.ts";
-import { AT, slack } from "./support/fixtures.ts";
+import {
+  AT,
+  departmentDraft,
+  slack,
+  slackChannel,
+} from "./support/fixtures.ts";
 import { describeExit } from "./support/race.ts";
+import { twoPeople, world } from "./support/teamsWorld.ts";
 
 type Proof = InTransaction["Service"];
 
@@ -417,37 +429,44 @@ layer(postgresDatabase({ maxConnections: 4 }), {
   );
 
   /**
-   * Review round 2, probe C: a sibling fiber of the outer level, with the outer proof, while a nested level is live on
-   * the same connection. Its statement would go into the savepoint, which rolls back, and the sibling would be told it
-   * succeeded. The check compares the proof with the innermost live level of the connection, so the sibling dies.
+   * Review round 2, probe C (gated): the fiber that opened the outer level opens a nested level, and a forked child of it
+   * holds the outer proof and writes while that level is live. Its statement would go into the savepoint, which rolls
+   * back, and the child would be told it succeeded. The child is not the fiber of the innermost level, so it dies.
    */
   const siblingBesideNestedLevel = Effect.gen(function* sibling() {
     const innerOpen = yield* Deferred.make<null>();
     const siblingDone = yield* Deferred.make<null>();
-    const seen = yield* Deferred.make<Exit.Exit<unknown, unknown>>();
-
-    const nested = transactional(
-      Effect.gen(function* nestedLevel() {
-        yield* Deferred.succeed(innerOpen, null);
-        yield* Deferred.await(siblingDone);
-
-        return yield* Effect.fail("the nested level rolls back");
-      })
-    );
-
-    const beside = Effect.gen(function* besideNested() {
-      yield* Deferred.await(innerOpen);
-      yield* Deferred.succeed(seen, yield* Effect.exit(enqueue("sibling")));
-      yield* Deferred.succeed(siblingDone, null);
-    });
 
     const outer = yield* Effect.exit(
       transactional(
-        Effect.all([Effect.exit(nested), beside], { concurrency: 2 })
+        Effect.gen(function* outerLevel() {
+          const child = yield* Effect.forkChild(
+            Effect.gen(function* besideNested() {
+              yield* Deferred.await(innerOpen);
+              const seen = yield* Effect.exit(enqueue("sibling"));
+              yield* Deferred.succeed(siblingDone, null);
+
+              return seen;
+            })
+          );
+
+          yield* Effect.exit(
+            transactional(
+              Effect.gen(function* nestedLevel() {
+                yield* Deferred.succeed(innerOpen, null);
+                yield* Deferred.await(siblingDone);
+
+                return yield* Effect.fail("the nested level rolls back");
+              })
+            )
+          );
+
+          return yield* Fiber.join(child);
+        })
       )
     );
 
-    return { outer, sibling: yield* Deferred.await(seen) };
+    return { outer, sibling: Exit.isSuccess(outer) ? outer.value : outer };
   });
 
   it.effect(
@@ -484,7 +503,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
   );
 
   it.effect(
-    "the stated limit (spec 0019 R7): a context captured inside a live level and provided in another transaction is that level's own, so it is accepted and writes into the first level, while it lives",
+    "the stated limit (spec 0019 R7, R14): a context captured inside a live level and provided in another transaction is that level's own, so it is accepted and writes into the first level while it lives, and commits or rolls back with it",
     () =>
       Effect.gen(function* carriedContext() {
         const transactor = yield* Transactor;
@@ -523,6 +542,395 @@ layer(postgresDatabase({ maxConnections: 4 }), {
 
         assert.isTrue(Exit.isSuccess(second), describeExit(second));
         assert.strictEqual(yield* outboxRows, before);
+      })
+  );
+
+  /**
+   * Review round 3, probe E: no gate. A sibling fiber of the outer level writes with the outer proof while a nested level
+   * is asked for, opened and rolled back on the same connection. In R11 the nested level entered the stack only after its
+   * SAVEPOINT, so a sibling that ran while the SAVEPOINT was on the wire passed, its row went into the savepoint, and it
+   * was told it succeeded. Now, in every order and delay, either the sibling dies and the nested level rolls back, or the
+   * nested level dies and the sibling's row is kept: never a reported success whose row is rolled back.
+   */
+  const ungatedRounds = 12;
+
+  const ungatedTimings = [
+    ["0 millis", "0 millis"],
+    ["0 millis", "3 millis"],
+    ["3 millis", "0 millis"],
+    ["0 millis", "25 millis"],
+    ["10 millis", "10 millis"],
+  ] as const;
+
+  for (const [nestedAt, siblingAt] of ungatedTimings) {
+    it.effect(
+      `probe E (${ungatedRounds} rounds, no gate, nested level at ${nestedAt}, sibling at ${siblingAt}): the sibling dies or its row is kept, never a success that was rolled back`,
+      () =>
+        Effect.gen(function* ungatedSibling() {
+          for (const round of Arr.range(1, ungatedRounds)) {
+            const before = yield* outboxRows;
+
+            const nested = Effect.exit(
+              Effect.andThen(
+                Effect.sleep(nestedAt),
+                transactional(
+                  Effect.andThen(
+                    Effect.sleep("20 millis"),
+                    Effect.fail("the nested level rolls back")
+                  )
+                )
+              )
+            );
+
+            const sibling = Effect.exit(
+              Effect.andThen(Effect.sleep(siblingAt), enqueue(`E ${round}`))
+            );
+
+            const outer = yield* Effect.exit(
+              transactional(Effect.all([nested, sibling], { concurrency: 2 }))
+            );
+
+            const kept = (yield* outboxRows) - before;
+
+            assert.isTrue(
+              Exit.isSuccess(outer) &&
+                (Exit.isSuccess(outer.value[1])
+                  ? kept === 1
+                  : refused(outer.value[1]) && kept === 0),
+              `round ${round}: ${describeExit(outer)}, ${kept} rows kept`
+            );
+          }
+        }),
+      { timeout: 120_000 }
+    );
+  }
+
+  it.effect(
+    "probe E, the opener's side: the fiber that opened the outer level opens a nested level while a forked child of it writes with the outer proof: the child dies, the nested level's own rows are kept",
+    () =>
+      Effect.gen(function* ownerForksSibling() {
+        const before = yield* outboxRows;
+
+        for (const delay of ["0 millis", "10 millis"] as const) {
+          yield* transactional(
+            Effect.gen(function* outerLevel() {
+              const child = yield* Effect.forkChild(
+                Effect.exit(
+                  Effect.andThen(Effect.sleep(delay), enqueue("child sibling"))
+                )
+              );
+
+              yield* transactional(
+                Effect.andThen(Effect.sleep("30 millis"), enqueue("nested"))
+              );
+
+              assertRefused(
+                yield* Fiber.join(child),
+                `a forked child of the outer level, ${delay}`
+              );
+            })
+          );
+        }
+
+        assert.strictEqual(yield* outboxRows, before + 2);
+      })
+  );
+
+  it.effect(
+    "a multi-row method of the level, with a nested level asked for from a forked child while it runs: the child's level dies and every row of the method commits",
+    () =>
+      Effect.gen(function* methodBesideNested() {
+        const before = yield* outboxRows;
+
+        yield* transactional(
+          Effect.gen(function* outerLevel() {
+            const child = yield* Effect.forkChild(
+              Effect.exit(
+                transactional(Effect.fail("the nested level rolls back"))
+              )
+            );
+
+            const outbox = yield* Outbox;
+
+            yield* outbox.enqueue([
+              slack("batch 1"),
+              slack("batch 2"),
+              slack("batch 3"),
+            ]);
+
+            assertRefused(
+              yield* Fiber.join(child),
+              "a nested level opened from a forked child"
+            );
+          })
+        );
+
+        assert.strictEqual(yield* outboxRows, before + 3);
+      })
+  );
+
+  /**
+   * The invariant of spec 0019 R14: for every interleaving of a method of a level and a nested level on one connection,
+   * one of them dies as `TransactionNotLive`, or both complete and every row is in the level that reported it. This
+   * method has two statements with a gap between them, so a `SAVEPOINT` that lands in the gap would take the second
+   * statement into the savepoint.
+   */
+  const twoStatementOutbox = Effect.gen(function* twoStatementOutbox() {
+    const sql = yield* SqlClient;
+
+    return yield* verified(
+      "Outbox",
+      Outbox.of({
+        enqueue: () =>
+          Effect.gen(function* twoStatements() {
+            yield* sql`insert into probe_rows (n) values (1)`;
+            yield* Effect.sleep("15 millis");
+            yield* sql`insert into probe_rows (n) values (2)`;
+
+            return [];
+          }).pipe(Effect.orDie),
+      })
+    );
+  });
+
+  const probeRows = Effect.gen(function* probeRows() {
+    const sql = yield* SqlClient;
+
+    const rows = yield* sql<{
+      readonly n: number;
+    }>`select count(*)::int as n from probe_rows`;
+
+    return rows[0]?.n ?? -1;
+  });
+
+  /** One round: the method and a nested level, started at the given delays; says what went wrong, or nothing. */
+  const twoStatementRound = (
+    outbox: Outbox["Service"],
+    nestedAt: Duration.Input,
+    methodAt: Duration.Input
+  ) =>
+    Effect.gen(function* round() {
+      const sql = yield* SqlClient;
+      yield* sql`delete from probe_rows`;
+
+      const method = Effect.exit(
+        Effect.andThen(
+          Effect.sleep(methodAt),
+          outbox.enqueue([slack("two statements")])
+        )
+      );
+
+      const nested = Effect.exit(
+        Effect.andThen(
+          Effect.sleep(nestedAt),
+          transactional(
+            Effect.andThen(
+              Effect.sleep("30 millis"),
+              Effect.fail("the nested level rolls back")
+            )
+          )
+        )
+      );
+
+      const [methodExit] = yield* Effect.all([method, nested], {
+        concurrency: 2,
+      });
+
+      const rows = yield* probeRows;
+
+      const holds = Exit.isSuccess(methodExit)
+        ? rows === 2
+        : refused(methodExit) && rows === 0;
+
+      return holds
+        ? ""
+        : `the method ${describeExit(methodExit)} and ${rows} rows are in the level`;
+    });
+
+  it.effect(
+    "the multi-statement case: a two-statement method beside a nested level that is asked for in the gap between its statements, in every order and delay: the nested level dies, or both complete and the method's two rows are kept",
+    () =>
+      Effect.gen(function* methodBesideSavepoint() {
+        const outbox = yield* twoStatementOutbox;
+        const sql = yield* SqlClient;
+
+        const timings = [
+          ["0 millis", "0 millis"],
+          ["0 millis", "4 millis"],
+          ["4 millis", "0 millis"],
+          ["8 millis", "0 millis"],
+          ["30 millis", "0 millis"],
+        ] as const;
+
+        yield* transactional(
+          Effect.gen(function* outerLevel() {
+            yield* sql`create temp table probe_rows (n int) on commit drop`;
+
+            for (const [nestedAt, methodAt] of timings) {
+              const outcomes = yield* Effect.forEach(Arr.range(1, 8), () =>
+                twoStatementRound(outbox, nestedAt, methodAt)
+              );
+
+              assert.deepStrictEqual(
+                Arr.filter(outcomes, (outcome) => outcome !== ""),
+                [],
+                `nested at ${nestedAt}, method at ${methodAt}`
+              );
+            }
+          })
+        );
+      }),
+    { timeout: 120_000 }
+  );
+
+  it.effect(
+    "a command dispatched through the in-process RPC server, which runs its handler on a fiber of its own, passes inside Transactor.run and commits its rows",
+    () =>
+      Effect.gen(function* rpcDispatched() {
+        const transactor = yield* Transactor;
+
+        const department = yield* (yield* DepartmentRepository).create(
+          departmentDraft("Rpcby", {
+            slackChannel: slackChannel("avdeling-rpcby"),
+          })
+        );
+
+        const before = yield* outboxRows;
+
+        const receipt = yield* transactor.run(
+          ContactEndpoints.submitContact({
+            departmentId: department.id,
+            email: "rpc@innsender.example",
+            message: "Hei",
+            name: "Testperson",
+            subject: "Spørsmål",
+          }).pipe(Effect.provideService(CurrentPrincipal, anonymous))
+        );
+
+        assert.isAbove(receipt.messageIds.length, 0);
+        assert.strictEqual(
+          yield* outboxRows,
+          before + receipt.messageIds.length
+        );
+      })
+  );
+
+  it.effect(
+    "concurrent methods of one level pass: five enqueues at once inside one transaction all commit",
+    () =>
+      Effect.gen(function* concurrentSameLevel() {
+        const before = yield* outboxRows;
+
+        yield* transactional(
+          Effect.all(
+            Arr.map(Arr.range(1, 5), (n) => enqueue(`concurrent ${n}`)),
+            { concurrency: 5 }
+          )
+        );
+
+        assert.strictEqual(yield* outboxRows, before + 5);
+      })
+  );
+
+  it.effect(
+    "a method interrupted while it runs leaves its level admitting a nested level again: the count is released on interruption",
+    () =>
+      Effect.gen(function* interruptedMethod() {
+        const { fieldOfStudy } = yield* world("interrupted");
+        const [person] = yield* twoPeople(fieldOfStudy.id, "interrupted");
+        const holding = yield* Deferred.make<null>();
+        const release = yield* Deferred.make<null>();
+
+        const holder = yield* transactional(
+          Effect.gen(function* holdTheRow() {
+            yield* AggregateLocks.use((locks) =>
+              locks.lock("Person", person.id)
+            );
+
+            yield* Deferred.succeed(holding, null);
+            yield* Deferred.await(release);
+          })
+        ).pipe(Effect.forkChild);
+
+        yield* Deferred.await(holding);
+
+        yield* transactional(
+          Effect.gen(function* levelWithABlockedMethod() {
+            const blocked = yield* Effect.forkChild(
+              AggregateLocks.use((locks) => locks.lock("Person", person.id))
+            );
+
+            yield* Effect.sleep("100 millis");
+
+            assertRefused(
+              yield* Effect.exit(
+                Effect.timeout(transactional(Effect.void), "5 seconds")
+              ),
+              "a nested level asked for while a method of the level around it is blocked in the database"
+            );
+
+            const interrupting = yield* Effect.forkChild(
+              Fiber.interrupt(blocked)
+            );
+
+            yield* Deferred.succeed(release, null);
+            yield* Fiber.join(holder);
+            yield* Fiber.join(interrupting);
+
+            const nested = yield* Effect.exit(transactional(Effect.void));
+            assert.isTrue(Exit.isSuccess(nested), describeExit(nested));
+          })
+        );
+      }),
+    { timeout: 60_000 }
+  );
+
+  it.effect(
+    "production patterns (forEach and all without concurrency, exit and retry around nested levels) all commit",
+    () =>
+      Effect.gen(function* productionPatterns() {
+        const before = yield* outboxRows;
+        let attempts = 0;
+
+        yield* transactional(
+          Effect.gen(function* outerLevel() {
+            yield* Effect.forEach(
+              Arr.range(1, 3),
+              (n) => transactional(enqueue(`forEach ${n}`)),
+              { concurrency: 1 }
+            );
+
+            yield* Effect.all([
+              enqueue("all 1"),
+              transactional(enqueue("all 2")),
+            ]);
+
+            yield* Effect.exit(
+              transactional(
+                Effect.andThen(enqueue("rolled back"), Effect.fail("no"))
+              )
+            );
+
+            yield* Effect.retry(
+              transactional(
+                Effect.suspend(() => {
+                  attempts += 1;
+
+                  return attempts < 3
+                    ? Effect.fail("again")
+                    : enqueue("retried");
+                })
+              ),
+              { times: 5 }
+            );
+
+            yield* enqueue("outer after");
+          })
+        );
+
+        assert.strictEqual(attempts, 3);
+        // three forEach rows, two from all, the retried one, and the outer's: 7
+        assert.strictEqual(yield* outboxRows, before + 7);
       })
   );
 
