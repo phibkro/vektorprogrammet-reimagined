@@ -1,8 +1,8 @@
 /**
  * Spec 0018, falsifier 7: the domain states properties, not mechanisms. No file of `packages/domain/src` names an engine
  * feature (a statement, a clause, a column type, a constraint kind) outside the few lines that describe the personal
- * data catalog, which is data written in the engine's terms until stage 5 (ownership) and the retention spec (ADR 0014,
- * answer 3) move it. An allowance that no line needs fails, so the list only shrinks.
+ * data catalog, which is data written in the engine's terms until stage 5 (ownership) moves it. The retention arithmetic
+ * left the list with spec 0021 (ADR 0014, answer 3). An allowance that no line needs fails, so the list only shrinks.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect } from "effect";
@@ -34,29 +34,11 @@ interface Allowance {
 const CATALOG =
   "the catalog is data in the engine's terms until stage 5 (ADR 0014) declares ownership";
 
-const RETENTION =
-  "the retention arithmetic moves into Effect in its own spec (ADR 0014, answer 3)";
-
 const allowances: readonly Allowance[] = [
-  {
-    includes: "the arithmetic of the SQL",
-    path: "personalData/alumni.ts",
-    reason: RETENTION,
-  },
   {
     includes: "by their SQL names",
     path: "personalData/catalog.ts",
     reason: CATALOG,
-  },
-  {
-    includes: "the same in the compiled SQL",
-    path: "personalData/declaration.ts",
-    reason: RETENTION,
-  },
-  {
-    includes: "one SQL expression",
-    path: "personalData/declaration.ts",
-    reason: RETENTION,
   },
   {
     includes: "a jsonb column",

@@ -235,6 +235,21 @@ export * from "./personalData/notice.ts";
 
 export * from "./personalData/periods.ts";
 
+// Named, not `export *`: `semesterEnd` is window arithmetic, which the root keeps inside the domain (`oneDefinition.test.ts`).
+export {
+  afterDuration,
+  dueWallRanges,
+  fiscalYearDueBefore,
+  inWallRanges,
+  lastActivityDue,
+  lastActivityEnd,
+  retentionEnd,
+  semesterDueYears,
+  startIsDue,
+} from "./personalData/retentionEnd.ts";
+
+export type { ActivityFacts, WallRange } from "./personalData/retentionEnd.ts";
+
 export * from "./personalData/services.ts";
 
 export * from "./personalData/texts.ts";

@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./test/support/teamsInMemory.ts"
+    "./testing": "./test/support/teamsInMemory.ts",
+    "./testing/retention": "./test/support/retentionGenerators.ts"
   },
   "scripts": {
     "test": "bunx vp test",

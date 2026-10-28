@@ -1,11 +1,11 @@
 /**
- * Spec 0007b R3 item 29: the two derivations that the migration `person_last_activity_end` adds and that Drizzle cannot
- * model. `semester_end` is a second copy of RULE-022 (the end of `semesterWindow`), and the retention triggers, the alumni
- * candidates and the view of a person's last activity all take part in decisions that the domain's copy also makes
- * (`leftAt`, `stillAsked`). The migration says that this file checks the two against each other over a range of years; it
- * does, for both terms and every year of the range, and against the two instants that the Oslo calendar gives for one
- * year, so that two copies that were wrong in the same way would not pass. The domain's copy is read through `leftAt`,
- * the exported rule that decides who has left: the window arithmetic itself is not exported (`oneDefinition.test.ts`).
+ * Spec 0007b R3 item 29: the one derivation that the migration `person_last_activity_end` made and that the domain also has.
+ * `semester_end` is a second copy of RULE-022 (the end of `semesterWindow`); spec 0021 removed it from the schema and the
+ * oracle (`support/retentionOracle.ts`) re-creates it from that migration, so that this comparison, over a range of years,
+ * keeps the oracle honest: it does, for both terms and every year of the range, and against the two instants that the Oslo
+ * calendar gives for one year, so that two copies that were wrong in the same way would not pass. The domain's copy is
+ * read through `leftAt`, the exported rule that decides who has left: the window arithmetic itself is not exported
+ * (`oneDefinition.test.ts`).
  */
 import { assert, layer } from "@effect/vitest";
 import { leftAt } from "@vektorprogrammet/domain";
@@ -13,7 +13,7 @@ import type { Term } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { postgresDatabase } from "./support/database.ts";
+import { oracleDatabase } from "./support/retentionOracle.ts";
 
 const FIRST_YEAR = 2000;
 const LAST_YEAR = 2100;
@@ -49,7 +49,7 @@ const endIn2026 = Effect.fnUntraced(function* endIn2026(term: Term) {
   );
 });
 
-layer(postgresDatabase(), { excludeTestServices: true })(
+layer(oracleDatabase, { excludeTestServices: true })(
   "spec 0007b R3 item 29: semester_end is the end of the semester's window",
   (it) => {
     it.effect(

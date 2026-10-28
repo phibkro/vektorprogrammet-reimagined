@@ -12,7 +12,6 @@ import {
   LegalHolds,
   PersonId,
   PersonalDataStore,
-  Periods,
   RetentionRun,
 } from "@vektorprogrammet/domain";
 import type {
@@ -21,13 +20,14 @@ import type {
   RetentionMode,
   StoredConsent,
 } from "@vektorprogrammet/domain";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Match, Schema } from "effect";
 
 import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import { Drizzle, decodeWith, single } from "../internal/drizzle.ts";
 import { verified } from "../live.ts";
+import { alumniCandidates } from "../personalData/activity.ts";
 import { personalDataExport } from "../personalData/export.ts";
 import { personalDataMerge } from "../personalData/merge.ts";
 import { photosOf, releasePhotos } from "../personalData/photos.ts";
@@ -35,7 +35,6 @@ import {
   personalDataRetention,
   personalDataRetentionReport,
 } from "../personalData/retention.ts";
-import { addDuration } from "../personalData/sql.ts";
 import { consent, person } from "../schema.ts";
 
 const StoredRow = Schema.Struct({
@@ -135,33 +134,10 @@ export const AlumniRequestsLive = Layer.effect(
 
     const candidates = Effect.fn("AlumniRequests.candidates")(
       function* candidates(now: DateTime.Utc) {
-        const at = DateTime.toDateUtc(now);
+        const ids = yield* alumniCandidates(db, now);
 
-        const rows = yield* db
-          .execute<{ person_id: number }>(
-            sql`select m.person_id
-              from (
-                select person_id, max(semester_end(end_term, end_year)) as last_end
-                from membership
-                group by person_id
-              ) as m
-              join person as p on p.id = m.person_id
-              join person_last_activity_end as a on a.person_id = p.id
-              where p.anonymised_at is null
-                and p.merged_into is null
-                and m.last_end <= ${at}
-                and ${addDuration(sql`a.at`, Periods.personCore.duration)} > ${at}
-                and not exists (
-                  select 1 from alumni_request as r
-                  where r.person_id = m.person_id and r.engagement_end = m.last_end
-                )
-              order by m.person_id`,
-            "objects"
-          )
-          .pipe(Effect.orDie);
-
-        return yield* Effect.forEach(rows, ({ person_id }) =>
-          Schema.decodeEffect(PersonId)(person_id).pipe(Effect.orDie)
+        return yield* Effect.forEach(ids, (id) =>
+          Schema.decodeEffect(PersonId)(id).pipe(Effect.orDie)
         );
       }
     );
