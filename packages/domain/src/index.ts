@@ -64,6 +64,8 @@ export * from "./shared/clock.ts";
 
 export * from "./shared/errors.ts";
 
+export * from "./shared/guarantees.ts";
+
 export * from "./shared/ids.ts";
 
 export * from "./shared/outbox.ts";
