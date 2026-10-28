@@ -29,7 +29,9 @@ import {
   JobRun,
   LegalHolds,
   MembershipRepository,
+  AuditPrincipal,
   Outbox,
+  PersonId,
   PersonRepository,
   PersonalDataStore,
   RetentionRun,
@@ -56,10 +58,11 @@ import {
 } from "effect";
 import { cast } from "effect/Function";
 import { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
 
 import { transactional } from "../src/index.ts";
 import { postgresDatabase, postgresJobDatabase } from "./support/database.ts";
-import { slack } from "./support/fixtures.ts";
+import { AT, slack } from "./support/fixtures.ts";
 import { describeExit } from "./support/race.ts";
 
 type Proof = InTransaction["Service"];
@@ -85,6 +88,43 @@ const outboxRows = Effect.gen(function* outboxRows() {
   return rows[0]?.n ?? -1;
 });
 
+/** One write that requires the proof, with the rows it leaves: a forgery that was refused wrote none. */
+interface Writer {
+  readonly rows: Effect.Effect<number, SqlError, SqlClient>;
+  readonly write: (text: string) => NeedsProof<unknown>;
+}
+
+const auditRows = Effect.gen(function* auditRows() {
+  const sql = yield* SqlClient;
+
+  const rows = yield* sql<{
+    readonly n: number;
+  }>`select count(*)::int as n from audit_log`;
+
+  return rows[0]?.n ?? -1;
+});
+
+const WRITERS = {
+  "AuditLog.record": {
+    rows: auditRows,
+    write: (text) =>
+      Effect.flatMap(Effect.service(AuditLog), (log) =>
+        log.record({
+          action: "department.created",
+          at: AT,
+          client: "browser",
+          entity: "Department",
+          entityKey: text,
+          principal: AuditPrincipal.cases.Person.make({
+            personId: PersonId.make(7),
+          }),
+          sessionId: null,
+        })
+      ),
+  },
+  "Outbox.enqueue": { rows: outboxRows, write: enqueue },
+} satisfies Readonly<Record<string, Writer>>;
+
 /** Whether the exit is a defect that says the proof was not the live one. */
 const refused = (exit: Exit.Exit<unknown, unknown>) =>
   Exit.hasDies(exit) &&
@@ -94,14 +134,17 @@ const assertRefused = (exit: Exit.Exit<unknown, unknown>, label: string) => {
   assert.isTrue(refused(exit), `${label}: ${describeExit(exit)}`);
 };
 
+/** What the forgeries run against: a port that a program of the store's reaches, `Outbox` or `AuditLog`. */
+type Ports = Outbox | AuditLog;
+
 /** A program that needs the proof, as a forger sees it: it runs once the forger has put a proof in its context. */
-type NeedsProof<A> = Effect.Effect<A, never, InTransaction | Outbox>;
+type NeedsProof<A> = Effect.Effect<A, never, InTransaction | Ports>;
 
 interface Forgery {
   /** Gives the program a proof by a way that names nothing of the domain's. */
   readonly provide: <A>(
     program: NeedsProof<A>
-  ) => Effect.Effect<A, never, Outbox>;
+  ) => Effect.Effect<A, never, Ports>;
   /** Whether the forged context answers `yield* InTransaction` (round 3: it does, which is what made it a forgery). */
   readonly answers: boolean;
 }
@@ -172,77 +215,90 @@ layer(postgresDatabase({ maxConnections: 4 }), {
 })("spec 0019: the proof is the live transaction's own", (it) => {
   const forgeryCases = Rec.toEntries(FORGERIES);
 
-  it.effect(
-    "falsifier 1, control: the same write through Transactor.run is accepted and commits one row",
-    () =>
-      Effect.gen(function* controlWrites() {
-        const before = yield* outboxRows;
-        const transactor = yield* Transactor;
-        const ids = yield* transactor.run(enqueue("control"));
+  const writers: readonly (readonly [string, Writer])[] = Rec.toEntries<
+    string,
+    Writer
+  >(WRITERS);
 
-        assert.strictEqual(ids.length, 1);
-        assert.strictEqual(yield* outboxRows, before + 1);
-      })
-  );
+  for (const [port, writer] of writers) {
+    it.effect(
+      `falsifier 1, control: ${port} through Transactor.run is accepted and commits one row`,
+      () =>
+        Effect.gen(function* controlWrites() {
+          const before = yield* writer.rows;
+          const transactor = yield* Transactor;
+          yield* transactor.run(writer.write("control"));
+
+          assert.strictEqual(yield* writer.rows, before + 1);
+        })
+    );
+  }
 
   const proofMakers = Arr.filter(
     forgeryCases,
     ([, candidate]) => candidate.answers
   );
 
-  for (const [name, forgery] of forgeryCases) {
+  for (const [port, writer] of writers) {
+    for (const [name, forgery] of forgeryCases) {
+      it.effect(
+        `falsifier 1: ${name}, outside any transaction, dies as TransactionNotLive on ${port} and writes nothing`,
+        () =>
+          Effect.gen(function* outside() {
+            const before = yield* writer.rows;
+
+            const exit = yield* Effect.exit(
+              forgery.provide(writer.write("forged"))
+            );
+
+            assertRefused(exit, name);
+            assert.strictEqual(yield* writer.rows, before);
+          })
+      );
+    }
+
     it.effect(
-      `falsifier 1: ${name}, outside any transaction, dies as TransactionNotLive and writes nothing`,
+      `falsifier 1, control: a program whose requirement was erased by a cast, run inside a live transaction, inherits that transaction's own proof and ${port} is allowed`,
       () =>
-        Effect.gen(function* outside() {
-          const before = yield* outboxRows;
-          const exit = yield* Effect.exit(forgery.provide(enqueue("forged")));
+        Effect.gen(function* erasedInside() {
+          const before = yield* writer.rows;
 
-          assertRefused(exit, name);
-          assert.strictEqual(yield* outboxRows, before);
-        })
-    );
-  }
-
-  it.effect(
-    "falsifier 1, control: a program whose requirement was erased by a cast, run inside a live transaction, inherits that transaction's own proof and is allowed",
-    () =>
-      Effect.gen(function* erasedInside() {
-        const before = yield* outboxRows;
-
-        yield* transactional(
-          FORGERIES[
-            "the requirement erased by a cast, nothing provided"
-          ].provide(enqueue("erased inside"))
-        );
-
-        assert.strictEqual(yield* outboxRows, before + 1);
-      })
-  );
-
-  for (const [name, forgery] of proofMakers) {
-    it.effect(
-      `falsifier 1: ${name}, inside a live transaction, dies as TransactionNotLive and the transaction writes nothing`,
-      () =>
-        Effect.gen(function* inside() {
-          const before = yield* outboxRows;
-
-          const exit = yield* Effect.exit(
-            transactional(
-              Effect.exit(forgery.provide(enqueue("forged inside"))).pipe(
-                Effect.flatMap((inner) =>
-                  Effect.sync(() => {
-                    assertRefused(inner, name);
-                  })
-                )
-              )
-            )
+          yield* transactional(
+            FORGERIES[
+              "the requirement erased by a cast, nothing provided"
+            ].provide(writer.write("erased inside"))
           );
 
-          assert.isTrue(Exit.isSuccess(exit), describeExit(exit));
-          assert.strictEqual(yield* outboxRows, before);
+          assert.strictEqual(yield* writer.rows, before + 1);
         })
     );
+
+    for (const [name, forgery] of proofMakers) {
+      it.effect(
+        `falsifier 1: ${name}, inside a live transaction, dies as TransactionNotLive on ${port} and the transaction writes nothing`,
+        () =>
+          Effect.gen(function* inside() {
+            const before = yield* writer.rows;
+
+            const exit = yield* Effect.exit(
+              transactional(
+                Effect.exit(
+                  forgery.provide(writer.write("forged inside"))
+                ).pipe(
+                  Effect.flatMap((inner) =>
+                    Effect.sync(() => {
+                      assertRefused(inner, name);
+                    })
+                  )
+                )
+              )
+            );
+
+            assert.isTrue(Exit.isSuccess(exit), describeExit(exit));
+            assert.strictEqual(yield* writer.rows, before);
+          })
+      );
+    }
   }
 
   for (const [name, forgery] of proofMakers) {
@@ -358,6 +414,49 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         assert.strictEqual(yield* outboxRows, before + ROUNDS);
       }),
     { timeout: 120_000 }
+  );
+
+  it.effect(
+    "the stated limit (spec 0019 R7): a context captured inside a live level and provided in another transaction is that level's own, so it is accepted and writes into the first level, while it lives",
+    () =>
+      Effect.gen(function* carriedContext() {
+        const transactor = yield* Transactor;
+        const before = yield* outboxRows;
+
+        const captured =
+          yield* Deferred.make<Context.Context<InTransaction | Outbox>>();
+
+        const finish = yield* Deferred.make<null>();
+
+        const first = yield* transactor
+          .run(
+            Effect.gen(function* firstLevel() {
+              yield* Deferred.succeed(
+                captured,
+                yield* Effect.context<InTransaction | Outbox>()
+              );
+
+              yield* Deferred.await(finish);
+
+              return yield* Effect.fail("the first level rolls back");
+            })
+          )
+          .pipe(Effect.exit, Effect.forkChild);
+
+        const carried = yield* Deferred.await(captured);
+
+        // The second transaction commits and says it succeeded, and the row is not there afterwards: it was written
+        // into the first level, which the carried context names, and rolled back with it.
+        const second = yield* Effect.exit(
+          transactor.run(Effect.provideContext(enqueue("carried"), carried))
+        );
+
+        yield* Deferred.succeed(finish, null);
+        yield* Fiber.join(first);
+
+        assert.isTrue(Exit.isSuccess(second), describeExit(second));
+        assert.strictEqual(yield* outboxRows, before);
+      })
   );
 
   it.effect(

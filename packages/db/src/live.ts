@@ -14,8 +14,17 @@
  *   unless the map holds exactly that proof under that pair. The comparison is by reference: a copy is a forgery.
  *
  * So the check refuses a proof that nothing here made, a proof of a transaction that has ended, a proof of another
- * transaction (finished or running on another connection), a proof of the outer level where a nested one runs, and no
- * proof at all. The cost of a call is two context lookups and one `WeakMap` read.
+ * transaction when the fiber runs in a different level (finished, or running on another connection), a proof of the
+ * outer level where a nested one runs, and no proof at all. The cost of a call is two context lookups and one `WeakMap`
+ * read.
+ *
+ * What it does not stop: a program that captures its whole context inside a live level (`Effect.context()`) and
+ * provides it around a method elsewhere, even inside another transaction. That context holds the level's proof and
+ * the level's own `TransactionConnection` pair together, so the check passes, and the statements go to the level that
+ * the context names, which is that level's transaction for as long as it lives (a finished level's pair is no longer in
+ * the map, so it is refused). The write lands in the first level and commits or rolls back with it, so it is no
+ * forgery of a transaction that does not exist, and it needs the program to carry a live context out of its level on
+ * purpose, which no lint sees. This module does not close it (spec 0019 R7, `liveProof.postgres.test.ts`).
  *
  * Which methods verify is not listed here: it is the `Requires` rows of the domain's `TransactionModes`, the one
  * declaration of what a port method asks of a transaction, so a method that requires `InTransaction` is covered by being
