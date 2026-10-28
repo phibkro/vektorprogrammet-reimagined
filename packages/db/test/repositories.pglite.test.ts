@@ -386,11 +386,18 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
           }),
         ]);
 
-        const claimed = yield* delivery.claimDue({
-          ids,
-          leaseSeconds: 60,
-          limit: 10,
-        });
+        const claimAll = Effect.forEach(ids, (id) => delivery.claim(id, 60));
+
+        /** What a second claim of each row finds: the tags only. */
+        const claimTags = Effect.map(claimAll, (found) =>
+          Arr.map(found, (claim) => claim._tag)
+        );
+
+        const claims = yield* claimAll;
+
+        const claimed = Arr.flatMap(claims, (claim) =>
+          Predicate.isTagged(claim, "Claimed") ? [claim.row] : []
+        );
 
         assert.deepStrictEqual(
           Arr.map(claimed, (row) => row.id),
@@ -408,8 +415,9 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
           ["første", "andre"]
         );
         assert.deepStrictEqual(
-          yield* delivery.claimDue({ ids, leaseSeconds: 60, limit: 10 }),
-          []
+          yield* claimTags,
+          ["Held", "Held"],
+          "a live claim holds each row"
         );
         const [first, second] = claimed;
 
@@ -434,13 +442,18 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
             second.id,
             second.claimToken,
             "smtp 451",
-            "dead"
+            DateTime.add(AT, { minutes: 5 })
           ),
           "recorded"
         );
+        assert.strictEqual(
+          yield* delivery.markDead(second.id, "gave up"),
+          "failed"
+        );
         assert.deepStrictEqual(
-          yield* delivery.claimDue({ ids, leaseSeconds: 60, limit: 10 }),
-          []
+          yield* claimTags,
+          ["Settled", "Settled"],
+          "a delivered row and a dead row are both settled"
         );
       })
   );

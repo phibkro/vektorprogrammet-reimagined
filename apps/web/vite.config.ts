@@ -12,6 +12,10 @@ import {
   COMPATIBILITY_FLAGS,
   CONTACT_RATE_LIMIT,
   CRON_TRIGGERS,
+  DEAD_LETTER_CONSUMER,
+  OUTBOX_CONSUMER,
+  outboxDeadLetterName,
+  outboxQueueName,
   publicFilesBucket,
   WORKER_MAIN,
 } from "./worker.config";
@@ -75,6 +79,33 @@ const localDatabaseUrl = (raw: string | undefined): string | undefined => {
   return url.toString();
 };
 
+/**
+ * The outbox queue and its dead-letter queue on the dev server (spec 0008b): Miniflare runs the Worker's real `queue`
+ * handler against them, with the retry count of the deployed consumer, so `vp dev` and the browser tests deliver the
+ * way `main` does. A batch waits one second for company instead of five, so a mail is in the mailbox about as
+ * soon as a test looks. A standalone build has no queue: it is labelled `preview`, which has none.
+ */
+const localQueues = {
+  consumers: [
+    {
+      dead_letter_queue: outboxDeadLetterName("local"),
+      max_batch_size: OUTBOX_CONSUMER.batchSize,
+      max_batch_timeout: 1,
+      max_retries: OUTBOX_CONSUMER.maxRetries,
+      queue: outboxQueueName("local"),
+      retry_delay: OUTBOX_CONSUMER.retryDelay,
+    },
+    {
+      max_batch_size: DEAD_LETTER_CONSUMER.batchSize,
+      max_batch_timeout: 1,
+      max_retries: DEAD_LETTER_CONSUMER.maxRetries,
+      queue: outboxDeadLetterName("local"),
+      retry_delay: DEAD_LETTER_CONSUMER.retryDelay,
+    },
+  ],
+  producers: [{ binding: "OUTBOX_QUEUE", queue: outboxQueueName("local") }],
+};
+
 const standaloneWorker = (devServer: boolean) => {
   const hyperdrive = {
     binding: "HYPERDRIVE" as const,
@@ -94,6 +125,7 @@ const standaloneWorker = (devServer: boolean) => {
       hyperdrive: [hyperdrive],
       main: WORKER_MAIN,
       name: "vektorprogrammet-web-standalone",
+      queues: devServer ? localQueues : undefined,
       r2_buckets: [
         { binding: "PUBLIC_FILES", bucket_name: publicFilesBucket("local") },
       ],

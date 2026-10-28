@@ -23,7 +23,10 @@ import { HttpClient, HttpClientRequest } from "effect/http";
 import type { Deployment } from "./deployment";
 import type { WorkerEnv } from "./env";
 
-/** A message could not be handed to its transport; the outbox retries it with backoff. */
+/**
+ * A message could not be handed to its transport; the queue retries it with backoff (spec 0008b). `reason` is the class of the
+ * failure, never a provider's text: the row keeps it as `last_error` and the Integrations page shows it.
+ */
 export class DeliveryFailed extends Schema.TaggedError<
   DeliveryFailed,
   { readonly brand: unique symbol }
@@ -144,10 +147,10 @@ export const productionSenderLayer = (
                   : { ...payload, replyTo: email.replyTo };
 
               return Effect.tryPromise({
-                catch: (cause) =>
-                  new DeliveryFailed({
-                    reason: `send_email: ${String(cause)}`,
-                  }),
+                // The class of the failure, never the provider's text: it can name the recipient, and the row keeps
+                // `reason` as `last_error` for the Integrations page (spec 0008b).
+                catch: () =>
+                  new DeliveryFailed({ reason: "send_email rejected" }),
                 try: () => sendEmail.send(emailPayload),
               }).pipe(Effect.asVoid);
             },
@@ -161,7 +164,7 @@ export const productionSenderLayer = (
                 Effect.asVoid,
                 Effect.mapError(
                   (error) =>
-                    new DeliveryFailed({ reason: `slack: ${error.message}` })
+                    new DeliveryFailed({ reason: `slack ${error.reason._tag}` })
                 )
               ),
           })

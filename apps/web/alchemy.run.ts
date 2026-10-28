@@ -10,8 +10,9 @@
  * - any other stage (`pr-<n>`): a Cloudflare Worker Preview of each `main` Worker, on its own Neon
  *   branch. A Preview cannot own crons, so the registered jobs (the outbox sweep, the semester job, the digest, the
  *   alumni consent job, the Workspace sync and the retention run, specs 0003, 0006, 0007b and 0008) run on
- *   `main` and `production` only; a Preview's semester rows come from its Neon fork of `dev`. A `Web` Preview
- *   reads the `Cms` Preview of the same pull request.
+ *   `main` and `production` only; a Preview's semester rows come from its Neon fork of `dev`. Nor can it own a queue
+ *   consumer, so the outbox queue and its dead-letter queue exist on `main` and `production` only (spec 0008b) and a
+ *   Preview delivers its outbox rows in `waitUntil`. A `Web` Preview reads the `Cms` Preview of the same pull request.
  *
  * Connection details are env vars read at deploy time (never committed): NEON_HOST, NEON_DATABASE,
  * NEON_USER, NEON_APP_PASSWORD (the application's role), NEON_EMDASH_USER, NEON_EMDASH_PASSWORD (the
@@ -23,7 +24,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as GitHub from "alchemy/GitHub";
 import * as Output from "alchemy/Output";
-import { Config, Effect, Layer, Redacted } from "effect";
+import { Config, Effect, Layer, Option, Redacted } from "effect";
 
 import type { WorkerEnv } from "./src/server/env";
 import {
@@ -33,12 +34,16 @@ import {
   COMPATIBILITY_FLAGS,
   CONTACT_RATE_LIMIT,
   CRON_TRIGGERS,
+  DEAD_LETTER_CONSUMER,
+  OUTBOX_CONSUMER,
   TURNSTILE_TEST_KEYS,
   WORKER_MAIN,
   WORKER_PLACEMENT,
   cmsMediaBucket,
   emdashOrigin,
   neonOrigin,
+  outboxDeadLetterName,
+  outboxQueueName,
   publicFilesBucket,
 } from "./worker.config";
 
@@ -132,6 +137,56 @@ const cms = Effect.gen(function* deployCms() {
   });
 });
 
+/**
+ * The outbox queue and its dead-letter queue (spec 0008b). A Preview cannot own a queue consumer ("Queue consumers
+ * cannot target a Preview", Cloudflare's Previews documentation), and a Preview that produced to the stage's queue
+ * would have its ids consumed by the base Worker against the base stage's database. So only production and the base
+ * stage have a queue, and a Preview's Worker finds no `OUTBOX_QUEUE` and delivers in `waitUntil`.
+ */
+const outboxQueues = (stage: string, kind: StageKind) =>
+  kind === "preview"
+    ? Effect.succeedNone
+    : Effect.gen(function* declareOutboxQueues() {
+        return Option.some({
+          deadLetter: yield* Cloudflare.Queues.Queue("OutboxDeadLetter", {
+            name: outboxDeadLetterName(stage),
+          }),
+          outbox: yield* Cloudflare.Queues.Queue("Outbox", {
+            name: outboxQueueName(stage),
+          }),
+        });
+      });
+
+type OutboxQueues = Effect.Success<ReturnType<typeof outboxQueues>>;
+
+/**
+ * One Worker consumes both queues: its `queue` handler tells them apart by name (`DEAD_LETTER_SUFFIX`). Cloudflare allows
+ * one Worker consumer per queue, and a consumer belongs to a script, which is why a Preview cannot have one. The queue's
+ * consumer names the dead-letter queue, which is what moves a message there after its last attempt.
+ */
+const consumeOutbox = (
+  queues: OutboxQueues,
+  scriptName: Output.Output<string>
+) =>
+  Effect.gen(function* declareOutboxConsumers() {
+    if (Option.isNone(queues)) {
+      return;
+    }
+
+    yield* Cloudflare.Queues.Consumer("OutboxConsumer", {
+      deadLetterQueue: queues.value.deadLetter.queueName,
+      queueId: queues.value.outbox.queueId,
+      scriptName,
+      settings: OUTBOX_CONSUMER,
+    });
+
+    yield* Cloudflare.Queues.Consumer("OutboxDeadLetterConsumer", {
+      queueId: queues.value.deadLetter.queueId,
+      scriptName,
+      settings: DEAD_LETTER_CONSUMER,
+    });
+  });
+
 const web = (cmsWorker: Effect.Success<typeof cms>) =>
   Effect.gen(function* deployWeb() {
     const stage = yield* Alchemy.Stage;
@@ -219,13 +274,19 @@ const web = (cmsWorker: Effect.Success<typeof cms>) =>
 
     const github = yield* GitHub.GitHubEnv;
 
+    const queues = yield* outboxQueues(stage, kind);
+
     const worker = yield* Cloudflare.Website.Vite("Web", {
       compatibility: { date: COMPATIBILITY_DATE, flags: COMPATIBILITY_FLAGS },
-      env,
+      env: Option.isNone(queues)
+        ? env
+        : { ...env, OUTBOX_QUEUE: queues.value.outbox },
       main: WORKER_MAIN,
       observability: OBSERVABILITY,
       ...(yield* placementOf("Web", stage, [...CRON_TRIGGERS])),
     });
+
+    yield* consumeOutbox(queues, worker.workerName);
 
     // One comment per pull request, updated in place on every push (stable logical id).
     if (github?.pr !== undefined) {

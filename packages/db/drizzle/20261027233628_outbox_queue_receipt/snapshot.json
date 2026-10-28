@@ -1,0 +1,37 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0c87b98b-8446-4a5f-91a0-7308f42d73b3",
+  "prevIds": ["dc3d6956-f9d9-4c56-8ad4-70ccfc2acb4c"],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "outbox", "queued_at"],
+      "writes": [
+        "s|col|public.outbox.queued_at",
+        "n|col|public.outbox.queued_at",
+        "e|col|public.outbox.queued_at"
+      ],
+      "reads": ["n|tbl|public.outbox", "n|sch|public"]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "outbox",
+        "name": "queued_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

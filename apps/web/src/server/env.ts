@@ -9,6 +9,7 @@
 import type {
   ExecutionContext,
   Hyperdrive,
+  Queue,
   R2Bucket,
   RateLimit,
   SendEmail,
@@ -37,6 +38,11 @@ export interface WorkerEnv {
   readonly CMS_TOKEN: string;
   /** The origin the site is served from (`https://…`, no trailing slash), for the links in messages. Empty where no real message is sent. */
   readonly SITE_URL: string;
+  /**
+   * The outbox queue (spec 0008b): bound on `production` and `main` only, because a Worker Preview cannot own a queue
+   * consumer. Present: committed ids go on the queue. Absent (a Preview): they are delivered in `waitUntil`.
+   */
+  readonly OUTBOX_QUEUE?: Queue<string>;
   /** Production only: Cloudflare Email Service binding. */
   readonly SEND_EMAIL?: SendEmail;
   /** Production only: sender address for outbox e-mail. */

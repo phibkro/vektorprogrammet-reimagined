@@ -1,22 +1,46 @@
 /**
- * The handler of `sweepOutbox` (the `outboxSweep` job, spec 0006 R1). The domain declares the command and grants it to
- * `System("outboxSweep")` alone; the handler lives here because delivery needs the transports and `packages/db`'s
- * delivery side. Both the cron tick (every due row) and a command's `waitUntil` (the ids it just enqueued) run it as
- * that principal, through `authorize`, like every other command.
+ * The handlers of the outbox's three commands (the `outboxSweep` job, spec 0006 R1, spec 0008b). The domain declares them
+ * and grants them to `System("outboxSweep")` alone; the handlers live here because delivery needs the transports and
+ * `packages/db`'s delivery side. Everything that touches a row runs as that principal, through `authorize`, like every
+ * other command: the queue's consumer, the dead-letter queue's consumer, the Worker Preview's direct delivery and the
+ * cron sweep.
  */
+import { OutboxDelivery } from "@vektorprogrammet/db";
 import { Commands, OutboxSweep } from "@vektorprogrammet/domain";
-import { Effect } from "effect";
+import { DateTime, Effect } from "effect";
 
-import { deliverOutbox } from "./outboxDelivery";
+import { deliverOutbox, failOutbox } from "./outboxDelivery";
 
 export const OutboxHandlers = OutboxSweep.OutboxRpc.toLayer({
+  deliverOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.deliverOutbox, {
+    resource: () => Effect.succeed({}),
+    run: ({ ids }) => deliverOutbox(ids),
+  }),
+  failOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.failOutbox, {
+    resource: () => Effect.succeed({}),
+    run: ({ ids }) => failOutbox(ids),
+  }),
   sweepOutbox: OutboxSweep.OutboxDomain.handle(OutboxSweep.sweepOutbox, {
     resource: () => Effect.succeed({}),
-    run: (options) => deliverOutbox(options),
+    run: ({ limit }) =>
+      Effect.gen(function* findStale() {
+        const delivery = yield* OutboxDelivery;
+        const now = yield* DateTime.now;
+
+        return {
+          stale: yield* delivery.stale({
+            before: DateTime.subtractDuration(
+              now,
+              OutboxSweep.DeliveryPolicy.requeueAfter
+            ),
+            limit,
+          }),
+        };
+      }),
   }),
 });
 
-/** The sweep behind the in-process client; see `Commands.inProcess`. */
+/** The commands behind the in-process client; see `Commands.inProcess`. */
 export const withOutbox = Commands.inProcess(
   OutboxSweep.OutboxRpc,
   OutboxHandlers

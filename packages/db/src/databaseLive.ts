@@ -32,6 +32,7 @@ import {
   AuditLogLive,
   OutboxDeliveryLive,
   OutboxLive,
+  OutboxReportsLive,
 } from "./repositories/outbox.ts";
 import {
   AlumniRequestsLive,
@@ -93,6 +94,7 @@ const Repositories = Layer.mergeAll(
   WelcomeLedgerLive,
   PrincipalDirectoryLive,
   OutboxLive,
+  OutboxReportsLive,
   OutboxDeliveryLive,
   AuditLogLive,
   ConsentRepositoryLive,

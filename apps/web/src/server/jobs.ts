@@ -22,6 +22,7 @@ import type {
 import type { DateTime, Schema } from "effect";
 import { Array as Arr, Cause, Effect, Exit, Predicate } from "effect";
 
+import { publishingAfterCommit } from "./outboxPublisher";
 import { Transactor } from "./transactor";
 
 /** What a runner can fail with; any other failure is a defect and is recorded the same way. */
@@ -74,27 +75,32 @@ interface Progress {
 /** The reason kept with a failed attempt: the cause, cut by the repository. */
 const reasonOf = (cause: Cause.Cause<unknown>): string => Cause.pretty(cause);
 
-/** One chunk: prepare outside the transaction, then commit it and its cursor together. */
+/**
+ * One chunk: prepare outside the transaction, then commit it and its cursor together. The outbox rows that the chunk
+ * enqueued are published once it has committed (spec 0008b), not at the next tick's sweep.
+ */
 const oneChunk = <R>(job: Job.Job, runner: Runner<R>, held: JobRun.Held) =>
   Effect.gen(function* chunkOfRun() {
     const runs = yield* JobRun.JobRuns;
     const transactor = yield* Transactor;
     const commit = yield* runner.prepare(held);
 
-    return yield* transactor.run(
-      Effect.gen(function* committed() {
-        const result = yield* commit;
+    return yield* publishingAfterCommit(
+      transactor.run(
+        Effect.gen(function* committed() {
+          const result = yield* commit;
 
-        yield* result.done
-          ? runs.finish(held, result.counts)
-          : runs.advance(
-              held,
-              { counts: result.counts, cursor: result.cursor },
-              job.leaseSeconds
-            );
+          yield* result.done
+            ? runs.finish(held, result.counts)
+            : runs.advance(
+                held,
+                { counts: result.counts, cursor: result.cursor },
+                job.leaseSeconds
+              );
 
-        return result;
-      })
+          return result;
+        })
+      )
     );
   });
 

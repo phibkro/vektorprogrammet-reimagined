@@ -121,7 +121,9 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
-| `sweepOutbox` | `:sweep` | outbox | Deliver due mail, Slack and credential intents. Claims at most `limit` due rows, or only `ids`; code mail is minted and acknowledged in its delivery transaction (spec 0007 R1). | System(outboxSweep) |
+| `sweepOutbox` | `:sweep` | outbox | Find the pending outbox rows that no queue message covers any more. Names at most `limit` pending rows without a fresh receipt (older than `DeliveryPolicy.requeueAfter`) and no live claim: the job puts their ids on the queue again. It changes and delivers nothing: the queue's consumer delivers. | System(outboxSweep) |
+| `deliverOutbox` | `:deliver` | outbox | Deliver the mail, Slack and credential intents that a queue message names. Claims the rows the queue message names, each only while it is pending and no live claim holds it; code mail is minted and acknowledged in its delivery transaction (spec 0007 R1). | System(outboxSweep) |
+| `failOutbox` | `:fail` | outbox | Mark the rows that the queue gave up on as failed. The dead-letter queue's consumer: a row that is still pending and unclaimed becomes `dead`; a delivered one is left alone. | System(outboxSweep) |
 
 ### SupportTicket
 

@@ -48,11 +48,11 @@ import { TestClock } from "effect/testing";
 import { AccountDelivery } from "../src/server/accountDelivery";
 import { workspaceSyncRunner } from "../src/server/jobRunners";
 import { dispatchTick } from "../src/server/jobs";
-import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender } from "../src/server/senders";
 import { Transactor } from "../src/server/transactor";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { workspaceDirectoryLayer } from "../src/server/workspace";
+import { deliverPending } from "./support/deliveryLive";
 import { ADMIN, adminOf } from "./support/principals";
 import { rowsIn } from "./support/rowCount";
 import { workspaceDatabase } from "./support/workspaceDatabase";
@@ -612,7 +612,7 @@ layer(live, { excludeTestServices: true })(
               "queued, not applied before commit's delivery"
             );
 
-            const deliver = deliverOutbox({ limit: 50 }).pipe(
+            const deliver = deliverPending.pipe(
               Effect.provide(
                 Layer.mergeAll(
                   writerOver(directory, asked),
@@ -625,8 +625,9 @@ layer(live, { excludeTestServices: true })(
             const delivered = yield* deliver;
 
             assert.strictEqual(
-              Arr.filter(delivered, (row) => row.outcome === "delivered")
-                .length,
+              Arr.filter(delivered, (row) =>
+                Predicate.isTagged(row, "Delivered")
+              ).length,
               20
             );
             assert.deepStrictEqual((yield* Ref.get(directory)).groups, {
@@ -665,7 +666,7 @@ layer(live, { excludeTestServices: true })(
               Arr.findFirst((yield* latest).accounts, (line) => line.generated)
             );
 
-            yield* deliverOutbox({ limit: 50 }).pipe(
+            yield* deliverPending.pipe(
               Effect.provide(
                 Layer.mergeAll(
                   writer,

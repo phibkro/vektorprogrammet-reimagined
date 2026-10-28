@@ -23,10 +23,9 @@ import {
   Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
-import { TestClock } from "effect/testing";
 
 import { deliverOutbox } from "../src/server/outboxDelivery";
-import { live } from "./support/deliveryLive";
+import { deliverPending, live } from "./support/deliveryLive";
 
 const columns = Schema.Array(
   Schema.Struct({
@@ -96,14 +95,13 @@ const latestToken = Effect.gen(function* latestToken() {
 }).pipe(Effect.orDie);
 
 /**
- * Makes a delivered message due again on the application's clock. The delivery compares `next_attempt_at`
- * with `Clock` (whole milliseconds); PostgreSQL's `now()` has microseconds, so a row made due by `now()`
- * is up to a millisecond ahead of the claim and is skipped (issue #21). `created_at` was written by the
- * same `Clock` and is never later than the next claim.
+ * Makes a delivered message pending again, as a redelivery after a crash would find it. The claim asks only for a pending
+ * row with no live claim (spec 0008b), never whether it is due, so there is no clock to compare and nothing to skip a
+ * row by a fraction of a millisecond (the cause of issue #21).
  */
 const requeue = Effect.fnUntraced(function* requeue(id: OutboxMessageId) {
   const sql = yield* SqlClient;
-  yield* sql`update outbox set status = 'pending', delivered_at = null, next_attempt_at = created_at where id = ${Number(id)}`;
+  yield* sql`update outbox set status = 'pending', delivered_at = null where id = ${Number(id)}`;
 });
 
 const ROUNDS = 1000;
@@ -154,11 +152,11 @@ const seedLeader = Effect.gen(function* seedLeader() {
 const retriedRound = (personId: number) =>
   Effect.gen(function* deliverTwice() {
     const id = yield* invite(personId);
-    const [first] = yield* deliverOutbox({ ids: [id], limit: 1 });
-    assert.strictEqual(first?.outcome, "delivered");
+    const [first] = yield* deliverOutbox([id]);
+    assert.strictEqual(first?._tag, "Delivered");
     yield* requeue(id);
-    const [retry] = yield* deliverOutbox({ ids: [id], limit: 1 });
-    assert.strictEqual(retry?.outcome, "delivered");
+    const [retry] = yield* deliverOutbox([id]);
+    assert.strictEqual(retry?._tag, "Delivered");
   });
 
 layer(live, { excludeTestServices: true })(
@@ -195,8 +193,8 @@ layer(live, { excludeTestServices: true })(
             )
           );
           const afterCommand = yield* snapshot;
-          const [first] = yield* deliverOutbox({ limit: 10 });
-          assert.strictEqual(first?.outcome, "delivered");
+          const [first] = yield* deliverPending;
+          assert.strictEqual(first?._tag, "Delivered");
           const token1 = yield* latestToken;
           assert.isTrue(
             Option.isSome(yield* codePrincipal(token1, "activation"))
@@ -207,8 +205,8 @@ layer(live, { excludeTestServices: true })(
           // Simulate the same message being retried after a crash; a new code replaces the old one.
           assert.isDefined(first);
           yield* requeue(first.id);
-          const [retry] = yield* deliverOutbox({ limit: 10 });
-          assert.strictEqual(retry?.outcome, "delivered");
+          const [retry] = yield* deliverPending;
+          assert.strictEqual(retry?._tag, "Delivered");
           const token2 = yield* latestToken;
           assert.notStrictEqual(token1, token2);
           assert.isTrue(
@@ -285,32 +283,6 @@ layer(live, { excludeTestServices: true })(
           assert.deepStrictEqual(losers, []);
         }),
       { timeout: 120_000 }
-    );
-
-    it.effect(
-      "the claim does not take a row due a fraction of a millisecond after the application clock",
-      () =>
-        Effect.gen(function* subMillisecondDue() {
-          const sql = yield* SqlClient;
-          yield* seedLeader;
-          const id = yield* invite(900);
-          yield* sql`update outbox set next_attempt_at = '2027-01-15T08:00:00.0005Z'::timestamptz where id = ${Number(id)}`;
-
-          const attempts = yield* Effect.gen(function* claimAt() {
-            yield* TestClock.setTime(Date.parse("2027-01-15T08:00:00.000Z"));
-            const early = yield* deliverOutbox({ ids: [id], limit: 1 });
-            yield* TestClock.setTime(Date.parse("2027-01-15T08:00:00.001Z"));
-            const due = yield* deliverOutbox({ ids: [id], limit: 1 });
-
-            return { due, early };
-          }).pipe(Effect.provide(TestClock.layer()));
-
-          assert.deepStrictEqual(attempts.early, []);
-          assert.deepStrictEqual(
-            Arr.map(attempts.due, (row) => row.outcome),
-            ["delivered"]
-          );
-        })
     );
   }
 );

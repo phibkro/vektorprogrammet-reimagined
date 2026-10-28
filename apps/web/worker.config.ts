@@ -1,5 +1,5 @@
-import { Job, JobRegistry } from "@vektorprogrammet/domain";
-import { Config, Effect } from "effect";
+import { Job, JobRegistry, OutboxSweep } from "@vektorprogrammet/domain";
+import { Config, Duration, Effect } from "effect";
 
 /**
  * Worker settings shared by `alchemy.run.ts` (deployed Workers) and
@@ -126,3 +126,39 @@ export const CRON_TRIGGERS: readonly string[] = Job.cronTriggers(
  * The browser test triggers the Worker's `scheduled` handler with it.
  */
 export const RETENTION_CRON: string = JobRegistry.retention.schedule.cron;
+
+/**
+ * The outbox's Cloudflare Queues (spec 0008b). The queue holds outbox row ids and nothing else; the dead-letter queue
+ * takes a message that was delivered `DeliveryPolicy.attempts` times without success, and its consumer ends the row.
+ * Previews bind neither (a Preview cannot own a queue consumer), so only `production` and the base stage have them.
+ */
+export const outboxQueueName = (stage: string): string => `vp-outbox-${stage}`;
+
+/** The dead-letter queue's name is the queue's, plus this: the Worker's one `queue` handler tells the two apart by it. */
+export const DEAD_LETTER_SUFFIX = "-dlq";
+
+export const outboxDeadLetterName = (stage: string): string =>
+  `${outboxQueueName(stage)}${DEAD_LETTER_SUFFIX}`;
+
+/**
+ * The consumer's settings. Cloudflare delivers a message `max_retries + 1` times, so `max_retries` is the declared number
+ * of attempts less one. A batch is at most ten messages (the default), and a message that waits for a retry waits as long
+ * as the policy's delay says, which the consumer sets per message (`message.retry({ delaySeconds })`), so `retryDelay` is
+ * only the queue's default for a retry that names none (a handler that threw).
+ */
+export const OUTBOX_CONSUMER = {
+  batchSize: 10,
+  maxRetries: OutboxSweep.DeliveryPolicy.attempts - 1,
+  maxWaitTimeMs: 5000,
+  retryDelay: Math.ceil(
+    Duration.toSeconds(OutboxSweep.DeliveryPolicy.retryBase)
+  ),
+} as const;
+
+/** The dead-letter queue's consumer: a message there is one row to end, so nothing batches and nothing retries long. */
+export const DEAD_LETTER_CONSUMER = {
+  batchSize: 10,
+  maxRetries: OutboxSweep.DeliveryPolicy.attempts - 1,
+  maxWaitTimeMs: 5000,
+  retryDelay: OUTBOX_CONSUMER.retryDelay,
+} as const;

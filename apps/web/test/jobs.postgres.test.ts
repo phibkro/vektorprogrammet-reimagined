@@ -11,7 +11,15 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
-import { Job, JobRun } from "@vektorprogrammet/domain";
+import {
+  EmailAddress,
+  Job,
+  JobRun,
+  Outbox,
+  OutboxMessage,
+  OutboxMessageId,
+  validationFailed,
+} from "@vektorprogrammet/domain";
 import type { SystemJob } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -31,8 +39,17 @@ import { TestClock } from "effect/testing";
 import { dispatchTick } from "../src/server/jobs";
 import type { Runner } from "../src/server/jobs";
 import { Transactor, transactorLayer } from "../src/server/transactor";
+import { Publications, recordingPublisher } from "./support/publications";
+import { rowsIn } from "./support/rowCount";
 
 const T0 = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
+
+const message = OutboxMessage.cases.Email.make({
+  replyTo: null,
+  subject: "Oppsummering",
+  text: "Hei",
+  to: EmailAddress.make("leder@example.org"),
+});
 
 const tickAt = (minutes: number) => DateTime.add(T0, { minutes });
 
@@ -42,7 +59,11 @@ const live = Layer.unwrap(
       Layer.provideMerge(DatabaseLive({ maxConnections: 30, url }))
     )
   )
-).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+).pipe(
+  Layer.provideMerge(recordingPublisher),
+  Layer.provideMerge(migratedTestDatabase),
+  Layer.orDie
+);
 
 /** A test job: due at every tick, with the budget and attempts a test sets. */
 const declared = <const Name extends SystemJob>(
@@ -101,6 +122,20 @@ const probeRunner = (options: {
             done: done + 1 === options.total,
           };
         })
+    ),
+});
+
+/** A runner whose chunk enqueues one message, and fails after doing so when `fails`. */
+const enqueuing = (fails: boolean): Runner<Outbox> => ({
+  prepare: () =>
+    Effect.succeed(
+      Effect.gen(function* chunk() {
+        yield* (yield* Outbox).enqueue([message]);
+
+        return fails
+          ? yield* validationFailed(["chunk"], "refused after queueing")
+          : { counts: { queued: 1 }, cursor: null, done: true };
+      })
     ),
 });
 
@@ -586,6 +621,54 @@ layer(live, { excludeTestServices: true })(
               ["semesters", "endingSoon"],
               "the local trigger passes no cron, and then every job's due check runs, in declaration order"
             );
+          })
+      );
+
+      layerTest.effect(
+        "spec 0008b: a job's chunk publishes the outbox ids it enqueued once the chunk has committed; a chunk that rolls back publishes none",
+        () =>
+          Effect.gen(function* publicationAfterChunk() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(T0));
+            const sql = yield* SqlClient;
+            const published = yield* Publications;
+            const job = declared("semesters", { chunksPerTick: 1 });
+
+            yield* sql`delete from job_run where job = 'semesters'`;
+            yield* sql`truncate outbox restart identity`;
+            yield* Ref.set(published, []);
+
+            yield* dispatchTick(
+              [declared("semesters", { chunksPerTick: 1, maxAttempts: 1 })],
+              { semesters: enqueuing(true) },
+              { at: T0 }
+            ).pipe(Effect.provide(Logger.layer([])));
+
+            assert.deepStrictEqual(
+              yield* Ref.get(published),
+              [],
+              "the chunk rolled back: its row and its publication with it"
+            );
+            assert.strictEqual(yield* rowsIn("outbox"), 0);
+
+            yield* sql`delete from job_run where job = 'semesters'`;
+
+            yield* dispatchTick(
+              [job],
+              { semesters: enqueuing(false) },
+              { at: T0 }
+            ).pipe(Effect.provide(Logger.layer([])));
+
+            // A sequence is not rolled back, so the committed row's id is read, not assumed.
+            const stored = yield* sql<{
+              readonly id: number;
+            }>`select id from outbox`;
+
+            assert.deepStrictEqual(
+              yield* Ref.get(published),
+              Arr.map(stored, (row) => OutboxMessageId.make(String(row.id))),
+              "the committed chunk published its one id"
+            );
+            assert.strictEqual(stored.length, 1);
           })
       );
     });

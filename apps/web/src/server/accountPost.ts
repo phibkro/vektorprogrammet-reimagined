@@ -139,7 +139,10 @@ const useCode = (
 
       if (
         receipts.length !== enqueued.length ||
-        Arr.some(receipts, (receipt) => receipt.outcome !== "delivered")
+        Arr.some(
+          receipts,
+          (receipt) => !Predicate.isTagged(receipt, "Delivered")
+        )
       ) {
         return Response.json(
           {

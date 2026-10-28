@@ -24,6 +24,7 @@ import type {
   SocialEventRepository,
   TeamRepository,
   WelcomeLedger,
+  OutboxReports,
   WorkspaceReports,
 } from "@vektorprogrammet/domain";
 import { Effect } from "effect";
@@ -55,6 +56,7 @@ export type ViewServices =
   | Outbox
   | AuditLog
   | WelcomeLedger
+  | OutboxReports
   | WorkspaceReports;
 
 /** Runs a command as `principal` exactly as a server function does: in a transaction, through the error table. */

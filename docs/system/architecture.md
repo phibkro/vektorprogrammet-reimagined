@@ -82,6 +82,8 @@ flowchart LR
   W -->|"REST, read-only token"| CMS["apps/cms: EmDash<br/>second Worker"]
   CMS -->|Hyperdrive| PGC[("Neon: schema emdash")]
   CMS -->|binding| R2M[("R2: CMS media")]
+  W -->|"outbox ids (main, production)"| Q[("Cloudflare Queues:<br/>outbox + dead-letter")]
+  Q -->|"queue handler"| W
   W -->|"outbox, production only"| MAIL["Cloudflare Email Service"]
   W -->|"outbox, behind a switch"| GWS["Google Workspace"]
   W -->|siteverify| TS["Turnstile"]
@@ -104,7 +106,7 @@ Jobs are declared in code (`packages/domain`): name, when the job is due, its Sy
 | Job | Due when |
 | --- | --- |
 | Semesters | Each tick; idempotent |
-| Outbox sweep | Each tick |
+| Outbox sweep | Each tick; puts rows that no queue message covers back on the queue |
 | Admission alerts | An admission period has opened and has no alert run |
 | Ending soon | Four weeks before the semester ends; once per semester |
 | Alumni consent | A person's last engagement has ended and no consent mail has gone out |
@@ -126,7 +128,7 @@ Jobs are declared in code (`packages/domain`): name, when the job is due, its Sy
 | Permissions | Grant table + `authorize` | Running (spec 0006, ADR 0001) |
 | Authentication | Better Auth (library), its own `pg` client for the auth tables only | Phase 2 (accepted brief revision) |
 | Content | EmDash 1.3 headless CMS | Running (spec 0005) |
-| Background work | Postgres outbox delivered by `waitUntil` and the cron sweep; jobs declared in code, claimed per period in `job_run` (see Scheduled jobs) | Outbox, semester job and leader ending-soon digest running (spec 0006); the registry new (spec 0008); retention and admin reminders later |
+| Background work | Postgres outbox (the record) delivered through Cloudflare Queues, with a cron sweep as the safety net (a Worker Preview delivers in `waitUntil`, having no queue; spec 0008b); jobs declared in code, claimed per period in `job_run` (see Scheduled jobs) | Outbox, semester job and leader ending-soon digest running (spec 0006); the registry new (spec 0008); retention and admin reminders later |
 | E-mail, spam protection | Cloudflare Email Service (production only; capture sink elsewhere), Turnstile | Running |
 | Tests | `@effect/vitest`, PGlite and real PostgreSQL, Schema arbitraries, Playwright | Running |
 | Documentation | `docs/system/` with generated reference blocks (`check:docs`) | Running for teams (spec 0006) |
@@ -197,7 +199,7 @@ sequenceDiagram
   C->>P: domain rows, audit row, outbox rows
   C->>P: COMMIT
   F-->>B: outcome; route data reloads
-  F->>F: waitUntil(deliver outbox rows)
+  F->>F: waitUntil(publish the committed ids: queue, or deliver in a Preview)
 ```
 
 A refused grant, an illegal transition (zero rows updated), or invalid data each end in a typed domain error, mapped once to a response. No provider call (e-mail, Google, files) runs inside the transaction.

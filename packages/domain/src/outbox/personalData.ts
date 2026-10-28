@@ -45,6 +45,7 @@ const outbox = table({
         "id",
         "kind",
         "next_attempt_at",
+        "queued_at",
         "status",
       ]
     ),
