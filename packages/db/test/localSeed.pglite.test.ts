@@ -5,6 +5,7 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
+  LOCAL_PEOPLE,
   PersonRepository,
   PrincipalDirectory,
   currentSemester,
@@ -12,7 +13,6 @@ import {
 import { Array as Arr, DateTime, Effect, Option } from "effect";
 import { TestClock } from "effect/testing";
 
-import { LOCAL_PEOPLE } from "../src/localPeople.ts";
 import { pgliteDatabase } from "./support/database.ts";
 import { seedLocal } from "./support/localSeed.ts";
 

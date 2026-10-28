@@ -139,20 +139,6 @@ export const allowances: readonly Allowance[] = [
   // Temporary entries: every file below imports the adapter for a port or fixture that spec 0017 moves to the domain.
   // Each step deletes the entries it fixes, and the check fails on an entry whose file no longer imports the adapter.
   {
-    allows: ["db"],
-    files: [
-      "apps/web/src/server/principal.ts",
-      "apps/web/test/sandbox.test.ts",
-      "apps/web/e2e/accounts.spec.ts",
-      "apps/web/e2e/personalData.spec.ts",
-      "apps/web/e2e/shell.spec.ts",
-      "apps/web/e2e/teams.spec.ts",
-      "apps/web/e2e/support/panel.ts",
-    ],
-    reason: "Imports the local fixture people from the adapter.",
-    until: "step 5 (local people)",
-  },
-  {
     allows: ["db", "drizzle", "sql-pg"],
     files: ["tools/import/src/target.ts"],
     reason: "The importer writes PostgreSQL directly.",

@@ -5,13 +5,13 @@ import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
  * function call a click makes, the sidebar, and the semester labels a page lists. Locators go by role and
  * visible label, as a person reads the page.
  */
-import { LOCAL_PEOPLE } from "@vektorprogrammet/db";
+import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
 import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
 import { TEST_ACTOR_COOKIE } from "../../src/lib/testActor.ts";
 
 /** The seeded people the organisation and shell journeys use. */
-export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "@vektorprogrammet/db";
+export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "@vektorprogrammet/domain";
 
 /** The leader, and a plain member of the same team: the member holds no `viewPeople`. */
 export const [, TEST_LEADER, TEST_MEMBER] = LOCAL_PEOPLE;

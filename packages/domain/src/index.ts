@@ -52,6 +52,9 @@ export * from "./accounts/sessionDirectory.ts";
 // every domain's declaration, and the one grant table that `authorize` reads
 export * from "./declarations.ts";
 
+// the fake people of a local deployment, a Preview and the browser tests (fixture data, no engine)
+export * from "./localPeople.ts";
+
 // shared
 export * from "./shared/aggregate.ts";
 

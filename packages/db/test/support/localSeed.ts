@@ -24,6 +24,8 @@ import {
   PersonRepository,
   PositionRepository,
   PrincipalDirectory,
+  LOCAL_FAKE_PASSWORD,
+  LOCAL_PEOPLE,
   TeamRepository,
   advanceSemester,
   currentSemester,
@@ -42,7 +44,6 @@ import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/index.ts";
-import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "../../src/localPeople.ts";
 import { activateAccount } from "./accountsWorld.ts";
 import { asPerson, grantPlace } from "./teamsWorld.ts";
 

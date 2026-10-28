@@ -19,10 +19,3 @@ export {
   classifySqlFailure,
   violatedUniqueConstraint,
 } from "./classifySqlFailure.ts";
-
-export {
-  DEFAULT_LOCAL_PERSON,
-  LOCAL_FAKE_PASSWORD,
-  LOCAL_PEOPLE,
-  type LocalPerson,
-} from "./localPeople.ts";
