@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 6b8b76cd02cf00cb45004b98668ea7c1c505efaf
-confirmed-at: 878b8587b2e169d359785cb7c860d90663686a90
+sync-digest: b00ea6edc063c04cc5a2ac33283289db1c6bc623
+confirmed-at: a94e647d1237e18ad006f5648951f0b0edf1c4e1
 packages/db/src/live.ts
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
@@ -66,7 +66,7 @@ Spec 0018 review round 1 (2026-10-28) moved the explicit `BEGIN` of `transaction
 
 Spec 0018 review round 3 (2026-10-28) changed the first comment line of `packages/db/src/transactional.ts` ("The only provider" became "The one production provider … a source test guards against another") and nothing else of a covered file; the digest moved with the text. No statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
-Spec 0019 (the live transaction proof, 2026-10-28) changed covered paths: `transactional.ts` makes a fresh `InTransaction` proof for each level (`withLiveProof`, in the new `packages/db/src/live.ts`, which is not covered because it issues no statement), and `repositories/{teams,accounts,workspace}.ts` and `aggregate/locks.ts` build their services through `verified`, which runs a check of that proof in front of each method that requires `InTransaction`, before the method's first statement. The check reads two context entries and a `WeakMap` and sends nothing, so no modeled statement, lock, order or constraint changed; the lines that `Shapes.tla` cites in `teams.ts` and `locks.ts` moved by the added import and the wrapped `return`, not by any statement. The model ran again with `--code`: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
+Spec 0019 (the live transaction proof, 2026-10-28) changed covered paths: `transactional.ts` makes a fresh `InTransaction` proof for each level (`withLiveProof`, in the new `packages/db/src/live.ts`), and `repositories/{teams,accounts,workspace}.ts` and `aggregate/locks.ts` build their services through `verified`, which runs a check of that proof in front of each method that requires `InTransaction`, before the method's first statement. The check reads two context entries and a `WeakMap` and sends nothing, so no modeled statement, lock, order or constraint changed. `live.ts` is in the coverage block (review round 1): the model's claim that every command's first statement is its lock rests on that check sending nothing and waiting for nothing, so a later edit there is a covered change. Every `file:line` that `Shapes.tla` and this file cite in `teams.ts`, `locks.ts` and `transactional.ts` was recomputed against the final head by opening each line (`teams.ts` +7, `locks.ts` +1, `transactional.ts` now 44-76); two pointers that were already off before this change were corrected too (`workspace/commands.ts:237`, `teams/commands.ts:200-206`). The model ran again with `--code`: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 ## Writers outside the model (spec 0007b)
 
