@@ -59,6 +59,7 @@ import {
   WorkspaceFactsLive,
   WorkspaceReportsLive,
 } from "./repositories/workspace.ts";
+import { TransactorLive } from "./transactional.ts";
 
 /**
  * The aggregate construct (spec 0006b) that the repositories write through: the domain's `AggregateLocks` over the
@@ -70,9 +71,9 @@ const AggregatesLayer = Layer.mergeAll(
 );
 
 /**
- * Every repository Layer over an abstract `Drizzle` and `SqlClient`, and the aggregate locks that commands take
- * (`AggregateLocks`) and the writer that the repositories use (`Aggregates`). It has no nightly retention run: each
- * layer below adds one.
+ * Every repository Layer over an abstract `Drizzle` and `SqlClient`, the domain's `Transactor` over that `SqlClient`,
+ * and the aggregate locks that commands take (`AggregateLocks`) and the writer that the repositories use
+ * (`Aggregates`). It has no nightly retention run: each layer below adds one.
  */
 const Repositories = Layer.mergeAll(
   DepartmentRepositoryLive,
@@ -104,7 +105,8 @@ const Repositories = Layer.mergeAll(
   JobRunsLive,
   WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
-  WorkspaceReportsLive
+  WorkspaceReportsLive,
+  TransactorLive
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 /**

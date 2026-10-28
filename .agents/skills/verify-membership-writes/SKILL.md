@@ -33,7 +33,7 @@ packages/db/src/classifySqlFailure.ts
 packages/db/src/transactional.ts
 packages/db/src/schema.ts
 packages/db/drizzle
-apps/web/src/server/transactor.ts
+packages/domain/src/shared/transactor.ts
 ```
 
 | Covered code | What the model takes from it |

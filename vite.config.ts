@@ -76,7 +76,6 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/server/accountDelivery.ts",
         "apps/web/src/server/contact.ts",
         "apps/web/src/server/personalData.ts",
-        "apps/web/src/server/transactor.ts",
         "apps/web/src/server/scope.ts",
         "apps/web/src/server/deployment.ts",
         "apps/web/src/server/env.ts",

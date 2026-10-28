@@ -9,13 +9,13 @@ import {
   PersonRepository,
   TeamId,
   TeamRepository,
+  Transactor,
   WorkspaceAssignments,
 } from "@vektorprogrammet/domain";
 import type { DomainError } from "@vektorprogrammet/domain";
 import { Array as Arr, Cause, Effect, Exit, Option, Predicate } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { Transactor } from "../src/server/transactor";
 import { workspaceDatabase } from "./support/workspaceDatabase";
 import { seedWorld } from "./support/workspaceWorld";
 

@@ -3,11 +3,7 @@ import { inspect } from "node:util";
 /** Spec 0007 falsifiers 2 and 5: the installed Better Auth adapter against real PostgreSQL. */
 import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
-import {
-  DatabaseLive,
-  SessionDirectory,
-  transactional,
-} from "@vektorprogrammet/db";
+import { DatabaseLive, SessionDirectory } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
@@ -57,6 +53,7 @@ import { hashPassword, passwordHasherLayer } from "../src/server/password";
 import { resolvePrincipal } from "../src/server/principal";
 import { webCryptoLayer } from "../src/server/webCrypto";
 import { bcryptFixtures, fixturePassword } from "./support/passwordFixtures";
+import { transacted } from "./support/transacted";
 
 const origin = "https://auth.example";
 const secret = "local-fake-signing-secret-only-123456789";
@@ -576,7 +573,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
           "company@example.org",
         ]) {
           const result = yield* Effect.exit(
-            transactional(
+            transacted(
               AccountEndpoints.requestPasswordReset({ email }).pipe(
                 Effect.provideService(CurrentPrincipal, anonymous)
               )
@@ -609,7 +606,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         );
 
         const now = yield* DateTime.now;
-        yield* transactional(
+        yield* transacted(
           Effect.gen(function* storeCode() {
             const locked = yield* (yield* AggregateLocks).lock(
               "Person",
@@ -626,7 +623,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         yield* sql`update account set state = 'Deactivated' where person_id = 102`;
 
         const use = yield* Effect.exit(
-          transactional(
+          transacted(
             AccountEndpoints.resetPassword({
               code: code.token,
               password: "valid password",
@@ -660,7 +657,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         );
 
         const activation = yield* Effect.exit(
-          transactional(
+          transacted(
             AccountEndpoints.activateAccount({
               code: code.token,
               password: "valid password",
@@ -669,7 +666,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         );
 
         const reset = yield* Effect.exit(
-          transactional(
+          transacted(
             AccountEndpoints.resetPassword({
               code: code.token,
               password: "valid password",

@@ -65,6 +65,8 @@ export * from "./shared/siteOrigin.ts";
 
 export * from "./shared/transaction.ts";
 
+export * from "./shared/transactor.ts";
+
 export * from "./shared/validation.ts";
 
 // audit (C12)

@@ -27,6 +27,7 @@ import {
   CurrentPrincipal,
   JobRegistry,
   OutboxSweep,
+  Transactor,
   codePrincipal,
   validationFailed,
 } from "@vektorprogrammet/domain";
@@ -58,7 +59,6 @@ import {
   MessageSender,
   captureSenderLayer,
 } from "../src/server/senders";
-import { Transactor, transactorLayer } from "../src/server/transactor";
 import { email, enqueueEmail, requestOutcome } from "./support/commandOutcome";
 import { liveWith, origin } from "./support/deliveryLive";
 import { consumeBatch, fakeQueue } from "./support/fakeQueue";
@@ -79,7 +79,7 @@ const newQueue = (): FakeQueue => {
 
 const withDatabase = (
   sender: Layer.Layer<MessageSender, never, CapturedMessageStore>
-) => transactorLayer.pipe(Layer.provideMerge(liveWith(sender)));
+) => liveWith(sender);
 
 /** The Worker's bindings in a test: the database, the fake queue (or none, as in a Preview) and the deployment. */
 const envFor = (

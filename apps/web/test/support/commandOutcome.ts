@@ -13,7 +13,6 @@ import { Array as Arr, Effect, Layer, Option } from "effect";
 import type { Redacted } from "effect";
 
 import { runCommandOutcome } from "../../src/server/runtime";
-import { transactorLayer } from "../../src/server/transactor";
 
 export const email = OutboxMessage.cases.Email.make({
   replyTo: null,
@@ -34,10 +33,7 @@ export const requestOutcome = (url: Redacted.Redacted, rollback: boolean) =>
   Effect.promise(
     async () =>
       await runCommandOutcome(
-        transactorLayer.pipe(
-          Layer.provideMerge(DatabaseLive({ maxConnections: 4, url })),
-          Layer.orDie
-        ),
+        DatabaseLive({ maxConnections: 4, url }).pipe(Layer.orDie),
         Effect.void,
         () =>
           rollback

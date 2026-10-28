@@ -13,8 +13,8 @@
  *
  * Receipt: success means committed. No provider I/O may run inside `self`.
  */
-import { InTransaction } from "@vektorprogrammet/domain";
-import { Effect, Option } from "effect";
+import { InTransaction, Transactor } from "@vektorprogrammet/domain";
+import { Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { isSqlError } from "effect/sql/SqlError";
 import type { SqlError } from "effect/sql/SqlError";
@@ -56,3 +56,16 @@ export const transactional = <A, E, R>(
       (error) => Effect.die(error)
     )
   );
+
+/** The domain's `Transactor` over the ambient `SqlClient`: `run` is `transactional`, so it is one transaction. */
+export const TransactorLive = Layer.effect(
+  Transactor,
+  Effect.gen(function* TransactorLive() {
+    const sql = yield* SqlClient;
+
+    return Transactor.of({
+      run: (program) =>
+        transactional(program).pipe(Effect.provideService(SqlClient, sql)),
+    });
+  })
+);

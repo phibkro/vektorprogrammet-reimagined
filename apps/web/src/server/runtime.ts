@@ -27,6 +27,7 @@ import {
   CurrentPrincipal,
   JobRegistry,
   SiteOrigin,
+  Transactor,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type {
@@ -102,7 +103,6 @@ import type { ContactRateLimiter } from "./rateLimit";
 import { retentionModeFor } from "./retentionMode";
 import { messageSenderLayer, senderConfigFromEnv } from "./senders";
 import type { MessageSender } from "./senders";
-import { Transactor, transactorLayer } from "./transactor";
 import { turnstileLiveLayer } from "./turnstile";
 import type { TurnstileVerifier } from "./turnstile";
 import { webCryptoLayer } from "./webCrypto";
@@ -160,6 +160,7 @@ export type DatabaseServices =
   | WorkspaceReports
   | OutboxDelivery
   | SessionDirectory
+  | Transactor
   | SqlClient.SqlClient;
 
 /** Every service a request program may require. */
@@ -167,7 +168,6 @@ export type RequestServices =
   | DatabaseServices
   | Auth
   | PasswordHasher
-  | Transactor
   | FileStore
   | CurrentPrincipal
   | SiteOrigin
@@ -191,7 +191,6 @@ export const liveRequestLayer = (
   Layer.unwrap(
     Effect.map(decodeDeployment(scope.env.DEPLOYMENT), (deployment) =>
       Layer.mergeAll(
-        transactorLayer,
         workspaceModeLayer(workspaceConfigFromEnv(deployment, scope.env)),
         r2FileStoreLayer(scope.env.PUBLIC_FILES),
         Layer.effect(
@@ -479,7 +478,7 @@ const tickLayer = (env: TickEnv): Layer.Layer<TickServices | Transactor> =>
         workspaceDirectoryLayer(workspace),
         workspaceModeLayer(workspace),
         publisherLayerFor(env, { direct: delivery, queued: delivery }),
-        transactorLayer.pipe(Layer.provideMerge(delivery))
+        delivery
       );
     })
   );

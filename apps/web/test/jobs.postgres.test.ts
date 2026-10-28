@@ -18,6 +18,7 @@ import {
   Outbox,
   OutboxMessage,
   OutboxMessageId,
+  Transactor,
   validationFailed,
 } from "@vektorprogrammet/domain";
 import type { SystemJob } from "@vektorprogrammet/domain";
@@ -38,7 +39,6 @@ import { TestClock } from "effect/testing";
 
 import { dispatchTick } from "../src/server/jobs";
 import type { Runner } from "../src/server/jobs";
-import { Transactor, transactorLayer } from "../src/server/transactor";
 import { Publications, recordingPublisher } from "./support/publications";
 import { rowsIn } from "./support/rowCount";
 
@@ -55,9 +55,7 @@ const tickAt = (minutes: number) => DateTime.add(T0, { minutes });
 
 const live = Layer.unwrap(
   Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-    transactorLayer.pipe(
-      Layer.provideMerge(DatabaseLive({ maxConnections: 30, url }))
-    )
+    DatabaseLive({ maxConnections: 30, url })
   )
 ).pipe(
   Layer.provideMerge(recordingPublisher),

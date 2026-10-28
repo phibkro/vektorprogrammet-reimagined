@@ -33,6 +33,7 @@ import {
   SiteOrigin,
   SocialEventId,
   SocialEventRepository,
+  Transactor,
   WorkspaceReports,
   anonymous,
   deliveryState,
@@ -65,8 +66,6 @@ import {
   Record as Rec,
   Stream,
 } from "effect";
-
-import { Transactor } from "../../src/server/transactor";
 
 interface OutboxRow {
   readonly id: OutboxMessageId;

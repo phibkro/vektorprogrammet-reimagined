@@ -17,7 +17,12 @@ import {
   migratedTestDatabase,
   withClient,
 } from "@vektorprogrammet/db/testing";
-import { Outbox, OutboxMessage, SlackTarget } from "@vektorprogrammet/domain";
+import {
+  Outbox,
+  OutboxMessage,
+  SlackTarget,
+  Transactor,
+} from "@vektorprogrammet/domain";
 import type {
   OutboxMessageId,
   TransportMessage,
@@ -37,7 +42,6 @@ import { TestClock } from "effect/testing";
 import { AccountDelivery } from "../src/server/accountDelivery";
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender, captureSenderLayer } from "../src/server/senders";
-import { Transactor, transactorLayer } from "../src/server/transactor";
 import { email, requestOutcome } from "./support/commandOutcome";
 import { deliverPending } from "./support/deliveryLive";
 import { rowsIn as countRows } from "./support/rowCount";
@@ -52,9 +56,7 @@ const slack = OutboxMessage.cases.SlackPost.make({
 
 const live = Layer.unwrap(
   Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-    transactorLayer.pipe(
-      Layer.provideMerge(DatabaseLive({ maxConnections: 8, url }))
-    )
+    DatabaseLive({ maxConnections: 8, url })
   )
 ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
 

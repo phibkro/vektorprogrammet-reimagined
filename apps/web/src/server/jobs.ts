@@ -12,7 +12,12 @@
  * program and the cursor write (`JobRuns.advance`, or `finish` for the last chunk) in ONE transaction, so a chunk and
  * its cursor commit together or not at all.
  */
-import { CurrentPrincipal, Job, JobRun } from "@vektorprogrammet/domain";
+import {
+  CurrentPrincipal,
+  Job,
+  JobRun,
+  Transactor,
+} from "@vektorprogrammet/domain";
 import type {
   DomainError,
   InTransaction,
@@ -23,7 +28,6 @@ import type { DateTime, Schema } from "effect";
 import { Array as Arr, Cause, Effect, Exit, Predicate } from "effect";
 
 import { publishingAfterCommit } from "./outboxPublisher";
-import { Transactor } from "./transactor";
 
 /** What a runner can fail with; any other failure is a defect and is recorded the same way. */
 export type RunnerFailure = DomainError | WorkspaceProviderFailed;
