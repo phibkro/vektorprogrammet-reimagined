@@ -21,6 +21,7 @@ import {
 import { PersonId } from "@vektorprogrammet/domain";
 import { DateTime, Effect, Exit, Layer, Redacted, Ref } from "effect";
 import type { Redacted as RedactedType } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
 
 import { Auth, authLayer } from "../src/server/auth";
 import type { WorkerEnv } from "../src/server/env";
@@ -135,41 +136,64 @@ const oneBuildAndAdmitted = (outcome: {
   assert.strictEqual(outcome.releases, 1);
 };
 
+/**
+ * Admits the sign-in through the layer that `layerOf` makes of the scope, and checks that the `SqlClient` the scope
+ * exposes is the counted layer's: it answers as the full role, where a second database layer made from `env` answers as
+ * the restricted one (Effect shares a second `DatabaseLive`'s repositories with the first, but its `SqlClient` is its
+ * own, and a later provider wins in a merged context).
+ */
+const admittedThrough = (
+  layerOf: (
+    env: WorkerEnv,
+    database: Layer.Layer<DatabaseServices>
+  ) => Layer.Layer<Auth | SqlClient>
+) =>
+  Effect.gen(function* checkScope() {
+    const full = yield* TestDatabaseUrl;
+
+    const outcome = yield* inScope((env, database) =>
+      Effect.gen(function* signInAndAsk() {
+        const status = yield* statusOf();
+        const sql = yield* SqlClient;
+
+        const rows = yield* sql<{
+          readonly name: string;
+        }>`select current_user as name`;
+
+        return { role: rows[0]?.name, status };
+      }).pipe(Effect.provide(layerOf(env, database)), Effect.orDie)
+    );
+
+    const expected = yield* withClient(
+      full,
+      (client) => client<{ readonly name: string }>`select current_user as name`
+    );
+
+    assert.strictEqual(outcome.result.role, expected[0]?.name);
+    assert.notStrictEqual(outcome.result.role, undefined);
+
+    oneBuildAndAdmitted({ ...outcome, result: outcome.result.status });
+  });
+
 layer(seeded, { excludeTestServices: true })(
   "spec 0017 falsifier 7: one database layer per scope, and Better Auth reads through it",
   (it) => {
     it.effect("deliveryLayer", () =>
-      Effect.map(
-        inScope((env, database) =>
-          statusOf().pipe(
-            Effect.provide(deliveryLayer(env, database)),
-            Effect.orDie
-          )
-        ),
-        oneBuildAndAdmitted
-      )
+      admittedThrough((env, database) => deliveryLayer(env, database))
     );
 
     it.effect("liveRequestLayer", () =>
-      Effect.map(
-        inScope((env, database) =>
-          statusOf().pipe(
-            Effect.provide(
-              liveRequestLayer(
-                {
-                  ctx: { waitUntil: () => {} },
-                  env,
-                  headers: new Headers(),
-                  signal: new AbortController().signal,
-                  testActor: undefined,
-                },
-                database
-              )
-            ),
-            Effect.orDie
-          )
-        ),
-        oneBuildAndAdmitted
+      admittedThrough((env, database) =>
+        liveRequestLayer(
+          {
+            ctx: { waitUntil: () => {} },
+            env,
+            headers: new Headers(),
+            signal: new AbortController().signal,
+            testActor: undefined,
+          },
+          database
+        )
       )
     );
 

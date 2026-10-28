@@ -18,6 +18,14 @@ import { authUser, person } from "../schema.ts";
 const OwnerRow = Schema.Struct({ personId: PersonId });
 const EmailRow = Schema.Struct({ email: Schema.String });
 
+/**
+ * A failed lookup as a defect that names the operation and nothing the failed statement carried. Drizzle's query error
+ * holds the SQL and, when the driver is configured to report them, its parameters (here the address a visitor typed),
+ * and a defect is logged and rendered. The failure is typed here, so `Effect.catch` sees it and an interruption passes.
+ */
+const lookupFailed = (operation: string) => () =>
+  Effect.die(`SignInDirectory.${operation} failed`);
+
 export const SignInDirectoryLive = Layer.effect(
   SignInDirectory,
   Effect.gen(function* SignInDirectoryLive() {
@@ -33,7 +41,7 @@ export const SignInDirectoryLive = Layer.effect(
           .select({ personId: authUser.personId })
           .from(authUser)
           .where(eq(authUser.id, userId))
-          .pipe(Effect.orDie);
+          .pipe(Effect.catch(lookupFailed("personOfUser")));
 
         return Option.map(yield* decodeOwner(rows), (row) => row.personId);
       }
@@ -49,7 +57,7 @@ export const SignInDirectoryLive = Layer.effect(
         .innerJoin(authUser, eq(authUser.personId, person.id))
         .where(or(eq(person.email, address), eq(person.companyEmail, address)))
         .limit(2)
-        .pipe(Effect.orDie);
+        .pipe(Effect.catch(lookupFailed("match")));
 
       const [first, second] = yield* decodeEmails(rows);
 
@@ -69,7 +77,7 @@ export const SignInDirectoryLive = Layer.effect(
           .from(authUser)
           .where(eq(authUser.personId, personId))
           .limit(1)
-          .pipe(Effect.orDie);
+          .pipe(Effect.catch(lookupFailed("signInEmailOf")));
 
         return Option.map(yield* decodeEmail(rows), (row) => row.email);
       }
@@ -86,7 +94,7 @@ export const SignInDirectoryLive = Layer.effect(
           })
           .from(person)
           .where(eq(person.id, personId))
-          .pipe(Effect.orDie);
+          .pipe(Effect.catch(lookupFailed("profileOf")));
 
         return yield* decodeProfile(rows);
       }

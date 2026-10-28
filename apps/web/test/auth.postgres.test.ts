@@ -224,16 +224,28 @@ const consoleOfSignIn = (typed: string, run: RunDomain) =>
 
     yield* Effect.acquireRelease(
       Effect.sync(() => {
-        const original = { error: console.error, warn: console.warn };
+        const original = {
+          debug: console.debug,
+          error: console.error,
+          info: console.info,
+          log: console.log,
+          warn: console.warn,
+        };
 
+        console.debug = record;
         console.error = record;
+        console.info = record;
+        console.log = record;
         console.warn = record;
 
         return original;
       }),
       (original) =>
         Effect.sync(() => {
+          console.debug = original.debug;
           console.error = original.error;
+          console.info = original.info;
+          console.log = original.log;
           console.warn = original.warn;
         })
     );

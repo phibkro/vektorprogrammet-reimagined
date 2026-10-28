@@ -607,7 +607,7 @@ export default defineConfig({
           "apps/web/test/contact.test.ts",
           // EX-0028: the delivery test calls the Promise-based command runtime.
           "apps/web/test/deliveryBoundary.postgres.test.ts",
-          // Spec 0017: the scope test calls the Promise-based runners, and its stand-in rate-limit binding answers a Promise.
+          // EX-0028 (spec 0017): the scope test calls the Promise-based runners, and its stand-in rate-limit binding answers a Promise.
           "apps/web/test/deliveryScope.postgres.test.ts",
           "apps/web/test/support/workerEnv.ts",
           "apps/web/test/outboxQueue.postgres.test.ts",
