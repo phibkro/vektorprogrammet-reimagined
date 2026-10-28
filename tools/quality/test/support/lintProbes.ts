@@ -43,13 +43,16 @@ export interface Diagnostic {
 
 /**
  * The real lint configuration, through `vp lint`, on the `probes` (written under `root` for the length of the call and
- * removed again, whatever happens) and on `targets` (paths that already exist). Vitest runs the tests of a file in
- * order, and the scans of the repository skip a probe by its name, so a probe is seen by the lint and by nothing else.
+ * removed again, whatever happens) and on `targets` (paths that already exist), with `flags` ahead of the paths (a test
+ * that compares one rule narrows the run to it, which also keeps it light on a two-CPU runner). Vitest runs the tests of a
+ * file in order, and the scans of the repository skip a probe by its name, so a probe is seen by the lint and by nothing
+ * else.
  */
 export const lintProbes = Effect.fn("lintProbes")(function* lintProbes(
   root: string,
   probes: Readonly<Record<string, Probe>>,
-  targets: readonly string[] = []
+  targets: readonly string[] = [],
+  flags: readonly string[] = []
 ) {
   const fs = yield* FileSystem.FileSystem;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -71,6 +74,7 @@ export const lintProbes = Effect.fn("lintProbes")(function* lintProbes(
                 "lint",
                 "--format",
                 "json",
+                ...flags,
                 ...targets,
                 ...Arr.map(Rec.values(probes), ({ file }) => file),
               ],

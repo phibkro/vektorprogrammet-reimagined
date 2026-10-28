@@ -612,7 +612,13 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
             ({ path }) => path
           );
 
-          const diagnostics = yield* lintProbes(root, probes, governed);
+          // Only the rule that is compared, through the real configuration: the other rules are another test's business.
+          const diagnostics = yield* lintProbes(root, probes, governed, [
+            "-A",
+            "all",
+            "-D",
+            "import/no-cycle",
+          ]);
 
           const cyclic = Arr.sort(
             Arr.dedupe(
