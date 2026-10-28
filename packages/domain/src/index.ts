@@ -68,6 +68,8 @@ export * from "./shared/guarantees.ts";
 
 export * from "./shared/ids.ts";
 
+export * from "./shared/isolationProbe.ts";
+
 export * from "./shared/outbox.ts";
 
 export * from "./shared/siteOrigin.ts";

@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { isolationResponse, transactionIsolation } from "@/server/isolation";
+import { isolationReport, isolationResponse } from "@/server/isolation";
 import { runQuery } from "@/server/runtime";
 import { requestScope } from "@/server/scope";
 
 /**
- * The isolation level of a domain transaction on this deployment (spec 0018, falsifier 4). A Preview answers it, so the
- * pull request's check can see what Hyperdrive does with the explicit `BEGIN`; production answers 404.
+ * What the store reports about the isolation of its transactions on this deployment, and whether it is what the domain
+ * promises (spec 0018 R10, falsifier 4). A Preview answers it, so the pull request's check sees what Hyperdrive does
+ * with the `BEGIN` of the adapter; production answers an empty 404 and opens no domain transaction.
  */
 export const Route = createFileRoute("/api/isolation")({
   server: {
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/api/isolation")({
       GET: ({ context }) =>
         runQuery(
           requestScope(context),
-          transactionIsolation(context.env.DEPLOYMENT)
+          isolationReport(context.env.DEPLOYMENT)
         ).then(isolationResponse),
     },
   },

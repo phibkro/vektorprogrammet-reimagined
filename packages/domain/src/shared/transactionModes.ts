@@ -13,7 +13,8 @@ import type { SignInDirectory } from "../accounts/signInDirectory.ts";
  *   (`OutboxDelivery.markDelivered`, LS4). It cannot require what it does not need.
  * - `Read`: writes nothing and takes no lock (RR1).
  * - `Outside`: provider I/O. It must never run inside a transaction: a convention that the type system cannot check.
- * - `Opens`: opens its own transaction and takes none (`Transactor.run`, `ImportTarget.replaceAll`).
+ * - `Opens`: opens its own transaction and takes none (`Transactor.run`, `ImportTarget.replaceAll`, and
+ *   `IsolationProbe.report`, which opens the transactions it reports on).
  *
  * The declaration is exhaustive by its type: a method of a port without a row, and a row without a method, do not
  * compile. `test/shared/transactionModes.test.ts` checks every row against the method's type, and
@@ -58,6 +59,7 @@ import type {
   WorkspaceWriter,
 } from "../workspace/services.ts";
 import type { AggregateLocks } from "./aggregate.ts";
+import type { IsolationProbe } from "./isolationProbe.ts";
 import type { Outbox } from "./outbox.ts";
 import type { Transactor } from "./transactor.ts";
 
@@ -85,6 +87,7 @@ export interface StorePorts {
   readonly FieldOfStudyRepository: FieldOfStudyRepository;
   readonly FileStore: FileStore;
   readonly ImportTarget: ImportTarget;
+  readonly IsolationProbe: IsolationProbe;
   readonly JobRuns: JobRuns;
   readonly LegalHolds: LegalHolds;
   readonly MembershipRepository: MembershipRepository;
@@ -164,6 +167,7 @@ export const TransactionModes = {
   },
   FileStore: { get: "Outside", put: "Outside" },
   ImportTarget: { replaceAll: "Opens" },
+  IsolationProbe: { report: "Opens" },
   JobRuns: {
     advance: "Requires",
     claim: "Standalone",

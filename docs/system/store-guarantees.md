@@ -137,6 +137,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `FieldOfStudyRepository` |  | `create`, `rename` |  | `findById`, `listByDepartment` |  |  |
 | `FileStore` |  |  |  |  | `get`, `put` |  |
 | `ImportTarget` |  |  |  |  |  | `replaceAll` |
+| `IsolationProbe` |  |  |  |  |  | `report` |
 | `JobRuns` | `advance`, `finish`, `request` | `claim`, `fail`, `release` |  | `resumable` |  |  |
 | `LegalHolds` | `of` |  |  |  |  |  |
 | `MembershipRepository` | `findLocked`, `insert`, `listLocked`, `remove`, `setEnd` |  |  | `activeIn`, `findById`, `listByPerson`, `listByTeam` |  |  |

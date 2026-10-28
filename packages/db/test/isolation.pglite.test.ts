@@ -4,6 +4,7 @@
  * plain `SqlClient.withTransaction`, which stays there.
  */
 import { assert, layer } from "@effect/vitest";
+import { IsolationProbe } from "@vektorprogrammet/domain";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -29,6 +30,29 @@ layer(pgliteDatabase)("the isolation floor on PGlite (spec 0018)", (it) => {
           nested: "read committed",
           plain: "serializable",
           top: "read committed",
+        });
+      })
+  );
+
+  it.effect(
+    "falsifier 4: the probe reports a transactor at read committed, a probe at serializable and the role's default",
+    () =>
+      Effect.gen(function* reportsTheLevels() {
+        const sql = yield* SqlClient;
+        yield* sql`set default_transaction_isolation = 'read committed'`;
+
+        assert.deepStrictEqual(yield* IsolationProbe.use((p) => p.report), {
+          probe: "serializable",
+          roleDefault: "read committed",
+          transactor: "read committed",
+        });
+
+        yield* sql`set default_transaction_isolation = 'serializable'`;
+
+        assert.deepStrictEqual(yield* IsolationProbe.use((p) => p.report), {
+          probe: "serializable",
+          roleDefault: "serializable",
+          transactor: "read committed",
         });
       })
   );

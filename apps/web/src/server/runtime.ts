@@ -40,6 +40,7 @@ import type {
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  IsolationProbe,
   JobRun,
   LegalHolds,
   MembershipRepository,
@@ -134,6 +135,7 @@ export type DatabaseServices =
   | AdmissionPeriodRepository
   | DepartmentRepository
   | SemesterRepository
+  | IsolationProbe
   | FieldOfStudyRepository
   | SocialEventRepository
   | PublicFileRepository
