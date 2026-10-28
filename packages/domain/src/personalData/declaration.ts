@@ -48,7 +48,7 @@ export const Purpose = Schema.Literals([
 
 export type Purpose = typeof Purpose.Type;
 
-/** A calendar duration, added in Oslo wall-clock time (`addOsloCalendar`, and the same in the compiled SQL). */
+/** A calendar duration, added in Oslo wall-clock time (`afterDuration`, spec 0021). */
 export const Duration = Schema.TaggedUnion({
   Days: { count: Schema.Int },
   Months: { count: Schema.Int },
@@ -90,12 +90,12 @@ export const Words = Schema.Struct({ en: Schema.String, no: Schema.String });
 export type Words = typeof Words.Type;
 
 /**
- * When a retention period starts, from a closed set; each is one SQL expression of an instant that
- * `packages/db` compiles:
+ * When a retention period starts, from a closed set; each is an instant that `retentionEnd.ts` computes from facts that
+ * an adapter reads (spec 0021):
  * - `Column`: an instant column of the same row (`created_at`, `expires_at`, `at`), with the event that it records, in
  *   words, for the notice and the record of processing.
- * - `LastActivityEnd`: the later of the end of the person's last engagement and the end of the admission period of
- *   their last application, or their creation when there is neither (the view `person_last_activity_end`).
+ * - `LastActivityEnd`: the later of the end of the person's last membership and the end of their last admin place, or
+ *   their creation when there is neither (`lastActivityEnd`, spec 0021).
  * - `SemesterEnd`: the end of the semester that two columns of the row hold (a term and a year).
  * - `PeriodEnd`: the end of the admission period that a column of the row refers to.
  * - `FiscalYearEnd`: the end of the calendar year of a date column (the association's fiscal year).

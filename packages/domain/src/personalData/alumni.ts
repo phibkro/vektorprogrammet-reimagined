@@ -2,25 +2,14 @@
  * When a person has left (spec 0007b, journey 2): every membership has ended and at least one existed. The instant is the
  * end of the last one. These are pure rules over the memberships that a command read through the person's lock.
  */
-import { Array as Arr, Option } from "effect";
-import type { DateTime } from "effect";
+import { Array as Arr, DateTime, Option } from "effect";
 
 import { semesterWindow } from "../organisation/semester.ts";
-import { addOsloCalendar, isBefore } from "../shared/clock.ts";
+import { isBefore } from "../shared/clock.ts";
 import type { Membership } from "../teams/entities.ts";
-import { Duration } from "./declaration.ts";
 import { Periods } from "./periods.ts";
-
-/** `instant` plus a declared duration in Oslo calendar time: the arithmetic of the SQL that the retention job compiles. */
-export const afterDuration = (
-  instant: DateTime.DateTime,
-  duration: Duration
-): DateTime.Utc =>
-  Duration.match(duration, {
-    Days: ({ count }) => addOsloCalendar(instant, { days: count }),
-    Months: ({ count }) => addOsloCalendar(instant, { months: count }),
-    Years: ({ count }) => addOsloCalendar(instant, { years: count }),
-  });
+import { afterDuration, lastActivityDue } from "./retentionEnd.ts";
+import type { ActivityFacts } from "./retentionEnd.ts";
 
 /** The instant at which a membership stops applying: the end of its end semester. */
 const endsAt = (membership: Pick<Membership, "end">): DateTime.Utc =>
@@ -57,3 +46,23 @@ export const stillAsked = (
   now: DateTime.Utc
 ): boolean =>
   isBefore(now, afterDuration(leftAtInstant, Periods.personCore.duration));
+
+/**
+ * Whether the alumni mail asks a person at `now` (spec 0021 R5): they have left (`leftAt`), the period of their last
+ * activity (a valid admin place counts) is not over, and no request has been made for this engagement's end. This is the
+ * selection that the repository used to make in the database over the view of a person's last activity.
+ */
+export const isAlumniCandidate = (
+  facts: ActivityFacts,
+  requestedEnds: readonly DateTime.Utc[],
+  now: DateTime.Utc
+): boolean =>
+  Option.exists(
+    leftAt(
+      Arr.map(facts.memberships, (end) => ({ end })),
+      now
+    ),
+    (last) =>
+      !lastActivityDue(facts, { period: Periods.personCore }, false, now) &&
+      !Arr.some(requestedEnds, (end) => DateTime.Equivalence(end, last))
+  );
