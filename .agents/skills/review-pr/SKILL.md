@@ -31,11 +31,13 @@ Give each reviewer the PR number, the worktree, the spec, and this section. Revi
 2. Run `verify-membership-writes` (`run.sh`, and `--code` when `packages/db` changed) when `run.sh --touched origin/main` prints `touched`.
 3. **Keep the verification skills true.** For each changed behaviour, check that the feature map still describes it (entry points, selectors, expected end state), that the path table maps the changed paths, and that the TLA+ coverage block names every writer the model must know. A gap is a finding (`maintenance`); a skill that now describes behaviour the code no longer has is a finding of the severity of the behaviour it hides.
 
-**Conformance reviewer.**
+**Conformance reviewer.** The spec is written and built in one step and arrives with the code (a plan is not reviewed on its own), so this reviewer judges three things together:
 
-1. Every falsifier of the spec is demonstrated by a test or run that can fail (a negative control exists and was shown), and the PR body's evidence matches what the branch contains.
-2. The repository rules in `AGENTS.md`: one source per fact, no second role list, reads never write, race tests run many rounds, exceptions registered, Effect diagnostics clean.
-3. Security and data: authorization on every new read and command, personal data declared, no secret or personal data in code, logs or fixtures.
+1. **The plan:** the spec states the right problem, journey and falsifiers, and its Revisions explain each change made while building.
+2. **The agreement:** the code does what the spec, with its Revisions, says. Undeclared scope, a falsifier with no test, or a silent change to the plan is a finding of medium or above.
+3. Every falsifier of the spec is demonstrated by a test or run that can fail (a negative control exists and was shown), and the PR body's evidence matches what the branch contains.
+4. The repository rules in `AGENTS.md`: one source per fact, no second role list, reads never write, race tests run many rounds, exceptions registered, Effect diagnostics clean.
+5. Security and data: authorization on every new read and command, personal data declared, no secret or personal data in code, logs or fixtures.
 
 Both read CI's result on the head (`gh pr checks <n>`), including the `Formal verification` job.
 
@@ -55,7 +57,7 @@ Each finding: severity, file:line or run path, what is wrong in one sentence, an
 
 **Pass** when all of these hold: no open finding of medium or above; CI green on the head (including `Formal verification` when it ran); the verification evidence exists for every mapped feature. Low and nit findings go into the merge comment, or are fixed if cheap.
 
-- **Merge a passing PR** as the repository does: squash, title `<type>: <summary> (#<n>)`. If `main` moved since the head was reviewed, compute the expected tree with `git merge-tree --write-tree origin/main <reviewed head>`; after `git rebase origin/main`, require `git rev-parse HEAD^{tree}` to equal that expected tree. If the merge has conflicts or the trees differ, the code changed and the round restarts. When main's change touches files the PR touches, also require CI green on the rebased head before merging. Post the evidence summary as the merge comment.
+- **Merge a passing PR** with `.agents/skills/review-pr/merge.sh <n> "<type>: <summary>"` from the main checkout (squash, title `<type>: <summary> (#<n>)`). It refuses (exit 4) unless a round recorded by `record-round.sh` passed the PR's current head, waits for CI green on that head, and merges only that head (`--match-head-commit`). If `main` moved since the head was reviewed, it computes the expected tree with `git merge-tree --write-tree origin/main <reviewed head>` and refuses on conflicts (exit 2) or on files that both changed (exit 3): then rebase, require CI green on the rebased head, and record a new round on it. After a rebase without overlap, `git rev-parse HEAD^{tree}` must equal the expected tree.
 
 **Otherwise**, start a fixer: a separate agent in the PR's worktree, with the findings verbatim. It fixes the code and, for `maintenance` findings, the verification skills themselves (feature maps, path table, TLA+ model and coverage block, sync commit only after confirming the model against the new code). It commits, pushes, and reports. Then the next round, with fresh reviewers.
 
@@ -67,4 +69,8 @@ Each finding: severity, file:line or run path, what is wrong in one sentence, an
 
 ## 5. Record
 
-Each round leaves one PR comment: round number, reviewers' findings with severity, what the fixer changed (commits), and the evidence paths. The merge comment summarises all rounds.
+Every round is recorded on the PR, so the review is visible where the change is (the repository is public) and outlives the agents' transcripts. The lead posts it with `.agents/skills/review-pr/record-round.sh <n> <round> <pass|changes> <body-file>`: a GitHub review (comment) headed by the marker `<!-- review-round n=<round> head=<sha> verdict=<pass|changes> -->`, with the head read from GitHub. The body holds the reviewers' findings with severity, what the fixer changed (commits) and the evidence paths. `merge.sh` reads the marker, so a PR without a passing record on its head cannot be merged.
+
+A small change that needs no independent reviewers (docs, a one-line fix) still gets one round: the lead's own review, recorded with the reviewer named as `lead` and what was checked. The record says who reviewed, never that more happened than did.
+
+The PR body lists the rounds (number, head, verdict) once the PR passes.

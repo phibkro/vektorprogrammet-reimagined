@@ -161,3 +161,27 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 **Denominator** (nevner): The declared basis for a threshold: valid ballots, all ballots cast, checked-in attendees, or the whole electorate.
 
 **Preset** (forhåndsvalg): A named voting-system composition with sensible defaults for its parameters. An election type restricts which presets may be selected.
+
+## System structure
+
+**Module**: A named group of files in one package. It has one layer and a declared list of the modules it may use. A module has no version of its own. _Avoid_: component, package (a package is a unit of versioning and install)
+
+**Library**: A module with no runtime and no authority. It holds the constructs, patterns and shared words that services build on, and it imports only other libraries. _Avoid_: shared, common, utils
+
+**Vocabulary**: The library of closed sets, identifiers, errors, calendar values and principal shapes that several services name. _Avoid_: shared kernel, common types
+
+**Service**: A module that declares the commands, ports and rules of one part of the organisation's work, for example Membership, IAM or Audit. It uses libraries and the services it declares. _Avoid_: microservice (a service is not deployed on its own), bounded context
+
+**Triggers**: The service that says when work starts: the scheduled jobs and the delivery of outbox messages. Each service declares its own jobs. _Avoid_: scheduler, queue
+
+**Catalog**: A module that lists what every service contributes, for example the personal-data catalog or the job registry. It imports the services, and no service imports it. _Avoid_: index, shared list
+
+**Assembly**: The top of the domain: the list of all declarations, the public surface and the catalogs that only documents and tests read. _Avoid_: barrel, root
+
+**Platform**: What our code runs on and stores its records in: Workers, Neon/PostgreSQL through Hyperdrive, Queues and R2. It holds our records of truth and can take part in our transaction. It implements the ports of the services, and nothing in the domain imports it. _Avoid_: infrastructure, backend
+
+**Integration**: Another system with its own state and rules that we adapt to, for example Google Workspace, Slack, the mail provider, Turnstile, EmDash's API or Better Auth. It is always outside our transaction: we reach it after commit, at least once, with an idempotent call. Four rules apply: no call inside a transaction, a declared non-production stand-in, declared personal data received, and provider secrets only in the background Worker (ADR 0015). _Avoid_: connector, plugin, adapter (an adapter implements a port on the platform)
+
+**Data migration**: A program that moves data from the legacy system into the new one: it extracts the legacy MySQL database, transforms the legacy model into the new model, loads PostgreSQL and EmDash, and writes a reconciliation report. It is rerunnable until the production cutover and then retired. _Avoid_: import (when you mean the whole program), migration (alone)
+
+**Schema migration**: A change to the shape of the database, one file in `packages/db/drizzle/`, applied with `db:migrate`. It moves no data from the legacy system. _Avoid_: migration (alone), data migration
