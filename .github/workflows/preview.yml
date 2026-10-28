@@ -124,27 +124,36 @@ jobs:
           PULL_REQUEST: ${{ github.event.number }}
           # For a pull request GITHUB_SHA is GitHub's merge commit; the comment names the branch head instead.
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: devenv shell -- bash -c 'cd apps/web && GITHUB_SHA="$HEAD_SHA" bunx alchemy deploy --stage "$STAGE" --yes'
+        # The stack's outputs are the last thing that `alchemy deploy` prints; the isolation check below reads this
+        # Worker's URL from them.
+        run: |
+          set -euo pipefail
+          devenv shell -- bash -c 'cd apps/web && GITHUB_SHA="$HEAD_SHA" bunx alchemy deploy --stage "$STAGE" --yes' \
+            2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
-      # Spec 0018 R10, falsifier 4 (the deployed path): what the store reports about its transactions through Hyperdrive.
-      # The Preview's own route asks the store three things (`IsolationProbe`): the level of a `Transactor.run`
-      # transaction (must be `read committed`), the level of a transaction that the adapter's mechanism begins at
-      # SERIALIZABLE (must be `serializable`, so a platform that drops the clause cannot pass by luck) and the role's
-      # default (must be `read committed`: the statements outside a transaction run at it). The route answers 200 only
-      # when all three hold (`isolationProblems` in `apps/web/src/server/isolation.ts` is the one statement of that), so
-      # this step needs nothing but the status. The URL is the one that the deploy's pull request comment holds. A new
-      # Worker may need a moment before it answers.
+      # Spec 0018 R10 and R16, falsifier 4 (the deployed path): what the store reports about its transactions through
+      # Hyperdrive. The Preview's own route asks the store three things (`IsolationProbe`): the level of a
+      # `Transactor.run` transaction (must be `read committed`), the level of a transaction that the adapter's mechanism
+      # begins at SERIALIZABLE (must be `serializable`, so a platform that drops the clause cannot pass by luck) and the
+      # role's default (must be `read committed`: the statements outside a transaction run at it). The route answers 200
+      # only when all three hold (`isolationProblems` in `apps/web/src/server/isolation.ts` is the one statement of
+      # that), so this step needs nothing but the status. The URL is the `url:` that the deploy step itself printed, and
+      # it must be a `workers.dev` host of this pull request's stage: not a pull request comment, because anyone can
+      # comment on a public repository and point the step at a host of their own. A new Worker may need a moment before
+      # it answers.
       - name: Check the isolation level through Hyperdrive
         if: github.event_name == 'pull_request'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PULL_REQUEST: ${{ github.event.number }}
         run: |
           set -euo pipefail
-          url="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PULL_REQUEST}/comments" --paginate \
-            --jq '[.[] | select(.body | startswith("### Preview"))] | last | .body' \
-            | sed -n 's/^\*\*URL:\*\* //p' | head -n 1)"
+          url="$(sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/deploy.log" \
+            | sed -nE "s/^[[:space:]]*url: '([^']+)'[[:space:]]*$/\1/p" | tail -n 1)"
+          case "$url" in
+            "https://pr-${PULL_REQUEST}-"*.workers.dev) ;;
+            *) echo "::error::the deploy printed no Worker URL of this pull request (got: ${url:-none})"; exit 1 ;;
+          esac
           test -n "$url"
           body="$RUNNER_TEMP/isolation.json"
           status=""
