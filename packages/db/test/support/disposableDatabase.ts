@@ -42,8 +42,30 @@ export const withClient = <A, E, R>(
     Effect.provide(Reactivity.layer)
   );
 
-/** Creates `vp_db_test_<random>` through the admin URL; drops it (forcibly) on release. */
-const disposableDatabase = Layer.effect(
+/**
+ * The database defaults to SERIALIZABLE for every session that starts after this; returns its URL. A test of the
+ * isolation floor builds its own client after it, because a setting applies to the sessions that start later.
+ */
+export const serializableByDefault = Effect.gen(
+  function* serializableByDefault() {
+    const url = yield* TestDatabaseUrl;
+    const name = new URL(Redacted.value(url)).pathname.slice(1);
+
+    yield* withClient(url, (client) =>
+      client.unsafe(
+        `alter database "${name}" set default_transaction_isolation = 'serializable'`
+      )
+    );
+
+    return url;
+  }
+);
+
+/**
+ * An empty database of its own, created through the admin URL and dropped (forcibly) on release: `TestDatabaseUrl`
+ * names it. A test that applies the migrations one at a time starts here.
+ */
+export const disposableDatabase = Layer.effect(
   TestDatabaseUrl,
   Effect.gen(function* disposableDatabase() {
     const admin = yield* adminUrl;

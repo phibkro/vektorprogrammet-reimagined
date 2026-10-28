@@ -64,13 +64,19 @@ export * from "./shared/clock.ts";
 
 export * from "./shared/errors.ts";
 
+export * from "./shared/guarantees.ts";
+
 export * from "./shared/ids.ts";
+
+export * from "./shared/isolationProbe.ts";
 
 export * from "./shared/outbox.ts";
 
 export * from "./shared/siteOrigin.ts";
 
 export * from "./shared/transaction.ts";
+
+export * from "./shared/transactionModes.ts";
 
 export * from "./shared/transactor.ts";
 

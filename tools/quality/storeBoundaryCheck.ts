@@ -6,7 +6,6 @@ import {
   Path,
   Predicate,
 } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { parseSync } from "oxc-parser";
 
 import {
@@ -16,6 +15,7 @@ import {
   groupOf,
 } from "./storeBoundary.ts";
 import type { Group } from "./storeBoundary.ts";
+import { workingTreePaths } from "./workingTree.ts";
 
 export interface ImportSite {
   readonly path: string;
@@ -167,32 +167,9 @@ export const scanRepository = Effect.fn("scanRepository")(
   function* scanRepository(root: string) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
-    const listing = yield* spawner.string(
-      ChildProcess.make("git", [
-        "-C",
-        root,
-        "ls-files",
-        "-c",
-        "-o",
-        "--exclude-standard",
-      ])
-    );
-
-    // `git ls-files -c` also lists tracked files deleted from the working tree; only files present on disk are scanned.
-    const paths = Arr.flatten(
-      yield* Effect.forEach(
-        Arr.filter(
-          listing.split(/\r?\n/u),
-          (file) => file !== "" && sourcePattern.test(file)
-        ),
-        (file) =>
-          Effect.map(
-            fs.exists(path.join(root, file)),
-            (exists): readonly string[] => (exists ? [file] : [])
-          )
-      )
+    const paths = yield* workingTreePaths(root, (file) =>
+      sourcePattern.test(file)
     );
 
     const sites = Arr.flatten(

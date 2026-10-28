@@ -1,7 +1,7 @@
 /**
  * Branded identifiers and the closed set of entity names.
  *
- * Integer ids mirror PostgreSQL identity columns; legacy department ids are kept
+ * Integer ids are assigned by the store and never reused; legacy department ids are kept
  * by the importer. File keys are content-addressed (SHA-256 of the bytes plus an
  * extension derived from the detected content type, see `files/fileType.ts`).
  */

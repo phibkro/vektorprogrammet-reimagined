@@ -26,6 +26,7 @@ import {
   Outbox,
   OutboxMessage,
   OutboxSweep,
+  Transactor,
 } from "@vektorprogrammet/domain";
 import type { OutboxMessageId } from "@vektorprogrammet/domain";
 import { Array as Arr, Config, Effect, Layer, Redacted, Schema } from "effect";
@@ -159,7 +160,10 @@ const runScenario = (options: {
       yield* reset;
 
       const url = yield* hyperdriveUrl(yield* TestDatabaseUrl);
-      const [id] = yield* (yield* Outbox).enqueue([mail]);
+
+      const [id] = yield* (yield* Transactor).run(
+        (yield* Outbox).enqueue([mail])
+      );
 
       if (id === undefined) {
         return yield* Effect.die("one message was enqueued");

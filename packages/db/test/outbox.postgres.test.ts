@@ -12,6 +12,7 @@ import {
   OutboxReports,
   PersonId,
   SlackTarget,
+  Transactor,
 } from "@vektorprogrammet/domain";
 import type {
   ClaimedOutboxMessage,
@@ -23,6 +24,7 @@ import {
   DateTime,
   Effect,
   Exit,
+  Option,
   Predicate,
   Record as Rec,
   pipe,
@@ -31,6 +33,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { postgresDatabase } from "./support/database.ts";
+import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
 import { AT } from "./support/fixtures.ts";
 import { race } from "./support/race.ts";
 
@@ -49,12 +52,13 @@ const services = Effect.gen(function* services() {
     outbox: yield* Outbox,
     reports: yield* OutboxReports,
     sql: yield* SqlClient,
+    transactor: yield* Transactor,
   };
 });
 
 const one = Effect.fnUntraced(function* one(text: string) {
-  const { outbox } = yield* services;
-  const [id] = yield* outbox.enqueue([slack(text)]);
+  const { outbox, transactor } = yield* services;
+  const [id] = yield* transactor.run(outbox.enqueue([slack(text)]));
 
   if (id === undefined) {
     return yield* Effect.die("one message was enqueued and no id came back");
@@ -80,6 +84,18 @@ const claimOrFail = Effect.fnUntraced(function* claimOrFail(
   }
 
   return claim.row;
+});
+
+/** The state of one outbox row: its status, and whether a claim holds it. */
+const rowState = Effect.fnUntraced(function* rowState(id: OutboxMessageId) {
+  const { sql } = yield* services;
+
+  const rows = yield* sql<{
+    readonly claimed: boolean;
+    readonly status: string;
+  }>`select status, claim_token is not null as claimed from outbox where id = ${Number(id)}`;
+
+  return rows[0];
 });
 
 /** How many rounds the race runs, each on a row of its own. */
@@ -384,20 +400,22 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         () =>
           Effect.gen(function* effectProgram() {
             yield* atStart;
-            const { outbox, delivery, sql } = yield* services;
+            const { outbox, delivery, sql, transactor } = yield* services;
 
-            const [ended, sent] = yield* outbox.enqueue([
-              OutboxMessage.cases.SetCredential.make({
-                passwordHash: null,
-                personId: PersonId.make(1),
-                revokeSessions: false,
-              }),
-              OutboxMessage.cases.SetCredential.make({
-                passwordHash: null,
-                personId: PersonId.make(2),
-                revokeSessions: false,
-              }),
-            ]);
+            const [ended, sent] = yield* transactor.run(
+              outbox.enqueue([
+                OutboxMessage.cases.SetCredential.make({
+                  passwordHash: null,
+                  personId: PersonId.make(1),
+                  revokeSessions: false,
+                }),
+                OutboxMessage.cases.SetCredential.make({
+                  passwordHash: null,
+                  personId: PersonId.make(2),
+                  revokeSessions: false,
+                }),
+              ])
+            );
 
             if (ended === undefined || sent === undefined) {
               assert.fail("two intents were queued");
@@ -565,6 +583,86 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             );
           })
       );
+
+      layerTest.effect(
+        "falsifier 5: markDelivered joins the caller's transaction (its acknowledgement rolls back with it) and commits alone outside one",
+        () =>
+          Effect.gen(function* joinsTheTransaction() {
+            yield* atStart;
+            const { delivery, transactor } = yield* services;
+
+            const inside = yield* claimOrFail(yield* one("inside"), 60);
+
+            const rolledBack = yield* Effect.exit(
+              transactor.run(
+                Effect.andThen(
+                  delivery.markDelivered(inside.id, inside.claimToken),
+                  Effect.fail("the caller's transaction fails")
+                )
+              )
+            );
+
+            assert.isTrue(Exit.isFailure(rolledBack));
+
+            assert.deepStrictEqual(yield* rowState(inside.id), {
+              claimed: true,
+              status: "pending",
+            });
+
+            // Without a transaction of the caller's the acknowledgement stands on its own, whatever follows.
+            const alone = yield* claimOrFail(yield* one("alone"), 60);
+
+            const failedAfter = yield* Effect.exit(
+              Effect.andThen(
+                delivery.markDelivered(alone.id, alone.claimToken),
+                Effect.fail("nothing to roll back")
+              )
+            );
+
+            assert.isTrue(Exit.isFailure(failedAfter));
+
+            assert.deepStrictEqual(yield* rowState(alone.id), {
+              claimed: false,
+              status: "delivered",
+            });
+          })
+      );
     });
+
+    // The control opens a second client, which needs the real clock that this layer was built with.
+    it.effect(
+      "falsifier 5, control: an acknowledgement written on another client than the transaction's commits through the caller's rollback, and the case above sees it",
+      () =>
+        Effect.gen(function* acknowledgesApart() {
+          const url = yield* TestDatabaseUrl;
+          const { transactor } = yield* services;
+          const claim = yield* claimOrFail(yield* one("apart"), 60);
+
+          const exit = yield* withClient(url, (other) =>
+            Effect.exit(
+              transactor.run(
+                Effect.andThen(
+                  other`update outbox set status = 'delivered', delivered_at = now(), claim_token = null, claimed_until = null where id = ${Number(claim.id)} and claim_token = ${claim.claimToken}::uuid`,
+                  Effect.fail("the caller's transaction fails")
+                )
+              )
+            )
+          );
+
+          // The caller's transaction failed in its own way (a typed failure, not a defect of the second client) ...
+          assert.deepStrictEqual(
+            Exit.findErrorOption(exit),
+            Option.some("the caller's transaction fails"),
+            Exit.isFailure(exit) ? Cause.pretty(exit.cause) : "succeeded"
+          );
+
+          // ... and the acknowledgement did not join it: it survived the rollback, which is the state that the case
+          // above refuses (`pending`, claimed).
+          assert.deepStrictEqual(yield* rowState(claim.id), {
+            claimed: false,
+            status: "delivered",
+          });
+        })
+    );
   }
 );

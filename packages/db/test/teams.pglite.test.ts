@@ -512,9 +512,9 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
 
       assert.deepStrictEqual(
         [
-          yield* ledger.claim(person.id, HOST_2026),
-          yield* ledger.claim(person.id, HOST_2026),
-          yield* ledger.claim(person.id, VAR_2027),
+          yield* transactional(ledger.claim(person.id, HOST_2026)),
+          yield* transactional(ledger.claim(person.id, HOST_2026)),
+          yield* transactional(ledger.claim(person.id, VAR_2027)),
         ],
         [true, false, true]
       );

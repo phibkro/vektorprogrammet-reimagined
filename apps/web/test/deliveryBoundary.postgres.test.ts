@@ -236,10 +236,9 @@ layer(live, { excludeTestServices: true })(
             yield* TestClock.setTime(DateTime.toEpochMillis(T0));
             yield* reset;
 
-            const [mailId, slackId] = yield* (yield* Outbox).enqueue([
-              email,
-              slack,
-            ]);
+            const [mailId, slackId] = yield* (yield* Transactor).run(
+              (yield* Outbox).enqueue([email, slack])
+            );
 
             const crashed = yield* crashingDelivery(captureSenderLayer);
 
@@ -312,7 +311,7 @@ layer(live, { excludeTestServices: true })(
             yield* reset;
 
             const sql = yield* SqlClient;
-            yield* (yield* Outbox).enqueue([email]);
+            yield* (yield* Transactor).run((yield* Outbox).enqueue([email]));
 
             const keyless = Layer.succeed(MessageSender)(
               MessageSender.of({

@@ -17,6 +17,7 @@ import { Aggregates } from "./aggregate/aggregates.ts";
 import { roots } from "./aggregate/declaration.ts";
 import { aggregateLocksLayer } from "./aggregate/locks.ts";
 import { Drizzle } from "./internal/drizzle.ts";
+import { IsolationProbeLive } from "./isolationProbe.ts";
 import { AccountRepositoryLive } from "./repositories/accounts.ts";
 import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
@@ -109,7 +110,8 @@ const Repositories = Layer.mergeAll(
   WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
   WorkspaceReportsLive,
-  TransactorLive
+  TransactorLive,
+  IsolationProbeLive.pipe(Layer.provide(TransactorLive))
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 /**

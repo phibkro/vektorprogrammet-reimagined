@@ -73,6 +73,7 @@ import { SqlClient } from "effect/sql";
 
 import { myPage, signInDestination } from "../src/server/accounts";
 import { Auth } from "../src/server/auth";
+import { isolationReport } from "../src/server/isolation";
 import { panelReads } from "../src/server/panelReads";
 import { resolvePrincipal } from "../src/server/principal";
 import { legacyFileLocation } from "../src/server/redirects";
@@ -300,6 +301,7 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("routes/filer/$key GET", servePublicFile(KEY_SMALL), {
     empty: "NotFound",
   }),
+  readPath("routes/api/isolation GET", isolationReport("preview")),
   readPath("server.ts legacy file redirect", legacyFileLocation(LEGACY_PATH)),
 ];
 
@@ -308,6 +310,7 @@ const RUN_QUERY_CALL_SITES = {
   "functions/account.functions.ts": 2,
   "functions/panel.functions.ts": 11,
   "functions/public.functions.ts": 11,
+  "routes/api/isolation.ts": 1,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,
 };

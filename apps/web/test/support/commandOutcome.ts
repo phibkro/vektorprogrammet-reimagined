@@ -7,6 +7,7 @@ import {
   EmailAddress,
   Outbox,
   OutboxMessage,
+  Transactor,
   validationFailed,
 } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Layer, Option } from "effect";
@@ -27,6 +28,11 @@ export const enqueueEmail = Effect.gen(function* enqueueEmail() {
 
   return Option.getOrThrow(Arr.head(ids));
 });
+
+/** The same message, committed: what a delivery test starts from. */
+export const commitEmail = Effect.flatMap(Transactor, (transactor) =>
+  transactor.run(enqueueEmail)
+);
 
 /** The command, run as a request runs it, optionally failing after it queues the message. */
 export const requestOutcome = (url: Redacted.Redacted, rollback: boolean) =>

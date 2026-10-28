@@ -56,13 +56,13 @@ export class ConsentRepository extends Context.Service<
     /** The locked person's records: a decision read, which runs after the lock. */
     readonly ofLocked: (
       locked: Locked<"Person">
-    ) => Effect.Effect<readonly StoredConsent[]>;
+    ) => Effect.Effect<readonly StoredConsent[], never, InTransaction>;
     /** Replaces the locked person's record of this kind: one record per person and kind. */
     readonly record: (
       locked: Locked<"Person">,
       kind: ConsentKind,
       record: ConsentRecord
-    ) => Effect.Effect<StoredConsent>;
+    ) => Effect.Effect<StoredConsent, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/personalData/ConsentRepository") {}
 
@@ -77,12 +77,15 @@ export class AlumniRequests extends Context.Service<
     readonly candidates: (
       now: DateTime.Utc
     ) => Effect.Effect<readonly PersonId[]>;
-    /** One request per person and engagement end: `true` for the call that made it, `false` after. */
+    /**
+     * One request per person and engagement end: `true` for the call that made it, `false` after (CL1, CL2). It
+     * commits with the e-mail that it asks for and its audit row, so it requires the transaction (CL3).
+     */
     readonly claim: (
       locked: Locked<"Person">,
       engagementEnd: DateTime.Utc,
       requestedAt: DateTime.Utc
-    ) => Effect.Effect<boolean>;
+    ) => Effect.Effect<boolean, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/personalData/AlumniRequests") {}
 

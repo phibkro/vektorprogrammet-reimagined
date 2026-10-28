@@ -47,7 +47,7 @@ const tableRow = (values: readonly string[]): string =>
   `| ${Arr.join(Arr.map(values, cell), " | ")} |`;
 
 /** Unlike an import report, a reference table keeps its header when no rows exist. */
-const table = (
+export const table = (
   header: readonly string[],
   rows: readonly (readonly string[])[]
 ): string => {
@@ -372,7 +372,7 @@ const byResource = (
 };
 
 /** Preserve text outside the named blocks. */
-const replaceBlocks = (
+export const replaceBlocks = (
   document: string,
   blocks: readonly (readonly [string, string])[]
 ): Result.Result<string, string> => {
@@ -391,7 +391,7 @@ const replaceBlocks = (
   return Result.succeed(current);
 };
 
-const checkRendered = (
+export const checkRendered = (
   document: string,
   output: Result.Result<string, string>
 ): Result.Result<void, string> =>

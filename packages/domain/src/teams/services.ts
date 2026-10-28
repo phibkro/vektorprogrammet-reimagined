@@ -64,7 +64,9 @@ export class PersonRepository extends Context.Service<
   {
     readonly findById: (id: PersonId) => Effect.Effect<Person, NotFound>;
     /** The locked person: a decision read, which runs after the lock and sees what no other transaction can change. */
-    readonly findLocked: (locked: Locked<"Person">) => Effect.Effect<Person>;
+    readonly findLocked: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<Person, never, InTransaction>;
     /** The people of one department, or of all of them (`null`), by name. */
     readonly list: (
       departmentId: DepartmentId | null
@@ -121,11 +123,11 @@ export class MembershipRepository extends Context.Service<
     readonly findLocked: (
       locked: Locked<"Person">,
       id: MembershipId
-    ) => Effect.Effect<Membership, NotFound>;
+    ) => Effect.Effect<Membership, NotFound, InTransaction>;
     /** Every membership of the locked person: a decision read, which runs after the lock. */
     readonly listLocked: (
       locked: Locked<"Person">
-    ) => Effect.Effect<readonly Membership[]>;
+    ) => Effect.Effect<readonly Membership[], never, InTransaction>;
     /** Every membership of the team, the ended ones too (history shows both rows of a change), by start. */
     readonly listByTeam: (
       teamId: TeamId
@@ -140,17 +142,17 @@ export class MembershipRepository extends Context.Service<
     ) => Effect.Effect<readonly ActiveMembership[]>;
     /**
      * Inserts the locked person's membership (the owner is the lock's). A person's memberships in one team never
-     * overlap: the database's exclusion constraint refuses an overlap, and that is `AlreadyExists`.
+     * overlap (NO1): the store refuses an overlap, and that is `AlreadyExists` (NO3).
      */
     readonly insert: (
       locked: Locked<"Person">,
       draft: Omit<MembershipDraft, "personId">
-    ) => Effect.Effect<Membership, AlreadyExists>;
+    ) => Effect.Effect<Membership, AlreadyExists, InTransaction>;
     /**
      * Moves the end of the locked person's membership that is Active in `activeIn` and whose end is still
-     * `observedEnd`: `UPDATE … SET end = $new WHERE id = $1 AND person = $locked AND end = $observed AND active`. A
-     * row in any other state, one that someone else changed since it was read, or one that is not theirs, is a
-     * `Conflict`. A new end that overlaps another membership of the person in the team is `AlreadyExists`.
+     * `observedEnd` (CW1). A membership in any other state, one that someone else changed since it was read, or one
+     * that is not theirs, is a `Conflict`. A new end that overlaps another membership of the person in the team is
+     * `AlreadyExists`.
      */
     readonly setEnd: (
       locked: Locked<"Person">,
@@ -160,11 +162,10 @@ export class MembershipRepository extends Context.Service<
         readonly newEnd: Semester;
         readonly activeIn: Semester;
       }
-    ) => Effect.Effect<Membership, Conflict | AlreadyExists>;
+    ) => Effect.Effect<Membership, Conflict | AlreadyExists, InTransaction>;
     /**
-     * Removes the locked person's membership that is Planned in `current` and still has the term the caller read:
-     * `DELETE … WHERE id = $1 AND person = $locked AND term = $observed AND start > current`. Anything else is a
-     * `Conflict`.
+     * Removes the locked person's membership that is Planned in `current` and still has the term the caller read
+     * (CW1). Anything else is a `Conflict`.
      */
     readonly remove: (
       locked: Locked<"Person">,
@@ -173,7 +174,7 @@ export class MembershipRepository extends Context.Service<
         readonly observed: MembershipTerm;
         readonly current: Semester;
       }
-    ) => Effect.Effect<void, Conflict>;
+    ) => Effect.Effect<void, Conflict, InTransaction>;
   }
 >()("@vektorprogrammet/domain/teams/MembershipRepository") {}
 
@@ -193,7 +194,7 @@ export class AdminGrantRepository extends Context.Service<
       adminList: Locked<"AdminList">,
       locked: Locked<"Person">,
       draft: Omit<AdminGrantDraft, "personId">
-    ) => Effect.Effect<AdminGrant>;
+    ) => Effect.Effect<AdminGrant, never, InTransaction>;
     /**
      * Removes the place `id` of the locked holder, unless it is the last place that ends after `validAfter` (the end of
      * the current semester) and that an Active account holds: the list would be left with no Active administrator. The
@@ -206,7 +207,7 @@ export class AdminGrantRepository extends Context.Service<
       locked: Locked<"Person">,
       id: AdminGrantId,
       validAfter: DateTime.Utc
-    ) => Effect.Effect<"revoked" | "last", NotFound>;
+    ) => Effect.Effect<"revoked" | "last", NotFound, InTransaction>;
   }
 >()("@vektorprogrammet/domain/teams/AdminGrantRepository") {}
 
@@ -214,11 +215,14 @@ export class AdminGrantRepository extends Context.Service<
 export class DigestLedger extends Context.Service<
   DigestLedger,
   {
-    /** `true` when this call recorded the digest, `false` when an earlier one already had. */
+    /**
+     * `true` when this call recorded the digest, `false` when an earlier one already had (CL1, CL2). The ledger row and
+     * the outbox row commit together, so it requires the transaction (CL3).
+     */
     readonly claim: (
       personId: PersonId,
       semester: Semester
-    ) => Effect.Effect<boolean>;
+    ) => Effect.Effect<boolean, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/teams/DigestLedger") {}
 

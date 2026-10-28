@@ -4,22 +4,9 @@
 
 Commands never open a transaction. A command that must be atomic **requires the `InTransaction` service** (`shared/transaction.ts`), so running it unwrapped does not type-check.
 
-`packages/db` owns the only production provider. Its runner wraps the program in the SQL client's transaction and provides `InTransaction` inside it:
+A store adapter owns the one production provider (`packages/db`'s `transactional`, behind `Transactor`). Its runner wraps the program in one transaction of the store and provides `InTransaction` inside it. A source test fails if another file holds the service as a value or writes its key as a string; that is a guard against accidental provision and not a proof (Effect keys a service by a string, so a deliberate forgery needs no reference to it: spec 0018 R20, and the unforgeable construction is a later spec). What the proof promises is declared in `shared/guarantees.ts` (spec 0018): atomic visibility and rollback (TX1), nested scopes (TX2), the isolation floor ReadCommittedWithLocks (TX3), no retry of a deadlock (TX4) and its provision (TX5).
 
-```ts
-// packages/db (sketch)
-export const runInTransaction = <A, E, R>(program: Effect.Effect<A, E, R>) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    return yield* sql.withTransaction(
-      Effect.provideService(program, InTransaction, {
-        kind: "database-transaction",
-      })
-    );
-  });
-```
-
-- Repository Layers use the ambient `SqlClient`, so their queries join the transaction. A typed failure, a defect or an interruption rolls everything back, including the audit row and the outbox rows.
+- Repository Layers run in the transaction that is open, so their writes join it. A typed failure, a defect or an interruption rolls everything back, including the audit row and the outbox rows.
 - Authorization (`Domain.handle`) runs inside the transaction.
 - No provider I/O (R2, mail, Slack, Turnstile) inside a transaction.
 
@@ -35,6 +22,10 @@ A port is a service the domain declares and a store implements; `packages/db` ho
 | `SessionDirectory` | `accounts/sessionDirectory.ts` | `byPerson`: a person's live sessions, each with its last seen (`SessionActivity`). |
 | `SignInDirectory` | `accounts/signInDirectory.ts` | The four reads that Better Auth's callbacks need of a person: the person of a user, the identity behind an address, the sign-in address, the profile to create a user from. |
 | `ImportTarget` | `organisation/legacyImport.ts` | The legacy import's one transaction over `TargetTable`s. |
+
+## Store guarantees (spec 0018, ADR 0014 stage 2)
+
+`shared/guarantees.ts` declares each guarantee a store keeps as a property of an abstract store (records, keys, transactions, committed state), with its capability, its strength (`store-enforced`: it holds against every writer, the importer and migrations included; `port-enforced`: only against writers that use the port), whether it is an invariant, the port methods that carry it, the ones that need a transaction (`transactional`, checked against the modes) and what a raw writer would try. It is the one place where a property is stated in full; this README and the port comments cite an id. An invariant is store-enforced, with one named exception, the last administrator (LK7). `shared/transactionModes.ts` declares what every port method asks of a transaction (`Requires`, `Standalone`, `Joins`, `Read`, `Outside`, `Opens`), and a type test checks each row against the method's type. `docs/system/store-guarantees.md` is both, rendered (`bun run docs`). `InTransaction` promises the isolation floor TX3 (ReadCommittedWithLocks); a program that needs one state across unlocked reads reads it in one call (`exportOf`, `PrincipalDirectory`) or locks (SN1, SN2). `IsolationProbe` is the port that reports the levels a deployed store gives (spec 0018 R10).
 
 ## Aggregate locks (spec 0006b)
 
@@ -73,12 +64,12 @@ Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; 
 
 ## Repository contract
 
-- Methods fail only with the listed domain errors. Everything else (lost connection, unexpected SQL state) is a defect. Existing-Person decision reads and writes take the Person token; Person and Team creation or update that claims an address also requires `InTransaction`.
-- Unique constraints map to `AlreadyExists` (entity, key, Norwegian message): department `city`, team name per department, person e-mail, and the exclusion constraint that keeps one person's memberships in one team from overlapping. Commands may replace the message.
-- A transition is a conditional update: `MembershipRepository.setEnd` is `UPDATE … SET end = $new WHERE id = $1 AND end = $observed AND <active>`, and `remove` is `DELETE … WHERE id = $1 AND term = $observed AND <planned>`. Zero rows is a `Conflict`, never a silent overwrite. The state is calculated from the term and the current semester (`teams/term.ts`) and stored nowhere. A stored machine's state (the account's) is written only by `AccountRepository.transition`, which applies one transition of the machine: `UPDATE … SET state = to WHERE owner = $1 AND state = ANY(from)`.
+- Methods fail only with the listed domain errors. Everything else (lost connection, an unexpected failure of the store) is a defect. Every method that takes a lock token requires `InTransaction` (a token is good only in the transaction that holds it, LK3): the decision reads and writes of an existing Person and of the admin list. So do Person and Team creation or update that claims an address. `TransactionModes` (`shared/transactionModes.ts`) declares the mode of every method of every port, and a type test checks each against its type.
+- A duplicate key maps to `AlreadyExists` (entity, key, Norwegian message; UK2): department `city`, team name per department, person e-mail, and the rule that keeps one person's memberships in one team from overlapping (NO1). Commands may replace the message.
+- A transition is a conditional write (CW1): `MembershipRepository.setEnd` and `remove` apply only while the membership is still in the state the caller read. Nothing written is a `Conflict`, never a silent overwrite. The state is calculated from the term and the current semester (`teams/term.ts`) and stored nowhere. A stored machine's state (the account's) is written only by `AccountRepository.transition`, which applies one transition of the machine, and only from a state that the transition starts from.
 - `AdminGrantRepository.revoke(adminList, holder, id, validAfter)` is atomic (it requires `InTransaction`): it reads the places that end after `validAfter` and that an Active account holds through the admin list's token, then deletes the place through the holder's token unless it is the last of them (`"last"`). Two revocations at once cannot both succeed, and a place that a deactivated account holds does not count.
-- `SemesterRepository.ensure` is `INSERT … ON CONFLICT (term, year) DO UPDATE SET term = EXCLUDED.term RETURNING *`, one statement that returns the existing row too, so concurrent callers all get the one row (RULE-237, spec 0001 R1). Only the semester job, run by the Worker's `scheduled` handler, calls it (spec 0003): the current semester and its successor `nextSemester` (RULE-050). A read asks `currentSemester` (pure: calendar and `Clock`) or `findCurrentSemester` (the row, `None` until the job has written it); it never inserts.
-- `DigestLedger.claim` is `INSERT … ON CONFLICT DO NOTHING RETURNING`: true for the first caller, false after. The ledger row and the outbox row commit together.
+- `SemesterRepository.ensure` is one find-or-create step that returns the existing record too (UK3), so concurrent callers all get the one record (RULE-237, spec 0001 R1). Only the semester job, run by the Worker's `scheduled` handler, calls it (spec 0003): the current semester and its successor `nextSemester` (RULE-050). A read asks `currentSemester` (pure: calendar and `Clock`) or `findCurrentSemester` (the record, `None` until the job has written it); it never inserts.
+- `DigestLedger.claim` records the digest for a leader and semester once (CL1, CL2): true for the first caller, false after. The ledger row and the outbox row commit together, so the claim, `Outbox.enqueue`, `AuditLog.record` and `AlumniRequests.claim` all require `InTransaction` (CL3): a program that calls one of them outside `Transactor.run` does not type-check.
 - `PublicFileRepository.register` is idempotent on `key`.
 - Repositories do not order rows beyond what their doc says; rule functions do (`sortNewestFirst`).
 - Decode rows with the domain schemas (`Department`, `StoredSemester`, `SocialEvent`, `PublicFile`, `OutboxMessage`, `AuditEntry`, `Person`, `Team`, `Membership`, `AdminGrant`).

@@ -92,8 +92,8 @@ export const OrganisationHandlers = OrganisationRpc.toLayer({
   }),
   /**
    * RULE-237 (spec 0003), the scheduled job: the current semester and the one after it (RULE-050) exist as rows.
-   * Nobody creates semesters and no page view does. Idempotent and safe under concurrent runs: one
-   * `INSERT … ON CONFLICT … RETURNING` per semester on the unique (term, year) constraint. Not a staff write:
+   * Nobody creates semesters and no page view does. Idempotent and safe under concurrent runs: one find-or-create per
+   * semester on its unique (term, year) key (UK3). Not a staff write:
    * the principal is `System("semesters")` and no audit entry is written.
    */
   ensureSemesters: OrganisationDomain.handle(ensureSemesters, {

@@ -124,7 +124,50 @@ jobs:
           PULL_REQUEST: ${{ github.event.number }}
           # For a pull request GITHUB_SHA is GitHub's merge commit; the comment names the branch head instead.
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: devenv shell -- bash -c 'cd apps/web && GITHUB_SHA="$HEAD_SHA" bunx alchemy deploy --stage "$STAGE" --yes'
+        # The stack's outputs are the last thing that `alchemy deploy` prints; the isolation check below reads this
+        # Worker's URL from them.
+        run: |
+          set -euo pipefail
+          devenv shell -- bash -c 'cd apps/web && GITHUB_SHA="$HEAD_SHA" bunx alchemy deploy --stage "$STAGE" --yes' \
+            2>&1 | tee "$RUNNER_TEMP/deploy.log"
+
+      # Spec 0018 R10 and R16, falsifier 4 (the deployed path): what the store reports about its transactions through
+      # Hyperdrive. The Preview's own route asks the store three things (`IsolationProbe`): the level of a
+      # `Transactor.run` transaction (must be `read committed`), the level of a transaction that the adapter's mechanism
+      # begins at SERIALIZABLE (must be `serializable`, so a platform that drops the clause cannot pass by luck) and the
+      # role's default (must be `read committed`: the statements outside a transaction run at it). The route answers 200
+      # only when all three hold (`isolationProblems` in `apps/web/src/server/isolation.ts` is the one statement of
+      # that), so this step needs nothing but the status. The URL is the `url:` that the deploy step itself printed, and
+      # it must match, as a whole, `https://pr-<this pull request>-<labels>.workers.dev`: not a pull request comment,
+      # because anyone can comment on a public repository and point the step at a host of their own, and not a prefix
+      # and a suffix, which `user@host` and a path can both satisfy. A new Worker may need a moment before it answers.
+      - name: Check the isolation level through Hyperdrive
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PULL_REQUEST: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          url="$(sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/deploy.log" \
+            | sed -nE "s/^[[:space:]]*url: '([^']+)'[[:space:]]*$/\1/p" | tail -n 1)"
+          # The whole URL, not a prefix and a suffix: `https://pr-47-x@evil.example.com/#.workers.dev` and
+          # `https://pr-47-x.evil.example.com/a.workers.dev` both begin and end as a Worker URL and name another host.
+          pattern="^https://pr-${PULL_REQUEST}-[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev/?$"
+          if ! [[ $url =~ $pattern ]]; then
+            echo "::error::the deploy printed no Worker URL of this pull request (got: ${url:-none})"
+            exit 1
+          fi
+          body="$RUNNER_TEMP/isolation.json"
+          status=""
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            status="$(curl -sS --max-time 20 -o "$body" -w '%{http_code}' "${url%/}/api/isolation" || true)"
+            [ "$status" = "200" ] && break
+            sleep 6
+          done
+          echo "isolation report on the Preview: HTTP ${status:-none}"
+          cat "$body" || true
+          echo
+          test "$status" = "200"
 
   cleanup:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

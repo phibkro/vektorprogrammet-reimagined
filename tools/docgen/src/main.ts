@@ -20,6 +20,10 @@ import {
   renderCommandsDocument,
   renderDocument,
 } from "./render.ts";
+import {
+  checkStoreGuaranteesDocument,
+  renderStoreGuaranteesDocument,
+} from "./storeGuarantees.ts";
 
 /** What the personal data blocks are generated from besides the declarations: the runtime's own catalog and forms. */
 const PERSONAL_DATA = { catalog: Catalog, forms: Forms };
@@ -50,6 +54,11 @@ const DOCUMENTS = [
     file: "../../docs/system/administration.md",
     render: (document: string, domains: Declared, grants: Granted) =>
       renderAdministrationDocument(document, domains, grants, PERSONAL_DATA),
+  },
+  {
+    check: (document: string) => checkStoreGuaranteesDocument(document),
+    file: "../../docs/system/store-guarantees.md",
+    render: (document: string) => renderStoreGuaranteesDocument(document),
   },
 ] as const;
 
