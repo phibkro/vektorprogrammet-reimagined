@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 2430e1c4d1f62e7f4e569172d8e66714e842ca65
-confirmed-at: 23de4e4f45752639bdc2eefafd4007bce9d1aa92
+sync-digest: 3b7f1782a7fd65279f36d4bec26d0e78803d7efc
+confirmed-at: ab8615021bb026745cb32982b8c4ddbc291acd80
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -63,6 +63,8 @@ Spec 0018 (store guarantees as properties, 2026-10-28) changed two covered paths
 Spec 0018 review round 1 (2026-10-28) moved the explicit `BEGIN` of `transactional.ts` into an exported `atReadCommitted`, which `transactional` and the legacy importer's transaction both use (the importer is not a membership writer and is not covered). The statement that a command's transaction sends is the same, so no modeled statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 Spec 0018 review round 3 (2026-10-28) changed the first comment line of `packages/db/src/transactional.ts` ("The only provider" became "The one production provider … a source test guards against another") and nothing else of a covered file; the digest moved with the text. No statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
+
+Spec 0020 (module graph check and no integration call inside a transaction, ADR 0015 stages 1 and 1b, 2026-10-28) changed two covered paths, and both changes are types only. `packages/domain/src/shared/transactor.ts` now declares `run` as `<A, E, R extends NotAnIntegration>`, with a longer comment, and `packages/domain/src/workspace/services.ts` marks `WorkspaceDirectory` and `WorkspaceWriter` with a phantom `[IntegrationTypeId]` property (`declare readonly`, no initialiser, so no emitted code) and an `implements IntegrationPort` clause. No statement that a command issues, no lock, no constraint and no repository method changed, and no covered `packages/db` file changed. The PR's first version skipped this confirmation and said that no covered file had changed; CI's `Formal verification` caught it (DRIFT, exit 3). The model ran again with `--code` on the tree after review round 1 (`ab86150`): every run was as expected (each of the five properties holds for the current code and each variant fails as listed) and the 53 PostgreSQL code tests passed; the only line left was the stale coverage, which the digest and `confirmed-at` above now record.
 
 ## Writers outside the model (spec 0007b)
 
