@@ -18,6 +18,7 @@ Everything in the model points at code that you can open: `model/Shapes.tla` lis
 ```coverage
 sync-digest: 6b8b76cd02cf00cb45004b98668ea7c1c505efaf
 confirmed-at: 878b8587b2e169d359785cb7c860d90663686a90
+packages/db/src/live.ts
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -38,9 +39,9 @@ packages/domain/src/shared/transactor.ts
 
 | Covered code | What the model takes from it |
 | --- | --- |
-| `AggregateLocks.lock` and `lockAll` (`packages/db/src/aggregate/locks.ts:80-148`), the lock scope (`lockScope.ts:36-50`) | a lock is one `SELECT … ORDER BY id FOR NO KEY UPDATE`; a row that the transaction already holds sends no statement; a lock that would come before a held one is a defect before any statement (`orderCheck`). Since spec 0007b the statement of a root that declares a tombstone column (`person.merged_into`) also says `merged_into IS NULL`, so a person who was merged away is not found: `NotFound`, which no model command meets (see "Writers outside the model") |
+| `AggregateLocks.lock` and `lockAll` (`packages/db/src/aggregate/locks.ts:81-149`), the lock scope (`lockScope.ts:36-50`) | a lock is one `SELECT … ORDER BY id FOR NO KEY UPDATE`; a row that the transaction already holds sends no statement; a lock that would come before a held one is a defect before any statement (`orderCheck`). Since spec 0007b the statement of a root that declares a tombstone column (`person.merged_into`) also says `merged_into IS NULL`, so a person who was merged away is not found: `NotFound`, which no model command meets (see "Writers outside the model") |
 | `Aggregates.insert`, `update`, `remove` (`aggregate/aggregates.ts:304-390`; `update` and `remove` build their statement with `onHeld`, `:127-162`) | each write is one statement: insert takes its owner from the token; update and remove restrict the owner to the tokens' ids (one id for a command). The token check sends none |
-| `MembershipRepositoryLive.findById`, `findLocked`, `insert`, `setEnd`, `remove` (`teams.ts:472-656`) | the statements of each call; the WHERE clause of each conditional write; "no row matched" is `lostRace`, the typed `Conflict` |
+| `MembershipRepositoryLive.findById`, `findLocked`, `insert`, `setEnd`, `remove` (`teams.ts:479-663`) | the statements of each call; the WHERE clause of each conditional write; "no row matched" is `lostRace`, the typed `Conflict` |
 | the handlers `createMembership`, `deleteMembership`, `changeMembership`, `endEarlyMembership`, `extendMembership`, `createAdminGrant`, `deleteAdminGrant` (`teams/commands.ts`) and `deactivateAccount`, `reactivateAccount` (`accounts/commands.ts:197-198, 223-224`) | which locks and repository calls each command makes, in order (`compose`); `beginTransition` (`teams/commands.ts:118-148`) is find, lock, read, decide |
 | `WelcomeLedger.claim` (`packages/db/src/repositories/teams.ts`) | its write uses the same Person token; it adds no lock. The model does not prove welcome-message uniqueness; `welcome.postgres.test.ts` tests that separately. |
 | Workspace assignment and shared address claims (`workspace/commands.ts`, `repositories/companyAddresses.ts`) | Person locks precede address claims; multiple people lock by id and multiple addresses claim by address. `Address.tla` checks two projections with two addresses each; the PostgreSQL probe pins unique-insert waiting. Profile and team edits claim one address each. |
@@ -49,6 +50,7 @@ packages/domain/src/shared/transactor.ts
 | `membership_no_overlap` (`drizzle/20261026221817_membership_no_overlap`) | the exclusion constraint on person, team and term |
 | `classifySqlFailure` (`classifySqlFailure.ts:99-158`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
 | `transactional`, `Transactor.run` | one command is one transaction (READ COMMITTED, begun by an explicit `BEGIN ISOLATION LEVEL READ COMMITTED` since spec 0018) |
+| `withLiveProof`, `verified` (`packages/db/src/live.ts`, spec 0019) | the proof check that runs before every `Requires` method (every `lock`, `lockAll`, and repository write of the model) and the registration that wraps each transaction level. The model takes both as sending no statement, taking no lock and waiting for nothing: a change that adds a statement, a lock or a wait there, in front of a command's first statement, changes what the model is a model of, so the file is covered and its digest is part of the confirmation |
 
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change"). The confirmation of 2026-10-27 (spec 0007b) covers the commands in `compose`: the aggregate writes now accept several locks and use `IN`, which for the one token held by these commands selects the same rows as before. The tombstone filter and the writers in the next section are outside the model.
 
@@ -147,15 +149,15 @@ Each is `CurrentCode` with one edit that the code could get (two edits, where th
 
 | Run | The code edit | Fails on | Story |
 | --- | --- | --- | --- |
-| `lock-takes-no-row-lock`, `story-r6-deadlock`, `reach-check-wait` | delete `.for("no key update")` at `locks.ts:116` (mutation M1 of spec 0006b R3; the code before the fix of spec 0006 R6) | `NoDeadlockAbort`, `NoWaitInCheck` | every lock, a person's and the admin list's, becomes a plain read: both writes write their row and index entry, then each overlap check waits for the other's unfinished row: deadlock |
+| `lock-takes-no-row-lock`, `story-r6-deadlock`, `reach-check-wait` | delete `.for("no key update")` at `locks.ts:117` (mutation M1 of spec 0006b R3; the code before the fix of spec 0006 R6) | `NoDeadlockAbort`, `NoWaitInCheck` | every lock, a person's and the admin list's, becomes a plain read: both writes write their row and index entry, then each overlap check waits for the other's unfinished row: deadlock |
 | `decide-before-lock` | `beginTransition` decides on `findById` (an unlocked read) and locks afterwards | passes | the conditional UPDATE catches a stale decision: a second guard |
-| `decide-before-lock-without-observed-end` | the same, and drop `eq(membership.endOrdinal, …observedEnd)` at `teams.ts:607` | `LegalAtApply` | two extensions read the same end; the later one shortens the term |
-| `decide-before-lock-unconditional` | the same, and keep only `eq(membership.id, …)` at `teams.ts:606` | `LegalAtApply` | two early ends of one membership: the second applies to a membership that the first already ended |
+| `decide-before-lock-without-observed-end` | the same, and drop `eq(membership.endOrdinal, …observedEnd)` at `teams.ts:614` | `LegalAtApply` | two extensions read the same end; the later one shortens the term |
+| `decide-before-lock-unconditional` | the same, and keep only `eq(membership.id, …)` at `teams.ts:613` | `LegalAtApply` | two early ends of one membership: the second applies to a membership that the first already ended |
 | `setend-unconditional` | keep only `eq(membership.id, …)`, the decision still under the lock (the control of `teams.postgres.test.ts` that spec 0006b R1 item 10 changed) | passes | the lock alone keeps every commit legal; each guard alone is enough |
 | `no-exclusion-constraint` | drop `membership_no_overlap` (the negative control of falsifier 4) | `NoOverlapCommitted` | an insert that overlaps an existing membership commits |
 | `deadlock-mapped-to-already-exists` | map `40P01` to `AlreadyExists` in `classifySqlFailure` (with the missing lock) | `RefusalsAreTrue` | the victim is told "already exists" although the other write has not committed: it can still roll back, and then nothing exists |
 | `list-after-person`, `reach-order-violation` | `deleteAdminGrant` locks the holder before the admin list | passes | the registry refuses the second lock as a defect before it sends a statement, so no wait can form |
-| `list-after-person-unchecked` | the same, and delete the order check (`locks.ts:92-103`) | `NoDeadlockAbort` | `createAdminGrant` holds the list and waits for the person; `deleteAdminGrant` holds the person and waits for the list |
+| `list-after-person-unchecked` | the same, and delete the order check (`locks.ts:93-104`) | `NoDeadlockAbort` | `createAdminGrant` holds the list and waits for the person; `deleteAdminGrant` holds the person and waits for the list |
 | `whatif-replace-writing-first` | a new command that removes, then locks and inserts, around the construct | `NoDeadlockAbort` | the DELETE holds a row that the other write waits for while it waits for the lock |
 | `whatif-replace-through-construct` | the same command through the token: `beginTransition`, `remove`, `insert` | passes | the token makes the lock the first statement, so nothing that another command can wait on happens before it |
 | `lockall-id-order` | `AggregateLocks.lockAll`: the lower id first | passes | every command takes its locks in one order, so no cycle can form |
