@@ -237,7 +237,7 @@ flowchart BT
 3. The declared graph has no cycle, and the real graph has no edge that the declaration lacks.
 4. A declared edge that no file needs fails. The list can only shrink (the same ratchet as `storeBoundary.ts`).
 5. A library imports only `effect`, other declared libraries and nothing else: no `node:` module, no `cloudflare:`, no workspace package. A service imports the same, plus `sanitize-html` where its row says so.
-6. Package rows: `packages/domain` imports no workspace package. `packages/db` imports only `packages/domain`. A platform piece imports the domain, `packages/db` and `packages/cms-client`. The known leaks in the package table of the Context are the starting baseline, each with a reason, and the list can only shrink.
+6. Package rows: `packages/domain` imports no workspace package. `packages/db` imports only `packages/domain`. A platform piece imports the domain, `packages/db` and the CMS client (`packages/cms-client` today; it splits in stage 4, resolution 8). The known leaks in the package table of the Context are the starting baseline, each with a reason, and the list can only shrink.
 7. While a baseline exists, the check allows exactly the baselined edges. When the baseline is empty, the check removes the exception, and the graph must be acyclic.
 8. Top level: nothing in `apps/` or `packages/` imports `tools/` (measured: 0 edges today). No piece imports an `apps/*` package. A tool imports a package only through its export map (its declarations), never an app. Section 7 has the evidence.
 
@@ -260,7 +260,7 @@ Where today's code sits. "Port declared in" says where the port that the piece i
 | Contact rate limit | platform (Cloudflare binding) | `server/rateLimit.ts` | **`apps/web`** (`ContactRateLimiter`) | port in the platform: moves to `contact` |
 | Public files (R2) | platform (Cloudflare binding) | `server/fileStore.ts` | `files` | fits |
 | SMS | integration | none | none | no code yet |
-| CMS | app, plus a library | `apps/cms` (EmDash, a third-party product), `packages/cms-client` (typed client) |  | the client is a library; the app is a deploy unit |
+| CMS | app, a service part and an integration | `apps/cms` (EmDash, a third-party product); `packages/cms-client` |  | the app is a deploy unit. The client splits (resolution 8): the content model (`collections.ts`, `portableText.ts`) joins the `content` service, and the generated HTTP client (`generated.ts`, `client.ts`) becomes the `emdash` integration |
 
 The split of the background Worker is its own decision. This ADR gives the rule that makes it checkable: the two Workers share the domain and the adapters, and neither imports the other. A secret reaches only the Worker whose row lists it.
 
@@ -289,13 +289,13 @@ Decided: **category first**.
 
 ```text
 packages/
-  libs/          vocabulary  kernel  transactions  outbox  annotations  cms-client
-  services/      audit  files  content  organisation  membership  iam  contact  workspace  triggers  privacy
+  libs/          vocabulary  kernel  transactions  outbox  annotations
+  services/      audit  files  content (+ the CMS content model)  organisation  membership  iam  contact  workspace  triggers  privacy
                  catalog  assembly                      (the domain-side sub-rungs)
   platform/
     postgres/    schema.ts  migrations/   iam/  membership/  organisation/  …  (one subdirectory per service)
-  integrations/  mail  slack  turnstile  workspace-directory  …
-apps/            web  cms  (a background Worker, later)  (import, if tools/import moves)
+  integrations/  emdash  mail  slack  turnstile  workspace-directory  …
+apps/            web  cms  import  (a background Worker, later)
 tools/           docgen  effx-conformance  oxlint  quality
 ```
 
@@ -308,6 +308,8 @@ Reasons:
 **Considered: boundary first**, `packages/<boundary>/{lib,service,platform}`. It keeps one concern together and suits one team per boundary. Reopen it when separate owners exist per boundary (the operator's repository-split test).
 
 Whether each leaf directory is also a workspace package is the promotion question of Decision 1, and the stage 4 change decides the package roots when it measures the move. The globs work the same in both cases.
+
+**The CMS client splits in two (stage 4).** `packages/cms-client` has two kinds of file. `collections.ts` and `portableText.ts` are the content model (the collection schemas and Portable Text); they import only `effect`, and they go to `packages/services/content`, beside the content rules in `domain/content`. `generated.ts` and `client.ts` are the HTTP client that the OpenAPI generator makes for a running EmDash; they go to `packages/integrations/emdash`, named after the system they talk to. `client.ts` imports `collections.ts`, so the edge is integration → service, which the rules allow. Evidence for not merging the client into `apps/cms`: its consumers are `apps/web` (9 files, reads) and `tools/import` (8 files, writes), and `apps/cms` imports it 0 times, so web and the importer would import an app, which rule 8 forbids. A small follow-up spec adds a domain `Content` port for reads and a separate write port for the importer, and moves the 9 call sites of `apps/web` to the port. Option, not scheduled: generate `apps/cms/seed/seed.json` from the content model, instead of the test (`apps/web/test/textSlots.test.ts`) that reads it today.
 
 ### 9. What does not fit, and what we do about it
 
@@ -377,7 +379,8 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 | 1 | Write `moduleGraph.ts` with modules as globs over the current layout, the check, its tests and the `ready` and CI hooks. Baseline: the 3 upward edges (`shared/outbox.ts:12`, `:13`, `workspace/commands.ts:26`) and the package leaks. Turn on `import/no-cycle` for `packages/**`. | F1 to F9 pass. The check reports exactly the baseline on the real tree. | M |
 | 2 | `workspace` declares its own sync job. `jobs/registry.ts` imports it. | Baseline loses `workspace/commands.ts:26`. `registry.test.ts` passes (it checks that declaration, command, runner and document agree). | S |
 | 3 | Split `shared/outbox.ts` (own spec): the library keeps `Outbox` and the enqueue contract; each service declares its messages; `catalog` assembles the union that delivery decodes. | Baseline loses `outbox.ts:12` and `:13`. The directory graph is acyclic: the exception in rule 7 is removed. | M |
-| 4 | Make directory = module. `git mv` the files to `packages/{libs,services,platform,integrations}/…`, rename `accounts` and `teams`, rewrite imports with a codemod, one module per change; the count of moved files is measured then (38 files change directory even without the category tree). Then generate the `no-restricted-imports` overrides. | F10 passes. The imports of `index.ts` and the docgen change, and nothing else. | M to L |
+| 4 | Make directory = module. `git mv` the files to `packages/{libs,services,platform,integrations}/…`, rename `accounts` and `teams`, split `packages/cms-client` (content model to `services/content`, generated client to `integrations/emdash`), rewrite imports with a codemod, one module per change; the count of moved files is measured then (38 files change directory even without the category tree). Then generate the `no-restricted-imports` overrides. | F10 passes. The imports of `index.ts` and the docgen change, and nothing else. | M to L |
+| 4b | Follow-up spec: a domain `Content` port (reads) and a write port for the importer; the 9 call sites of `apps/web` use the port. | `apps/web` imports no `emdash` integration file; the importer's writes use the write port. | M |
 | 5 | Package rows and the top level: move `worker.config.ts` out of `apps/web`; move the `MessageSender`, `TurnstileVerifier` and `ContactRateLimiter` ports into the domain; stop integrations importing app types; the seed read goes through a package export; `tools/import` moves to `apps/import`; `tools/oxlint` stops importing `packages/db` (ADR 0014 stage 5); `tools/db-path-spike` stops importing `apps/web` or is deleted. | The package baseline is empty, and rule 8 holds with no baseline. | S to M |
 | 6 | Fold `storeBoundary.ts` into the declaration. | `check:store-boundary` and `check:module-graph` are one command with the same findings as before. | S |
 | 7 | Generate `docs/system/modules.md` (the diagram and the tables above) from the declaration, checked by `check:docs`. Break the `apps/web/src/server` type cycle at `env.ts`, then split the background Worker by credentials (own ADR). | `check:docs` fails when the declaration and the document differ. Each Worker's `WorkerEnv` lists only its own secrets. | M |
@@ -412,6 +415,7 @@ Each stage ends green: `vp check`, `bun run test:all`, `bun run check:module-gra
 5. **Glossary.** The terms are in `GLOSSARY.md` (section "System structure"), added in the same pull request as this ADR.
 6. **Tools rule.** Accepted as proposed: a tool may import a package's public declarations and never an app; nothing imports a tool; tools never ship to a runtime. `tools/import` moves to `apps/` as an integration (stage 5). `tools/oxlint` → `packages/db` and `tools/db-path-spike` → `apps/web` are leaks to fix (stage 5).
 7. **Layout.** Category first: `packages/{libs,services,platform,integrations}/<boundary>`, with a subdirectory per service inside a platform. Boundary first stays recorded as the considered alternative; reopen it when separate owners exist per boundary.
+8. **The CMS client splits.** `collections.ts` and `portableText.ts` (the content model) go to `packages/services/content`. `generated.ts` and `client.ts` (the OpenAPI-generated HTTP client of a running EmDash) go to `packages/integrations/emdash`. Stage 4 does the split; a follow-up spec (stage 4b) adds the domain ports. Evidence is in section 8.
 
 No question is open. Follow-up, not decided here: research Better Auth Infrastructure as an integration (personal-data processor, hosting region, DPA, cost, overlap with our audit, outbox and mail).
 
