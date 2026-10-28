@@ -31,11 +31,13 @@ Give each reviewer the PR number, the worktree, the spec, and this section. Revi
 2. Run `verify-membership-writes` (`run.sh`, and `--code` when `packages/db` changed) when `run.sh --touched origin/main` prints `touched`.
 3. **Keep the verification skills true.** For each changed behaviour, check that the feature map still describes it (entry points, selectors, expected end state), that the path table maps the changed paths, and that the TLA+ coverage block names every writer the model must know. A gap is a finding (`maintenance`); a skill that now describes behaviour the code no longer has is a finding of the severity of the behaviour it hides.
 
-**Conformance reviewer.**
+**Conformance reviewer.** The spec is written and built in one step and arrives with the code (a plan is not reviewed on its own), so this reviewer judges three things together:
 
-1. Every falsifier of the spec is demonstrated by a test or run that can fail (a negative control exists and was shown), and the PR body's evidence matches what the branch contains.
-2. The repository rules in `AGENTS.md`: one source per fact, no second role list, reads never write, race tests run many rounds, exceptions registered, Effect diagnostics clean.
-3. Security and data: authorization on every new read and command, personal data declared, no secret or personal data in code, logs or fixtures.
+1. **The plan:** the spec states the right problem, journey and falsifiers, and its Revisions explain each change made while building.
+2. **The agreement:** the code does what the spec, with its Revisions, says. Undeclared scope, a falsifier with no test, or a silent change to the plan is a finding of medium or above.
+3. Every falsifier of the spec is demonstrated by a test or run that can fail (a negative control exists and was shown), and the PR body's evidence matches what the branch contains.
+4. The repository rules in `AGENTS.md`: one source per fact, no second role list, reads never write, race tests run many rounds, exceptions registered, Effect diagnostics clean.
+5. Security and data: authorization on every new read and command, personal data declared, no secret or personal data in code, logs or fixtures.
 
 Both read CI's result on the head (`gh pr checks <n>`), including the `Formal verification` job.
 
