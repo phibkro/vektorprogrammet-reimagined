@@ -416,6 +416,73 @@ layer(postgresDatabase({ maxConnections: 4 }), {
     { timeout: 120_000 }
   );
 
+  /**
+   * Review round 2, probe C: a sibling fiber of the outer level, with the outer proof, while a nested level is live on
+   * the same connection. Its statement would go into the savepoint, which rolls back, and the sibling would be told it
+   * succeeded. The check compares the proof with the innermost live level of the connection, so the sibling dies.
+   */
+  const siblingBesideNestedLevel = Effect.gen(function* sibling() {
+    const innerOpen = yield* Deferred.make<null>();
+    const siblingDone = yield* Deferred.make<null>();
+    const seen = yield* Deferred.make<Exit.Exit<unknown, unknown>>();
+
+    const nested = transactional(
+      Effect.gen(function* nestedLevel() {
+        yield* Deferred.succeed(innerOpen, null);
+        yield* Deferred.await(siblingDone);
+
+        return yield* Effect.fail("the nested level rolls back");
+      })
+    );
+
+    const beside = Effect.gen(function* besideNested() {
+      yield* Deferred.await(innerOpen);
+      yield* Deferred.succeed(seen, yield* Effect.exit(enqueue("sibling")));
+      yield* Deferred.succeed(siblingDone, null);
+    });
+
+    const outer = yield* Effect.exit(
+      transactional(
+        Effect.all([Effect.exit(nested), beside], { concurrency: 2 })
+      )
+    );
+
+    return { outer, sibling: yield* Deferred.await(seen) };
+  });
+
+  it.effect(
+    "probe C: a sibling fiber of the outer level that writes while a nested level is live dies as TransactionNotLive, and the outer level still commits",
+    () =>
+      Effect.gen(function* siblingRefused() {
+        const before = yield* outboxRows;
+        const { outer, sibling } = yield* siblingBesideNestedLevel;
+
+        assertRefused(sibling, "the outer proof while a nested level is live");
+        assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
+        assert.strictEqual(yield* outboxRows, before);
+      })
+  );
+
+  it.effect(
+    "probe C, control: the same sibling after the nested level has ended writes with the outer proof and its row commits",
+    () =>
+      Effect.gen(function* siblingAfterNested() {
+        const before = yield* outboxRows;
+
+        yield* transactional(
+          Effect.gen(function* outerLevel() {
+            yield* Effect.exit(
+              transactional(Effect.fail("the nested level rolls back"))
+            );
+
+            yield* enqueue("after the nested level");
+          })
+        );
+
+        assert.strictEqual(yield* outboxRows, before + 1);
+      })
+  );
+
   it.effect(
     "the stated limit (spec 0019 R7): a context captured inside a live level and provided in another transaction is that level's own, so it is accepted and writes into the first level, while it lives",
     () =>
