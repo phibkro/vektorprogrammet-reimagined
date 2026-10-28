@@ -13,8 +13,9 @@
  * **Invariants are store-enforced** (ADR 0014, answer 2). An invariant that the store cannot express may be
  * `port-enforced` only with a named `exception`, which says why and how the system recovers. `problemsOf` is the check.
  *
- * The documents, the contract suites (stage 3) and the port comments read this declaration; none restates it. The
- * mechanism that an adapter uses today is never part of it.
+ * This declaration is the one place where a property is stated in full. The generated page renders it; the port comments,
+ * `README.md` files and `AGENTS.md` cite a guarantee by its id (`TX3`) with at most a line of summary, and the contract
+ * suites (stage 3) read it. The mechanism that an adapter uses today is never part of it.
  */
 import { Array as Arr, Schema } from "effect";
 import type { Context } from "effect";
@@ -55,6 +56,8 @@ import {
 import { AggregateLocks } from "./aggregate.ts";
 import { Outbox } from "./outbox.ts";
 import { InTransaction } from "./transaction.ts";
+import { TransactionModes } from "./transactionModes.ts";
+import type { TransactionMode } from "./transactionModes.ts";
 import { Transactor } from "./transactor.ts";
 
 /** The capabilities of ADR 0014, decision 1. A closed set: a later stage adds rows, not names. */
@@ -96,6 +99,9 @@ export const Exception = Schema.Struct({
 
 export type Exception = typeof Exception.Type;
 
+/** The class name of a port from its service key: `@vektorprogrammet/domain/shared/Outbox` is `Outbox`. */
+export const portNameOf = (key: string): string => key.split("/").at(-1) ?? key;
+
 export const GuaranteeId = Schema.String.check(
   Schema.isPattern(/^[A-Z]{2}\d$/u, { expected: "an id such as TX1" })
 );
@@ -112,6 +118,11 @@ export const Guarantee = Schema.Struct({
   /** What a raw writer tries, and what happens: the case that stage 3 turns into the test of the strength. */
   rawWriter: Schema.String,
   strength: Strength,
+  /**
+   * The carriers whose writes the guarantee spans (a claim and the message it guards, a chunk and its cursor): each is a
+   * carrier of the guarantee and is `Requires` in `TransactionModes`, so its type says what the property assumes.
+   */
+  transactional: Schema.optionalKey(Schema.Array(Carrier)),
 });
 
 export type Guarantee = typeof Guarantee.Type;
@@ -500,6 +511,13 @@ export const StoreGuarantees: readonly Guarantee[] = [
     rawWriter:
       "commits a claim without its message: the key is taken and the message is never sent, so the port methods require the transaction",
     strength: "port-enforced",
+    transactional: [
+      carrier(WelcomeLedger, "claim"),
+      carrier(DigestLedger, "claim"),
+      carrier(AlumniRequests, "claim"),
+      carrier(Outbox, "enqueue"),
+      carrier(AuditLog, "record"),
+    ],
   },
   {
     capability: "WorkQueue",
@@ -579,6 +597,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
     rawWriter:
       "writes a period's cursor without its attempt: a taken-over runner then adds to the run",
     strength: "port-enforced",
+    transactional: [carrier(JobRuns, "advance"), carrier(JobRuns, "finish")],
   },
   {
     capability: "Snapshots",
@@ -650,12 +669,53 @@ export const NonGuarantees: readonly NonGuarantee[] = [
   },
 ];
 
+/** A declaration of every port method's transaction mode, by the class name of the port (`TransactionModes`). */
+type ModesByPort = Readonly<
+  Record<string, Readonly<Record<string, TransactionMode>>>
+>;
+
+/** The mode that a declaration gives a carrier's method, or `undefined` when it gives none. */
+const modeOf = (
+  modes: ModesByPort,
+  carried: Carrier
+): TransactionMode | undefined =>
+  carried.method === null
+    ? undefined
+    : modes[portNameOf(carried.port)]?.[carried.method];
+
+const sameCarrier = (left: Carrier, right: Carrier): boolean =>
+  left.port === right.port && left.method === right.method;
+
+/** What is wrong with the carriers that a guarantee says need a transaction. */
+const transactionProblems = (
+  guarantee: Guarantee,
+  modes: ModesByPort
+): readonly string[] =>
+  Arr.flatMap(guarantee.transactional ?? [], (claimed) => {
+    const label = `${portNameOf(claimed.port)}.${claimed.method ?? "*"}`;
+    const mode = modeOf(modes, claimed);
+
+    if (!Arr.some(guarantee.carriers, (other) => sameCarrier(other, claimed))) {
+      return [
+        `${guarantee.id} says ${label} needs a transaction but does not carry it`,
+      ];
+    }
+
+    return mode === "Requires"
+      ? []
+      : [
+          `${guarantee.id} says ${label} needs a transaction, and TransactionModes says ${mode ?? "nothing"} (it must be Requires)`,
+        ];
+  });
+
 /**
  * What is wrong with a declaration, as sentences; empty when it holds together. A plain function: the real declaration
- * and the fixtures of the test that shows each problem are both passed to it.
+ * and the fixtures of the test that shows each problem are both passed to it. `modes` is `TransactionModes` for the real
+ * declaration; a fixture passes its own.
  */
 export const problemsOf = (
-  guarantees: readonly Guarantee[]
+  guarantees: readonly Guarantee[],
+  modes: ModesByPort = TransactionModes
 ): readonly string[] => {
   const ids = Arr.map(guarantees, ({ id }) => id);
 
@@ -667,7 +727,7 @@ export const problemsOf = (
   return [
     ...Arr.map(twice, (id) => `${id} is declared twice`),
     ...Arr.flatMap(guarantees, (guarantee) => {
-      const problems: string[] = [];
+      const problems: string[] = [...transactionProblems(guarantee, modes)];
 
       if (
         guarantee.invariant &&

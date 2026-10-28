@@ -7,6 +7,7 @@ import {
   NonGuarantees,
   StoreGuarantees,
   TransactionModes,
+  portNameOf,
 } from "@vektorprogrammet/domain";
 import type {
   Carrier,
@@ -43,25 +44,35 @@ const MODES: readonly TransactionMode[] = [
   "Opens",
 ];
 
-/** The last name of a service key: `@vektorprogrammet/domain/shared/Outbox` is `Outbox`. */
-const portName = (key: string): string => key.split("/").at(-1) ?? key;
-
 const carrierLabel = (carrier: Carrier): string =>
   carrier.method === null
-    ? `\`${portName(carrier.port)}\``
-    : `\`${portName(carrier.port)}.${carrier.method}\``;
+    ? `\`${portNameOf(carrier.port)}\``
+    : `\`${portNameOf(carrier.port)}.${carrier.method}\``;
 
 const strengthCell = (guarantee: Guarantee): string =>
   guarantee.exception === undefined
     ? guarantee.strength
     : `${guarantee.strength}; exception: ${guarantee.exception.reason} (recovery: ${guarantee.exception.recovery})`;
 
+/** A carrier, marked when the guarantee spans its writes and so its type requires a transaction. */
+const carrierCell = (guarantee: Guarantee, carried: Carrier): string =>
+  Arr.some(
+    guarantee.transactional ?? [],
+    (claimed) =>
+      claimed.port === carried.port && claimed.method === carried.method
+  )
+    ? `${carrierLabel(carried)} (in a transaction)`
+    : carrierLabel(carried);
+
 const guaranteeRow = (guarantee: Guarantee): readonly string[] => [
   guarantee.id,
   guarantee.property,
   strengthCell(guarantee),
   guarantee.invariant ? "yes" : "no",
-  Arr.join(Arr.map(guarantee.carriers, carrierLabel), ", "),
+  Arr.join(
+    Arr.map(guarantee.carriers, (carried) => carrierCell(guarantee, carried)),
+    ", "
+  ),
   guarantee.rawWriter,
 ];
 

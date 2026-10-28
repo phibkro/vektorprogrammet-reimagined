@@ -68,7 +68,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | --- | --- | --- | --- | --- | --- |
 | CL1 | At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key. | store-enforced | yes | `WelcomeLedger.claim`, `DigestLedger.claim`, `AlumniRequests.claim`, `JobRuns.claim`, `WorkspaceAssignments.assign`, `CapturedMessageStore.record` | inserts a second claim with the same key: refused |
 | CL2 | Of concurrent callers of one key, exactly one is told it made the claim; the others are told it was taken. | port-enforced | no | `WelcomeLedger.claim`, `DigestLedger.claim`, `AlumniRequests.claim`, `JobRuns.claim` | inserts the claim first: every port caller is told it was taken |
-| CL3 | A claim commits with the writes it guards: the claim, the message queued for it and its audit row become visible together or not at all. A claim that commits alone is a message never sent. | port-enforced | no | `WelcomeLedger.claim`, `DigestLedger.claim`, `AlumniRequests.claim`, `Outbox.enqueue`, `AuditLog.record` | commits a claim without its message: the key is taken and the message is never sent, so the port methods require the transaction |
+| CL3 | A claim commits with the writes it guards: the claim, the message queued for it and its audit row become visible together or not at all. A claim that commits alone is a message never sent. | port-enforced | no | `WelcomeLedger.claim` (in a transaction), `DigestLedger.claim` (in a transaction), `AlumniRequests.claim` (in a transaction), `Outbox.enqueue` (in a transaction), `AuditLog.record` (in a transaction) | commits a claim without its message: the key is taken and the message is never sent, so the port methods require the transaction |
 
 ### WorkQueue
 
@@ -84,7 +84,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 
 | Id | Property | Strength | Invariant | Carriers | A raw writer |
 | --- | --- | --- | --- | --- | --- |
-| LS6 | A job's period has one runner: a claim never waits; a runner whose period was taken over writes nothing (`LeaseLost`); a chunk's rows and its cursor commit together. | port-enforced | no | `JobRuns.claim`, `JobRuns.advance`, `JobRuns.finish`, `JobRuns.release`, `JobRuns.fail` | writes a period's cursor without its attempt: a taken-over runner then adds to the run |
+| LS6 | A job's period has one runner: a claim never waits; a runner whose period was taken over writes nothing (`LeaseLost`); a chunk's rows and its cursor commit together. | port-enforced | no | `JobRuns.claim`, `JobRuns.advance` (in a transaction), `JobRuns.finish` (in a transaction), `JobRuns.release`, `JobRuns.fail` | writes a period's cursor without its attempt: a taken-over runner then adds to the run |
 
 ### Snapshots
 

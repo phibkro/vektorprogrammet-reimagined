@@ -11,6 +11,7 @@ import {
   StoreGuarantees,
   problemsOf,
 } from "../../src/shared/guarantees.ts";
+import { TransactionModes } from "../../src/shared/transactionModes.ts";
 
 const base: Guarantee = {
   capability: "UniqueKeys",
@@ -102,5 +103,54 @@ describe("StoreGuarantees (spec 0018)", () => {
       "UK9 is declared twice",
       "UK9 has no raw-writer case",
     ]);
+  });
+
+  it("falsifier 3: CL3 and LS6 are the guarantees that name carriers needing a transaction, and each is Requires", () => {
+    const named = Arr.flatMap(StoreGuarantees, ({ id, transactional }) =>
+      Arr.map(transactional ?? [], (claimed) => `${id} ${claimed.method}`)
+    );
+
+    assert.deepStrictEqual(named, [
+      "CL3 claim",
+      "CL3 claim",
+      "CL3 claim",
+      "CL3 enqueue",
+      "CL3 record",
+      "LS6 advance",
+      "LS6 finish",
+    ]);
+
+    // The real declaration against the real modes: nothing to report (the first test), and the modes are what they say.
+    assert.strictEqual(TransactionModes.Outbox.enqueue, "Requires");
+    assert.strictEqual(TransactionModes.JobRuns.advance, "Requires");
+    assert.strictEqual(TransactionModes.JobRuns.finish, "Requires");
+  });
+
+  it("falsifier 3, control: a carrier that needs a transaction and is Standalone, one that is not declared, and one that the guarantee does not carry are each refused", () => {
+    const writes = { method: "writes", port: "@x/Fake" };
+    const guarded = { ...base, carriers: [writes], transactional: [writes] };
+
+    assert.deepStrictEqual(
+      problemsOf([guarded], { Fake: { writes: "Standalone" } }),
+      [
+        "UK9 says Fake.writes needs a transaction, and TransactionModes says Standalone (it must be Requires)",
+      ]
+    );
+
+    assert.deepStrictEqual(problemsOf([guarded], { Fake: {} }), [
+      "UK9 says Fake.writes needs a transaction, and TransactionModes says nothing (it must be Requires)",
+    ]);
+
+    assert.deepStrictEqual(
+      problemsOf([{ ...guarded, carriers: [] }], {
+        Fake: { writes: "Requires" },
+      }),
+      ["UK9 says Fake.writes needs a transaction but does not carry it"]
+    );
+
+    assert.deepStrictEqual(
+      problemsOf([guarded], { Fake: { writes: "Requires" } }),
+      []
+    );
   });
 });
