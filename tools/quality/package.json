@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
+    "@vektorprogrammet/domain": "workspace:*",
     "effect": "catalog:",
     "oxc-parser": "catalog:"
   },
