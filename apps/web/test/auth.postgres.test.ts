@@ -994,30 +994,18 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
       () =>
         Effect.gen(function* failClosed() {
           const sql = yield* SqlClient;
-          const url = yield* AuthTablesDatabaseUrl;
           yield* sql`update account set state = 'Active' where person_id = 102`;
           yield* sql`update auth_account set password = ${bcryptFixtures[0]} where user_id = 'auth-102'`;
           yield* sql`delete from auth_session where user_id = 'auth-102'`;
 
-          const admits = (run: RunDomain) =>
-            Effect.gen(function* attemptSignIn() {
-              const pool = yield* ownedPool(url);
-              const instance = makeAuth(pool, secret, origin, run);
-
-              const attempt = yield* Effect.exit(
-                Effect.tryPromise(() =>
-                  instance.handler(
-                    signInRequest("active@example.org", fixturePassword)
-                  )
-                )
-              );
-
-              return Exit.isSuccess(attempt) && attempt.value.status === 200;
-            }).pipe(Effect.scoped);
-
           // Control: the same request with every read alive is admitted and writes its session, so the refusal below
           // is the dead read's.
-          assert.isTrue(yield* admits(yield* domainRunner()));
+          const healthy = yield* consoleOfSignIn(
+            "active@example.org",
+            yield* domainRunner()
+          );
+
+          assert.isTrue(healthy.admitted);
           assert.lengthOf(
             yield* sql`select id from auth_session where user_id = 'auth-102'`,
             1
@@ -1026,7 +1014,12 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
 
           const reached = yield* Ref.make(0);
 
-          assert.isFalse(yield* admits(yield* domainRunner(down, reached)));
+          const refused = yield* consoleOfSignIn(
+            "active@example.org",
+            yield* domainRunner(down, reached)
+          );
+
+          assert.isFalse(refused.admitted);
           assert.isAbove(yield* Ref.get(reached), 0);
 
           assert.lengthOf(
