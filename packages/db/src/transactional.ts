@@ -1,5 +1,5 @@
 /**
- * The only provider of the domain's `InTransaction`.
+ * The one production provider of the domain's `InTransaction` (spec 0018 TX5; a source test guards against another).
  *
  * Runs `self` in `SqlClient.withTransaction` (a savepoint when already inside
  * one) with `InTransaction` provided. A typed failure, a defect or an

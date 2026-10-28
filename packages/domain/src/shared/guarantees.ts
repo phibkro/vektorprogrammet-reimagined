@@ -212,7 +212,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
     property:
       "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope.",
     rawWriter:
-      "provides the proof around a program that runs outside a transaction: nothing in the store refuses it",
+      "provides the proof around a program that runs outside a transaction: nothing in the store refuses it, and a source check catches only accidental use (Effect keys a service by a string, so the proof can be made without naming it)",
     strength: "port-enforced",
   },
   {

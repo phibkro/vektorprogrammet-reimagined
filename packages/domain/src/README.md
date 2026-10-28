@@ -4,7 +4,7 @@
 
 Commands never open a transaction. A command that must be atomic **requires the `InTransaction` service** (`shared/transaction.ts`), so running it unwrapped does not type-check.
 
-A store adapter owns the only production provider (`packages/db`'s `transactional`, behind `Transactor`). Its runner wraps the program in one transaction of the store and provides `InTransaction` inside it. What the proof promises is declared in `shared/guarantees.ts` (spec 0018): atomic visibility and rollback (TX1), nested scopes (TX2), the isolation floor ReadCommittedWithLocks (TX3) and no retry of a deadlock (TX4).
+A store adapter owns the one production provider (`packages/db`'s `transactional`, behind `Transactor`). Its runner wraps the program in one transaction of the store and provides `InTransaction` inside it. A source test fails if another file holds the service as a value or writes its key as a string; that is a guard against accidental provision and not a proof (Effect keys a service by a string, so a deliberate forgery needs no reference to it: spec 0018 R20, and the unforgeable construction is a later spec). What the proof promises is declared in `shared/guarantees.ts` (spec 0018): atomic visibility and rollback (TX1), nested scopes (TX2), the isolation floor ReadCommittedWithLocks (TX3), no retry of a deadlock (TX4) and its provision (TX5).
 
 - Repository Layers run in the transaction that is open, so their writes join it. A typed failure, a defect or an interruption rolls everything back, including the audit row and the outbox rows.
 - Authorization (`Domain.handle`) runs inside the transaction.

@@ -11,7 +11,8 @@
  * - TX2: a nested scope undoes and releases only its own.
  * - TX3: the isolation floor, ReadCommittedWithLocks (a stronger level is allowed).
  * - TX4: a deadlock or a serialization failure is a defect, never retried.
- * - TX5: only a `Transactor`, or a test composition that keeps TX1 to TX3, provides it.
+ * - TX5: only a `Transactor`, or a test composition that keeps TX1 to TX3, provides it. (A source test catches a second
+ *   provider by accident; Effect keys a service by a string, so it cannot stop a deliberate forgery: spec 0018 R20.)
  */
 import { Context } from "effect";
 
