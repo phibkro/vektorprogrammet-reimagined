@@ -1,6 +1,7 @@
 import { NodeServices } from "@effect/platform-node";
 import { Array as Arr, Effect, FileSystem } from "effect";
 
+import { isProbe } from "../../probes.ts";
 import { workingTreePaths } from "../../workingTree.ts";
 
 export interface Source {
@@ -53,5 +54,5 @@ export const workingTreeSources = (
  */
 export const domainSources = readSources(
   new URL("../../../../packages/domain/src", import.meta.url).pathname,
-  (path) => path.endsWith(".ts") && !path.includes("storeBoundaryProbe")
+  (path) => path.endsWith(".ts") && !isProbe(path)
 );

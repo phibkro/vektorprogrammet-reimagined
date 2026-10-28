@@ -1,4 +1,12 @@
-import { Array as Arr, Effect, FileSystem, Option, Order, Path } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  Order,
+  Path,
+  Record as Rec,
+} from "effect";
 
 import { importSpecifiers, resolveFrom } from "./importSpecifiers.ts";
 import type { Specifier } from "./importSpecifiers.ts";
@@ -10,22 +18,19 @@ import { workingTreePaths } from "./workingTree.ts";
 export interface SourceFile {
   readonly path: string;
   readonly imports: readonly Specifier[];
+  /** The text of the file, for the declared tolerated calls (`integrationCalls`). */
+  readonly text: string;
 }
 
 const sourcePattern = /\.[cm]?[jt]sx?$/u;
 
-/** What the check reads: every source file under `packages/`, `apps/` and `tools/`. */
+/** What the check reads: every source file under `packages/`, `apps/` and `tools/`, whatever its extension. */
 const isScanned = (path: string): boolean =>
   sourcePattern.test(path) && /^(?:packages|apps|tools)\//u.test(path);
 
-/**
- * A scratch file that a test writes for a moment to see what the lint does with it. The scans run beside it, so it is
- * not part of the source (the device of `storeBoundaryProbe` in `test/support/sources.ts`).
- */
-const isProbe = (path: string): boolean => path.includes("moduleGraphProbe");
-
 type Target =
   | { readonly kind: "file"; readonly path: string }
+  | { readonly kind: "unresolved" }
   | { readonly kind: "workspace"; readonly name: string }
   | { readonly kind: "external"; readonly name: string };
 
@@ -71,15 +76,58 @@ const unitOf = (units: readonly Unit[], path: string): Option.Option<Unit> =>
 const unitNamed = (units: readonly Unit[], name: string): Option.Option<Unit> =>
   Arr.findFirst(units, ({ root }) => baseName(root) === name);
 
-/** The scanned file that a relative specifier names (it may omit the extension); the resolved path itself when none is. */
-const fileOf = (paths: ReadonlySet<string>, resolved: string): string =>
-  Option.getOrElse(
-    Arr.findFirst(
-      [resolved, `${resolved}.ts`, `${resolved}.tsx`, `${resolved}/index.ts`],
-      (candidate) => paths.has(candidate)
-    ),
-    () => resolved
+const sourceExtensions = [".ts", ".tsx", ".mts", ".cts"] as const;
+
+/**
+ * The extension that the importer wrote for the file it names, under `moduleResolution: nodenext`: a specifier that
+ * ends `.js` names the `.ts` (or `.tsx`) file beside it, `.mjs` the `.mts`, `.cjs` the `.cts`.
+ */
+const swaps = {
+  ".cjs": [".cts"],
+  ".js": [".ts", ".tsx"],
+  ".jsx": [".tsx"],
+  ".mjs": [".mts"],
+} as const;
+
+/** `.json`, `.css` and the like: a file that is not source, so no scan lists it and no module rule applies to it. */
+const dataFile = /\.(?!(?:[cm]?[jt]sx?)$)[a-z0-9]+$/iu;
+
+const scannedRoot = /^(?:packages|apps|tools)\//u;
+
+/** The scanned file that the path of a relative import names, a data file as itself, or `unresolved`. */
+const resolveRelative = (
+  paths: ReadonlySet<string>,
+  resolved: string
+): Target => {
+  const dot = resolved.lastIndexOf(".");
+  const extension = dot > resolved.lastIndexOf("/") ? resolved.slice(dot) : "";
+
+  const stem =
+    dot > resolved.lastIndexOf("/") ? resolved.slice(0, dot) : resolved;
+
+  const found = Arr.findFirst(
+    [
+      resolved,
+      ...Arr.flatMap(Rec.toEntries(swaps), ([from, swapExtensions]) =>
+        from === extension
+          ? Arr.map(swapExtensions, (ext) => `${stem}${ext}`)
+          : []
+      ),
+      ...Arr.map(sourceExtensions, (ext) => `${resolved}${ext}`),
+      ...Arr.map(sourceExtensions, (ext) => `${resolved}/index${ext}`),
+    ],
+    (candidate) => paths.has(candidate)
   );
+
+  if (Option.isSome(found)) {
+    return { kind: "file", path: found.value };
+  }
+
+  // A data file, and a file outside the directories that the scan reads (the root `vite.config.ts`), is a plain file.
+  return dataFile.test(resolved) || !scannedRoot.test(resolved)
+    ? { kind: "file", path: resolved }
+    : { kind: "unresolved" };
+};
 
 const targetOf = (
   paths: ReadonlySet<string>,
@@ -87,10 +135,11 @@ const targetOf = (
   { specifier }: Specifier
 ): Target => {
   if (specifier.startsWith(".")) {
-    return {
-      kind: "file",
-      path: fileOf(paths, resolveFrom(importer, specifier)),
-    };
+    // A bundler query (`styles.css?url`) is not part of the path.
+    return resolveRelative(
+      paths,
+      resolveFrom(importer, specifier.replace(/\?.*$/u, ""))
+    );
   }
 
   const name = packageNameOf(specifier);
@@ -213,6 +262,12 @@ const declarationFindings = (
   );
 
   const ownership = Arr.flatMap(governedPaths, (path) => {
+    if (!path.endsWith(".ts")) {
+      return [
+        `${path}: is a source file of the governed tree (${governed}) and not a .ts file; the module globs read .ts only, so rename it`,
+      ];
+    }
+
     const owners = Arr.filter(modules, (module) => owns(module, path));
 
     if (owners.length === 0) {
@@ -291,7 +346,9 @@ export const moduleGraphFindings = (
   declaration: Declaration,
   files: readonly SourceFile[]
 ): readonly string[] => {
-  const { acyclic, baseline, governed, modules, units } = declaration;
+  const { acyclic, baseline, governed, integrationCalls, modules, units } =
+    declaration;
+
   const paths = new Set(Arr.map(files, ({ path }) => path));
   const governedPattern = globToRegExp(governed);
   const isGoverned = (path: string): boolean => governedPattern.test(path);
@@ -304,7 +361,19 @@ export const moduleGraphFindings = (
     }))
   );
 
-  // Module edges: an import between two files of the governed tree that belong to different modules.
+  // An import that resolves to no source file fails; the others are edges.
+  const unresolved = Arr.flatMap(uses, (use): Violation[] =>
+    use.target.kind === "unresolved"
+      ? [
+          {
+            from: use.path,
+            text: `${site(use)}: imports ${use.specifier}, which resolves to no source file (the check fails closed: an import it cannot place is not one it can approve)`,
+            to: use.specifier,
+          },
+        ]
+      : []
+  );
+
   const observed = Arr.flatMap(uses, (use) => {
     if (!isGoverned(use.path) || use.target.kind !== "file") {
       return [];
@@ -435,7 +504,15 @@ export const moduleGraphFindings = (
       }
 
       if (to.value.root === from.root) {
-        return [];
+        return reach === "name"
+          ? [
+              {
+                from: use.path,
+                text: `${site(use)}: ${from.root} imports its own package by its name (${use.specifier}); a file imports its own package's files by a relative path, so that the module rules see the edge`,
+                to: use.specifier,
+              },
+            ]
+          : [];
       }
 
       if (reach === "path") {
@@ -465,6 +542,7 @@ export const moduleGraphFindings = (
     ...moduleViolations,
     ...externalViolations,
     ...unitViolations,
+    ...unresolved,
   ];
 
   const covered = (violation: Violation): boolean =>
@@ -559,6 +637,19 @@ export const moduleGraphFindings = (
       )
   );
 
+  // The integration calls inside a transaction that are tolerated until their retirement trigger: each names a file
+  // and a symbol that must still be there, so an entry that its code has outlived fails.
+  const staleCalls = Arr.flatMap(integrationCalls, (call) =>
+    Arr.some(
+      files,
+      ({ path, text }) => path === call.file && text.includes(call.symbol)
+    )
+      ? []
+      : [
+          `integration call: ${call.file} no longer mentions ${call.symbol} (${call.retirementTrigger}); remove the entry from integrationCalls`,
+        ]
+  );
+
   return [
     ...declarationFindings(
       declaration,
@@ -571,21 +662,19 @@ export const moduleGraphFindings = (
     ...Arr.sort(unneeded, Order.String),
     ...Arr.sort(idle, Order.String),
     ...Arr.sort(unitless, Order.String),
+    ...Arr.sort(staleCalls, Order.String),
     ...fileCycles,
   ];
 };
 
-/** The source files of the working tree at `root` (tracked and untracked, not ignored) with the imports of each. */
+/** The source files of the working tree at `root` (tracked and untracked, not ignored, no probe) with their imports. */
 export const scanImports = Effect.fn("scanImports")(function* scanImports(
   root: string
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  const paths = yield* workingTreePaths(
-    root,
-    (file) => isScanned(file) && !isProbe(file)
-  );
+  const paths = yield* workingTreePaths(root, isScanned);
 
   return yield* Effect.forEach(paths, (file) =>
     Effect.map(
@@ -593,6 +682,7 @@ export const scanImports = Effect.fn("scanImports")(function* scanImports(
       (text): SourceFile => ({
         imports: importSpecifiers(file, text),
         path: file,
+        text,
       })
     )
   );

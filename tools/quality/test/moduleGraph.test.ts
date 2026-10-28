@@ -1,9 +1,9 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Option, Order } from "effect";
+import { Array as Arr, Effect, FileSystem, Option, Order } from "effect";
 
 import { importSpecifiers } from "../importSpecifiers.ts";
-import { baseline, declaration } from "../moduleGraph.ts";
+import { baseline, declaration, integrationCalls } from "../moduleGraph.ts";
 import type { Declaration, Module } from "../moduleGraph.ts";
 import { moduleGraphFindings, scanImports } from "../moduleGraphCheck.ts";
 import type { SourceFile } from "../moduleGraphCheck.ts";
@@ -12,6 +12,10 @@ import { lintProbes } from "./support/lintProbes.ts";
 const root = new URL("../../../", import.meta.url).pathname;
 
 const d = "packages/domain/src";
+
+/** The finding for a file that imports its own package by its name. */
+const own = (unit: string, name: string, line: number, path: string) =>
+  `${path}:${line}: ${unit} imports its own package by its name (@vektorprogrammet/${name}); a file imports its own package's files by a relative path, so that the module rules see the edge`;
 
 /** A file with the specifiers that it imports, one per line (the first on line 1). */
 const source = (
@@ -23,6 +27,7 @@ const source = (
     specifier,
   })),
   path,
+  text: Arr.join(specifiers, "\n"),
 });
 
 const makeModule = (
@@ -40,7 +45,8 @@ const makeModule = (
 const fixture: Declaration = {
   acyclic: ["packages/**/*.ts"],
   baseline: [],
-  governed: `${d}/**/*.ts`,
+  governed: `${d}/**`,
+  integrationCalls: [],
   modules: [
     makeModule("vocab", "library", []),
     makeModule("kernel", "library", ["vocab"]),
@@ -132,6 +138,7 @@ const asSource = ({
 }): SourceFile => ({
   imports: importSpecifiers(file, content),
   path: file,
+  text: content,
 });
 
 describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
@@ -595,9 +602,17 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       "Oxlint's `import/no-cycle` gives the same verdict on the same fixture, and none for the real domain",
       () =>
         Effect.gen(function* oxlintAgrees() {
-          const diagnostics = yield* lintProbes(root, probes, [
-            "packages/domain/src",
-          ]);
+          // The governed files, listed by the same scan that skips probes, not the directory: a probe that another
+          // test writes there for a moment is never an argument of this lint (review round 1: the F8 race).
+          const governed = Arr.map(
+            Arr.filter(
+              yield* scanImports(root),
+              ({ path }) => path.startsWith(`${d}/`) && path.endsWith(".ts")
+            ),
+            ({ path }) => path
+          );
+
+          const diagnostics = yield* lintProbes(root, probes, governed);
 
           const cyclic = Arr.sort(
             Arr.dedupe(
@@ -616,6 +631,167 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
         }).pipe(Effect.provide(NodeServices.layer)),
       180_000
     );
+  });
+
+  describe("review round 1: probes, resolution, extensions, tolerated calls", () => {
+    const ids = `${d}/vocab/ids.ts`;
+    const kernel = `${d}/kernel/a.ts`;
+
+    const upwardText = (target: string) =>
+      `${kernel}:3: imports ${target} (module team, service), an upward import from module kernel (library)`;
+
+    it.effect(
+      "R2: a scratch probe that another test wrote is invisible to the scan, and the same file under another name is not",
+      () =>
+        Effect.gen(function* probeIsInvisible() {
+          const fs = yield* FileSystem.FileSystem;
+          const probe = `${root}${d}/storeBoundaryProbeRace.ts`;
+          const other = `${root}${d}/storeBoundaryRace.ts`;
+
+          const withFile = (file: string) =>
+            Effect.scoped(
+              Effect.acquireUseRelease(
+                fs.writeFileString(file, 'import "node:fs";\n'),
+                () =>
+                  Effect.map(scanImports(root), (files) =>
+                    moduleGraphFindings(declaration, files)
+                  ),
+                () => fs.remove(file, { force: true }).pipe(Effect.orDie)
+              )
+            );
+
+          assert.deepStrictEqual(yield* withFile(probe), []);
+
+          // Control: without the probe name the same file is found.
+          assert.lengthOf(
+            mentioning(yield* withFile(other), "storeBoundaryRace.ts"),
+            1
+          );
+        }).pipe(Effect.provide(NodeServices.layer)),
+      120_000
+    );
+
+    it("R4: a `.js` specifier names the `.ts` file beside it, so an upward import written so is found", () => {
+      assert.deepStrictEqual(check(importing(kernel, "../team/a.js")), [
+        upwardText(`${d}/team/a.ts`),
+      ]);
+
+      // Control: the same import written `.ts` or with no extension is the same finding.
+      assert.deepStrictEqual(check(importing(kernel, "../team/a.ts")), [
+        upwardText(`${d}/team/a.ts`),
+      ]);
+
+      assert.deepStrictEqual(check(importing(kernel, "../team/a")), [
+        upwardText(`${d}/team/a.ts`),
+      ]);
+    });
+
+    it("R4: `.mjs` names the `.mts` file beside it", () => {
+      const mts = `${d}/team/b.mts`;
+
+      assert.deepStrictEqual(
+        mentioning(
+          check([...importing(kernel, "../team/b.mjs"), source(mts, "effect")]),
+          "b.m"
+        ),
+        [
+          `${mts}: is a source file of the governed tree (${fixture.governed}) and not a .ts file; the module globs read .ts only, so rename it`,
+        ]
+      );
+    });
+
+    it("R4: a relative import that resolves to no source file fails closed; a data file, a bundler query and the root config do not", () => {
+      assert.deepStrictEqual(check(importing(ids, "./missing.ts")), [
+        `${ids}:2: imports ./missing.ts, which resolves to no source file (the check fails closed: an import it cannot place is not one it can approve)`,
+      ]);
+
+      assert.lengthOf(check(importing(ids, "../team")), 1);
+
+      // Control: a JSON file, a stylesheet with a query and the root config are plain files.
+      assert.deepStrictEqual(
+        check(
+          importing(
+            ids,
+            "./seed.json",
+            "./styles.css?url",
+            "../../../../vite.config.ts"
+          )
+        ),
+        []
+      );
+    });
+
+    it("R4: a file that imports its own package by name is flagged, and an import of another declared unit is not", () => {
+      assert.deepStrictEqual(
+        check(importing("apps/web/src/server/a.ts", "@vektorprogrammet/web")),
+        [own("apps/web", "web", 3, "apps/web/src/server/a.ts")]
+      );
+
+      assert.deepStrictEqual(
+        check(importing(ids, "@vektorprogrammet/domain")),
+        [own("packages/domain", "domain", 2, ids)]
+      );
+
+      // Control: `apps/web` imports `@vektorprogrammet/domain`, which it declares (`clean` holds it).
+      assert.deepStrictEqual(check(clean), []);
+    });
+
+    it("R5: a source file in the governed tree that is not `.ts` fails, whatever its extension", () => {
+      for (const extension of [".mts", ".cts", ".tsx", ".js"]) {
+        const path = `${d}/team/x${extension}`;
+
+        assert.deepStrictEqual(
+          mentioning(
+            check(replacing(source(path, "sanitize-html", "../kernel/a.ts"))),
+            path
+          ),
+          [
+            `${path}: is a source file of the governed tree (${fixture.governed}) and not a .ts file; the module globs read .ts only, so rename it`,
+          ]
+        );
+      }
+
+      // Control: the same file as `.ts` is a member of its module, and its imports are checked.
+      assert.deepStrictEqual(
+        check(replacing(source(`${d}/team/x.ts`, "../vocab/ids.ts"))),
+        []
+      );
+    });
+
+    it("R1: a tolerated integration call names its trigger, and an entry that its code has outlived fails", () => {
+      const call = {
+        file: "apps/web/src/server/delivery.ts",
+        reason: "mails inside the transaction",
+        retirementTrigger: "delivery restructured",
+        symbol: "issueCode",
+      };
+
+      const tolerated: Declaration = { ...fixture, integrationCalls: [call] };
+
+      const delivery = (text: string): SourceFile => ({
+        imports: [],
+        path: call.file,
+        text,
+      });
+
+      // Control: the file still mentions its symbol.
+      assert.deepStrictEqual(
+        check([...clean, delivery("export const issueCode = 1;")], tolerated),
+        []
+      );
+
+      const stale = [
+        `integration call: ${call.file} no longer mentions issueCode (delivery restructured); remove the entry from integrationCalls`,
+      ];
+
+      // The symbol is gone from the file, or the file is.
+      assert.deepStrictEqual(
+        check([...clean, delivery("export const other = 1;")], tolerated),
+        stale
+      );
+
+      assert.deepStrictEqual(check(clean, tolerated), stale);
+    });
   });
 
   describe("F9: the real tree", () => {
@@ -669,6 +845,12 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
     it("the baseline is pinned: a stage that removes an import lowers the count, and nothing adds to it", () => {
       // Three imports between modules (ADR 0015 stages 2 and 3 remove them) and five between packages (stage 5).
       assert.lengthOf(baseline, 8);
+
+      // One call of another system inside a transaction that the type bound does not see (review round 1).
+      assert.deepStrictEqual(
+        Arr.map(integrationCalls, ({ file, symbol }) => `${file} ${symbol}`),
+        ["apps/web/src/server/accountDelivery.ts issueCode"]
+      );
 
       assert.deepStrictEqual(
         Arr.map(baseline, ({ from, to }) => `${from} -> ${to}`),

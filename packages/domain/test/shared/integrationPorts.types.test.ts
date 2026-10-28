@@ -6,11 +6,12 @@
  * program with requirements `R`? TypeScript infers the type parameters of `run` from that parameter and, when `R`
  * breaks the bound, falls back to the bound, which no such program matches. So the refused cases are positive type
  * assertions that suppress nothing, in the style of `transactionRequired.test.ts`, and `vp check` fails the day one of
- * them flips (removing the bound from `run`, or the marker from a port, makes them fail). The last case is the limit:
- * the rule reads a program's requirements, so a program that builds its own provider inside is not refused.
+ * them flips (removing the bound from `run`, or the marker from a port, makes them fail). The last case pins the limits:
+ * the rule reads a program's requirements, so what reaches a port without requiring it (a provider built inside, a
+ * captured port, `Effect.serviceOption`, the ambient context) and a generic bound of `object` are not refused.
  */
 import { describe, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Context, Effect } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
 import type { Outbox } from "../../src/shared/outbox.ts";
@@ -60,6 +61,20 @@ const providedInside = (transactor: Run) =>
     )
   );
 
+/** A port that a Layer captured, called inside the transaction: the program requires nothing. */
+const throughCapturedPort = (
+  directory: WorkspaceDirectory["Service"],
+  transactor: Run
+) => transactor.run(directory.accounts);
+
+const throughServiceOption = (transactor: Run) =>
+  transactor.run(Effect.serviceOption(WorkspaceDirectory));
+
+const throughContext = (transactor: Run) =>
+  transactor.run(
+    Effect.map(Effect.context(), Context.getOption(WorkspaceDirectory))
+  );
+
 describe("no integration call inside a transaction (spec 0020, F11)", () => {
   it("marks the ports of other systems and no store port", () => {
     expectTypeOf<WorkspaceDirectory>().toExtend<IntegrationPort>();
@@ -89,9 +104,28 @@ describe("no integration call inside a transaction (spec 0020, F11)", () => {
     >().toEqualTypeOf<Outbox | WorkspaceDirectory>();
   });
 
-  it("does not see a provider that the program builds inside (the limit of the rule)", () => {
+  it("the limits of the rule: what reaches a port without requiring it, or has a bound that admits it, is not refused", () => {
+    // A provider that the program builds inside.
     expectTypeOf<
       Effect.Services<ReturnType<typeof providedInside>>
     >().toEqualTypeOf<never>();
+
+    // A port that a Layer captured when it was built (`AccountDelivery.issueCode` does this with `MessageSender`).
+    expectTypeOf<
+      Effect.Services<ReturnType<typeof throughCapturedPort>>
+    >().toEqualTypeOf<never>();
+
+    // The ambient context, read without a requirement.
+    expectTypeOf<
+      Effect.Services<ReturnType<typeof throughServiceOption>>
+    >().toEqualTypeOf<never>();
+
+    expectTypeOf<
+      Effect.Services<ReturnType<typeof throughContext>>
+    >().toEqualTypeOf<never>();
+
+    // A bound of `object` (and of `{}`) admits every service, ports too: no type closes this, because the requirements
+    // of this repository include identifiers with no common property (`SqlClient` is a plain interface).
+    expectTypeOf<Accepts<object>>().toEqualTypeOf<true>();
   });
 });

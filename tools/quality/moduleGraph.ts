@@ -58,14 +58,23 @@ export interface Tolerated {
   readonly reason: string;
 }
 
+/** A call of another system inside a transaction that the type bound cannot see, tolerated until `retirementTrigger`. */
+export interface IntegrationCall {
+  readonly file: string;
+  readonly symbol: string;
+  readonly reason: string;
+  readonly retirementTrigger: string;
+}
+
 export interface Declaration {
-  /** The files that the modules partition: every one belongs to exactly one module. */
+  /** The files that the modules partition: every source file under it is a `.ts` file of exactly one module. */
   readonly governed: string;
   readonly modules: readonly Module[];
   readonly units: readonly Unit[];
   /** Files in which an import cycle fails, the same files for which the root `vite.config.ts` turns on `import/no-cycle`. */
   readonly acyclic: readonly string[];
   readonly baseline: readonly Tolerated[];
+  readonly integrationCalls: readonly IntegrationCall[];
 }
 
 const src = (...files: readonly string[]): readonly string[] =>
@@ -374,10 +383,28 @@ export const baseline: readonly Tolerated[] = [
   },
 ];
 
+/**
+ * The calls of another system that still run inside `Transactor.run` although the type bound (`NotAnIntegration`) does
+ * not see them: a port captured when a Layer is built is not a requirement of the program that uses it. Each is
+ * tolerated until its retirement trigger, and the check fails on an entry whose file no longer mentions its symbol, so
+ * the list can only shrink (spec 0020, review round 1).
+ */
+export const integrationCalls: readonly IntegrationCall[] = [
+  {
+    file: "apps/web/src/server/accountDelivery.ts",
+    reason:
+      "`AccountDelivery.issueCode` mints a code, calls `MessageSender.send` and acknowledges the row in ONE transaction, so that the code is stored only if the mail went out (spec 0007 R1). The Layer captures the sender, so the bound does not see the call.",
+    retirementTrigger:
+      "code delivery restructured (next spec): code stored unusable, mail sent after commit, second transaction makes it usable; then integration adapters refuse calls while a transaction is open",
+    symbol: "issueCode",
+  },
+];
+
 export const declaration: Declaration = {
   acyclic: ["packages/**/*.ts", "packages/**/*.tsx"],
   baseline,
-  governed: "packages/domain/src/**/*.ts",
+  governed: "packages/domain/src/**",
+  integrationCalls,
   modules,
   units,
 };

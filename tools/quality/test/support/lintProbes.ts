@@ -22,7 +22,9 @@ const Diagnostics = Schema.fromJsonString(
         filename: Schema.String,
         labels: Schema.optionalKey(
           Schema.Array(
-            Schema.Struct({ span: Schema.Struct({ line: Schema.Int }) })
+            Schema.Struct({
+              span: Schema.Struct({ line: Schema.optionalKey(Schema.Int) }),
+            })
           )
         ),
       })
@@ -88,7 +90,9 @@ export const lintProbes = Effect.fn("lintProbes")(function* lintProbes(
             ({ code, filename, labels }): Diagnostic => ({
               code,
               filename,
-              lines: Arr.map(labels ?? [], (label) => label.span.line),
+              lines: Arr.flatMap(labels ?? [], (label) =>
+                label.span.line === undefined ? [] : [label.span.line]
+              ),
             })
           );
         })
