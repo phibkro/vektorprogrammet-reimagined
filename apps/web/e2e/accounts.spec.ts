@@ -39,6 +39,13 @@ test("a leader invites, a member activates and manages their profile and session
   page,
   browser,
 }) => {
+  /**
+   * One story with fifteen page loads, each waiting for hydration under `vp dev`. In CI it took 44 to 60 s, and
+   * on a slow runner 91 s: the trace of the run that timed out (issue #39) shows every step passing, the
+   * hydration waits at 2.4 to 6.8 s each, and the last step finishing at the 90 s limit. The suite's 90 s is the
+   * budget of an ordinary test, so this one gets twice that.
+   */
+  test.setTimeout(180_000);
   const { origin } = new URL(test.info().project.use.baseURL ?? "");
   await signIn(page, origin, "lise.leder@example.org", LOCAL_FAKE_PASSWORD);
   await openPage(page, `${origin}/kontrollpanel/personer`);
