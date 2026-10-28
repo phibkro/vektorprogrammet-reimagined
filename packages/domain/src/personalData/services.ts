@@ -56,13 +56,13 @@ export class ConsentRepository extends Context.Service<
     /** The locked person's records: a decision read, which runs after the lock. */
     readonly ofLocked: (
       locked: Locked<"Person">
-    ) => Effect.Effect<readonly StoredConsent[]>;
+    ) => Effect.Effect<readonly StoredConsent[], never, InTransaction>;
     /** Replaces the locked person's record of this kind: one record per person and kind. */
     readonly record: (
       locked: Locked<"Person">,
       kind: ConsentKind,
       record: ConsentRecord
-    ) => Effect.Effect<StoredConsent>;
+    ) => Effect.Effect<StoredConsent, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/personalData/ConsentRepository") {}
 

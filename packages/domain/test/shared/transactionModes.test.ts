@@ -9,6 +9,7 @@ import { Array as Arr, Order, Record as Rec } from "effect";
 import type { Effect } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
+import type { Locked } from "../../src/shared/aggregate.ts";
 import type { InTransaction } from "../../src/shared/transaction.ts";
 import { TransactionModes } from "../../src/shared/transactionModes.ts";
 import type {
@@ -46,17 +47,64 @@ type Disagreements<Declared, Known extends Ports<Known>> = {
   }[keyof Declared[Port] & keyof Known[Port]["Service"]];
 }[keyof Declared & keyof Known];
 
+/** Whether a method takes a lock token (the token of a person or of the admin list) among its parameters. */
+type TakesToken<Method> = Method extends (
+  ...args: infer Args
+) => Effect.Effect<unknown, unknown, unknown>
+  ? [Extract<Args[number], Locked<"Person"> | Locked<"AdminList">>] extends [
+      never,
+    ]
+    ? false
+    : true
+  : false;
+
+/** `Port.method` of every row that is not `Requires` though its method takes a lock token. */
+type UnguardedTokens<Declared, Known extends Ports<Known>> = {
+  [Port in keyof Declared & keyof Known]: {
+    [Method in keyof Declared[Port] & keyof Known[Port]["Service"]]: TakesToken<
+      Known[Port]["Service"][Method]
+    > extends true
+      ? Declared[Port][Method] extends "Requires"
+        ? never
+        : `${Port & string}.${Method & string}`
+      : never;
+  }[keyof Declared[Port] & keyof Known[Port]["Service"]];
+}[keyof Declared & keyof Known];
+
 interface Fixture {
   readonly Fake: {
     readonly Service: {
       readonly writes: () => Effect.Effect<void, never, InTransaction>;
       readonly reads: Effect.Effect<number>;
       readonly stands: (id: number) => Effect.Effect<void>;
+      readonly locks: (token: Locked<"Person">) => Effect.Effect<void>;
     };
   };
 }
 
 describe("TransactionModes (spec 0018)", () => {
+  it("falsifier 2: every method that takes a lock token is Requires", () => {
+    expectTypeOf<
+      UnguardedTokens<typeof TransactionModes, StorePorts>
+    >().toEqualTypeOf<never>();
+  });
+
+  it("falsifier 2, control: a fixture method that takes a token and is declared Standalone is found, and one declared Requires is not", () => {
+    expectTypeOf<
+      UnguardedTokens<
+        { readonly Fake: { readonly locks: "Standalone" } },
+        Fixture
+      >
+    >().toEqualTypeOf<"Fake.locks">();
+
+    expectTypeOf<
+      UnguardedTokens<
+        { readonly Fake: { readonly locks: "Requires" } },
+        Fixture
+      >
+    >().toEqualTypeOf<never>();
+  });
+
   it("falsifier 2: every row of the declaration agrees with the type of its method", () => {
     expectTypeOf<
       Disagreements<typeof TransactionModes, StorePorts>
@@ -105,6 +153,7 @@ describe("TransactionModes (spec 0018)", () => {
       readonly writes: TransactionMode;
       readonly reads: TransactionMode;
       readonly stands: TransactionMode;
+      readonly locks: TransactionMode;
     }>();
   });
 

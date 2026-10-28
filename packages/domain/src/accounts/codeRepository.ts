@@ -6,6 +6,7 @@ import { Context } from "effect";
 import type { DateTime, Effect, Option } from "effect";
 
 import type { Locked } from "../shared/aggregate.ts";
+import type { InTransaction } from "../shared/transaction.ts";
 import type { Code, CodeHash, CodePurpose } from "./code.ts";
 
 export class CodeRepository extends Context.Service<
@@ -21,7 +22,7 @@ export class CodeRepository extends Context.Service<
     readonly replace: (
       locked: Locked<"Person">,
       code: Pick<Code, "expiresAt" | "hash" | "purpose">
-    ) => Effect.Effect<void>;
+    ) => Effect.Effect<void, never, InTransaction>;
     /** One conditional update; a missing, expired, used, wrong-purpose or wrong-subject code loses. */
     readonly consume: (
       locked: Locked<"Person">,
@@ -30,6 +31,6 @@ export class CodeRepository extends Context.Service<
         readonly purpose: CodePurpose;
         readonly now: DateTime.Utc;
       }
-    ) => Effect.Effect<boolean>;
+    ) => Effect.Effect<boolean, never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/accounts/CodeRepository") {}

@@ -26,7 +26,7 @@ export class AccountRepository extends Context.Service<
     /** The locked person's account: a decision read, which runs after the lock and which nobody else can change. */
     readonly findLocked: (
       locked: Locked<"Person">
-    ) => Effect.Effect<Option.Option<Account>>;
+    ) => Effect.Effect<Option.Option<Account>, never, InTransaction>;
     readonly list: Effect.Effect<readonly Account[]>;
     /** Whom to lock for a password reset; the caller rechecks through the lock. */
     readonly findActiveByPrivateEmail: (
@@ -34,7 +34,7 @@ export class AccountRepository extends Context.Service<
     ) => Effect.Effect<Option.Option<Account>>;
     readonly invite: (
       locked: Locked<"Person">
-    ) => Effect.Effect<Account, AlreadyExists>;
+    ) => Effect.Effect<Account, AlreadyExists, InTransaction>;
     /**
      * Applies one transition of the Account machine to the locked person's account, only while the account is in a
      * state that the transition starts from, judged on its newest committed state (CW1). An account that is not in
@@ -43,7 +43,7 @@ export class AccountRepository extends Context.Service<
     readonly transition: (
       locked: Locked<"Person">,
       transition: AccountMachineTransition
-    ) => Effect.Effect<Account, Conflict>;
+    ) => Effect.Effect<Account, Conflict, InTransaction>;
     /**
      * Whether `personId` is the only Active administrator: the only person who holds a place that is valid at `now`
      * and whose account is Active. The decision spans every administrator, so it is read through the admin list's
@@ -54,10 +54,10 @@ export class AccountRepository extends Context.Service<
       adminList: Locked<"AdminList">,
       personId: PersonId,
       now: DateTime.Utc
-    ) => Effect.Effect<boolean>;
+    ) => Effect.Effect<boolean, never, InTransaction>;
     readonly verifyEmail: (
       locked: Locked<"Person">
-    ) => Effect.Effect<void, AlreadyExists>;
+    ) => Effect.Effect<void, AlreadyExists, InTransaction>;
     readonly updateProfile: (
       locked: Locked<"Person">,
       profile: PersonDraft
