@@ -59,7 +59,13 @@ describe("module graph: oxc-resolver edges against the TypeScript 7.1 compiler's
           const [oxcTime, ours] = yield* Effect.timed(readSources(real, paths));
 
           const [compilerTime, theirs] = yield* Effect.timed(
-            Effect.scoped(compilerEdges(real, `${real}/${unit}/tsconfig.json`))
+            Effect.scoped(
+              compilerEdges(
+                real,
+                `${real}/${unit}/tsconfig.json`,
+                new Set(paths)
+              )
+            )
           );
 
           const inUnit = Arr.filter(theirs, ({ path }) =>
@@ -121,16 +127,18 @@ describe("module graph: oxc-resolver edges against the TypeScript 7.1 compiler's
           )
         );
 
-        const ours = yield* readSources(repo, [
+        const sources = [
           "src/a.ts",
           "src/b.ts",
           "src/c.cts",
           "src/dir/index.ts",
           "src/internal.ts",
-        ]);
+        ];
+
+        const ours = yield* readSources(repo, sources);
 
         const theirs = yield* Effect.scoped(
-          compilerEdges(repo, `${repo}/tsconfig.json`)
+          compilerEdges(repo, `${repo}/tsconfig.json`, new Set(sources))
         );
 
         // Two real differences, both by design of the check: it follows a directory import with no extension
@@ -169,7 +177,11 @@ describe("module graph: oxc-resolver edges against the TypeScript 7.1 compiler's
 
         const during = yield* Effect.scoped(
           Effect.andThen(
-            compilerEdges(real, `${real}/tools/docgen/tsconfig.json`),
+            compilerEdges(
+              real,
+              `${real}/tools/docgen/tsconfig.json`,
+              new Set()
+            ),
             children
           )
         );
@@ -206,7 +218,7 @@ describe("module graph: oxc-resolver edges against the TypeScript 7.1 compiler's
 
         const theirs = Arr.filter(
           yield* Effect.scoped(
-            compilerEdges(real, `${real}/${unit}/tsconfig.json`)
+            compilerEdges(real, `${real}/${unit}/tsconfig.json`, new Set(paths))
           ),
           ({ path }) => path.startsWith(`${unit}/`)
         );

@@ -5,7 +5,6 @@ import { API } from "typescript-7-1/sync";
 import type { Program, ResolvedModule } from "typescript-7-1/sync";
 
 import { importForms } from "./importSpecifiers.ts";
-import { isProbe } from "./probes.ts";
 import { packageNameOf, workspacePrefix } from "./resolveImports.ts";
 import type { SourceFile, Target } from "./resolveImports.ts";
 
@@ -67,17 +66,22 @@ const targetOf = (
 };
 
 /**
- * The edges of every file that the program holds under `root` and outside `node_modules` (the files of the tsconfig, and
- * the files of the repository that they import). `root` is the real path of the repository root. A resolution into
- * `node_modules`, or a declaration file that the compiler marks as an external library, is `external`.
+ * The edges of the files of the program that are among `paths` (paths from the repository root: the files that git lists
+ * and the scan reads). `root` is the real path of the repository root. A resolution into `node_modules`, or a declaration
+ * file that the compiler marks as an external library, is `external`.
  */
-const edgesOf = (program: Program, root: string): readonly CompilerEdge[] =>
+const edgesOf = (
+  program: Program,
+  root: string,
+  paths: ReadonlySet<string>
+): readonly CompilerEdge[] =>
   Arr.flatMap(program.getSourceFileNames(), (fileName) => {
     const path = relativeTo(root, fileName);
 
-    // The syntax tree of a library or `node_modules` file is never fetched: it is most of the program's files. A probe
-    // (`probes.ts`) is a scratch file that another test of this package writes for one lint run, as in every scan of the tree.
-    if (path === undefined || path.includes("node_modules/") || isProbe(path)) {
+    // The syntax tree of a library or `node_modules` file is never fetched: it is most of the program's files. The
+    // compiler also lists files that git does not (a generated `.astro/content.d.ts`, the scratch files that other tests
+    // write: `probes.ts`), and the scan reads none of them.
+    if (path === undefined || !paths.has(path)) {
       return [];
     }
 
@@ -112,12 +116,14 @@ const edgesOf = (program: Program, root: string): readonly CompilerEdge[] =>
   });
 
 /**
- * The edges of the files of `tsconfig` (an absolute path) in the repository at `root` (its real path). Opens the
+ * The edges of the files of `tsconfig` (an absolute path) in the repository at `root` (its real path), limited to
+ * `paths`. Opens the
  * compiler process and the program in the caller's scope; both are closed with it.
  */
 export const compilerEdges = Effect.fn("compilerEdges")(function* compilerEdges(
   root: string,
-  tsconfig: string
+  tsconfig: string,
+  paths: ReadonlySet<string>
 ): Effect.fn.Return<readonly CompilerEdge[], CompilerEdgesFailed, Scope.Scope> {
   const api = yield* Effect.acquireRelease(
     step("API", () => new API({ cwd: root })),
@@ -139,7 +145,7 @@ export const compilerEdges = Effect.fn("compilerEdges")(function* compilerEdges(
       })
   );
 
-  return yield* step("edges", () => edgesOf(program, root));
+  return yield* step("edges", () => edgesOf(program, root, paths));
 });
 
 interface Placed {
