@@ -54,7 +54,12 @@ import { machines } from "../src/machines.ts";
 import { Vectors, countRows } from "../src/vectors.ts";
 import type { VectorsFile } from "../src/vectors.ts";
 
-/** Everything committed, read once: the decoded vectors are large. */
+/**
+ * Everything committed, read once. A vectors file is gunzipped and digested when the layer is built (what the digests
+ * check), and decoded on the first test that asks for it: the `teams` vectors are 175 MB of JSON, and decoding them
+ * takes more than the layer's own 10 s on a shared two-CPU runner, where the tests that use the rows carry their own
+ * time limit.
+ */
 class Committed extends Context.Service<
   Committed,
   {
@@ -65,7 +70,13 @@ class Committed extends Context.Service<
     readonly provenance: ProvenanceFile;
     readonly texts: Readonly<Record<string, string>>;
     readonly vectors: Readonly<
-      Record<string, { readonly decoded: VectorsFile; readonly sha256: string }>
+      Record<
+        string,
+        {
+          readonly decoded: Effect.Effect<VectorsFile, Schema.SchemaError>;
+          readonly sha256: string;
+        }
+      >
     >;
   }
 >()("effx-conformance/test/Committed") {
@@ -93,9 +104,11 @@ class Committed extends Context.Service<
               gunzip
             );
 
-            const decoded = yield* Schema.decodeEffect(
-              Schema.fromJsonString(Vectors)
-            )(new TextDecoder().decode(bytes));
+            const decoded = yield* Effect.cached(
+              Schema.decodeEffect(Schema.fromJsonString(Vectors))(
+                new TextDecoder().decode(bytes)
+              )
+            );
 
             return [
               domain,
@@ -146,7 +159,15 @@ const conform = Effect.fn("conform")(function* conform(
     ({ name }) => name
   );
 
-  return compare(found.decoded, {
+  const decoded = yield* found.decoded;
+
+  assert.strictEqual(
+    decoded.domain,
+    domain,
+    `${domain}: the vectors file is of another domain`
+  );
+
+  return compare(decoded, {
     authorize: authorizeWith<string>(stand.table ?? GrantTable),
     machineOrder: order,
     machines: Arr.filter(stand.machines ?? machines, ({ name }) =>
@@ -543,8 +564,6 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
             committed.vectors[domain]?.sha256,
             `${domain}: vectors digest`
           );
-
-          assert.strictEqual(committed.vectors[domain]?.decoded.domain, domain);
         }
       })
   );
@@ -555,11 +574,12 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
       Effect.gen(function* control() {
         const committed = yield* Committed;
         const fs = yield* FileSystem.FileSystem;
-        const entry = committed.provenance.domains.teams;
+        const entry = committed.provenance.domains.audit;
         const text = committed.texts.teams ?? "";
 
+        // The smallest vectors file stands for the others: any changed byte changes any digest. The teams file is 175 MB.
         const bytes = yield* Effect.flatMap(
-          fs.readFile(vectorsFile("teams")),
+          fs.readFile(vectorsFile("audit")),
           gunzip
         );
 
@@ -568,7 +588,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
 
         assert.strictEqual(entry?.vectorsSha256, yield* hash(bytes));
         assert.notStrictEqual(
-          entry?.descriptionSha256,
+          committed.provenance.domains.teams?.descriptionSha256,
           yield* hash(utf8(text.replace("createTeam", "createTeams")))
         );
         assert.notStrictEqual(entry?.vectorsSha256, yield* hash(flipped));
@@ -752,7 +772,9 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         });
 
         const committed = yield* Committed;
-        const vectors = must(committed.vectors.teams, "teams vectors").decoded;
+
+        const vectors = yield* must(committed.vectors.teams, "teams vectors")
+          .decoded;
 
         // the Member row of viewTeams removed
         const withoutMember = yield* conform("teams", {
@@ -916,7 +938,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
     () =>
       Effect.gen(function* vacuous() {
         const committed = yield* Committed;
-        Option.match(
+        yield* Option.match(
           Option.all({
             entry: Option.fromNullishOr(
               committed.provenance.domains.organisation
@@ -925,18 +947,22 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           }),
           {
             onNone: () =>
-              assert.fail(
-                "the organisation vectors and provenance are committed"
+              Effect.sync(() =>
+                assert.fail(
+                  "the organisation vectors and provenance are committed"
+                )
               ),
-            onSome: ({ entry, found }) => {
-              const rows = countRows({ ...found.decoded, instances: [] }, []);
+            onSome: ({ entry, found }) =>
+              Effect.gen(function* rows() {
+                const decoded = yield* found.decoded;
+                const counted = countRows({ ...decoded, instances: [] }, []);
 
-              assert.strictEqual(rows.authorization, 0);
-              assert.notStrictEqual(
-                rows.authorization,
-                entry.rows.authorization
-              );
-            },
+                assert.strictEqual(counted.authorization, 0);
+                assert.notStrictEqual(
+                  counted.authorization,
+                  entry.rows.authorization
+                );
+              }),
           }
         );
       })
