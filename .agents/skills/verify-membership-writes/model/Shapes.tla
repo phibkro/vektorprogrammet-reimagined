@@ -32,8 +32,8 @@ CurrentCode == [
     \* The calls that each command makes, in order (each handler runs in one
     \* transaction, packages/db/src/transactional.ts:41-58). `createAdminGrant` and
     \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
-    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:197-198,
-    \* 223-224, through lockAccount at 51-66) take the same two locks.
+    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:198-199,
+    \* 224-225, through lockAccount at 52-67) take the same two locks.
     \* createMembership reads history and claims welcome_ledger; deleteMembership
     \* also claims it after removal. Both use the existing Person token and take
     \* no new root lock. Ledger and outbox guarantees are tested on PostgreSQL.
@@ -47,8 +47,8 @@ CurrentCode == [
         extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:472, 474
         createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:241-242
         deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:393, 403
-        syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:236, one person
-        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:323, 373
+        syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:237, one person
+        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:324, 374
     ],
     \* The statements of each call, in order.
     repo |-> [

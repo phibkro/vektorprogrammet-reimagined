@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 0f7bb9a90cf1cb97ac0f800024c4f7e22b2b31eb
-confirmed-at: 24d9135cd7a11855151e682be9b316e8750c8de6
+sync-digest: b72364a817436de1c9f7da941dbf892bfba30de1
+confirmed-at: 610aefe91e4ff2681482616442e7ad6ace201a5a
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -69,6 +69,8 @@ Spec 0020 (module graph check and no integration call inside a transaction, ADR 
 Spec 0021 (retention arithmetic in Effect, 2026-10-28, review round 1) changed one covered path, `packages/db/drizzle`, with the migration `drop_retention_oracle`. It drops the view `person_last_activity_end`, which read `membership` and never wrote it, and the function `semester_end`. No writer, statement, lock or constraint of `membership` changed, and `membership_no_overlap` is untouched. The same spec changes how the nightly retention run decides who is due (the domain decides from facts that the run reads after it has locked the chunk of people, `personalData/activity.ts`); that writer is outside the model as before, and its statements on `membership` (the delete under the chunk's locks) are the same. The model ran again with `--code` on that tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones (`confirmed-at` is the head that the spec's pull request had when the migration was added).
 
 The merge of spec 0020 (above) with spec 0021 (2026-10-28, after both reached `main`) moved the digest once more, because the two changes to covered paths now stand together: types only in `transactor.ts` and `services.ts`, and the migration in `packages/db/drizzle`. Neither touches a statement, lock or constraint that a command issues. The model ran again with `--code` on the merged tree (`24d9135`): every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
+
+Spec 0022 (break the module cycles, ADR 0015 stages 2 and 3, 2026-10-29) changed three covered paths, and none changes what a command does to a table or a lock. `packages/domain/src/accounts/commands.ts` builds its outbox messages from `IssueCodeMessage` and `SetCredentialMessage` (`accounts/messages.ts`) instead of `OutboxMessage.cases.…`, and imports them: one line more, the same three `enqueue` calls. `packages/domain/src/workspace/commands.ts` reads `workspaceSync` from `workspace/job.ts` (it was the registry's) and builds its message with `WorkspaceChangeMessage`: one import line less and two more. `packages/domain/src/teams/declaration.ts` builds the `MembershipMachine`'s guards and fields with `semesters(…)` from `organisation/semesterGuard.ts` (`guard.field(kind, path)` for each field) where it used `Guard.semesters`: the same guards, the same transitions, the same order, and the generated `teams.description.json` is byte-identical. The line numbers that `model/Shapes.tla` cites in `accounts/commands.ts` and `workspace/commands.ts` moved by one and were updated. `run.sh --code` ran on `610aefe` (every run as expected, `current-code` 1,712,396 states, the 53 PostgreSQL code tests passed), and the digest above is the covered paths at that commit.
 
 ## Writers outside the model (spec 0007b)
 
