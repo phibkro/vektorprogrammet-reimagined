@@ -140,7 +140,8 @@ const WRITERS = {
 
 /** Whether the exit is a defect that says the proof was not the live one. */
 const refused = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.hasDies(exit) &&
+  Exit.isFailure(exit) &&
+  Cause.hasDies(exit.cause) &&
   Predicate.isTagged("TransactionNotLive")(Cause.squash(exit.cause));
 
 const assertRefused = (exit: Exit.Exit<unknown, unknown>, label: string) => {
