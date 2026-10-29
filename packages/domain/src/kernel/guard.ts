@@ -9,12 +9,31 @@
  */
 import {
   Array as Arr,
+  Brand,
   Option,
   Predicate,
   Schema,
   SchemaRepresentation,
 } from "effect";
 import type { Order, SchemaAST } from "effect";
+
+/**
+ * What a semester (or any ordered value) in a machine's context is for the formal model (effx spec 0032 R1): a value
+ * `stored` in the row (a membership's start and end), a `parameter` that the command is given (the semester it asks
+ * for), or the `clock`, the current semester. The guards compare them; the kind says who chooses each one.
+ */
+export type FieldKind = "clock" | "parameter" | "stored";
+
+/**
+ * An ordered value of a machine's context, by its path and its kind, as `ordered(…).comparisons(…).field` builds it.
+ * The brand is how `Machine.make` refuses a field written as a literal, whose path no type has checked (spec 0022 R2).
+ */
+export type OrderedField = Brand.Branded<
+  { readonly kind: FieldKind; readonly path: readonly string[] },
+  "OrderedField"
+>;
+
+const orderedField = Brand.nominal<OrderedField>();
 
 /** What a guard compares: the schema that recognises the value, and the order of its values. */
 export interface Ordered<Value> {
@@ -132,10 +151,8 @@ export const ordered = <Value>(value: Ordered<Value>) => ({
       left: OrderedPath<Context, Value>,
       right: OrderedPath<Context, Value>
     ): SchemaAST.Filter<Context> => comparison(value, AFTER, { left, right }),
-    field: <const Kind extends string>(
-      kind: Kind,
-      path: OrderedPath<Context, Value>
-    ) => ({ kind, path }),
+    field: (kind: FieldKind, path: OrderedPath<Context, Value>): OrderedField =>
+      orderedField({ kind, path }),
     not: (check: SchemaAST.Check<Context>): SchemaAST.Filter<Context> =>
       logical(NOT, [context.check(check)]),
     or: (

@@ -157,3 +157,33 @@ describe("spec 0007d R2: the label of a change that time makes is its guard in w
     >().toEqualTypeOf<false>();
   });
 });
+
+describe("spec 0022 R2: a machine's field is one that the guards' constructor built", () => {
+  type Field = NonNullable<
+    Parameters<typeof Machine.make>[0]["fields"]
+  >[number];
+
+  type Path = Parameters<typeof check.field>[1];
+
+  it("a field written as a literal is refused, and one that `field` built is accepted", () => {
+    expectTypeOf<{
+      readonly kind: "stored";
+      readonly path: readonly ["term", "start"];
+    }>().not.toExtend<Field>();
+    expectTypeOf<ReturnType<typeof check.field>>().toExtend<Field>();
+  });
+
+  it("control: the path that `field` takes names a semester of the context, and a typo does not", () => {
+    expectTypeOf<readonly ["term", "start"]>().toExtend<Path>();
+    expectTypeOf<readonly ["term", "strat"]>().not.toExtend<Path>();
+  });
+
+  it("the fields of the membership machine are the four that its guards read, with their kinds", () => {
+    assert.deepStrictEqual(Teams.MembershipMachine.fields, [
+      { kind: "clock", path: ["current"] },
+      { kind: "parameter", path: ["requested"] },
+      { kind: "stored", path: ["term", "start"] },
+      { kind: "stored", path: ["term", "end"] },
+    ]);
+  });
+});

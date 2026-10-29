@@ -543,8 +543,8 @@ describe("spec 0007d: guards in effx's words", () => {
       commands: Teams.TeamsRpc,
       context: Teams.MembershipMoment,
       fields: [
-        { kind: "parameter", path: ["requested"] },
-        { kind: "stored", path: ["term", "end"] },
+        comparisons.field("parameter", ["requested"]),
+        comparisons.field("stored", ["term", "end"]),
       ],
       name: "Membership",
       states: MembershipState,

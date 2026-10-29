@@ -75,16 +75,9 @@ export interface Calculation<State extends string, Context> extends Calculated<
   readonly when: string;
 }
 
-/**
- * What a semester in a machine's context is for the formal model (effx spec 0032 R1): a value `stored` in the row
- * (a membership's start and end), a `parameter` that the command is given (the semester it asks for), or the `clock`,
- * the current semester. The guards compare them; the kind says who chooses each one.
- */
-export type FieldKind = "clock" | "parameter" | "stored";
-
 /** A semester of the context, by its path, and its kind. */
 export interface Field {
-  readonly kind: FieldKind;
+  readonly kind: Guard.FieldKind;
   readonly path: readonly string[];
 }
 
@@ -173,7 +166,7 @@ export const make = <
   /** The states that nothing leaves (`[]` when every state has a way out). Required: it is never a default. */
   readonly terminal: readonly TagOf<States>[];
   /** The ordered values that the guards read, by path, with the kind of each (the `field` of `Guard.ordered`). */
-  readonly fields?: readonly Field[];
+  readonly fields?: readonly Guard.OrderedField[];
   readonly transitions: readonly Transition<
     TagOf<States>,
     Rpcs["_tag"],
