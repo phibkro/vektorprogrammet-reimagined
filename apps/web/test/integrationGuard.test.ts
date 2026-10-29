@@ -120,6 +120,14 @@ const countingHttp = (counter: Counter) =>
     })
   );
 
+/** The capture store that keeps each message's key, as the fake mailbox of a test. */
+const mailboxOver = (kept: Ref.Ref<readonly string[]>) =>
+  Layer.succeed(CapturedMessageStore)(
+    CapturedMessageStore.of({
+      record: (_message, key) => Ref.update(kept, (all) => [...all, key]),
+    })
+  );
+
 describe("spec 0024 R6: an integration port refuses a call made inside a transaction", () => {
   it.effect(
     "MessageSender, the capture sink: inside the transaction the call dies and nothing is kept; outside it is kept",
@@ -127,11 +135,7 @@ describe("spec 0024 R6: an integration port refuses a call made inside a transac
       Effect.gen(function* captureSink() {
         const kept = yield* Ref.make<readonly string[]>([]);
 
-        const mailbox = Layer.succeed(CapturedMessageStore)(
-          CapturedMessageStore.of({
-            record: (_message, key) => Ref.update(kept, (all) => [...all, key]),
-          })
-        );
+        const mailbox = mailboxOver(kept);
 
         yield* Effect.gen(function* sendBothWays() {
           const sender = yield* MessageSender;
@@ -302,11 +306,7 @@ describe("spec 0024 R6: an integration port refuses a call made inside a transac
       Effect.gen(function* forkedCall() {
         const kept = yield* Ref.make<readonly string[]>([]);
 
-        const mailbox = Layer.succeed(CapturedMessageStore)(
-          CapturedMessageStore.of({
-            record: (_message, key) => Ref.update(kept, (all) => [...all, key]),
-          })
-        );
+        const mailbox = mailboxOver(kept);
 
         yield* Effect.gen(function* forkBothWays() {
           const sender = yield* MessageSender;

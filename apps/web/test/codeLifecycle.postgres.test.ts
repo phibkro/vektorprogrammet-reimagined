@@ -20,14 +20,10 @@ import {
   CapturedMessageStore,
   CodeToken,
   CurrentPrincipal,
-  DepartmentId,
   EmailAddress,
   IntegrationCalledInTransaction,
   OutboxMessage,
   OutboxMessageId,
-  PersonId,
-  Principal,
-  TeamId,
   anonymous,
   codePrincipal,
   refusingInTransaction,
@@ -57,6 +53,7 @@ import { Auth } from "../src/server/auth";
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender } from "../src/server/senders";
 import { liveWith } from "./support/deliveryLive";
+import { leaderOf } from "./support/principals";
 import { transacted } from "./support/transacted";
 
 interface Sent {
@@ -128,17 +125,7 @@ const controlled = Layer.effect(
 const DEPARTMENT = 701;
 const LEADER = 701;
 
-const leader = Principal.cases.Person.make({
-  memberships: [
-    {
-      departmentId: DepartmentId.make(DEPARTMENT),
-      function: "recruitment",
-      leader: true,
-      teamId: TeamId.make(DEPARTMENT),
-    },
-  ],
-  personId: PersonId.make(LEADER),
-});
+const leader = leaderOf(DEPARTMENT, { personId: LEADER, teamId: DEPARTMENT });
 
 const idRows = Schema.Array(Schema.Struct({ id: Schema.Finite }));
 
