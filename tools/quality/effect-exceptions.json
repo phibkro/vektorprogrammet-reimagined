@@ -701,6 +701,7 @@
           "apps/web/src/server/**",
           "packages/cms-client/test/client.test.ts",
           "apps/web/test/sandbox.test.ts",
+          "apps/web/test/integrationGuard.test.ts",
           "tools/**",
           "apps/*/scripts/**",
           "apps/*/e2e/**"

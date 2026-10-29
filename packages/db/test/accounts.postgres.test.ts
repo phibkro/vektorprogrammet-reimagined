@@ -15,7 +15,12 @@ import {
   codePrincipal,
   mintCode,
 } from "@vektorprogrammet/domain";
-import type { CodePurpose, SingleUsePurpose } from "@vektorprogrammet/domain";
+import type {
+  Code,
+  CodePurpose,
+  Locked,
+  SingleUsePurpose,
+} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -32,7 +37,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
 import { activeAdmin, moveAccount } from "./support/accountsWorld.ts";
-import { issueUsable } from "./support/codes.ts";
+import { issueUnsent, issueUsable } from "./support/codes.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { raceReport } from "./support/race.ts";
 import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
@@ -42,6 +47,40 @@ const beforeExpiry = DateTime.makeUnsafe("2098-12-31T23:59:59.999Z");
 const now = DateTime.makeUnsafe("2026-10-27T12:00:00.000Z");
 
 const RACE_ROUNDS = 300;
+
+const lapsed = DateTime.makeUnsafe("2020-01-01T00:00:00.000Z");
+
+type Built = "expired" | "unsent" | "usable" | "used";
+
+/**
+ * What the delivery's two transactions, and a use, leave in the store: the code `Unsent`; acknowledged; acknowledged and
+ * spent (`expired` is acknowledged, with an expiry in the past).
+ */
+const storeAs = Effect.fnUntraced(function* storeAs(
+  locked: Locked<"Person">,
+  built: Built,
+  code: Pick<Code, "expiresAt" | "hash"> & {
+    readonly purpose: SingleUsePurpose;
+  }
+) {
+  if (built === "unsent") {
+    return yield* issueUnsent(locked, code);
+  }
+
+  yield* issueUsable(locked, code);
+
+  if (built === "used") {
+    yield* CodeRepository.use((codes) =>
+      codes.consume(locked, {
+        hash: code.hash,
+        now,
+        purpose: code.purpose,
+      })
+    );
+  }
+
+  return yield* Effect.void;
+});
 
 type AccountStateName = "Invited" | "Active" | "Deactivated";
 
@@ -281,6 +320,94 @@ layer(
             purpose: "activation",
           })
         );
+      })
+  );
+
+  it.effect(
+    "spec 0024 F5: an Unsent or a Used code authenticates nothing in any purpose, an expired one neither, and only a Usable unexpired code does; a state-blind read finds each row (control)",
+    () =>
+      Effect.gen(function* unusableNeverAuthenticates() {
+        const fixture = yield* world("code-unusable");
+        const personId = fixture.person.id;
+        const sql = yield* SqlClient;
+        const codes = yield* CodeRepository;
+
+        /**
+         * A code of `purpose` that the store holds in `built` (`expired`: acknowledged and past its expiry), presented
+         * the three ways that a code is asked for: as a principal, as a read, and as a spend. The state-blind SQL read is
+         * the control: the row is there whatever the answers are, so a refusal is the state's and not an absent row.
+         */
+        const present = (purpose: SingleUsePurpose, built: Built) =>
+          Effect.gen(function* presentCode() {
+            const { hash, token } = yield* mintCode().pipe(Effect.orDie);
+
+            yield* asPerson(personId, (locked) =>
+              storeAs(locked, built, {
+                expiresAt: built === "expired" ? lapsed : expiresAt,
+                hash,
+                purpose,
+              })
+            );
+
+            const principal = yield* codePrincipal(token, purpose);
+            const found = yield* codes.findUsable({ hash, now, purpose });
+
+            const rows = yield* sql<{
+              readonly state: string;
+            }>`select state from code where hash = ${hash}`;
+
+            const spent = yield* asPerson(personId, (locked) =>
+              codes.consume(locked, { hash, now, purpose })
+            );
+
+            return {
+              authenticates: Option.isSome(principal),
+              found: Option.isSome(found),
+              spent,
+              state: rows[0]?.state,
+            };
+          });
+
+        const refused = { authenticates: false, found: false, spent: false };
+
+        const accepted = {
+          authenticates: true,
+          found: true,
+          spent: true,
+          state: "Usable",
+        };
+
+        const expectations = [
+          ["unsent", { ...refused, state: "Unsent" }],
+          ["used", { ...refused, state: "Used" }],
+          ["expired", { ...refused, state: "Usable" }],
+          ["usable", accepted],
+        ] as const;
+
+        // Activation needs an Invited account, and a reset an Active one.
+        yield* asPerson(personId, (locked) =>
+          AccountRepository.use((accounts) => accounts.invite(locked))
+        );
+
+        for (const [built, expected] of expectations) {
+          assert.deepStrictEqual(
+            yield* present("activation", built),
+            expected,
+            `activation, ${built}`
+          );
+        }
+
+        yield* asPerson(personId, (locked) =>
+          moveAccount(locked, "activateAccount", "Invited")
+        );
+
+        for (const [built, expected] of expectations) {
+          assert.deepStrictEqual(
+            yield* present("resetPassword", built),
+            expected,
+            `resetPassword, ${built}`
+          );
+        }
       })
   );
 

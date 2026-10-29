@@ -635,6 +635,7 @@ export default defineConfig({
           "apps/web/test/publicFiles.test.ts",
           "apps/web/test/redirects.test.ts",
           "apps/web/test/sandbox.test.ts",
+          "apps/web/test/integrationGuard.test.ts",
           "tools/db-path-spike/test/support/localWorker.ts",
           "tools/db-path-spike/test/worker.postgres.test.ts",
           "tools/db-path-spike/test/pure.test.ts",

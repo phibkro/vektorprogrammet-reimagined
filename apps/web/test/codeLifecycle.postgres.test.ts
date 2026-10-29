@@ -1,17 +1,18 @@
 /**
  * Spec 0024 on real PostgreSQL: code delivery outside the transaction. The sender here is the delivery's own provider
- * with two hooks (before and after the send), so a test sees the store at the two moments between the transactions and
- * can stop the delivery there. Every code that a mail carried is parsed from the mail itself, as a person would use it.
+ * (behind the same guard as the real ports) with two hooks, before and after the send, so a test sees the store at the
+ * two moments between the transactions and can stop the delivery there. Every code that a mail carried is parsed from
+ * the mail itself, as a person would use it.
  *
- * F1  The journey: the code is committed `Unsent` before the mail leaves, its link is refused while the mail is on its way,
- *     and it works after the second transaction.
- * F2  A crash between the send and the acknowledgement (a defect, and an interruption) leaves the mailed code unusable;
- *     the redelivery mails a new code and only that one works.
+ * F1  The journey: the code is committed `Unsent` before the mail leaves, its link is refused while the mail is on its
+ *     way, and it works after the second transaction.
+ * F2  A crash between the send and the acknowledgement (a defect, then an interruption) leaves each mailed code
+ *     unusable; the redelivery mails a new code and only that one works.
  * F3  A change of the account between the two transactions: the acknowledged code is still refused at use.
  * F4  Two requests for one person: an older attempt's acknowledgement never makes the newer attempt's `Unsent` code
  *     usable (scripted), and exactly one of two concurrent attempts' mails works (100 fresh rounds).
- * F8  The ports refuse a call inside a transaction on the real stack: the delivery's sender and Better Auth, called inside
- *     `Transactor.run` on PostgreSQL, die and leave no mail.
+ * F7  The ports refuse a call inside a transaction on the real stack: the delivery's sender and Better Auth, called
+ *     inside `Transactor.run` on PostgreSQL, die and leave no mail.
  */
 import { assert, layer } from "@effect/vitest";
 import {
@@ -22,6 +23,7 @@ import {
   DepartmentId,
   EmailAddress,
   IntegrationCalledInTransaction,
+  OutboxMessage,
   OutboxMessageId,
   PersonId,
   Principal,
@@ -30,7 +32,12 @@ import {
   codePrincipal,
   refusingInTransaction,
 } from "@vektorprogrammet/domain";
-import type { CodePurpose, TransportMessage } from "@vektorprogrammet/domain";
+import type {
+  AccountRepository,
+  CodePurpose,
+  CodeRepository,
+  TransportMessage,
+} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -43,6 +50,7 @@ import {
   Predicate,
   Schema,
 } from "effect";
+import type { Crypto } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { Auth } from "../src/server/auth";
@@ -55,6 +63,13 @@ interface Sent {
   readonly key: string;
   readonly token: CodeToken;
 }
+
+/** The services that a hook reads the store with: they are the delivery stack's, provided to the test and to the sender alike. */
+type StoreServices =
+  | AccountRepository
+  | CodeRepository
+  | Crypto.Crypto
+  | SqlClient;
 
 /** What the sender does around each send, and what it sent. A test sets the hooks and the next test starts over. */
 interface Hooks {
@@ -72,6 +87,12 @@ const reset = Effect.sync(() => {
   hooks.after = quiet;
   hooks.sent.length = 0;
 });
+
+const withStore = Effect.map(
+  Effect.context<StoreServices>(),
+  (context) => (effect: Effect.Effect<void, never, StoreServices>) =>
+    Effect.provideContext(effect, context)
+);
 
 const linkOf = (message: TransportMessage): CodeToken => {
   const found = Predicate.isTagged(message, "Email")
@@ -123,52 +144,7 @@ const idRows = Schema.Array(Schema.Struct({ id: Schema.Finite }));
 
 const stateRows = Schema.Array(Schema.Struct({ state: Schema.String }));
 
-const seedBase = Effect.gen(function* seedBase() {
-  const sql = yield* SqlClient;
-  yield* sql`insert into department (id, city, email, name, short_name) values (${DEPARTMENT}, 'Kodeby', 'kodelc@example.org', 'Kode', 'KLC') on conflict do nothing`;
-  yield* sql`insert into field_of_study (id, department_id, name, short_name) values (${DEPARTMENT}, ${DEPARTMENT}, 'Kode', 'KLC') on conflict do nothing`;
-  yield* sql`insert into person (id, name, email, field_of_study_id) values (${LEADER}, 'Leader', 'kodelcleader@example.org', ${DEPARTMENT}) on conflict do nothing`;
-}).pipe(Effect.orDie);
-
-const seedPerson = (id: number) =>
-  Effect.gen(function* seedPerson() {
-    const sql = yield* SqlClient;
-    yield* seedBase;
-    yield* sql`insert into person (id, name, email, field_of_study_id) values (${id}, 'Person', ${emailOf(id)}, ${DEPARTMENT})`;
-  }).pipe(Effect.orDie);
-
 const emailOf = (id: number): string => `kodelc${id}@example.org`;
-
-/** A person with an Invited account and the one `IssueCode` message that the invitation committed. */
-const invite = (id: number) =>
-  Effect.gen(function* invitePerson() {
-    yield* seedPerson(id);
-    yield* transacted(
-      AccountEndpoints.createAccount({ personId: id }).pipe(
-        Effect.provideService(CurrentPrincipal, leader)
-      )
-    );
-
-    return yield* outboxIds(id);
-  }).pipe(Effect.orDie);
-
-/** A person with an Active account who asks for a reset `times` times: one `IssueCode` message each. */
-const askForReset = (id: number, times: number) =>
-  Effect.gen(function* askForResets() {
-    const sql = yield* SqlClient;
-    yield* seedPerson(id);
-    yield* sql`insert into account (person_id, state) values (${id}, 'Active')`;
-
-    yield* Effect.forEach(Arr.range(1, times), () =>
-      transacted(
-        AccountEndpoints.requestPasswordReset({
-          email: EmailAddress.make(emailOf(id)),
-        }).pipe(Effect.provideService(CurrentPrincipal, anonymous))
-      )
-    );
-
-    return yield* outboxIds(id);
-  }).pipe(Effect.orDie);
 
 const outboxIds = (personId: number) =>
   Effect.gen(function* readOutboxIds() {
@@ -179,7 +155,65 @@ const outboxIds = (personId: number) =>
     );
 
     return Arr.map(rows, (row) => OutboxMessageId.make(String(row.id)));
-  });
+  }).pipe(Effect.orDie);
+
+const seedBase = Effect.gen(function* seedBase() {
+  const sql = yield* SqlClient;
+  yield* sql`insert into department (id, city, email, name, short_name) values (${DEPARTMENT}, 'Kodeby', 'kodelc@example.org', 'Kode', 'KLC') on conflict do nothing`;
+  yield* sql`insert into field_of_study (id, department_id, name, short_name) values (${DEPARTMENT}, ${DEPARTMENT}, 'Kode', 'KLC') on conflict do nothing`;
+  yield* sql`insert into person (id, name, email, field_of_study_id) values (${LEADER}, 'Leader', 'kodelcleader@example.org', ${DEPARTMENT}) on conflict do nothing`;
+}).pipe(Effect.orDie);
+
+const addPerson = (id: number) =>
+  Effect.gen(function* insertPerson() {
+    const sql = yield* SqlClient;
+    yield* seedBase;
+    yield* sql`insert into person (id, name, email, field_of_study_id) values (${id}, 'Person', ${emailOf(id)}, ${DEPARTMENT})`;
+  }).pipe(Effect.orDie);
+
+const exactly = (count: number, ids: readonly OutboxMessageId[]) =>
+  ids.length === count
+    ? Effect.succeed(ids)
+    : Effect.die(`expected ${count} IssueCode rows, found ${ids.length}`);
+
+/** A person with an Invited account and the one `IssueCode` message that the invitation committed. */
+const invite = (id: number) =>
+  Effect.gen(function* invitePerson() {
+    yield* addPerson(id);
+
+    yield* transacted(
+      AccountEndpoints.createAccount({ personId: id }).pipe(
+        Effect.provideService(CurrentPrincipal, leader)
+      )
+    );
+
+    const [only] = yield* exactly(1, yield* outboxIds(id));
+
+    return only ?? OutboxMessageId.make("0");
+  }).pipe(Effect.orDie);
+
+/** A person with an Active account who asks for a reset twice: two `IssueCode` messages, the older first. */
+const askForResetTwice = (id: number) =>
+  Effect.gen(function* askTwice() {
+    const sql = yield* SqlClient;
+    yield* addPerson(id);
+    yield* sql`insert into account (person_id, state) values (${id}, 'Active')`;
+
+    yield* Effect.forEach(Arr.range(1, 2), () =>
+      transacted(
+        AccountEndpoints.requestPasswordReset({
+          email: EmailAddress.make(emailOf(id)),
+        }).pipe(Effect.provideService(CurrentPrincipal, anonymous))
+      )
+    );
+
+    const [older, newer] = yield* exactly(2, yield* outboxIds(id));
+
+    return {
+      newer: newer ?? OutboxMessageId.make("0"),
+      older: older ?? OutboxMessageId.make("0"),
+    };
+  }).pipe(Effect.orDie);
 
 /** The states of the person's codes: at most one per purpose. */
 const codeStates = (personId: number) =>
@@ -197,17 +231,24 @@ const rowStatus = (id: OutboxMessageId) =>
   Effect.gen(function* readRow() {
     const sql = yield* SqlClient;
 
-    const [row] = yield* sql<{
+    const rows = yield* sql<{
       readonly last_error: string | null;
       readonly status: string;
     }>`select status, last_error from outbox where id = ${Number(id)}`;
 
-    return row;
+    return { lastError: rows[0]?.last_error, status: rows[0]?.status };
   }).pipe(Effect.orDie);
 
 /** Whether a person who presents `token` for `purpose` is let in. */
 const authenticates = (token: CodeToken, purpose: CodePurpose) =>
   Effect.map(codePrincipal(token, purpose), Option.isSome);
+
+/** The token of the `index`-th mail that the sender sent. */
+const tokenAt = (index: number) =>
+  Option.match(Arr.get(hooks.sent, index), {
+    onNone: () => Effect.die(`no mail number ${index} was sent`),
+    onSome: (sent) => Effect.succeed(sent.token),
+  });
 
 /** The lease of a claim ran out: the crashed delivery's claim no longer holds the row. */
 const leaseRanOut = (id: OutboxMessageId) =>
@@ -216,13 +257,61 @@ const leaseRanOut = (id: OutboxMessageId) =>
     yield* sql`update outbox set claim_token = null, claimed_until = null where id = ${Number(id)}`;
   }).pipe(Effect.orDie);
 
-const only = <A>(items: readonly A[]): A => {
-  assert.lengthOf(items, 1);
+const deliveryTag = (id: OutboxMessageId) =>
+  Effect.map(deliverOutbox([id]), (results) => results[0]?._tag);
 
-  return items[0] as A;
-};
+/** The answers of every delivery that failed, as a person who reads the failure would need them. */
+const failuresOf = (exits: readonly Exit.Exit<unknown, unknown>[]) =>
+  Arr.flatMap(exits, (exit) =>
+    Exit.isFailure(exit) ? [Cause.pretty(exit.cause)] : []
+  );
 
 const ROUNDS = 100;
+
+const isRefusal = Schema.is(IntegrationCalledInTransaction);
+
+/** The call that a refused exit names: the exit is a defect `IntegrationCalledInTransaction`, and nothing else. */
+const refusedCall = (exit: Exit.Exit<unknown, unknown>): string => {
+  if (Exit.isSuccess(exit)) {
+    return "not refused";
+  }
+
+  const defect = Cause.squash(exit.cause);
+
+  return isRefusal(defect) ? defect.call : "not the guard's defect";
+};
+
+/** What one round of two concurrent attempts left behind, as a list of what is wrong with it. */
+const concurrentRound = (round: number) =>
+  Effect.gen(function* oneRound() {
+    yield* reset;
+    const { newer, older } = yield* askForResetTwice(8000 + round);
+
+    const exits = yield* Effect.forEach(
+      [older, newer],
+      (id) => Effect.exit(deliverOutbox([id])),
+      { concurrency: "unbounded" }
+    );
+
+    const states = yield* codeStates(8000 + round);
+
+    const works = yield* Effect.forEach(hooks.sent, (sent) =>
+      authenticates(sent.token, "resetPassword")
+    );
+
+    const linksThatWork = Arr.filter(works, Boolean).length;
+
+    const problems = [
+      ...failuresOf(exits),
+      ...(hooks.sent.length === 2 ? [] : ["not two mails"]),
+      ...(linksThatWork === 1 ? [] : [`${linksThatWork} links work`]),
+      ...(Arr.join(states, ",") === "Usable"
+        ? []
+        : [`code states ${Arr.join(states, ",")}`]),
+    ];
+
+    return Arr.map(problems, (problem) => `round ${round}: ${problem}`);
+  });
 
 layer(liveWith(controlled), { excludeTestServices: true })(
   "spec 0024: code delivery outside the transaction",
@@ -232,8 +321,8 @@ layer(liveWith(controlled), { excludeTestServices: true })(
       () =>
         Effect.gen(function* journey() {
           yield* reset;
-          const [id] = yield* invite(711);
-          assert.isDefined(id);
+          const id = yield* invite(711);
+          const provide = yield* withStore;
 
           const seen: {
             readonly authenticates: boolean;
@@ -241,18 +330,19 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           }[] = [];
 
           const observe = (sent: Sent) =>
-            Effect.gen(function* observeStore() {
-              seen.push({
-                authenticates: yield* authenticates(sent.token, "activation"),
-                states: yield* codeStates(711),
-              });
-            });
+            provide(
+              Effect.gen(function* observeStore() {
+                seen.push({
+                  authenticates: yield* authenticates(sent.token, "activation"),
+                  states: yield* codeStates(711),
+                });
+              })
+            );
 
           hooks.before = observe;
           hooks.after = observe;
 
-          const [delivery] = yield* deliverOutbox([id as OutboxMessageId]);
-          assert.strictEqual(delivery?._tag, "Delivered");
+          assert.strictEqual(yield* deliveryTag(id), "Delivered");
 
           // Before the send the first transaction had committed (this connection reads it) and the code was unusable;
           // after the send, and before the second transaction, the same. The person's link has not worked yet.
@@ -262,12 +352,9 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           ]);
 
           assert.deepStrictEqual(yield* codeStates(711), ["Usable"]);
-          const mailed = only(hooks.sent);
-          assert.isTrue(yield* authenticates(mailed.token, "activation"));
-          assert.strictEqual(
-            (yield* rowStatus(id as OutboxMessageId))?.status,
-            "delivered"
-          );
+          assert.lengthOf(hooks.sent, 1);
+          assert.isTrue(yield* authenticates(yield* tokenAt(0), "activation"));
+          assert.strictEqual((yield* rowStatus(id)).status, "delivered");
         })
     );
 
@@ -276,16 +363,14 @@ layer(liveWith(controlled), { excludeTestServices: true })(
       () =>
         Effect.gen(function* crashes() {
           yield* reset;
-          const [id] = yield* invite(721);
-          const row = id as OutboxMessageId;
+          const row = yield* invite(721);
 
           // The delivery dies after the provider answered.
           hooks.after = () => Effect.die("the process died after the send");
-          const [first] = yield* deliverOutbox([row]);
-          assert.strictEqual(first?._tag, "Retrying");
-          assert.strictEqual((yield* rowStatus(row))?.status, "pending");
+          assert.strictEqual(yield* deliveryTag(row), "Retrying");
+          assert.strictEqual((yield* rowStatus(row)).status, "pending");
           assert.strictEqual(
-            (yield* rowStatus(row))?.last_error,
+            (yield* rowStatus(row)).lastError,
             "delivery defect"
           );
           assert.deepStrictEqual(yield* codeStates(721), ["Unsent"]);
@@ -293,6 +378,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           // The redelivery is interrupted after its send: no handler sees it, the claim stays held.
           hooks.after = () => Effect.interrupt;
           const interrupted = yield* Effect.exit(deliverOutbox([row]));
+
           assert.isTrue(
             Exit.isFailure(interrupted) &&
               Cause.hasInterrupts(interrupted.cause)
@@ -302,16 +388,13 @@ layer(liveWith(controlled), { excludeTestServices: true })(
 
           // While its lease holds, another consumer is told to look again later and sends nothing.
           hooks.after = quiet;
-          const [held] = yield* deliverOutbox([row]);
-          assert.strictEqual(held?._tag, "Held");
+          assert.strictEqual(yield* deliveryTag(row), "Held");
           assert.lengthOf(hooks.sent, 2);
 
           // The lease runs out: the next delivery mints a third code, mails it and acknowledges it.
           yield* leaseRanOut(row);
-          const [last] = yield* deliverOutbox([row]);
-          assert.strictEqual(last?._tag, "Delivered");
+          assert.strictEqual(yield* deliveryTag(row), "Delivered");
           assert.lengthOf(hooks.sent, 3);
-
           assert.deepStrictEqual(yield* codeStates(721), ["Usable"]);
 
           const results = yield* Effect.forEach(hooks.sent, (sent) =>
@@ -328,21 +411,17 @@ layer(liveWith(controlled), { excludeTestServices: true })(
         Effect.gen(function* accountChanges() {
           yield* reset;
           const sql = yield* SqlClient;
-          const [id] = yield* invite(731);
-          const row = id as OutboxMessageId;
+          const row = yield* invite(731);
 
           hooks.after = () =>
-            Effect.orDie(
-              sql`update account set state = 'Deactivated' where person_id = 731`
+            sql`update account set state = 'Deactivated' where person_id = 731`.pipe(
+              Effect.orDie,
+              Effect.asVoid
             );
 
-          const [delivery] = yield* deliverOutbox([row]);
-          assert.strictEqual(delivery?._tag, "Delivered");
+          assert.strictEqual(yield* deliveryTag(row), "Delivered");
           assert.deepStrictEqual(yield* codeStates(731), ["Usable"]);
-
-          assert.isFalse(
-            yield* authenticates(only(hooks.sent).token, "activation")
-          );
+          assert.isFalse(yield* authenticates(yield* tokenAt(0), "activation"));
         })
     );
 
@@ -351,80 +430,53 @@ layer(liveWith(controlled), { excludeTestServices: true })(
       () =>
         Effect.gen(function* olderAcknowledges() {
           yield* reset;
-          const ids = yield* askForReset(741, 2);
-          const [older, newer] = ids;
-          assert.isDefined(older);
-          assert.isDefined(newer);
+          const { newer, older } = yield* askForResetTwice(741);
 
-          const olderSending = yield* Deferred.make<void>();
-          const olderMayAck = yield* Deferred.make<void>();
-          const newerSending = yield* Deferred.make<void>();
-          const newerMayAck = yield* Deferred.make<void>();
-
-          const authenticatingNewer: boolean[] = [];
+          const olderSending = yield* Deferred.make<null>();
+          const olderMayAck = yield* Deferred.make<null>();
+          const newerSending = yield* Deferred.make<null>();
+          const newerMayAck = yield* Deferred.make<null>();
 
           hooks.after = (sent) =>
             sent.key.startsWith(`${older}.`)
-              ? Deferred.succeed(olderSending, undefined).pipe(
+              ? Deferred.succeed(olderSending, null).pipe(
                   Effect.andThen(Deferred.await(olderMayAck))
                 )
-              : Deferred.succeed(newerSending, undefined).pipe(
+              : Deferred.succeed(newerSending, null).pipe(
                   Effect.andThen(Deferred.await(newerMayAck))
                 );
 
-          const olderRun = yield* Effect.forkChild(
-            deliverOutbox([older as OutboxMessageId])
-          );
-
+          const olderRun = yield* Effect.forkChild(deliverOutbox([older]));
           yield* Deferred.await(olderSending);
 
           // The newer attempt stores its code (replacing the older one) and sends; both mails are out, neither has
           // been acknowledged.
-          const newerRun = yield* Effect.forkChild(
-            deliverOutbox([newer as OutboxMessageId])
-          );
-
+          const newerRun = yield* Effect.forkChild(deliverOutbox([newer]));
           yield* Deferred.await(newerSending);
           assert.deepStrictEqual(yield* codeStates(741), ["Unsent"]);
 
           // The older attempt's second transaction runs now: its code is gone, so it acknowledges nothing.
-          yield* Deferred.succeed(olderMayAck, undefined);
+          yield* Deferred.succeed(olderMayAck, null);
           yield* Fiber.join(olderRun);
 
-          authenticatingNewer.push(
-            yield* authenticates(
-              hooks.sent[1]?.token as CodeToken,
-              "resetPassword"
-            )
+          assert.deepStrictEqual(yield* codeStates(741), ["Unsent"]);
+          assert.isFalse(
+            yield* authenticates(yield* tokenAt(1), "resetPassword"),
+            "the newer mail is not usable before its own acknowledgement"
           );
 
-          assert.deepStrictEqual(yield* codeStates(741), ["Unsent"]);
-          assert.deepStrictEqual(authenticatingNewer, [false]);
-
-          yield* Deferred.succeed(newerMayAck, undefined);
+          yield* Deferred.succeed(newerMayAck, null);
           yield* Fiber.join(newerRun);
 
           assert.deepStrictEqual(yield* codeStates(741), ["Usable"]);
           assert.isFalse(
-            yield* authenticates(
-              hooks.sent[0]?.token as CodeToken,
-              "resetPassword"
-            )
+            yield* authenticates(yield* tokenAt(0), "resetPassword")
           );
           assert.isTrue(
-            yield* authenticates(
-              hooks.sent[1]?.token as CodeToken,
-              "resetPassword"
-            )
+            yield* authenticates(yield* tokenAt(1), "resetPassword")
           );
-          assert.strictEqual(
-            (yield* rowStatus(older as OutboxMessageId))?.status,
-            "delivered"
-          );
-          assert.strictEqual(
-            (yield* rowStatus(newer as OutboxMessageId))?.status,
-            "delivered"
-          );
+          assert.strictEqual((yield* rowStatus(older)).status, "delivered");
+          assert.strictEqual((yield* rowStatus(newer)).status, "delivered");
         })
     );
 
@@ -432,50 +484,18 @@ layer(liveWith(controlled), { excludeTestServices: true })(
       `F4: two concurrent attempts for one person: exactly one of the two mails works, in each of ${ROUNDS} fresh rounds`,
       () =>
         Effect.gen(function* concurrentAttempts() {
-          const failures: string[] = [];
+          const problems = yield* Effect.forEach(
+            Arr.range(1, ROUNDS),
+            concurrentRound
+          );
 
-          for (const round of Arr.range(1, ROUNDS)) {
-            yield* reset;
-            const personId = 8000 + round;
-            const ids = yield* askForReset(personId, 2);
-
-            const exits = yield* Effect.forEach(
-              ids,
-              (id) => Effect.exit(deliverOutbox([id])),
-              { concurrency: "unbounded" }
-            );
-
-            const states = yield* codeStates(personId);
-
-            const works = yield* Effect.forEach(hooks.sent, (sent) =>
-              authenticates(sent.token, "resetPassword")
-            );
-
-            const problems = [
-              ...Arr.flatMap(exits, (exit) =>
-                Exit.isFailure(exit) ? [Cause.pretty(exit.cause)] : []
-              ),
-              ...(hooks.sent.length === 2 ? [] : ["not two mails"]),
-              ...(Arr.filter(works, Boolean).length === 1
-                ? []
-                : [`${Arr.filter(works, Boolean).length} links work`]),
-              ...(states.length === 1 && states[0] === "Usable"
-                ? []
-                : [`code states ${states.join(",")}`]),
-            ];
-
-            if (problems.length > 0) {
-              failures.push(`round ${round}: ${problems.join("; ")}`);
-            }
-          }
-
-          assert.deepStrictEqual(failures, []);
+          assert.deepStrictEqual(Arr.flatten(problems), []);
         }),
       { timeout: 120_000 }
     );
 
     it.effect(
-      "F8: the delivery's sender and Better Auth, called inside Transactor.run on PostgreSQL, die and leave no mail",
+      "F7: the delivery's sender and Better Auth, called inside Transactor.run on PostgreSQL, die and leave no mail",
       () =>
         Effect.gen(function* portsRefuse() {
           yield* reset;
@@ -483,47 +503,23 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           const sender = yield* MessageSender;
           const auth = yield* Auth;
 
-          const mail: TransportMessage = {
-            _tag: "Email",
+          const mail = OutboxMessage.cases.Email.make({
             replyTo: null,
             subject: "Kode",
             text: "Hei c_0000000000000000000000000000000000000000000",
             to: EmailAddress.make("kari@example.org"),
-          };
+          });
 
           const sending = yield* Effect.exit(
-            transacted(
-              sender.send(mail, "inside").pipe(Effect.catchDefect(Effect.die))
-            )
+            transacted(sender.send(mail, "inside"))
           );
 
           const reading = yield* Effect.exit(
             transacted(auth.session(new Headers()))
           );
 
-          const refused = (exit: Exit.Exit<unknown, unknown>) => {
-            assert.isTrue(Exit.isFailure(exit));
-
-            return Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
-          };
-
-          const sendRefusal = refused(sending);
-          assert.instanceOf(sendRefusal, IntegrationCalledInTransaction);
-          assert.strictEqual(
-            sendRefusal instanceof IntegrationCalledInTransaction
-              ? sendRefusal.call
-              : "",
-            "MessageSender.send"
-          );
-
-          const readRefusal = refused(reading);
-          assert.instanceOf(readRefusal, IntegrationCalledInTransaction);
-          assert.strictEqual(
-            readRefusal instanceof IntegrationCalledInTransaction
-              ? readRefusal.call
-              : "",
-            "Auth.session"
-          );
+          assert.strictEqual(refusedCall(sending), "MessageSender.send");
+          assert.strictEqual(refusedCall(reading), "Auth.session");
 
           const [mailbox] = yield* sql<{
             readonly n: number;

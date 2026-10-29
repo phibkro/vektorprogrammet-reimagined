@@ -27,7 +27,17 @@ import {
   WorkspaceWriter,
 } from "@vektorprogrammet/domain";
 import type { TransportMessage } from "@vektorprogrammet/domain";
-import { Cause, Effect, Exit, Fiber, Layer, Redacted, Ref } from "effect";
+import {
+  Array as Arr,
+  Cause,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Redacted,
+  Ref,
+  Schema,
+} from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
 import {
@@ -64,6 +74,8 @@ const change = WorkspaceChange.cases.EnsureAccount.make({
 const inTransaction = <A, E>(program: Effect.Effect<A, E>) =>
   Transactor.use((transactor) => transactor.run(program));
 
+const isRefusal = Schema.is(IntegrationCalledInTransaction);
+
 /** The call that a refused exit names: the exit is a defect `IntegrationCalledInTransaction`, and nothing else. */
 const refusedCall = (exit: Exit.Exit<unknown, unknown>): string => {
   assert.isTrue(Exit.isFailure(exit), "the call was refused");
@@ -73,9 +85,9 @@ const refusedCall = (exit: Exit.Exit<unknown, unknown>): string => {
   }
 
   const defect = Cause.squash(exit.cause);
-  assert.instanceOf(defect, IntegrationCalledInTransaction);
+  assert.isTrue(isRefusal(defect), "and by the guard");
 
-  return defect instanceof IntegrationCalledInTransaction ? defect.call : "";
+  return isRefusal(defect) ? defect.call : "";
 };
 
 /** How many times a fake provider was reached. */
@@ -248,7 +260,7 @@ describe("spec 0024 R6: an integration port refuses a call made inside a transac
               Effect.exit(inTransaction(port.members(address))),
             ]);
 
-            assert.deepStrictEqual(calls.map(refusedCall), [
+            assert.deepStrictEqual(Arr.map(calls, refusedCall), [
               "WorkspaceDirectory.accounts",
               "WorkspaceDirectory.groups",
               "WorkspaceDirectory.members",
