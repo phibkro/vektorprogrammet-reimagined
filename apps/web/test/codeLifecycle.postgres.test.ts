@@ -16,6 +16,8 @@
  * F11 Transaction 1 is fenced by the claim: a consumer whose lease lapsed while it waited writes nothing and mails
  *     nothing, and the code that another consumer delivered stays usable (control: the same attempt without the fence
  *     replaces it, with a second mail or with no working link at all).
+ *     The same holds when the other consumer has only claimed the row and delivered nothing (the token case: the
+ *     status alone does not refuse; spec revision R4).
  * F12 Transaction 2 commits the hash-bound acknowledgement even when the claim was lost meanwhile (decision D5).
  */
 import { assert, layer } from "@effect/vitest";
@@ -354,15 +356,11 @@ const unfencedDelivery = Effect.gen(function* buildUnfenced() {
 }).pipe(Effect.scoped);
 
 /**
- * Spec 0024 R9. Consumer A claims the row of an invitation, its lease lapses, and consumer B delivers the row completely
- * (a mail, a usable code, a delivered row). Then A runs its `issueCode` on the claim that it still holds, with the send
- * working or down (`sendFails`). What it leaves behind is what the test reads.
+ * Consumer A claims the row of an invitation and its lease lapses: what A still holds is the claim that another
+ * consumer may now take. Both stale-consumer scenarios below start here.
  */
-const staleConsumer = (
-  personId: number,
-  options: { readonly fenced: boolean; readonly sendFails: boolean }
-) =>
-  Effect.gen(function* staleRun() {
+const lapsedClaimOf = (personId: number) =>
+  Effect.gen(function* lapsedClaim() {
     yield* reset;
     const sql = yield* SqlClient;
     const id = yield* invite(personId);
@@ -378,9 +376,22 @@ const staleConsumer = (
       return yield* Effect.die("the row is not a code message");
     }
 
-    const { message } = stale;
-
     yield* sql`update outbox set claimed_until = now() - interval '1 minute' where id = ${Number(id)}`;
+
+    return { id, message: stale.message, stale };
+  });
+
+/**
+ * Spec 0024 R9. Consumer A claims the row of an invitation, its lease lapses, and consumer B delivers the row completely
+ * (a mail, a usable code, a delivered row). Then A runs its `issueCode` on the claim that it still holds, with the send
+ * working or down (`sendFails`). What it leaves behind is what the test reads.
+ */
+const staleConsumer = (
+  personId: number,
+  options: { readonly fenced: boolean; readonly sendFails: boolean }
+) =>
+  Effect.gen(function* staleRun() {
+    const { id, message, stale } = yield* lapsedClaimOf(personId);
     assert.strictEqual(yield* deliveryTag(id), "Delivered");
     const deliveredToken = yield* tokenAt(0);
 
@@ -399,6 +410,37 @@ const staleConsumer = (
       deliveredCodeWorks: yield* authenticates(deliveredToken, "activation"),
       mails: hooks.sent.length,
       row: (yield* rowStatus(id)).status,
+      states: yield* codeStates(personId),
+    };
+  });
+
+/**
+ * Spec 0024, revision R4. The same stale consumer A, but consumer B has only claimed the lapsed row and
+ * has delivered nothing: the row is `pending` with B's token. Only the token check refuses A here (the `status` check
+ * alone does not: the row is pending), so removing the token from `holdClaim` fails the fenced test below.
+ */
+const claimedByAnother = (
+  personId: number,
+  options: { readonly fenced: boolean }
+) =>
+  Effect.gen(function* claimedRun() {
+    const { id, message, stale } = yield* lapsedClaimOf(personId);
+    const claimedByB = yield* (yield* OutboxDelivery).claim(id, 120);
+
+    if (!Predicate.isTagged(claimedByB, "Claimed")) {
+      return yield* Effect.die("consumer B did not get the claim");
+    }
+
+    const delivery = options.fenced
+      ? yield* AccountDelivery
+      : yield* unfencedDelivery;
+
+    const answer = yield* delivery.issueCode(stale, message);
+
+    return {
+      answer,
+      bStillHoldsIt: (yield* rowStatus(id)).status === "pending",
+      mails: hooks.sent.length,
       states: yield* codeStates(personId),
     };
   });
@@ -734,6 +776,40 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           assert.isTrue(yield* authenticates(yield* tokenAt(0), "activation"));
           assert.strictEqual((yield* rowStatus(id)).status, "pending");
         })
+    );
+
+    it.effect(
+      "F11 (token): a consumer whose lease lapsed while another has claimed the row and not delivered it writes nothing and mails nothing, and the other consumer keeps the row",
+      () =>
+        Effect.gen(function* fencedByToken() {
+          assert.deepStrictEqual(
+            yield* claimedByAnother(791, { fenced: true }),
+            {
+              answer: "claimLost",
+              bStillHoldsIt: true,
+              mails: 0,
+              states: [],
+            }
+          );
+        }),
+      { timeout: 60_000 }
+    );
+
+    it.effect(
+      "F11 (token) control: without the fence the same consumer stores, mails and acknowledges a code while another consumer holds the row, so B's delivery would replace it with a second mail",
+      () =>
+        Effect.gen(function* unfencedByToken() {
+          assert.deepStrictEqual(
+            yield* claimedByAnother(792, { fenced: false }),
+            {
+              answer: "claimLost",
+              bStillHoldsIt: true,
+              mails: 1,
+              states: ["Usable"],
+            }
+          );
+        }),
+      { timeout: 60_000 }
     );
   }
 );
