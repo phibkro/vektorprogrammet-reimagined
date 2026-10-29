@@ -1,14 +1,21 @@
-import { Array as Arr, Effect, FileSystem, Option } from "effect";
+import { Array as Arr, Effect, FileSystem, Option, Result } from "effect";
+import type { PlatformError } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-import { globMatches } from "./globImports.ts";
+import { globMatches, placeGlob } from "./globImports.ts";
+import { wildcardRefusal } from "./globWalk.ts";
 import { importForms } from "./importSpecifiers.ts";
 import type { ComputedImport, Specifier } from "./importSpecifiers.ts";
 
-/** What an import names, once resolved. A `file` is a path from the repository root, after symlinks. */
+/**
+ * What an import names, once resolved. A `file` is a path from the repository root, after symlinks. A `directory` is
+ * where an `import.meta.glob` pattern reaches, from the repository root (`""` is the root itself): the literal part of
+ * the pattern, whatever files it matches.
+ */
 export type Target =
   | { readonly kind: "file"; readonly path: string }
+  | { readonly kind: "directory"; readonly path: string }
   | { readonly kind: "unresolved" }
   | { readonly kind: "workspace"; readonly name: string }
   | { readonly kind: "external"; readonly name: string };
@@ -16,7 +23,16 @@ export type Target =
 /** One import: where it is written (line) and what it names. */
 export interface ResolvedImport extends Specifier {
   readonly target: Target;
+  /**
+   * The import is a pattern of `import.meta.glob`: a `file` target is one of its matches (a module edge), and its
+   * `directory` target is where it reaches (the unit rule reads that one, so a pattern is one finding however many
+   * files it matches, and a pattern that matches no source file is still found).
+   */
+  readonly glob?: true;
 }
+
+/** The most entries that the walk of a glob's wildcards lists on disk: a glob that reaches more is not placed. */
+const maxGlobEntries = 10_000;
 
 export const workspacePrefix = "@vektorprogrammet/";
 
@@ -130,18 +146,97 @@ export interface SourceFile {
   readonly symlink: boolean;
 }
 
+/** One pattern of an `import.meta.glob`, placed at the directory it starts in with the files it names, or why not. */
+type Placement = Result.Result<
+  { readonly directory: string; readonly matches: readonly string[] },
+  string
+>;
+
 /**
  * Reads the files `paths` (from the repository root `root`), their imports, and what each import names. A literal
- * `import.meta.glob` pattern is an import of every file among `paths` that it matches; a pattern that cannot be placed
- * joins the loads that no check can read.
+ * `import.meta.glob` pattern is an import of every file among `paths` that it matches, and of the directory that its
+ * literal part names (a pattern of `.json` files reaches into a unit though no scanned source matches it); a pattern
+ * that cannot be placed joins the loads that no check can read. A glob is placed only when it is of the closed grammar
+ * of `parseGlob` and its directory and what it reaches are plain (`place`); anything else is a finding.
  */
 export const readSources = Effect.fn("readSources")(function* readSources(
   root: string,
-  paths: readonly string[]
+  paths: readonly string[],
+  limits: { readonly maxGlobEntries?: number } = {}
 ) {
   const fs = yield* FileSystem.FileSystem;
   const realRoot = yield* fs.realPath(root);
   const resolve = yield* makeResolver(root);
+
+  /**
+   * Why `directory` (from the root) is not plain, or none when it is: each of its segments is looked at with `lstat`, so a
+   * symbolic link is refused whether or not its target exists, and a segment that is not there at all is refused (an
+   * absent directory cannot be placed, and a link may be put in its place).
+   */
+  const directoryRefusal = (directory: string) =>
+    Effect.gen(function* inspectDirectory() {
+      const names = Arr.filter(directory.split("/"), (name) => name !== "");
+
+      for (const length of Arr.makeBy(names.length, (index) => index + 1)) {
+        const segment = Arr.join(Arr.take(names, length), "/");
+        const info = yield* Effect.option(fs.lstat(`${root}/${segment}`));
+
+        if (Option.isNone(info)) {
+          return Option.some(`its directory ${segment} does not exist`);
+        }
+
+        if (info.value.type === "SymbolicLink") {
+          return Option.some(
+            `a symbolic link (${segment}) is in its directory`
+          );
+        }
+      }
+
+      return Option.none<string>();
+    });
+
+  /**
+   * Places one pattern of an `import.meta.glob`, or says why not. The check does not model Vite's matcher: a pattern is
+   * placed only when it is of the closed grammar of `parseGlob`, its directory exists and holds no symbolic link, dangling or
+   * not (so the real directory is the one written), and the walk of what it can reach (`wildcardRefusal`) meets no link and no
+   * `node_modules` and reads no more than `maxGlobEntries` entries.
+   */
+  const place = Effect.fn("placePattern")(function* placePattern(
+    file: string,
+    pattern: string
+  ): Effect.fn.Return<
+    Placement,
+    PlatformError.PlatformError,
+    FileSystem.FileSystem
+  > {
+    const written = placeGlob(file, pattern);
+
+    if (Result.isFailure(written)) {
+      return Result.fail(written.failure);
+    }
+
+    const { directory, glob } = written.success;
+
+    const unplain = yield* directoryRefusal(directory);
+
+    if (Option.isSome(unplain)) {
+      return Result.fail(unplain.value);
+    }
+
+    const refused = yield* wildcardRefusal(
+      root,
+      directory,
+      glob,
+      limits.maxGlobEntries ?? maxGlobEntries
+    );
+
+    return Option.isSome(refused)
+      ? Result.fail(refused.value)
+      : Result.succeed({
+          directory,
+          matches: globMatches(directory, glob, paths),
+        });
+  });
 
   return yield* Effect.forEach(paths, (file) =>
     Effect.gen(function* readSource() {
@@ -149,21 +244,28 @@ export const readSources = Effect.fn("readSources")(function* readSources(
       const real = yield* fs.realPath(`${root}/${file}`);
       const forms = importForms(file, text);
 
-      const globbed = Arr.map(forms.globs, ({ line, patterns }) => ({
-        line,
-        placed: Arr.map(patterns, (pattern) => ({
-          matches: globMatches(file, pattern, paths),
-          pattern,
-        })),
-      }));
+      const globbed = yield* Effect.forEach(forms.globs, ({ line, patterns }) =>
+        Effect.map(
+          Effect.forEach(patterns, (pattern) =>
+            Effect.map(place(file, pattern), (placed) => ({ pattern, placed }))
+          ),
+          (placed) => ({ line, placed })
+        )
+      );
 
       return {
         computed: [
           ...forms.computed,
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ matches, pattern }) =>
-              Option.isNone(matches)
-                ? [{ line, text: `import.meta.glob("${pattern}")` }]
+            Arr.flatMap(placed, ({ pattern, placed: outcome }) =>
+              Result.isFailure(outcome)
+                ? [
+                    {
+                      line,
+                      reason: outcome.failure,
+                      text: `import.meta.glob("${pattern}")`,
+                    },
+                  ]
                 : []
             )
           ),
@@ -174,15 +276,29 @@ export const readSources = Effect.fn("readSources")(function* readSources(
             target: resolve(file, found),
           })),
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ matches, pattern }) =>
-              Arr.map(
-                Option.getOrElse(matches, () => []),
-                (match): ResolvedImport => ({
-                  line,
-                  specifier: pattern,
-                  target: { kind: "file", path: match },
-                })
-              )
+            Arr.flatMap(placed, ({ pattern, placed: outcome }) =>
+              Result.isFailure(outcome)
+                ? []
+                : [
+                    {
+                      glob: true,
+                      line,
+                      specifier: pattern,
+                      target: {
+                        kind: "directory",
+                        path: outcome.success.directory,
+                      },
+                    } satisfies ResolvedImport,
+                    ...Arr.map(
+                      outcome.success.matches,
+                      (match): ResolvedImport => ({
+                        glob: true,
+                        line,
+                        specifier: pattern,
+                        target: { kind: "file", path: match },
+                      })
+                    ),
+                  ]
             )
           ),
         ],
