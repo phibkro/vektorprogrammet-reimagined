@@ -630,13 +630,56 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           );
 
           assert.lengthOf(moduleGraphFindings(declaration, mutated), 1);
+
+          // F6's control (spec 0022): the three imports between modules that stages 2 and 3 removed, put back in memory,
+          // are three findings, one for each, and the file graph stays acyclic apart from them.
+          const retired = [
+            ["shared/outbox.ts", "accounts/passwordHasher.ts"],
+            ["shared/outbox.ts", "workspace/change.ts"],
+            ["workspace/commands.ts", "jobs/registry.ts"],
+          ] as const;
+
+          const restored = Arr.map(files, (file) => ({
+            ...file,
+            imports: [
+              ...file.imports,
+              ...Arr.flatMap(retired, ([from, to]) =>
+                file.path === `${d}/${from}`
+                  ? [
+                      {
+                        line: 9999,
+                        specifier: `../${to}`,
+                        target: {
+                          kind: "file" as const,
+                          path: `${d}/${to}`,
+                        },
+                      },
+                    ]
+                  : []
+              ),
+            ],
+          }));
+
+          const back = moduleGraphFindings(declaration, restored);
+
+          assert.lengthOf(back, 3);
+
+          for (const [from, to] of retired) {
+            assert.lengthOf(
+              Arr.filter(back, (finding) =>
+                finding.startsWith(`${d}/${from}:9999: imports ${d}/${to} `)
+              ),
+              1,
+              `${from} -> ${to}`
+            );
+          }
         }).pipe(Effect.provide(NodeServices.layer)),
       120_000
     );
 
     it("the baseline is pinned: a stage that removes an import lowers the count, and nothing adds to it", () => {
-      // Three imports between modules (ADR 0015 stages 2 and 3 remove them) and five between packages (stage 5).
-      assert.lengthOf(baseline, 8);
+      // The three imports between modules are gone (ADR 0015 stages 2 and 3, spec 0022); five between packages remain (stage 5).
+      assert.lengthOf(baseline, 5);
 
       // One call of another system inside a transaction that the type bound does not see (review round 1).
       assert.deepStrictEqual(
@@ -653,9 +696,6 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       assert.deepStrictEqual(
         Arr.map(baseline, ({ from, to }) => `${from} -> ${to}`),
         [
-          `${d}/shared/outbox.ts -> ${d}/accounts/passwordHasher.ts`,
-          `${d}/shared/outbox.ts -> ${d}/workspace/change.ts`,
-          `${d}/workspace/commands.ts -> ${d}/jobs/registry.ts`,
           "apps/cms/scripts/checkBundle.ts -> packages/db",
           "apps/cms/scripts/checkBundle.ts -> apps/web",
           "apps/web/test/textSlots.test.ts -> apps/cms",

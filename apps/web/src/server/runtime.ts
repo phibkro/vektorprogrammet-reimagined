@@ -20,6 +20,7 @@ import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
 import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
+  Job,
   JobRegistry,
   SiteOrigin,
   Transactor,
@@ -526,7 +527,7 @@ export const runTick = (
     tickLayer(env),
     dispatchTick(JobRegistry.Jobs, runners, {
       at: DateTime.makeUnsafe(controller.scheduledTime),
-      cron: controller.cron === "" ? JobRegistry.TICK_CRON : controller.cron,
+      cron: controller.cron === "" ? Job.TICK_CRON : controller.cron,
       only,
     })
   );

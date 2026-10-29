@@ -40,6 +40,7 @@ import {
   SocialEventId,
   SocialEventRepository,
   TeamId,
+  isListed,
 } from "../../src/index.ts";
 import type {
   AuditEntry,
@@ -379,10 +380,16 @@ const OutboxTest = Layer.effect(
     return Outbox.of({
       enqueue: (messages) =>
         Effect.gen(function* enqueue() {
-          const start = (yield* Ref.get(db.outbox)).length;
-          yield* Ref.update(db.outbox, (rows) => [...rows, ...messages]);
+          const listed = yield* Effect.forEach(messages, (message) =>
+            isListed(message)
+              ? Effect.succeed(message)
+              : Effect.die(`${message._tag} is not a message of the catalog`)
+          );
 
-          return Arr.map(messages, (_, index) =>
+          const start = (yield* Ref.get(db.outbox)).length;
+          yield* Ref.update(db.outbox, (rows) => [...rows, ...listed]);
+
+          return Arr.map(listed, (_, index) =>
             OutboxMessageId.make(`outbox-${start + index + 1}`)
           );
         }),

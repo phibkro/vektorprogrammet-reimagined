@@ -14,7 +14,6 @@ import type { Layer, Option } from "effect";
 import { RpcClient, RpcServer } from "effect/rpc";
 import type { Rpc, RpcGroup } from "effect/rpc";
 
-import type { CodePurpose } from "../accounts/code.ts";
 import { EntityName } from "../shared/ids.ts";
 import { decodeInput } from "../shared/validation.ts";
 import type { SystemJob } from "./principal.ts";
@@ -90,8 +89,8 @@ export interface CommandInfo {
   readonly replaces: readonly string[];
   /** The scheduled job that alone runs this command; no person holds it, not even an admin (R1). */
   readonly job: SystemJob | null;
-  /** A single-use code purpose that alone grants this command. */
-  readonly credential: CodePurpose | null;
+  /** The name of the single-use credential that alone grants this command; the issuing service declares the credentials. */
+  readonly credential: string | null;
   /** The machine whose transitions this command applies. */
   readonly machine: string | null;
   /** A condition that the grant table cannot state, shown beside the command in the generated reference. */
@@ -110,7 +109,7 @@ export const info = (fields: {
   readonly method: Method;
   readonly replaces?: readonly string[];
   readonly job?: SystemJob;
-  readonly credential?: CodePurpose;
+  readonly credential?: string;
   readonly machine?: string;
   readonly note?: string;
 }): CommandInfo => ({

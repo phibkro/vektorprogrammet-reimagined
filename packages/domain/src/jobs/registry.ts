@@ -7,15 +7,14 @@
  * Cadence is the operator's decision. The ten-minute tick is inherited and approved, and so is the retention run's
  * nightly cron (spec 0007b); a proposed cadence does not run or install a trigger until the operator approves it.
  * Explicit requests still use the existing approved tick.
+ *
+ * This is the catalog (ADR 0015, spec 0022 R6). A service declares the job it owns beside its commands, as `workspace`
+ * does (`workspace/job.ts`), and this file imports it; the other declarations stay here, because Privacy (`alumniConsent`,
+ * `retention`) sits above the catalog and cannot be imported by it.
  */
 import { ENDING_SOON_WEEKS } from "../teams/endingSoon.ts";
-import { DueWhen, make } from "./job.ts";
-
-/**
- * The ten-minute tick: the one trigger of most jobs. Jobs that are not due at a tick do nothing at it. A local trigger
- * without a cron (`/cdn-cgi/handler/scheduled`) runs this tick, as the platform's cron would.
- */
-export const TICK_CRON = "*/10 * * * *";
+import { workspaceSync } from "../workspace/job.ts";
+import { DueWhen, TICK_CRON, make } from "./job.ts";
 
 /** Keeps the current and the next semester present (spec 0003, RULE-237). */
 export const semesters = make({
@@ -74,26 +73,6 @@ export const alumniConsent = make({
   schedule: { cron: TICK_CRON, status: "approved" },
   summary:
     "When a person's last engagement ends, queues the e-mail that asks them the two alumni questions, once for each end.",
-});
-
-/**
- * The Google Workspace projection (spec 0008): the intended account and group changes, recorded as a report, and
- * applied only when the operator has switched writes on. The nightly window is a proposal (the operator decides the
- * hour); an administrator can also ask for a run at any time, which is a request row that the next tick takes. A run
- * that would remove more than `limits.removals` members from managed groups changes nothing and reports the diff; a
- * higher limit is the operator's decision after a fresh diff.
- */
-export const workspaceSync = make({
-  chunkSize: 10,
-  chunksPerTick: 5,
-  dueWhen: [DueWhen.cases.Daily.make({ hour: 2 })],
-  leaseSeconds: 120,
-  limits: { removals: 20 },
-  maxAttempts: 5,
-  name: "workspaceSync",
-  schedule: { cron: TICK_CRON, status: "proposed" },
-  summary:
-    "Compares the Google Workspace groups and accounts with the active memberships and records the changes it would make.",
 });
 
 /**

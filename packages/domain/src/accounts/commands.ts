@@ -16,7 +16,7 @@ import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import type { Locked } from "../shared/aggregate.ts";
 import { Conflict } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
-import { Outbox, OutboxMessage } from "../shared/outbox.ts";
+import { Outbox } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { personResource } from "../teams/personResource.ts";
 import { PersonRepository } from "../teams/services.ts";
@@ -36,6 +36,7 @@ import {
   updatePerson,
 } from "./declaration.ts";
 import type { Account } from "./entities.ts";
+import { IssueCodeMessage, SetCredentialMessage } from "./messages.ts";
 import { PasswordHasher } from "./passwordHasher.ts";
 import { codeResource, personOf, runWithCode } from "./principal.ts";
 import { AccountRepository } from "./services.ts";
@@ -122,7 +123,7 @@ const queueCredential = Effect.fn("Account.queueCredential")(
     const outbox = yield* Outbox;
     const passwordHash = yield* hasher.hash(password);
     yield* outbox.enqueue([
-      OutboxMessage.cases.SetCredential.make({
+      SetCredentialMessage.make({
         passwordHash,
         personId,
         revokeSessions,
@@ -174,7 +175,7 @@ export const AccountHandlers = AccountRpc.toLayer({
         const locked = yield* (yield* AggregateLocks).lock("Person", personId);
         const account = yield* accounts.invite(locked);
         yield* outbox.enqueue([
-          OutboxMessage.cases.IssueCode.make({
+          IssueCodeMessage.make({
             personId,
             purpose: "activation",
           }),
@@ -275,7 +276,7 @@ export const AccountHandlers = AccountRpc.toLayer({
           )
         ) {
           yield* (yield* Outbox).enqueue([
-            OutboxMessage.cases.IssueCode.make({
+            IssueCodeMessage.make({
               personId,
               purpose: "resetPassword",
             }),

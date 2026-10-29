@@ -5,11 +5,19 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Schema } from "effect";
+import type { Rpc } from "effect/rpc";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Guard, Machine, MembershipState, Teams } from "../../src/index.ts";
+import {
+  Guard,
+  Machine,
+  MembershipState,
+  Semester,
+  SemesterGuard,
+  Teams,
+} from "../../src/index.ts";
 
-const check = Guard.semesters(Teams.MembershipMoment);
+const check = SemesterGuard.semesters(Teams.MembershipMoment);
 
 const startAhead = check.after(["term", "start"], ["current"]);
 const endPassed = check.after(["current"], ["term", "end"]);
@@ -149,5 +157,65 @@ describe("spec 0007d R2: the label of a change that time makes is its guard in w
     expectTypeOf<
       "when" extends keyof Change ? true : false
     >().toEqualTypeOf<false>();
+  });
+});
+
+describe("spec 0022 R2: a machine's field is one that the guards' constructor built, for its own context", () => {
+  type Moment = Teams.MembershipMoment;
+
+  type Definition = Parameters<
+    typeof Machine.make<Rpc.Any, typeof MembershipState, Moment, Semester>
+  >[0];
+
+  type Field = NonNullable<Definition["fields"]>[number];
+
+  type Path = Parameters<typeof check.field>[1];
+
+  // a context with every key of the membership's, and one more: its `field` accepts the same paths
+  const wider = Schema.Struct({
+    ...Teams.MembershipMoment.fields,
+    extra: Schema.String,
+  });
+
+  const other = SemesterGuard.semesters(wider);
+
+  const elsewhere = SemesterGuard.semesters(
+    Schema.Struct({ elsewhere: Semester })
+  );
+
+  it("a field written as a literal is refused, and one that `field` built is accepted", () => {
+    expectTypeOf<{
+      readonly kind: "stored";
+      readonly path: readonly ["term", "start"];
+    }>().not.toExtend<Field>();
+    expectTypeOf<ReturnType<typeof check.field>>().toExtend<Field>();
+  });
+
+  it("control: a field of another context's comparisons is refused, also when every path of the field exists in this context", () => {
+    expectTypeOf<ReturnType<typeof other.field>>().not.toExtend<Field>();
+    expectTypeOf<ReturnType<typeof elsewhere.field>>().not.toExtend<Field>();
+  });
+
+  it("control: a spread that overrides the path must still give a path of this context", () => {
+    type Spread<P extends readonly string[]> = Omit<Field, "path"> & {
+      readonly path: P;
+    };
+
+    expectTypeOf<Spread<readonly ["term", "strat"]>>().not.toExtend<Field>();
+    expectTypeOf<Spread<readonly ["term", "end"]>>().toExtend<Field>();
+  });
+
+  it("control: the path that `field` takes names a semester of the context, and a typo does not", () => {
+    expectTypeOf<readonly ["term", "start"]>().toExtend<Path>();
+    expectTypeOf<readonly ["term", "strat"]>().not.toExtend<Path>();
+  });
+
+  it("the fields of the membership machine are the four that its guards read, with their kinds", () => {
+    assert.deepStrictEqual(Teams.MembershipMachine.fields, [
+      { kind: "clock", path: ["current"] },
+      { kind: "parameter", path: ["requested"] },
+      { kind: "stored", path: ["term", "start"] },
+      { kind: "stored", path: ["term", "end"] },
+    ]);
   });
 });

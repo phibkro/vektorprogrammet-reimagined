@@ -27,7 +27,11 @@ import {
   SystemJob,
   deliveryState,
 } from "@vektorprogrammet/domain";
-import type { AuditEntry, OutboxAck } from "@vektorprogrammet/domain";
+import type {
+  AuditEntry,
+  DeclaredMessage,
+  OutboxAck,
+} from "@vektorprogrammet/domain";
 import {
   and,
   asc,
@@ -59,7 +63,7 @@ import type { NonEmptyReadonlyArray } from "effect/Array";
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
 import { auditLog, outbox } from "../schema.ts";
 
-const encodeMessage = Schema.encodeEffect(OutboxMessage);
+const encodeMessage = Schema.encodeUnknownEffect(OutboxMessage);
 
 const byId = Order.mapInput(
   Order.Number,
@@ -72,7 +76,7 @@ export const OutboxLive = Layer.effect(
     const db = yield* Drizzle;
 
     const enqueue = Effect.fn("Outbox.enqueue")(function* enqueue(
-      messages: NonEmptyReadonlyArray<OutboxMessage>
+      messages: NonEmptyReadonlyArray<DeclaredMessage>
     ) {
       const now = DateTime.toDateUtc(yield* DateTime.now);
 

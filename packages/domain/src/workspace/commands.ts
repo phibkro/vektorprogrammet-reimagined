@@ -23,13 +23,12 @@ import {
 import { recordAudit } from "../audit/auditLog.ts";
 import { requestPeriod } from "../jobs/job.ts";
 import type { JobPeriod } from "../jobs/job.ts";
-import { workspaceSync } from "../jobs/registry.ts";
 import { JobRuns } from "../jobs/runs.ts";
 import * as Commands from "../kernel/commands.ts";
 import { semesterForDate } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
 import { AggregateLocks } from "../shared/aggregate.ts";
-import { Outbox, OutboxMessage } from "../shared/outbox.ts";
+import { Outbox } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import {
   Cursor,
@@ -39,6 +38,8 @@ import {
   syncWorkspace,
 } from "./declaration.ts";
 import type { DirectoryRead } from "./declaration.ts";
+import { workspaceSync } from "./job.ts";
+import { WorkspaceChangeMessage } from "./message.ts";
 import {
   Issue,
   capIssue,
@@ -309,9 +310,7 @@ const complete = Effect.fnUntraced(function* complete(period: JobPeriod) {
   if (Arr.isReadonlyArrayNonEmpty(changes)) {
     yield* assignGenerated(report);
     yield* (yield* Outbox).enqueue(
-      Arr.map(changes, (change) =>
-        OutboxMessage.cases.WorkspaceChange.make({ change })
-      )
+      Arr.map(changes, (change) => WorkspaceChangeMessage.make({ change }))
     );
   }
 

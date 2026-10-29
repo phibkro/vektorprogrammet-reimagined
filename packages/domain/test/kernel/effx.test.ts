@@ -21,9 +21,9 @@ import {
   Domain,
   Effx,
   Grant,
-  Guard,
   Machine,
   MembershipState,
+  SemesterGuard,
   Subject,
   SystemJob,
   Teams,
@@ -537,14 +537,14 @@ describe("spec 0007d: guards in effx's words", () => {
   });
 
   it("an or keeps every alternative, in order", () => {
-    const comparisons = Guard.semesters(Teams.MembershipMoment);
+    const comparisons = SemesterGuard.semesters(Teams.MembershipMoment);
 
     const either = Machine.make({
       commands: Teams.TeamsRpc,
       context: Teams.MembershipMoment,
       fields: [
-        { kind: "parameter", path: ["requested"] },
-        { kind: "stored", path: ["term", "end"] },
+        comparisons.field("parameter", ["requested"]),
+        comparisons.field("stored", ["term", "end"]),
       ],
       name: "Membership",
       states: MembershipState,

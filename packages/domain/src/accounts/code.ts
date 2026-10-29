@@ -3,6 +3,8 @@ import { Crypto, Effect, Schema } from "effect";
 import { encode as encodeBase64Url } from "effect/encoding/Base64Url";
 import { encode as encodeHex } from "effect/encoding/Hex";
 
+import { holder } from "../kernel/subject.ts";
+import type { Personal } from "../kernel/subject.ts";
 import { PersonId } from "../shared/ids.ts";
 
 export const CodePurpose = Schema.Literals([
@@ -17,8 +19,9 @@ export type CodePurpose = typeof CodePurpose.Type;
  * What each purpose is, as data: the command it opens, how long it lives, whether one use ends it, and the state that
  * the person's Account must be in (`null`: it needs no account, an alumnus may have none). A purpose is declared here
  * once; the code principal and the code mail read these facts and keep no `if` of their own (spec 0007b R1 item 3).
- * `Domain.problems` checks that each command is the command whose `Info.credential` is the purpose
- * (`credentialGrants`), because this module sits below the declarations and cannot name their tags.
+ * A command that a purpose opens is granted to `codeHolder(purpose)`, which carries the command: `Domain.problems`
+ * checks that it is the command whose `Info.credential` is the purpose (`credentialGrants`), because this module sits
+ * below the declarations and cannot name their tags.
  */
 export const codePolicy = {
   activation: {
@@ -48,6 +51,13 @@ export const codePolicy = {
     readonly singleUse: boolean;
   }
 >;
+
+/**
+ * The subject of a code: who holds a valid code of `purpose`, restricted to the command that the purpose opens. The
+ * kernel knows credentials by name and command only (spec 0022 R1), so this is the one typed constructor.
+ */
+export const codeHolder = (purpose: CodePurpose): Personal =>
+  holder({ command: codePolicy[purpose].command, purpose });
 
 /** A SHA-256 digest, encoded as lowercase hexadecimal. */
 export const CodeHash = Schema.String.check(
