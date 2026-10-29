@@ -19,6 +19,7 @@
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
+    "typescript-7-1": "catalog:",
     "vite-plus": "catalog:"
   }
 }

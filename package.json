@@ -63,6 +63,7 @@
     "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
     "vite-plus": "1.2.0",
     "typescript": "7.0.2",
+    "typescript-7-1": "npm:typescript@7.1.0-beta",
     "@types/node": "^26.6.5",
     "effect": "4.0.6",
     "@effect/sql-pg": "4.0.6",

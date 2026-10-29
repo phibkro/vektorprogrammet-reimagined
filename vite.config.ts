@@ -416,6 +416,7 @@ export default defineConfig({
           "tools/quality/checkEffectExceptions.ts",
           "tools/quality/checkStoreBoundary.ts",
           "tools/quality/checkModuleGraph.ts",
+          "tools/quality/compilerEdges.ts",
           "tools/db-path-spike/src/worker.ts",
           "tools/db-path-spike/src/worker/checks.ts",
           "tools/db-path-spike/src/worker/http.ts",
