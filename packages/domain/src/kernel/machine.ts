@@ -158,6 +158,7 @@ export const make = <
   const Rpcs extends Rpc.Any,
   const States extends StateUnion,
   Context = void,
+  Value = never,
 >(definition: {
   readonly name: string;
   readonly context: Schema.Schema<Context>;
@@ -166,7 +167,7 @@ export const make = <
   /** The states that nothing leaves (`[]` when every state has a way out). Required: it is never a default. */
   readonly terminal: readonly TagOf<States>[];
   /** The ordered values that the guards read, by path, with the kind of each (the `field` of `Guard.ordered`). */
-  readonly fields?: readonly Guard.OrderedField[];
+  readonly fields?: readonly Guard.OrderedField<Context, Value>[];
   readonly transitions: readonly Transition<
     TagOf<States>,
     Rpcs["_tag"],

@@ -24,16 +24,32 @@ import type { Order, SchemaAST } from "effect";
  */
 export type FieldKind = "clock" | "parameter" | "stored";
 
+declare const contextOf: unique symbol;
+
 /**
  * An ordered value of a machine's context, by its path and its kind, as `ordered(…).comparisons(…).field` builds it.
- * The brand is how `Machine.make` refuses a field written as a literal, whose path no type has checked (spec 0022 R2).
+ * Two things make it a value that a type has checked (spec 0022 R2, review rounds 1 and 2):
+ *
+ * - the brand, so `Machine.make` refuses a field written as a literal;
+ * - the context it was built for, as a phantom type (`contextOf`, invariant in `Context`), and a `path` typed as the
+ *   operands are (`OrderedPath`), so a field of another context's comparisons does not fit, and a spread that
+ *   overrides `path` must still give a path of this context.
+ *
+ * What remains: a spread that overrides `kind` with another `FieldKind`, or `path` with another real path of the same
+ * context, copies the brand and type-checks, as a spread of a `Locked` token does (`packages/db/README.md`). Both are
+ * still a field of this context.
  */
-export type OrderedField = Brand.Branded<
-  { readonly kind: FieldKind; readonly path: readonly string[] },
+export type OrderedField<Context, Value> = Brand.Branded<
+  {
+    readonly kind: FieldKind;
+    readonly path: OrderedPath<Context, Value>;
+    readonly [contextOf]?: (context: Context) => Context;
+  },
   "OrderedField"
 >;
 
-const orderedField = Brand.nominal<OrderedField>();
+const orderedField = <Context, Value>() =>
+  Brand.nominal<OrderedField<Context, Value>>();
 
 /** What a guard compares: the schema that recognises the value, and the order of its values. */
 export interface Ordered<Value> {
@@ -151,8 +167,11 @@ export const ordered = <Value>(value: Ordered<Value>) => ({
       left: OrderedPath<Context, Value>,
       right: OrderedPath<Context, Value>
     ): SchemaAST.Filter<Context> => comparison(value, AFTER, { left, right }),
-    field: (kind: FieldKind, path: OrderedPath<Context, Value>): OrderedField =>
-      orderedField({ kind, path }),
+    field: (
+      kind: FieldKind,
+      path: OrderedPath<Context, Value>
+    ): OrderedField<Context, Value> =>
+      orderedField<Context, Value>()({ kind, path }),
     not: (check: SchemaAST.Check<Context>): SchemaAST.Filter<Context> =>
       logical(NOT, [context.check(check)]),
     or: (
