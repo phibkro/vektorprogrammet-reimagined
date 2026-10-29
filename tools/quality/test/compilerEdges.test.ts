@@ -175,23 +175,27 @@ describe("module graph: oxc-resolver edges against the TypeScript 7.1 compiler's
 
         const before = yield* children;
 
-        const during = yield* Effect.scoped(
-          Effect.andThen(
-            compilerEdges(
-              real,
-              `${real}/tools/docgen/tsconfig.json`,
-              new Set()
-            ),
-            children
-          )
+        // The processes that the scope started: those it lists inside that were not there before.
+        const started = Arr.difference(
+          yield* Effect.scoped(
+            Effect.andThen(
+              compilerEdges(
+                real,
+                `${real}/tools/docgen/tsconfig.json`,
+                new Set()
+              ),
+              children
+            )
+          ),
+          before
         );
 
-        assert.isAbove(during.length, before.length);
+        assert.isAbove(started.length, 0);
 
-        // The scope has closed: the compiler process is gone (it may take a moment to be reaped).
+        // The scope has closed: none of them runs (the kernel may take a moment to reap it).
         yield* Effect.retry(
           Effect.flatMap(children, (after) =>
-            after.length === before.length
+            Arr.intersection(after, started).length === 0
               ? Effect.void
               : Effect.fail("the compiler process still runs")
           ),
