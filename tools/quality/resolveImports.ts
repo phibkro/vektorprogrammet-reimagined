@@ -1,14 +1,9 @@
-import { Array as Arr, Effect, FileSystem, Option } from "effect";
+import { Array as Arr, Effect, FileSystem, Option, Result } from "effect";
+import type { PlatformError } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-import {
-  globBases,
-  globMatches,
-  globParts,
-  globsOf,
-  globStart,
-} from "./globImports.ts";
+import { globMatches, placeGlob } from "./globImports.ts";
 import { wildcardRefusal } from "./globWalk.ts";
 import { importForms } from "./importSpecifiers.ts";
 import type { ComputedImport, Specifier } from "./importSpecifiers.ts";
@@ -151,13 +146,18 @@ export interface SourceFile {
   readonly symlink: boolean;
 }
 
+/** One pattern of an `import.meta.glob`, placed at the directory it starts in with the files it names, or why not. */
+type Placement = Result.Result<
+  { readonly directory: string; readonly matches: readonly string[] },
+  string
+>;
+
 /**
  * Reads the files `paths` (from the repository root `root`), their imports, and what each import names. A literal
  * `import.meta.glob` pattern is an import of every file among `paths` that it matches, and of the directory that its
  * literal part names (a pattern of `.json` files reaches into a unit though no scanned source matches it); a pattern
- * that cannot be placed joins the loads that no check can read. A glob is placed only when nothing about it depends on
- * how Vite expands it (`globRefusal`): none of its segments is or reaches `node_modules`, and no symbolic link is in the
- * tree that its wildcards can reach; `maxGlobEntries` bounds that walk.
+ * that cannot be placed joins the loads that no check can read. A glob is placed only when it is of the closed grammar
+ * of `parseGlob` and its directory and what it reaches are plain (`place`); anything else is a finding.
  */
 export const readSources = Effect.fn("readSources")(function* readSources(
   root: string,
@@ -168,25 +168,9 @@ export const readSources = Effect.fn("readSources")(function* readSources(
   const realRoot = yield* fs.realPath(root);
   const resolve = yield* makeResolver(root);
 
-  /** The directory of the package that holds `file`: the nearest ancestor with a `package.json`, from the root. */
-  const packageRootOf = (file: string) =>
-    Effect.findFirst(
-      Arr.makeBy(file.split("/").length, (depth) =>
-        Arr.join(
-          Arr.take(file.split("/"), file.split("/").length - 1 - depth),
-          "/"
-        )
-      ),
-      (directory) => fs.exists(`${root}/${directory}/package.json`)
-    );
-
-  /**
-   * A directory (from the repository root) after symbolic links, as a plain import is placed: its longest prefix that
-   * exists is made real (`apps/web/node_modules/@vektorprogrammet/domain` is `packages/domain`) and the rest is kept.
-   * A directory that leaves the repository, or has no existing prefix, stays as written.
-   */
-  const realPathOf = (directory: string) =>
-    Effect.gen(function* realDirectory() {
+  /** Whether a symbolic link is anywhere in `directory` (from the root): its longest existing prefix is not its real path. */
+  const linkIn = (directory: string) =>
+    Effect.gen(function* findLink() {
       const names = Arr.filter(directory.split("/"), (name) => name !== "");
 
       const prefix = yield* Effect.findFirst(
@@ -195,70 +179,56 @@ export const readSources = Effect.fn("readSources")(function* readSources(
           fs.exists(`${root}/${Arr.join(Arr.take(names, length), "/")}`)
       );
 
-      if (Option.isNone(prefix)) {
-        return directory;
-      }
-
-      const real = yield* fs.realPath(
-        `${root}/${Arr.join(Arr.take(names, prefix.value), "/")}`
+      const kept = Arr.take(
+        names,
+        Option.getOrElse(prefix, () => 0)
       );
 
-      if (real !== realRoot && !real.startsWith(`${realRoot}/`)) {
-        return directory;
-      }
+      const lexical = Arr.join([realRoot, ...kept], "/");
 
-      return Arr.join(
-        [
-          ...(real === realRoot ? [] : [real.slice(realRoot.length + 1)]),
-          ...Arr.drop(names, prefix.value),
-        ],
-        "/"
-      );
+      return (yield* fs.realPath(`${root}/${Arr.join(kept, "/")}`)) !== lexical;
     });
 
   /**
-   * Why a glob (its alternatives, `globsOf`) is not placed, or none when it is. The check places a glob by its text and
-   * the files that git lists; Vite places it by walking the disk, so the two agree only when the walk meets nothing that
-   * the text does not say: a segment that is or reaches `node_modules` (Vite drops its ignore of it with `exhaustive`), a
-   * symbolic link under a wildcard (a link is followed to another package), or more entries than the check will list.
-   * The literal directories before the first wildcard may cross links: they are placed after them, as a plain import is.
+   * Places one pattern of an `import.meta.glob`, or says why not. The check does not model Vite's matcher: a pattern is
+   * placed only when it is of the closed grammar of `parseGlob`, its literal directory holds no symbolic link (so the
+   * real directory is the one written), and the walk of what it can reach (`wildcardRefusal`) meets no link and no
+   * `node_modules` and reads no more than `maxGlobEntries` entries.
    */
-  const globRefusal = (globs: readonly string[]) =>
-    Effect.gen(function* refuse() {
-      if (
-        Arr.some(globs, (glob) => Arr.contains(glob.split("/"), "node_modules"))
-      ) {
-        return Option.some("a segment of its pattern or base is node_modules");
-      }
+  const place = Effect.fn("placePattern")(function* placePattern(
+    file: string,
+    pattern: string
+  ): Effect.fn.Return<
+    Placement,
+    PlatformError.PlatformError,
+    FileSystem.FileSystem
+  > {
+    const written = placeGlob(file, pattern);
 
-      const limit = limits.maxGlobEntries ?? maxGlobEntries;
-      const budget = { left: limit };
+    if (Result.isFailure(written)) {
+      return Result.fail(written.failure);
+    }
 
-      for (const glob of globs) {
-        const { base, wildcards } = globParts(glob);
-        const real = yield* realPathOf(base);
+    const { directory, glob } = written.success;
 
-        if (Arr.contains(real.split("/"), "node_modules")) {
-          return Option.some(
-            `its base reaches node_modules (${real}) through a symbolic link`
-          );
-        }
+    if (yield* linkIn(directory)) {
+      return Result.fail(`a symbolic link is in its directory ${directory}`);
+    }
 
-        const refused = yield* wildcardRefusal(
-          root,
-          real,
-          wildcards,
-          budget,
-          limit
-        );
+    const refused = yield* wildcardRefusal(
+      root,
+      directory,
+      glob,
+      limits.maxGlobEntries ?? maxGlobEntries
+    );
 
-        if (Option.isSome(refused)) {
-          return refused;
-        }
-      }
-
-      return Option.none<string>();
-    });
+    return Option.isSome(refused)
+      ? Result.fail(refused.value)
+      : Result.succeed({
+          directory,
+          matches: globMatches(directory, glob, paths),
+        });
+  });
 
   return yield* Effect.forEach(paths, (file) =>
     Effect.gen(function* readSource() {
@@ -266,78 +236,29 @@ export const readSources = Effect.fn("readSources")(function* readSources(
       const real = yield* fs.realPath(`${root}/${file}`);
       const forms = importForms(file, text);
 
-      const globbed = yield* Effect.forEach(
-        forms.globs,
-        Effect.fn("placeGlob")(function* placeGlob({ base, line, patterns }) {
-          // Vite's project root, for a `base` that starts with `/`: the directory of the importer's package.
-          const viteRoot = Option.exists(base, (written) =>
-            written.startsWith("/")
-          )
-            ? yield* packageRootOf(file)
-            : Option.none<string>();
-
-          const start = globStart(file, base, viteRoot);
-
-          const placed = yield* Effect.forEach(patterns, (pattern) =>
-            Effect.gen(function* placePattern() {
-              const alternatives = Option.flatMap(start, (from) =>
-                globsOf(from, pattern)
-              );
-
-              const refused = Option.isNone(alternatives)
-                ? Option.none<string>()
-                : yield* globRefusal(alternatives.value);
-
-              // A glob that is refused adds no edge: it is a finding of its own.
-              const accepted = Option.filter(alternatives, () =>
-                Option.isNone(refused)
-              );
-
-              return {
-                bases: Option.isNone(accepted)
-                  ? accepted
-                  : Option.some(
-                      yield* Effect.forEach(
-                        globBases(accepted.value),
-                        realPathOf
-                      )
-                    ),
-                matches: Option.map(accepted, (globs) =>
-                  globMatches(globs, paths)
-                ),
-                pattern,
-                refused,
-                // How a finding names the glob: its pattern, and the `base` that it starts from when it has one.
-                shown: Option.match(base, {
-                  onNone: () => pattern,
-                  onSome: (written) => `${pattern} (base ${written})`,
-                }),
-                written: Option.match(base, {
-                  onNone: () => `"${pattern}"`,
-                  onSome: (value) => `"${pattern}", { base: "${value}" }`,
-                }),
-              };
-            })
-          );
-
-          return { line, placed };
-        })
+      const globbed = yield* Effect.forEach(forms.globs, ({ line, patterns }) =>
+        Effect.map(
+          Effect.forEach(patterns, (pattern) =>
+            Effect.map(place(file, pattern), (placed) => ({ pattern, placed }))
+          ),
+          (placed) => ({ line, placed })
+        )
       );
 
       return {
         computed: [
           ...forms.computed,
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ matches, refused, written }) =>
-              Option.match(refused, {
-                onNone: () =>
-                  Option.isNone(matches)
-                    ? [{ line, text: `import.meta.glob(${written})` }]
-                    : [],
-                onSome: (reason) => [
-                  { line, reason, text: `import.meta.glob(${written})` },
-                ],
-              })
+            Arr.flatMap(placed, ({ pattern, placed: outcome }) =>
+              Result.isFailure(outcome)
+                ? [
+                    {
+                      line,
+                      reason: outcome.failure,
+                      text: `import.meta.glob("${pattern}")`,
+                    },
+                  ]
+                : []
             )
           ),
         ],
@@ -347,26 +268,30 @@ export const readSources = Effect.fn("readSources")(function* readSources(
             target: resolve(file, found),
           })),
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ bases, matches, shown }) => [
-              ...Arr.map(
-                Option.getOrElse(bases, () => []),
-                (base): ResolvedImport => ({
-                  glob: true,
-                  line,
-                  specifier: shown,
-                  target: { kind: "directory", path: base },
-                })
-              ),
-              ...Arr.map(
-                Option.getOrElse(matches, () => []),
-                (match): ResolvedImport => ({
-                  glob: true,
-                  line,
-                  specifier: shown,
-                  target: { kind: "file", path: match },
-                })
-              ),
-            ])
+            Arr.flatMap(placed, ({ pattern, placed: outcome }) =>
+              Result.isFailure(outcome)
+                ? []
+                : [
+                    {
+                      glob: true,
+                      line,
+                      specifier: pattern,
+                      target: {
+                        kind: "directory",
+                        path: outcome.success.directory,
+                      },
+                    } satisfies ResolvedImport,
+                    ...Arr.map(
+                      outcome.success.matches,
+                      (match): ResolvedImport => ({
+                        glob: true,
+                        line,
+                        specifier: pattern,
+                        target: { kind: "file", path: match },
+                      })
+                    ),
+                  ]
+            )
           ),
         ],
         path: file,

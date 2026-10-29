@@ -8,13 +8,8 @@ export interface Specifier {
   readonly specifier: string;
 }
 
-/**
- * An `import.meta.glob(…)` whose patterns are all plain strings and whose options, if any, are an object literal whose
- * `base` is a plain string: each pattern names every file that it matches, from `base` (Vite's option: the directory
- * that the patterns start from; one that starts with `/` is from the project's root) or else from the importer's.
- */
+/** An `import.meta.glob(…)` that the check can read: its patterns are plain strings and its options are the allowed ones. */
 interface GlobImport {
-  readonly base: Option.Option<string>;
   readonly line: number;
   readonly patterns: readonly string[];
 }
@@ -49,85 +44,74 @@ interface Walked {
     string,
     string | undefined,
   ])[];
-  readonly globs: readonly (readonly [
-    number,
-    readonly string[],
-    Option.Option<string>,
-  ])[];
+  readonly globs: readonly (readonly [number, readonly string[]])[];
   readonly specifiers: readonly (readonly [number, string])[];
-}
-
-/** What the options argument of `import.meta.glob` says about where the patterns start. */
-interface GlobOptions {
-  /** The options are an object literal that holds no spread and no computed key, and whose `base` is a plain string. */
-  readonly readable: boolean;
-  readonly base: Option.Option<string>;
-  /** An option key or the `base` is written with a backslash: its source text is not its value. */
-  readonly escaped: boolean;
 }
 
 /** A string whose source text holds a backslash is an escape: the check reads source text and Vite reads the value. */
 const escapes = (raw: string): boolean => raw.includes("\\");
 
+/** The option keys that `import.meta.glob` may be given here. Anything else (`base`, `exhaustive`, `caseSensitive`, `__proto__`, …) changes what the glob loads or runs code. */
+const allowedOptions: ReadonlySet<string> = new Set([
+  "eager",
+  "import",
+  "query",
+]);
+
+const plainValue = /^(?:true|false|"[^"\\]*"|'[^'\\]*')$/u;
+
 /**
- * The `base` option of `import.meta.glob`. No options argument, or none that names `base`, is no base. Options that no
- * check can read (not an object literal, a spread or a computed key that could be a `base`, a `base` that is not a plain
- * string) are not readable: such a glob joins the loads that fail closed.
+ * Why the options argument of `import.meta.glob` is not allowed, or none when it is: absent, or an object literal whose
+ * properties are all plain `key: value` pairs (no spread, computed key, shorthand or method) whose keys are `eager`,
+ * `import` or `query` and whose values are a boolean or a string literal without a backslash.
  */
-const optionsOf = (
+const optionsRefusal = (
   options: Argument | undefined,
   text: string
-): GlobOptions => {
+): string | undefined => {
   if (options === undefined) {
-    return { base: Option.none(), escaped: false, readable: true };
+    return undefined;
   }
 
   if (options.type !== "ObjectExpression") {
-    return { base: Option.none(), escaped: false, readable: false };
+    return "its options are not an object literal";
   }
 
-  let base = Option.none<string>();
-  let escaped = false;
-
   for (const property of options.properties) {
-    if (property.type === "SpreadElement" || property.computed) {
-      return { base: Option.none(), escaped, readable: false };
+    if (
+      property.type !== "Property" ||
+      property.kind !== "init" ||
+      property.computed ||
+      property.shorthand ||
+      property.method
+    ) {
+      return "its options hold a spread, computed key, shorthand or method";
     }
 
     const key = text.slice(property.key.start, property.key.end);
 
-    escaped ||= escapes(key);
+    if (!allowedOptions.has(key.replaceAll(/^["']|["']$/gu, ""))) {
+      return `its option ${key} is not one of eager, import and query`;
+    }
 
-    if (key === "base" || key === '"base"' || key === "'base'") {
-      const raw = text.slice(property.value.start, property.value.end);
-
-      escaped ||= escapes(raw);
-      base = literalOf(raw);
-
-      if (Option.isNone(base)) {
-        return { base, escaped, readable: false };
-      }
+    if (
+      !plainValue.test(text.slice(property.value.start, property.value.end))
+    ) {
+      return `the value of its option ${key} is not a boolean or a plain string`;
     }
   }
 
-  return { base, escaped, readable: true };
+  return undefined;
 };
 
 /** What an `import.meta.glob(…)` call comes to: patterns that the check can place, or a load that it cannot. */
 type GlobForm =
-  | {
-      readonly kind: "glob";
-      readonly base: Option.Option<string>;
-      readonly patterns: readonly string[];
-    }
+  | { readonly kind: "glob"; readonly patterns: readonly string[] }
   | {
       readonly kind: "computed";
       readonly reason: string | undefined;
       readonly written: string;
     };
-
-const escapeReason =
-  "its pattern, an option key or its base is written with an escape (a backslash): the check reads the source text and Vite the string it spells";
 
 /** The patterns and options of one `import.meta.glob(…)` call, from the text of its arguments. */
 const globForm = (args: readonly Argument[], text: string): GlobForm => {
@@ -142,12 +126,6 @@ const globForm = (args: readonly Argument[], text: string): GlobForm => {
   const patternText =
     first === undefined ? "" : text.slice(first.start, first.end);
 
-  const options = optionsOf(second, text);
-
-  if (escapes(patternText) || options.escaped) {
-    return { kind: "computed", reason: escapeReason, written };
-  }
-
   const elements =
     first?.type === "ArrayExpression"
       ? Arr.map(first.elements, (element) =>
@@ -159,11 +137,25 @@ const globForm = (args: readonly Argument[], text: string): GlobForm => {
 
   const patterns = Arr.getSomes(elements);
 
-  return patterns.length === elements.length &&
-    patterns.length > 0 &&
-    options.readable
-    ? { base: options.base, kind: "glob", patterns }
-    : { kind: "computed", reason: undefined, written };
+  if (patterns.length !== elements.length || patterns.length === 0) {
+    return { kind: "computed", reason: undefined, written };
+  }
+
+  const reason = escapes(patternText)
+    ? "its pattern is written with an escape (a backslash): the check reads the source text and Vite the string it spells"
+    : optionsRefusal(second, text);
+
+  if (args.length > 2) {
+    return {
+      kind: "computed",
+      reason: "it has more than two arguments",
+      written,
+    };
+  }
+
+  return reason === undefined
+    ? { kind: "glob", patterns }
+    : { kind: "computed", reason, written };
 };
 
 /**
@@ -175,8 +167,7 @@ const globForm = (args: readonly Argument[], text: string): GlobForm => {
 const walked = (program: Program, text: string): Walked => {
   const specifiers: (readonly [number, string])[] = [];
 
-  const globs: (readonly [number, readonly string[], Option.Option<string>])[] =
-    [];
+  const globs: (readonly [number, readonly string[]])[] = [];
 
   const computedGlobs: (readonly [number, string, string | undefined])[] = [];
 
@@ -193,7 +184,7 @@ const walked = (program: Program, text: string): Walked => {
       const form = globForm(node.arguments, text);
 
       if (form.kind === "glob") {
-        globs.push([node.start, form.patterns, form.base]);
+        globs.push([node.start, form.patterns]);
       } else {
         computedGlobs.push([
           node.start,
@@ -283,8 +274,7 @@ export const importForms = (path: string, text: string): ImportForms => {
       ),
     ]),
     globs: byLine(
-      Arr.map(found.globs, ([start, patterns, base]) => ({
-        base,
+      Arr.map(found.globs, ([start, patterns]) => ({
         line: lineOf(start),
         patterns,
       }))

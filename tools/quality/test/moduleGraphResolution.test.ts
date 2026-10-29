@@ -59,23 +59,33 @@ const base = {
   [`${d}/team/a.ts`]: 'import "../vocab/ids.ts";\n',
 };
 
-/** The findings about `apps/web/src/server/seeds.ts`, which holds `written`, in a repository of `files` and `links` (the web package has a `package.json`, so its Vite root is its directory). */
+const seeds = "apps/web/src/server/seeds.ts";
+
+/** The findings about `seeds`, which holds `written`, in a repository of `files` and `links`. */
 const scannedGlob = (
   written: string,
   files: Record<string, string> = {},
   links: Record<string, string> = {}
 ) =>
-  findingsOf(
-    {
-      ...base,
-      "apps/web/package.json": "{}\n",
-      ...files,
-      "apps/web/src/server/seeds.ts": written,
-    },
-    links
-  ).pipe(
-    Effect.map((found) => mentioning(found, "apps/web/src/server/seeds.ts"))
+  findingsOf({ ...base, ...files, [seeds]: written }, links).pipe(
+    Effect.map((found) => mentioning(found, seeds))
   );
+
+/** The finding for a glob of `apps/web` that reaches into `unit`. */
+const reach = (pattern: string, unit: string) =>
+  `${seeds}:1: apps/web reaches into ${unit} by the path ${pattern}; import the package by its name`;
+
+/** A file that holds one `import.meta.glob` of `pattern`. */
+const globOf = (pattern: string) =>
+  `export const s = import.meta.glob("${pattern}");\n`;
+
+/** The reason for a pattern that is not of the closed grammar. */
+const grammar = (pattern: string) =>
+  `its pattern ${pattern} is not ./ or ../, literal directories of letters, digits, _ and -, an optional **/, and *.ext or *.{ext,ext}`;
+
+/** The finding for a glob that is not placed: its arguments as written, and why. */
+const refusal = (call: string, reason: string) =>
+  `${seeds}:1: import.meta.glob(${call}): glob not placeable: ${reason}; use a literal own-unit pattern`;
 
 /** `${name}`, the hole of a template literal, built so that no string of this file looks like a template. */
 const hole = Arr.join(["$", "{name}"], "");
@@ -614,416 +624,392 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
   );
 
   it.effect(
-    "R14 (glob base): a glob's unit is decided by the literal directory it starts in, so a glob that leaves its unit is found whatever it matches, and one that stays is not",
+    "R14 (glob grammar): a glob of the closed grammar is placed at the directory it starts in, so one that leaves its unit is found whatever it matches, and one that stays is not",
     () =>
-      Effect.gen(function* globBaseDecidesTheUnit() {
-        const importer = "apps/web/src/server/seeds.ts";
-
-        const reach = (pattern: string, unit: string) =>
-          `${importer}:1: apps/web reaches into ${unit} by the path ${pattern}; import the package by its name`;
-
-        const scanned = (written: string, files: Record<string, string> = {}) =>
-          findingsOf({ ...base, ...files, [importer]: written });
-
-        // The reviewer's case: a glob of data files into another unit. No scanned source matches it, and it is found.
+      Effect.gen(function* placedGlobs() {
+        // The reviewer's case: data files of another unit, with and without a file in the directory.
         const json = "../../../cms/seed/*.json";
 
-        assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(
-              `export const seeds = import.meta.glob("${json}");\n`,
-              {
-                "apps/cms/seed/seed.json": "{}\n",
-              }
-            ),
-            importer
-          ),
-          [reach(json, "apps/cms")]
-        );
+        for (const files of [{ "apps/cms/seed/seed.json": "{}\n" }, {}]) {
+          assert.deepStrictEqual(yield* scannedGlob(globOf(json), files), [
+            reach(json, "apps/cms"),
+          ]);
+        }
 
-        // A glob that names a directory with no file in it reaches the same unit.
-        assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(
-              `export const seeds = import.meta.glob("${json}");\n`
-            ),
-            importer
-          ),
-          [reach(json, "apps/cms")]
-        );
-
-        // Each brace alternative has its own directory; the one in the unit itself is no finding.
-        const braces = "../../../{cms,web}/seed/*.json";
-
-        assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(
-              `export const seeds = import.meta.glob("${braces}");\n`
-            ),
-            importer
-          ),
-          [reach(braces, "apps/cms")]
-        );
-
-        // A pattern that matches several sources of another unit is one finding, not one per match.
-        const many = "../../../cms/build/*.ts";
-
-        assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(
-              `export const pages = import.meta.glob("${many}");\n`,
-              {
-                "apps/cms/build/a.ts": "export const a = 1;\n",
-                "apps/cms/build/b.ts": "export const b = 1;\n",
-              }
-            ),
-            importer
-          ),
-          [reach(many, "apps/cms")]
-        );
-
-        // A pattern that starts above the units reaches every unit below it, and the unit it is written in is not one
-        // (from `apps`, only the other app).
-        const apps = "../../../**/*.json";
-
-        assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(`export const all = import.meta.glob("${apps}");\n`),
-            importer
-          ),
-          [reach(apps, "apps/cms")]
-        );
-
-        const above = "../../../../**/*.json";
-
-        assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(
-              `export const all = import.meta.glob("${above}");\n`
-            ),
-            importer
-          ),
+        // Alternatives of extensions, `**`, and an array: each pattern is one finding however many files it matches.
+        for (const [pattern, files] of [
+          ["../../../cms/seed/*.{json,ts}", {}],
           [
-            reach(above, "apps/cms"),
-            reach(above, "packages/cms-client"),
-            reach(above, "packages/db"),
-            reach(above, "packages/domain"),
-          ]
+            "../../../cms/build/**/*.ts",
+            {
+              "apps/cms/build/a.ts": "export const a = 1;\n",
+              "apps/cms/build/deep/b.ts": "export const b = 1;\n",
+            },
+          ],
+          [
+            "../../../cms/build/*.ts",
+            {
+              "apps/cms/build/a.ts": "export const a = 1;\n",
+              "apps/cms/build/b.ts": "export const b = 1;\n",
+            },
+          ],
+          ["../../../*.json", {}],
+        ] as const) {
+          assert.deepStrictEqual(
+            yield* scannedGlob(globOf(pattern), files),
+            [reach(pattern, "apps/cms")],
+            pattern
+          );
+        }
+
+        assert.deepStrictEqual(
+          yield* scannedGlob(
+            `export const s = import.meta.glob(["../../data/*.json", "${json}"]);\n`
+          ),
+          [reach(json, "apps/cms")]
         );
 
-        // Controls. The same data glob in the unit's own tree, and one into a directory that is in no unit, are clean.
+        // Controls: the same shapes inside the unit, or in a directory that is in no unit, are clean.
         for (const stays of [
           "../../data/*.json",
           "./*.json",
+          "../../data/**/*.{json,ts}",
           "../../../../docs/*.md",
         ]) {
-          assert.deepStrictEqual(
-            mentioning(
-              yield* scanned(
-                `export const x = import.meta.glob("${stays}");\n`
-              ),
-              importer
-            ),
-            [],
-            stays
-          );
+          assert.deepStrictEqual(yield* scannedGlob(globOf(stays)), [], stays);
         }
 
-        // A negated pattern only removes files, so it reaches nowhere.
+        // Options that the grammar allows change nothing.
         assert.deepStrictEqual(
-          mentioning(
-            yield* scanned(
-              `export const x = import.meta.glob(["./*.json", "!${json}"]);\n`
-            ),
-            importer
+          yield* scannedGlob(
+            `export const s = import.meta.glob("${json}", { eager: true, "import": 'default', query: "?raw" });\n`
           ),
-          []
+          [reach(json, "apps/cms")]
         );
       }),
     120_000
   );
 
   it.effect(
-    "R15 (review of #56): a glob's `base` option moves where its patterns start, a base that cannot be read fails closed, and the literal directory of a glob is placed after symbolic links",
+    "R15 (glob grammar): every other spelling is a finding that adds no edge (brace ranges, braces, wildcards in a directory, dotted and parent segments, negation, escapes, options other than eager, import and query), and each plain form beside it is placed",
     () =>
-      Effect.gen(function* globBaseOption() {
-        const importer = "apps/web/src/server/seeds.ts";
-        const scanned = scannedGlob;
-
-        const reach = (specifier: string, unit: string) =>
-          `${importer}:1: apps/web reaches into ${unit} by the path ${specifier}; import the package by its name`;
-
-        const unreadable = (text: string) =>
-          `${importer}:1: ${text} loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../`;
-
-        // A base from the importer's directory: the reviewer's first probe.
-        assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob("./*.json", { base: "../../../cms/seed" });\n'
-          ),
-          [reach("./*.json (base ../../../cms/seed)", "apps/cms")]
-        );
-
-        // A base that starts with `/` is from the project's root: the directory of the importer's package.
-        assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob("./*.json", { base: "/../cms/seed" });\n'
-          ),
-          [reach("./*.json (base /../cms/seed)", "apps/cms")]
-        );
-
-        // The pattern is read from the base, and a quoted key is a key.
-        assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob(["../*.json"], { eager: true, "base": "../../../cms/seed/x" });\n'
-          ),
-          [reach("../*.json (base ../../../cms/seed/x)", "apps/cms")]
-        );
-
-        // Controls: a base inside the importer's own unit, from the importer or from the root, is clean, and so are
-        // options with no base.
-        for (const stays of [
-          '{ base: "../../data" }',
-          '{ base: "/public" }',
-          '{ eager: true, query: "?raw" }',
-        ]) {
-          assert.deepStrictEqual(
-            yield* scanned(
-              `export const s = import.meta.glob("./*.json", ${stays});\n`
-            ),
-            [],
-            stays
-          );
-        }
-
-        // Options that cannot be read fail closed: a variable, a spread, a computed key, a base that is not a string.
-        for (const options of [
-          "opts",
-          "{ ...opts }",
-          "{ [key]: 1 }",
-          "{ base: dir }",
-          `{ base: \`${hole}/x\` }`,
-        ]) {
-          assert.deepStrictEqual(
-            yield* scanned(
-              `export const s = import.meta.glob("./*.json", ${options});\n`
-            ),
-            [unreadable(`import.meta.glob("./*.json", ${options})`)],
-            options
-          );
-        }
-
-        // A `/` base in a package with no `package.json` has no root to start from: it fails closed too.
-        assert.deepStrictEqual(
-          Arr.filter(
-            mentioning(
-              yield* findingsOf({
-                ...base,
-                "apps/other/src/x.ts":
-                  'export const s = import.meta.glob("./*.json", { base: "/data" });\n',
-              }),
-              "apps/other/src/x.ts"
-            ),
-            (line) => line.includes("no check can read")
-          ),
-          [
-            'apps/other/src/x.ts:1: import.meta.glob("./*.json", { base: "/data" }) loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../',
-          ]
-        );
-
-        // The literal directories before the first wildcard are placed after symbolic links, as a plain import is: the
-        // `vendor/domain` of the web package is `packages/domain`.
-        const vendored = "../../vendor/domain/src/*.ts";
-
-        assert.deepStrictEqual(
-          yield* scanned(
-            `export const s = import.meta.glob("${vendored}");\n`,
-            { [`${d}/index.ts`]: "export const x = 1;\n" },
-            { "apps/web/vendor/domain": "packages/domain" }
-          ),
-          [reach(vendored, "packages/domain")]
-        );
-
-        // Control: the same glob where the directory is a real directory of the web package is clean.
-        assert.deepStrictEqual(
-          yield* scanned(
-            `export const s = import.meta.glob("${vendored}");\n`,
-            {
-              "apps/web/vendor/domain/src/a.ts": "export const a = 1;\n",
-            }
-          ),
-          []
-        );
-      }),
-    120_000
-  );
-
-  it.effect(
-    "R16 (review of #56, round 2): a glob is placed only when nothing about it depends on how Vite expands it: no escape in its pattern, option keys or base, no node_modules, no symbolic link under a wildcard, a bounded walk",
-    () =>
-      Effect.gen(function* globsAreNotModelled() {
-        const importer = "apps/web/src/server/seeds.ts";
-        const scanned = scannedGlob;
-
-        const refused = (text: string, reason: string) =>
-          `${importer}:1: ${text}: glob not placeable: ${reason}; use a literal own-unit pattern`;
-
-        const escape =
-          "its pattern, an option key or its base is written with an escape (a backslash): the check reads the source text and Vite the string it spells";
-
+      Effect.gen(function* refusedGlobs() {
         const slash = "\\u002f";
 
-        // Strings that spell the reviewer's path with escapes: the source text is not the value that Vite reads.
-        for (const call of [
-          `"./*.json", { base: "..${slash}..${slash}..${slash}cms/seed" }`,
-          `"./*.json", { "ba\\u0073e": "../../../cms/seed" }`,
-          `"./*.json", { ba\\u0073e: "../../../cms/seed" }`,
-          `"./..${slash}..${slash}..${slash}cms/seed/*.json"`,
-        ]) {
+        // Patterns: the reviewer's brace range and every form of the grammar's complement.
+        const patterns: readonly (readonly [string, string])[] = [
+          [
+            "../../../c{l..n}s/seed/*.json",
+            grammar("../../../c{l..n}s/seed/*.json"),
+          ],
+          [
+            "../../../{cms,web}/seed/*.json",
+            grammar("../../../{cms,web}/seed/*.json"),
+          ],
+          [
+            "../../../cms/seed/*.{json,yaml}x",
+            grammar("../../../cms/seed/*.{json,yaml}x"),
+          ],
+          ["./[ab].ts", grammar("./[ab].ts")],
+          ["./a?.ts", grammar("./a?.ts")],
+          ["./a(b).ts", grammar("./a(b).ts")],
+          ["../*/seed/*.json", grammar("../*/seed/*.json")],
+          ["./**/**/*.ts", grammar("./**/**/*.ts")],
+          ["./a/**b/*.ts", grammar("./a/**b/*.ts")],
+          ["../../../cms/see.d/*.json", grammar("../../../cms/see.d/*.json")],
+          ["./.hidden/*.json", grammar("./.hidden/*.json")],
+          ["./a/../b/*.ts", grammar("./a/../b/*.ts")],
+          ["./*.d.ts", grammar("./*.d.ts")],
+          ["./*", grammar("./*")],
+          ["src/*.ts", grammar("src/*.ts")],
+          ["/src/*.ts", grammar("/src/*.ts")],
+          ["@/lib/*.ts", grammar("@/lib/*.ts")],
+          ["./é/*.ts", grammar("./é/*.ts")],
+          [
+            "../../node_modules/x/*.ts",
+            "a segment of its pattern is node_modules",
+          ],
+          ["./node_modules/*.ts", "a segment of its pattern is node_modules"],
+          ["!./a.ts", "a negated pattern is not read"],
+          ["../../../../../../../x/*.ts", "its pattern leaves the repository"],
+        ];
+
+        for (const [pattern, reason] of patterns) {
           assert.deepStrictEqual(
-            yield* scanned(`export const s = import.meta.glob(${call});\n`),
-            [refused(`import.meta.glob(${call})`, escape)],
+            yield* scannedGlob(
+              `export const s = import.meta.glob("${pattern}");\n`
+            ),
+            [refusal(`"${pattern}"`, reason)],
+            pattern
+          );
+        }
+
+        // One refused pattern in an array is one finding, and the placed one beside it still counts.
+        assert.deepStrictEqual(
+          yield* scannedGlob(
+            'export const s = import.meta.glob(["../../data/*.json", "./*.json", "!./a.json"]);\n'
+          ),
+          [refusal('"!./a.json"', "a negated pattern is not read")]
+        );
+
+        // Strings written with an escape: the source text is not the value that Vite reads.
+        const escaped =
+          "its pattern is written with an escape (a backslash): the check reads the source text and Vite the string it spells";
+
+        const escapes: readonly (readonly [string, string])[] = [
+          [`"./..${slash}..${slash}..${slash}cms/seed/*.json"`, escaped],
+          [
+            `"./*.json", { base: "..${slash}..${slash}..${slash}cms/seed" }`,
+            "its option base is not one of eager, import and query",
+          ],
+          [
+            '"./*.json", { "ba\\u0073e": "../../../cms/seed" }',
+            'its option "ba\\u0073e" is not one of eager, import and query',
+          ],
+          [
+            '"./*.json", { e\\u0061ger: true }',
+            "its option e\\u0061ger is not one of eager, import and query",
+          ],
+          [
+            '"./*.json", { query: "?r\\u0061w" }',
+            "the value of its option query is not a boolean or a plain string",
+          ],
+        ];
+
+        for (const [call, reason] of escapes) {
+          assert.deepStrictEqual(
+            yield* scannedGlob(`export const s = import.meta.glob(${call});\n`),
+            [refusal(call, reason)],
             call
           );
         }
 
-        // Control: the same globs written without an escape are placed, and reach into another unit.
+        // Options: only eager, import and query, with a boolean or a plain string. `base` and `caseSensitive` change where a
+        // glob starts and what it matches, `exhaustive` what it skips, `__proto__` and side effects what `base` is.
+        const options: readonly (readonly [string, string])[] = [
+          [
+            '{ base: "../../../cms/seed" }',
+            "its option base is not one of eager, import and query",
+          ],
+          [
+            '{ "base": "/../cms/seed" }',
+            'its option "base" is not one of eager, import and query',
+          ],
+          [
+            "{ caseSensitive: false }",
+            "its option caseSensitive is not one of eager, import and query",
+          ],
+          [
+            "{ exhaustive: true }",
+            "its option exhaustive is not one of eager, import and query",
+          ],
+          [
+            '{ __proto__: { base: "../../../cms/seed" } }',
+            "its option __proto__ is not one of eager, import and query",
+          ],
+          [
+            '{ "__proto__": { base: "../../../cms/seed" } }',
+            'its option "__proto__" is not one of eager, import and query',
+          ],
+          [
+            '{ import: Object.prototype.base = "../../../cms/seed" }',
+            "the value of its option import is not a boolean or a plain string",
+          ],
+          [
+            "{ eager: yes }",
+            "the value of its option eager is not a boolean or a plain string",
+          ],
+          [
+            `{ query: \`?${hole}\` }`,
+            "the value of its option query is not a boolean or a plain string",
+          ],
+          [
+            "{ ...opts }",
+            "its options hold a spread, computed key, shorthand or method",
+          ],
+          [
+            "{ [key]: true }",
+            "its options hold a spread, computed key, shorthand or method",
+          ],
+          [
+            "{ eager }",
+            "its options hold a spread, computed key, shorthand or method",
+          ],
+          [
+            "{ eager() { return true; } }",
+            "its options hold a spread, computed key, shorthand or method",
+          ],
+          [
+            "{ get eager() { return true; } }",
+            "its options hold a spread, computed key, shorthand or method",
+          ],
+          ["opts", "its options are not an object literal"],
+          ["[]", "its options are not an object literal"],
+        ];
+
+        for (const [written, reason] of options) {
+          const call = `"./*.json", ${written}`;
+
+          assert.deepStrictEqual(
+            yield* scannedGlob(`export const s = import.meta.glob(${call});\n`),
+            [refusal(call, reason)],
+            written
+          );
+        }
+
         assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob("./*.json", { base: "../../../cms/seed" });\n'
+          yield* scannedGlob(
+            'export const s = import.meta.glob("./*.json", { eager: true }, extra);\n'
           ),
           [
-            `${importer}:1: apps/web reaches into apps/cms by the path ./*.json (base ../../../cms/seed); import the package by its name`,
-          ]
-        );
-
-        // A wildcard over a link to another package: Vite follows the link, a text match would not see it.
-        const viaLink = "../../vendor/*/src/*.ts";
-
-        assert.deepStrictEqual(
-          yield* scanned(
-            `export const s = import.meta.glob("${viaLink}", { exhaustive: true });\n`,
-            { [`${d}/index.ts`]: "export const x = 1;\n" },
-            { "apps/web/vendor/domain": "packages/domain" }
-          ),
-          [
-            refused(
-              `import.meta.glob("${viaLink}")`,
-              "a symbolic link (apps/web/vendor/domain) is under a wildcard: Vite follows it to another package"
+            refusal(
+              '"./*.json", { eager: true }, extra',
+              "it has more than two arguments"
             ),
           ]
         );
 
-        // ... and under `**`, however deep the link is.
+        // Controls: the plain forms beside every refusal are placed, and an own-unit glob adds no finding.
+        for (const plain of [
+          'import.meta.glob("./*.json")',
+          'import.meta.glob("./*.json", {})',
+          'import.meta.glob("./*.json", { eager: true })',
+          'import.meta.glob("./*.json", { "eager": false, \'import\': "default", query: "?raw" })',
+          'import.meta.glob<string>(["./*.json", "../../data/*.{json,ts}"], { eager: true })',
+        ]) {
+          assert.deepStrictEqual(
+            yield* scannedGlob(`export const s = ${plain};\n`),
+            [],
+            plain
+          );
+        }
+      }),
+    120_000
+  );
+
+  it.effect(
+    "R16 (glob grammar): the disk is walked without following a link: a link in the literal directory or under a wildcard, node_modules under `**` and a walk past its bound each refuse the glob, and the same globs over plain directories are placed",
+    () =>
+      Effect.gen(function* walkedGlobs() {
+        // A link in the literal directory: the directory written is not the one Vite reads. Reached through the link, the
+        // files are another package's, and the check would decide the unit and the edges from the text.
+        const vendored = "../../vendor/src/*.ts";
+
         assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob("../**/*.ts");\n',
+          yield* scannedGlob(
+            globOf(vendored),
+            { [`${d}/src/a.ts`]: "export const a = 1;\n" },
+            { "apps/web/vendor": "packages/domain" }
+          ),
+          [
+            refusal(
+              `"${vendored}"`,
+              "a symbolic link is in its directory apps/web/vendor/src"
+            ),
+          ]
+        );
+
+        // Inside one package: a link from the governed tree's `lnk` to `src/team` hides an upward import.
+        const lnk = "../../lnk/*.ts";
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* findingsOf(
+              {
+                ...base,
+                [`${d}/team/a.ts`]: "export const a = 1;\n",
+                [kernel]: globOf(lnk),
+              },
+              { "packages/domain/lnk": "packages/domain/src/team" }
+            ),
+            kernel
+          ),
+          [
+            `${kernel}:1: import.meta.glob("${lnk}"): glob not placeable: a symbolic link is in its directory packages/domain/lnk; use a literal own-unit pattern`,
+          ]
+        );
+
+        // Under a wildcard: `**` reaches a link however deep it is, and the last segment reaches a link to a file.
+        const deep = "../**/*.ts";
+
+        assert.deepStrictEqual(
+          yield* scannedGlob(
+            globOf(deep),
             { "apps/web/src/a/b/c.ts": "export const c = 1;\n" },
             { "apps/web/src/a/b/db": "packages/db" }
           ),
           [
-            refused(
-              'import.meta.glob("../**/*.ts")',
+            refusal(
+              `"${deep}"`,
               "a symbolic link (apps/web/src/a/b/db) is under a wildcard: Vite follows it to another package"
             ),
           ]
         );
 
-        // Control: the same globs over real directories of the web package are clean.
         assert.deepStrictEqual(
-          yield* scanned(`export const s = import.meta.glob("${viaLink}");\n`, {
-            "apps/web/vendor/domain/src/a.ts": "export const a = 1;\n",
+          yield* scannedGlob(
+            globOf("./*.ts"),
+            { [`${d}/index.ts`]: "export const x = 1;\n" },
+            { "apps/web/src/server/linked.ts": `${d}/index.ts` }
+          ),
+          [
+            refusal(
+              '"./*.ts"',
+              "a symbolic link (apps/web/src/server/linked.ts) is under a wildcard: Vite follows it to another package"
+            ),
+          ]
+        );
+
+        // node_modules under `**`.
+        assert.deepStrictEqual(
+          yield* scannedGlob(globOf(deep), {
+            "apps/web/src/node_modules/x.ts": "export const x = 1;\n",
+          }),
+          [
+            refusal(
+              `"${deep}"`,
+              "a wildcard reaches node_modules (apps/web/src/node_modules)"
+            ),
+          ]
+        );
+
+        // Controls: the same globs over plain directories are placed and clean.
+        assert.deepStrictEqual(
+          yield* scannedGlob(globOf(vendored), {
+            "apps/web/vendor/src/a.ts": "export const a = 1;\n",
           }),
           []
         );
 
         assert.deepStrictEqual(
-          yield* scanned('export const s = import.meta.glob("../**/*.ts");\n', {
+          yield* scannedGlob(globOf(deep), {
             "apps/web/src/a/b/c.ts": "export const c = 1;\n",
           }),
           []
         );
 
-        // node_modules: by name in the pattern or the base, or reached by a wildcard, or through a link in the literal part.
-        const named = "../../node_modules/@vektorprogrammet/*/src/*.ts";
-
         assert.deepStrictEqual(
-          yield* scanned(
-            `export const s = import.meta.glob("${named}", { exhaustive: true });\n`
-          ),
-          [
-            refused(
-              `import.meta.glob("${named}")`,
-              "a segment of its pattern or base is node_modules"
-            ),
-          ]
-        );
-
-        assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob("./*/x.ts", { base: "../../node_modules" });\n'
-          ),
-          [
-            refused(
-              'import.meta.glob("./*/x.ts", { base: "../../node_modules" })',
-              "a segment of its pattern or base is node_modules"
-            ),
-          ]
-        );
-
-        const reaching = "../../*/x.ts";
-
-        assert.deepStrictEqual(
-          yield* scanned(
-            `export const s = import.meta.glob("${reaching}", { exhaustive: true });\n`,
-            { "apps/web/node_modules/x.ts": "export const x = 1;\n" }
-          ),
-          [
-            refused(
-              `import.meta.glob("${reaching}")`,
-              "a wildcard reaches node_modules (apps/web/node_modules)"
-            ),
-          ]
-        );
-
-        assert.deepStrictEqual(
-          yield* scanned(
-            'export const s = import.meta.glob("./*/x.ts", { base: "../../via" });\n',
-            { "apps/web/node_modules/x.ts": "export const x = 1;\n" },
-            { "apps/web/via": "apps/web/node_modules" }
-          ),
-          [
-            refused(
-              'import.meta.glob("./*/x.ts", { base: "../../via" })',
-              "its base reaches node_modules (apps/web/node_modules) through a symbolic link"
-            ),
-          ]
-        );
-
-        // Control: the same wildcard with no node_modules in the directory is clean.
-        assert.deepStrictEqual(
-          yield* scanned(
-            `export const s = import.meta.glob("${reaching}");\n`,
-            { "apps/web/data/x.ts": "export const x = 1;\n" }
-          ),
+          yield* scannedGlob(globOf("./*.ts"), {
+            "apps/web/src/server/plain.ts": "export const p = 1;\n",
+          }),
           []
         );
 
-        // The walk is bounded: a glob that reaches more entries than the limit is refused; under the limit it is placed.
+        // The bound counts every directory entry that is read, whether the glob matches it or not: three entries that
+        // the extension does not match, and one that it does, are four.
         const crowded = {
-          "apps/web/data/a.ts": "export const a = 1;\n",
-          "apps/web/data/b.ts": "export const b = 1;\n",
-          "apps/web/data/c.ts": "export const c = 1;\n",
+          "apps/web/data/a.txt": "a\n",
+          "apps/web/data/b.txt": "b\n",
+          "apps/web/data/c.txt": "c\n",
+          "apps/web/data/d.ts": "export const d = 1;\n",
         };
 
         const within = (maxGlobEntries: number) =>
           Effect.gen(function* limited() {
             const repo = yield* tempRepo({
               ...base,
-              "apps/web/package.json": "{}\n",
               ...crowded,
-              [importer]:
-                'export const s = import.meta.glob("../../data/*.ts");\n',
+              [seeds]: globOf("../../data/*.ts"),
             });
 
             return mentioning(
@@ -1031,22 +1017,22 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
                 fixture,
                 yield* readSources(
                   repo,
-                  [importer, ...Rec.keys(crowded), ...Rec.keys(base)],
+                  [seeds, ...Rec.keys(crowded), ...Rec.keys(base)],
                   { maxGlobEntries }
                 )
               ),
-              importer
+              seeds
             );
           }).pipe(Effect.provide(NodeServices.layer));
 
-        assert.deepStrictEqual(yield* within(2), [
-          refused(
-            'import.meta.glob("../../data/*.ts")',
-            "its wildcards reach more than 2 entries (the walk of the disk is bounded)"
+        assert.deepStrictEqual(yield* within(3), [
+          refusal(
+            '"../../data/*.ts"',
+            "it reads more than 3 directory entries (the walk of the disk is bounded)"
           ),
         ]);
 
-        assert.deepStrictEqual(yield* within(3), []);
+        assert.deepStrictEqual(yield* within(4), []);
       }),
     120_000
   );
@@ -1081,8 +1067,8 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
             finding(1, `import(\`../${hole}.ts\`)`),
             finding(2, "import(name)"),
             finding(3, "import.meta.glob(pattern)"),
-            finding(4, 'import.meta.glob("/src/**/*.ts")'),
-            finding(5, 'import.meta.glob("./[ab].ts")'),
+            `${lazy}:4: import.meta.glob("/src/**/*.ts"): glob not placeable: its pattern /src/**/*.ts is not ./ or ../, literal directories of letters, digits, _ and -, an optional **/, and *.ext or *.{ext,ext}; use a literal own-unit pattern`,
+            `${lazy}:5: import.meta.glob("./[ab].ts"): glob not placeable: its pattern ./[ab].ts is not ./ or ../, literal directories of letters, digits, _ and -, an optional **/, and *.ext or *.{ext,ext}; use a literal own-unit pattern`,
           ]
         );
 

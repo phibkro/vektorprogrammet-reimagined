@@ -1,19 +1,4 @@
-import { Array as Arr, Option } from "effect";
-
-import { globToRegExp } from "./storeBoundary.ts";
-
-/** `{a,b}` alternatives of a Vite glob, innermost first: `./x.{ts,tsx}` is `./x.ts` and `./x.tsx`. */
-const expandBraces = (pattern: string): readonly string[] => {
-  const inner = /\{(?<options>[^{}]*)\}/u.exec(pattern);
-
-  return inner === null
-    ? [pattern]
-    : Arr.flatMap((inner.groups?.options ?? "").split(","), (option) =>
-        expandBraces(
-          `${pattern.slice(0, inner.index)}${option}${pattern.slice(inner.index + inner[0].length)}`
-        )
-      );
-};
+import { Array as Arr, Option, Result } from "effect";
 
 /** The path `relative` leads to from the directory `start` (path segments from the repository root), or none when it climbs out of the repository. */
 const walk = (
@@ -33,84 +18,76 @@ const walk = (
   );
 
 /**
- * The directory that the patterns of an `import.meta.glob` written in `importer` start from, as path segments from the
- * repository root: the importer's directory, or `base` from it (Vite's `base` option), or, when `base` starts with `/`,
- * from `viteRoot` (the directory of the importer's package, Vite's project root; none when it has none). None when the
- * directory climbs out of the repository.
+ * The one pattern that the check places, as a grammar and not as a model of Vite's matcher: `./` or one or more `../`;
+ * literal directories of letters, digits, `_` and `-` (so no `.` or `..` segment and no wildcard); optionally one `**\/`;
+ * and a last segment `*.ext` or `*.{ext,ext}` with `ext` letters and digits. Nothing else is read: no other brace, no
+ * range, no `?`, `[]`, `()`, `!`, no backslash, no `base`.
  */
-export const globStart = (
-  importer: string,
-  base: Option.Option<string>,
-  viteRoot: Option.Option<string>
-): Option.Option<readonly string[]> => {
-  const own = Arr.dropRight(importer.split("/"), 1);
+const grammar =
+  /^(?<directory>(?:\.\/|(?:\.\.\/)+)(?:[A-Za-z0-9_-]+\/)*)(?<deep>\*\*\/)?\*\.(?:(?<one>[A-Za-z0-9]+)|\{(?<many>[A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)\})$/u;
 
-  return Option.match(base, {
-    onNone: () => Option.some(own),
-    onSome: (written) =>
-      written.startsWith("/")
-        ? Option.flatMap(viteRoot, (root) =>
-            walk(root === "" ? [] : root.split("/"), written.slice(1))
-          )
-        : walk(own, written),
+/** A pattern of the grammar: the directory it starts in (from the importer's), whether it descends, and the extensions. */
+export interface Glob {
+  readonly directory: string;
+  readonly deep: boolean;
+  readonly extensions: readonly string[];
+}
+
+/** The pattern as a `Glob`, or why the check does not place it. */
+const parseGlob = (pattern: string): Result.Result<Glob, string> => {
+  if (Arr.contains(pattern.split("/"), "node_modules")) {
+    return Result.fail("a segment of its pattern is node_modules");
+  }
+
+  const found = grammar.exec(pattern)?.groups;
+
+  if (found?.directory === undefined) {
+    return Result.fail(
+      `its pattern ${pattern} is not ./ or ../, literal directories of letters, digits, _ and -, an optional **/, and *.ext or *.{ext,ext}`
+    );
+  }
+
+  return Result.succeed({
+    deep: found.deep !== undefined,
+    directory: found.directory,
+    extensions: (found.one ?? found.many ?? "").split(","),
   });
 };
 
-/** Glob syntax beyond `*`, `**` and `{a,b}`: classes, extended groups and `?`, which the matcher does not read. */
-const unsupported = /[()?[\]]/u;
-
-/**
- * The patterns of an `import.meta.glob` that starts in the directory `start` (`globStart`), each as a path-from-the-root
- * glob with its braces expanded; none when the pattern cannot be placed (a root-relative or aliased pattern, glob syntax
- * that the matcher does not read, a path out of the repository). A `!` pattern only removes files from the others, so it
- * places none.
- */
-export const globsOf = (
-  start: readonly string[],
+/** The pattern written in `importer`, as a `Glob` and the directory it starts in (from the repository root: `""` is the root itself), or why the check does not place it. */
+export const placeGlob = (
+  importer: string,
   pattern: string
-): Option.Option<readonly string[]> => {
+): Result.Result<
+  { readonly glob: Glob; readonly directory: string },
+  string
+> => {
   if (pattern.startsWith("!")) {
-    return Option.some([]);
+    return Result.fail("a negated pattern is not read");
   }
 
-  if (
-    !(pattern.startsWith("./") || pattern.startsWith("../")) ||
-    unsupported.test(pattern)
-  ) {
-    return Option.none();
-  }
-
-  return Option.all(
-    Arr.map(expandBraces(pattern), (expanded) =>
-      Option.map(walk(start, expanded), (names) => Arr.join(names, "/"))
-    )
+  return Result.flatMap(parseGlob(pattern), (glob) =>
+    Option.match(walk(Arr.dropRight(importer.split("/"), 1), glob.directory), {
+      onNone: () => Result.fail("its pattern leaves the repository"),
+      onSome: (names) =>
+        Result.succeed({ directory: Arr.join(names, "/"), glob }),
+    })
   );
 };
 
-/** The files among `paths` (paths from the repository root) that the globs (`globsOf`) name. */
+/** The files among `paths` (paths from the repository root) that the glob, placed at `directory`, names. */
 export const globMatches = (
-  globs: readonly string[],
+  directory: string,
+  { deep, extensions }: Glob,
   paths: readonly string[]
 ): readonly string[] =>
-  Arr.filter(paths, (path) =>
-    Arr.some(globs, (glob) => globToRegExp(glob).test(path))
-  );
+  Arr.filter(paths, (path) => {
+    const inside = directory === "" || path.startsWith(`${directory}/`);
+    const rest = path.slice(directory === "" ? 0 : directory.length + 1);
 
-/**
- * One glob split where it starts to use a wildcard: the literal directories before the first segment that holds one
- * (`apps/cms/seed` for `apps/cms/seed/*.json`; the file itself when there is no wildcard, and the empty string is the
- * repository root), and the segments from that one on.
- */
-export const globParts = (glob: string) => {
-  const segments = glob.split("/");
-  const literal = Arr.takeWhile(segments, (segment) => !segment.includes("*"));
-
-  return {
-    base: Arr.join(literal, "/"),
-    wildcards: Arr.drop(segments, literal.length),
-  };
-};
-
-/** Where the globs reach, whatever they match: the literal directory of each one (`globParts`). */
-export const globBases = (globs: readonly string[]): readonly string[] =>
-  Arr.dedupe(Arr.map(globs, (glob) => globParts(glob).base));
+    return (
+      inside &&
+      (deep || !rest.includes("/")) &&
+      Arr.some(extensions, (extension) => rest.endsWith(`.${extension}`))
+    );
+  });
