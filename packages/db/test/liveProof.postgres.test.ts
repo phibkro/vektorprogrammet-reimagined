@@ -867,6 +867,62 @@ layer(postgresDatabase({ maxConnections: 4 }), {
       })
   );
 
+  /**
+   * Review round 4, P9: the proof conjunct of the admission of a nested level. A fiber that outlives nested level A holds
+   * A's `[connection, 1]` pair. While the outer level's next nested level B is live, idle and the top of the stack, the
+   * depth and the length both pass for that fiber, and only the proof it holds (A's, not B's) refuses it. Admitted, its
+   * level Cx would sit on B, report success, and be rolled back with B.
+   */
+  it.effect(
+    "P9: a fiber that outlives a nested level cannot open a level above the outer level's next nested level, which is live and idle: it is refused and writes nothing",
+    () =>
+      Effect.gen(function* survivorAboveAnIdleLevel() {
+        const before = yield* outboxRows;
+        const bIsLive = yield* Deferred.make<null>();
+
+        const outer = yield* Effect.exit(
+          transactional(
+            Effect.gen(function* outerLevel() {
+              const survivor = yield* transactional(
+                Effect.forkChild(
+                  Effect.andThen(
+                    Deferred.await(bIsLive),
+                    Effect.exit(transactional(enqueue("Cx")))
+                  )
+                )
+              );
+
+              const cx = yield* Effect.exit(
+                transactional(
+                  Effect.gen(function* levelB() {
+                    yield* Deferred.succeed(bIsLive, null);
+
+                    return yield* Fiber.join(survivor);
+                  })
+                )
+              );
+
+              return cx;
+            })
+          )
+        );
+
+        assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
+
+        if (Exit.isSuccess(outer) && Exit.isSuccess(outer.value)) {
+          assertRefused(
+            outer.value.value,
+            "the level opened from a dead level"
+          );
+        }
+
+        // B commits here, so a Cx that was admitted would have left its row.
+        const kept = (yield* outboxRows) - before;
+
+        assert.strictEqual(kept, 0, "Cx was refused, so it wrote nothing");
+      })
+  );
+
   it.effect(
     "two nested levels asked for at once from one parent: the second is refused as TransactionNotLive every time, and the first completes with its row (30 rounds)",
     () =>

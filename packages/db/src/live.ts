@@ -3,55 +3,55 @@
  *
  * `InTransaction` is an ordinary service, and Effect keys a service by a string, so a program can make a value of it
  * without naming it (`Context.makeUnsafe`, `Context.addUnsafe` with `Layer.succeedContext`, a cast `{ key }`). What it
- * cannot make is the object that this module holds for the transaction that is running:
+ * cannot make is the object that this module holds for the transaction that is running.
  *
- * - `transactional` opens each level (the transaction, and every nested `transactional`, which is a savepoint) with
- *   `liveLevel`: it makes the level's proof and puts it, as an entry, on a module-private stack of the levels of the
- *   level's connection (the connection of the `TransactionConnection` `[connection, depth]` pair that
- *   `SqlClient.withTransaction` gives to the program inside the level). It takes the entry off again when the level
- *   ends, on every exit. A nested level is entered before its `SAVEPOINT` is sent and left after its `ROLLBACK TO` or
- *   `RELEASE` has finished.
- * - An adapter method that requires `InTransaction` is wrapped by `verified`. Before its first statement it reads the
- *   proof that the program holds and the connection of the level that the fiber is in, and is a defect
- *   (`TransactionNotLive`) unless that proof is the top of the connection's stack, the innermost level. The comparison
- *   is by reference: a copy is a forgery. The method then counts as in flight on that entry until it ends, on every
- *   exit, interruption included (the count is released by a finalizer).
- * - A nested level is admitted only from the innermost live level: the caller's own level, the entry at the depth of
- *   the caller's `[connection, depth]` pair, must be the one whose proof the caller holds, must be the top of the
- *   connection's stack, and must have no method in flight. The admission and the entry are one synchronous step.
+ * **The stack is PostgreSQL's savepoint stack** (R21). For each connection this module keeps the levels that are open on
+ * it, outermost first, as PostgreSQL keeps its savepoints. A nested level is pushed before its `SAVEPOINT` is sent. A
+ * level that ends takes its entry and every entry above it off the stack, as `RELEASE` and `ROLLBACK TO` destroy every
+ * savepoint above the one they name. The connection is the one of the `TransactionConnection` `[connection, depth]`
+ * pair that `SqlClient.withTransaction` gives to the program inside a level.
  *
- * Why (spec 0019 R14). One connection is one ordered conversation, so a nested level's `SAVEPOINT` lands between
- * whatever statements of the level around it are on the wire, and everything after it goes into the savepoint, which
- * can roll back while the caller is told it succeeded. Two things could let that happen, and each is closed by one
- * rule. A method of the outer level that starts after the nested level was asked for would write into it: the entry is
- * made before the `SAVEPOINT`, so the outer proof is no longer the innermost from that moment. A method of the outer
- * level that is already under way (it has several statements) would have its later statements land in it: the nested
- * level is refused while the count is above zero, and no method of the outer level can start once the entry is there.
- * For any interleaving of a method of a level and a nested level on one connection, one of them dies as
- * `TransactionNotLive`, or both complete and every row is in the level that reported it. A third thing is closed by the
- * depth rule (round 4, R18): a fiber that outlives a nested level A holds A's pair, and without the rule it could open
- * a level Cx from it, above which the outer level would then admit its next nested level B, whose savepoint would sit
- * inside Cx's and whose reported success would be rolled back with Cx. With the rule A's pair no longer names the top of
- * the stack, so Cx is refused. The same rule decides two nested levels asked for at once from one parent
- * (`Effect.all([transactional(a), transactional(b)], { concurrency: 2 })`): the first is admitted, and the second is
- * refused as `TransactionNotLive`, every time, because the first is then the top of the stack. Effect would have run them
- * one after the other; a program that wants two savepoints in one level runs them in sequence.
+ * - `transactional` opens each level (the transaction, and every nested `transactional`) with `liveLevel`, which makes
+ *   the level's proof and its entry. A nested level is entered before its `SAVEPOINT` and left after its `ROLLBACK TO`
+ *   or `RELEASE`; a top-level level is entered when `BEGIN` has given it a connection and left before `COMMIT`.
+ * - An adapter method that requires `InTransaction` is wrapped by `verified`. Before its first statement it is a defect
+ *   (`TransactionNotLive`) unless the proof that the program holds is the top of its connection's stack, the innermost
+ *   level, and that level has not ended its body. The comparison is by reference: a copy is a forgery. The method then
+ *   counts as running on that entry until it ends, on every exit, interruption included.
+ * - A nested level is admitted only from the innermost live level: the entry at the depth of the caller's pair must be
+ *   the one whose proof the caller holds, must be the top of the stack, must be open and must have no method running.
+ *   The admission and the entry are one synchronous step. So a fiber that outlives a level holds a pair that no longer
+ *   names the top, and cannot open a level from it (R18); and of two levels asked for at once from one parent the first
+ *   is admitted and the second is refused as `TransactionNotLive`, every time.
+ * - When a level's body has ended, before the statement that ends the level, the level and every level above it are
+ *   closed: no method of them starts, and no level is opened from them. The level then waits until no method of any of
+ *   them is running, so no statement of theirs is sent after the statement that ends the level and lands in the level
+ *   around it. If a level above it is still running, the level fails (a defect), so that the statement is the rollback:
+ *   the inner level's savepoint is destroyed by the end of this one, and it would report a failure for rows that the
+ *   outer commit keeps.
+ *
+ * Why (R14, R18, R21). One connection is one ordered conversation, so a statement lands in whichever savepoint is open
+ * when it reaches the server, and a method that was told it succeeded in one level must not land in another. Each rule
+ * above closes one way that could happen, and `liveProperty.postgres.test.ts` holds the claim for every generated
+ * program: a write that reported success is in the committed state if and only if its level and every level around it
+ * reported success; a write that was refused is not; each rule, removed, is found by that test.
  *
  * Identity of the fiber plays no part: the in-process RPC server runs every command handler on a fiber of its own, not
  * the one that opened the transaction. Methods of one level may run concurrently (several `enqueue` calls at once are
  * ordinary use of one transaction, and their statements queue in order), and so may a handler on another fiber.
  *
- * What it does not stop (TX5, spec 0019 R7 and R14): a program that captures its whole context inside a live level
+ * What it does not stop (TX5, spec 0019 R7 and R21): a program that captures its whole context inside a live level
  * (`Effect.context()`) and provides it around a method elsewhere, even inside another transaction, holds the level's
  * proof and connection together, so while that level is the innermost the check passes and the statements go to it;
  * they commit or roll back with it, which is no forgery of a transaction that does not exist, and a finished level is
- * refused. And a method that is still running when its level ends: the level leaves the stack without waiting, the
- * method's later statements go to a connection that the level has returned, which is Effect's own behaviour for a
- * fiber that outlives its transaction and not something this check can see.
+ * refused. And a level that is interrupted after its body has ended: Effect runs `RELEASE` and `COMMIT` where they
+ * cannot be interrupted and reports the interruption afterwards, so the level says it failed and its rows may have
+ * merged, as with any commit whose acknowledgment is lost.
  *
  * Which methods verify is not listed here: it is the `Requires` rows of the domain's `TransactionModes`, the one
  * declaration of what a port method asks of a transaction, so a method that requires `InTransaction` is covered by being
- * declared. The cost of a call is two context lookups, one `WeakMap` read and a few field reads.
+ * declared. The cost of a call is two context lookups, one `WeakMap` read and a few field reads; a level that ends
+ * polls once a millisecond only while a method of it is still running.
  */
 import { InTransaction, TransactionModes } from "@vektorprogrammet/domain";
 import type { StorePorts, TransactionMode } from "@vektorprogrammet/domain";
@@ -66,7 +66,9 @@ type Proof = InTransaction["Service"];
 
 /** One level of a connection: its proof, and how many methods of it are running now. */
 interface Entry {
+  abandoned: boolean;
   active: number;
+  closed: boolean;
   readonly proof: Proof;
 }
 
@@ -109,6 +111,7 @@ const enterNested = (
     if (
       caller === undefined ||
       stack.length !== depth + 1 ||
+      caller.closed ||
       caller.active > 0 ||
       !Option.exists(held, (proof) => proof === caller.proof)
     ) {
@@ -120,12 +123,57 @@ const enterNested = (
     return true;
   });
 
+/**
+ * Takes the entry off its connection's stack, and every entry above it. PostgreSQL destroys every savepoint above the one
+ * that is released or rolled back to, so a level opened inside the ending one (by a fiber that outlived it) is gone with
+ * it, and nothing that holds its proof may write. An entry that is no longer on the stack (an ancestor ended first) is
+ * left alone.
+ */
 const leave = (connection: Connection, entry: Entry) =>
   Effect.sync(() => {
-    stacks.set(
-      connection,
-      Arr.filter(stacks.get(connection) ?? [], (live) => live !== entry)
+    const stack = stacks.get(connection) ?? [];
+
+    Option.map(
+      Arr.findFirstIndex(stack, (live) => live === entry),
+      (at) => stacks.set(connection, Arr.take(stack, at))
     );
+  });
+
+const waitUntilIdle = (entries: readonly Entry[]): Effect.Effect<void> =>
+  Effect.suspend(() =>
+    Arr.some(entries, (live) => live.active > 0)
+      ? Effect.andThen(Effect.sleep("1 millis"), waitUntilIdle(entries))
+      : Effect.void
+  );
+
+/**
+ * The body of the level has ended and the statement that ends the level is about to be sent. PostgreSQL destroys every
+ * savepoint above the one it releases or rolls back to, so the same is done here first, without waiting for the
+ * statement: the entry and every entry above it are closed, so that no method of them starts and no level is opened from
+ * them, and the level waits until no method of any of them is running, so that no statement of theirs is sent after the
+ * statement that ends the level and lands in the level around it. Entries above it mean levels that are still running,
+ * and the level fails (`abandoned`) instead of ending as if they were not. `leave` takes them off the stack when the
+ * statement has been sent.
+ */
+const close = (connection: Connection, entry: Entry) =>
+  Effect.suspend(() => {
+    const stack = stacks.get(connection) ?? [];
+
+    const levels = Option.match(
+      Arr.findFirstIndex(stack, (live) => live === entry),
+      {
+        onNone: () => [entry],
+        onSome: (at) => Arr.drop(stack, at),
+      }
+    );
+
+    for (const live of levels) {
+      live.closed = true;
+    }
+
+    entry.abandoned = levels.length > 1;
+
+    return waitUntilIdle(levels);
   });
 
 const refusal = (method: string, why: string) =>
@@ -163,6 +211,33 @@ type Provide = <A, E, R>(
 ) => Effect.Effect<A, E, Exclude<R, InTransaction>>;
 
 /**
+ * The program of a level with its own proof, and the end of its body marked: when the body has ended, by any exit, and
+ * before the statement that ends the level (`ROLLBACK TO`, `RELEASE`, `COMMIT` or `ROLLBACK`) is sent, the level is
+ * closed. A level that ends while a level opened inside it is still running fails (a defect, so its statement is the
+ * rollback): the inner level's savepoint is destroyed by the end of this one, and the inner level would report a failure
+ * for rows that the outer commit keeps.
+ */
+const provided = <A, E, R>(
+  connection: Connection,
+  entry: Entry,
+  program: Effect.Effect<A, E, R>
+) =>
+  Effect.filterOrElse(
+    Effect.onExit(
+      Effect.provideService(program, InTransaction, entry.proof),
+      () => close(connection, entry)
+    ),
+    () => !entry.abandoned,
+    () =>
+      Effect.die(
+        new TransactionNotLive({
+          message:
+            "A transactional level ended while a level opened inside it was still running, and its savepoint cannot outlive it.",
+        })
+      )
+  );
+
+/**
  * One transaction level of `sql`: `open` gets `provide`, which gives the level's program its own proof, and returns the
  * effect that opens the level (`sql.withTransaction`).
  *
@@ -180,7 +255,9 @@ export const liveLevel = <A, E, R>(
 ): Effect.Effect<A, E, R> =>
   Effect.flatMap(Effect.serviceOption(sql.transactionService), (outer) => {
     const entry: Entry = {
+      abandoned: false,
       active: 0,
+      closed: false,
       proof: InTransaction.of({ kind: "database-transaction" }),
     };
 
@@ -192,9 +269,7 @@ export const liveLevel = <A, E, R>(
           connection,
           entry,
           enterNested(connection, entry, depth, held),
-          open((program) =>
-            Effect.provideService(program, InTransaction, entry.proof)
-          )
+          open((program) => provided(connection, entry, program))
         )
       );
     }
@@ -214,7 +289,7 @@ export const liveLevel = <A, E, R>(
               connection,
               entry,
               enterTop(connection, entry),
-              Effect.provideService(program, InTransaction, entry.proof)
+              provided(connection, entry, program)
             ),
         })
       )
@@ -241,7 +316,7 @@ const admit = (
   const [connection] = level.value;
   const innermost = stacks.get(connection)?.at(-1);
 
-  if (innermost?.proof !== held.value) {
+  if (innermost?.proof !== held.value || innermost.closed) {
     return Result.fail(
       "the proof it holds is not the one of the innermost live level of its connection"
     );

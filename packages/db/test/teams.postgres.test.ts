@@ -371,6 +371,10 @@ const revokeRound = Effect.fnUntraced(function* revokeRound(
   );
 });
 
+/** The least and the most rounds of falsifier 3: at least three, then until a caller loses, never more than forty. */
+const MIN_ROUNDS = 3;
+const MAX_ROUNDS = 40;
+
 layer(teamsDatabase, { excludeTestServices: true })(
   "falsifier 3: concurrent extendMembership and endEarlyMembership on PostgreSQL",
   (outerTest) => {
@@ -381,11 +385,20 @@ layer(teamsDatabase, { excludeTestServices: true })(
           Effect.gen(function* effectProgram() {
             yield* TestClock.setTime(DateTime.toEpochMillis(NOW));
 
-            const outcomes = yield* Effect.forEach(Arr.range(1, 3), (index) =>
-              round(`ok${index}`)
-            );
+            // Every round checks the consistency of its row. The conflicts are real only if some caller loses, and a round
+            // has none now and then (more often since the live proof's check runs before each method: about one round in
+            // five, measured; 0.5 assumed below), so rounds run until a loser appears, at least three and at most forty. A
+            // run with no loser in forty rounds has probability 0.5^40, about 9e-13; the assertion is not weakened.
+            let rounds = 0;
+            let losers = 0;
 
-            for (const outcome of outcomes) {
+            while (
+              rounds < MIN_ROUNDS ||
+              (losers === 0 && rounds < MAX_ROUNDS)
+            ) {
+              rounds += 1;
+              const outcome = yield* round(`ok${rounds}`);
+
               assert.isTrue(
                 Arr.every(outcome.exits, conflictOrSuccess),
                 "every call succeeds or is refused with a Conflict, never a defect"
@@ -397,16 +410,14 @@ layer(teamsDatabase, { excludeTestServices: true })(
               );
               assert.deepStrictEqual(outcome.violations, []);
               assert.deepStrictEqual(outcome.finalEnd, outcome.end);
+
+              losers += Arr.length(Arr.filter(outcome.exits, Exit.isFailure));
             }
 
-            const losers = Arr.flatMap(outcomes, (outcome) =>
-              Arr.filter(outcome.exits, Exit.isFailure)
-            );
-
             assert.isAbove(
-              losers.length,
+              losers,
               0,
-              "twenty callers at once do lose races: the conflicts are real"
+              `twenty callers at once do lose races: the conflicts are real (${rounds} rounds)`
             );
           })
       );
