@@ -61,15 +61,23 @@ const base = {
 
 const seeds = "apps/web/src/server/seeds.ts";
 
+/** Directories that the globs below start in: an absent directory is refused, so each holds a file that no scan reads. */
+const directories = {
+  "apps/cms/seed/note.txt": "x\n",
+  "apps/web/data/note.txt": "x\n",
+  "docs/note.txt": "x\n",
+};
+
 /** The findings about `seeds`, which holds `written`, in a repository of `files` and `links`. */
 const scannedGlob = (
   written: string,
   files: Record<string, string> = {},
   links: Record<string, string> = {}
 ) =>
-  findingsOf({ ...base, ...files, [seeds]: written }, links).pipe(
-    Effect.map((found) => mentioning(found, seeds))
-  );
+  findingsOf(
+    { ...base, ...directories, ...files, [seeds]: written },
+    links
+  ).pipe(Effect.map((found) => mentioning(found, seeds)));
 
 /** The finding for a glob of `apps/web` that reaches into `unit`. */
 const reach = (pattern: string, unit: string) =>
@@ -721,6 +729,8 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           ["./a/../b/*.ts", grammar("./a/../b/*.ts")],
           ["./*.d.ts", grammar("./*.d.ts")],
           ["./*", grammar("./*")],
+          ["./*.{ts}", grammar("./*.{ts}")],
+          ["./*.{json}", grammar("./*.{json}")],
           ["src/*.ts", grammar("src/*.ts")],
           ["/src/*.ts", grammar("/src/*.ts")],
           ["@/lib/*.ts", grammar("@/lib/*.ts")],
@@ -904,7 +914,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           [
             refusal(
               `"${vendored}"`,
-              "a symbolic link is in its directory apps/web/vendor/src"
+              "a symbolic link (apps/web/vendor) is in its directory"
             ),
           ]
         );
@@ -925,7 +935,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
             kernel
           ),
           [
-            `${kernel}:1: import.meta.glob("${lnk}"): glob not placeable: a symbolic link is in its directory packages/domain/lnk; use a literal own-unit pattern`,
+            `${kernel}:1: import.meta.glob("${lnk}"): glob not placeable: a symbolic link (packages/domain/lnk) is in its directory; use a literal own-unit pattern`,
           ]
         );
 
@@ -972,6 +982,58 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
             ),
           ]
         );
+
+        // A one-item brace is literal text for picomatch, not `*.ts`: the file `x.{ts}` is a link that the walk would not
+        // look at if the check read the brace as an extension. It is refused as a pattern, and the two-item form is placed.
+        assert.deepStrictEqual(
+          yield* scannedGlob(
+            globOf("./data/*.{ts}"),
+            {},
+            { "apps/web/src/server/data/x.{ts}": "apps/cms/seed/note.txt" }
+          ),
+          [refusal('"./data/*.{ts}"', grammar("./data/*.{ts}"))]
+        );
+
+        assert.deepStrictEqual(
+          yield* scannedGlob(globOf("./data/*.{ts,tsx}"), {
+            "apps/web/src/server/data/a.ts": "export const a = 1;\n",
+          }),
+          []
+        );
+
+        // A dangling link in the directory: `lstat` sees it, `exists` and `realPath` do not. It is refused, below the
+        // wildcard too, with a target that is absent and with one that is present.
+        for (const [pattern, link, target] of [
+          ["./data/*.json", "apps/web/src/server/data", "apps/cms/missing"],
+          ["./data/sub/*.json", "apps/web/src/server/data", "apps/cms/missing"],
+          ["./data/*.json", "apps/web/src/server/data", "apps/cms/seed"],
+        ] as const) {
+          assert.deepStrictEqual(
+            yield* scannedGlob(globOf(pattern), {}, { [link]: target }),
+            [
+              refusal(
+                `"${pattern}"`,
+                "a symbolic link (apps/web/src/server/data) is in its directory"
+              ),
+            ],
+            `${pattern} -> ${target}`
+          );
+        }
+
+        assert.deepStrictEqual(
+          yield* scannedGlob(globOf("./data/sub/*.json"), {
+            "apps/web/src/server/data/sub/a.json": "{}\n",
+          }),
+          []
+        );
+
+        // A directory that is not there cannot be placed; a file where a directory should be is not a directory either.
+        assert.deepStrictEqual(yield* scannedGlob(globOf("./nowhere/*.json")), [
+          refusal(
+            '"./nowhere/*.json"',
+            "its directory apps/web/src/server/nowhere does not exist"
+          ),
+        ]);
 
         // Controls: the same globs over plain directories are placed and clean.
         assert.deepStrictEqual(

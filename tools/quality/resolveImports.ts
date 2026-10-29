@@ -168,31 +168,37 @@ export const readSources = Effect.fn("readSources")(function* readSources(
   const realRoot = yield* fs.realPath(root);
   const resolve = yield* makeResolver(root);
 
-  /** Whether a symbolic link is anywhere in `directory` (from the root): its longest existing prefix is not its real path. */
-  const linkIn = (directory: string) =>
-    Effect.gen(function* findLink() {
+  /**
+   * Why `directory` (from the root) is not plain, or none when it is: each of its segments is looked at with `lstat`, so a
+   * symbolic link is refused whether or not its target exists, and a segment that is not there at all is refused (an
+   * absent directory cannot be placed, and a link may be put in its place).
+   */
+  const directoryRefusal = (directory: string) =>
+    Effect.gen(function* inspectDirectory() {
       const names = Arr.filter(directory.split("/"), (name) => name !== "");
 
-      const prefix = yield* Effect.findFirst(
-        Arr.makeBy(names.length + 1, (cut) => names.length - cut),
-        (length) =>
-          fs.exists(`${root}/${Arr.join(Arr.take(names, length), "/")}`)
-      );
+      for (const length of Arr.makeBy(names.length, (index) => index + 1)) {
+        const segment = Arr.join(Arr.take(names, length), "/");
+        const info = yield* Effect.option(fs.lstat(`${root}/${segment}`));
 
-      const kept = Arr.take(
-        names,
-        Option.getOrElse(prefix, () => 0)
-      );
+        if (Option.isNone(info)) {
+          return Option.some(`its directory ${segment} does not exist`);
+        }
 
-      const lexical = Arr.join([realRoot, ...kept], "/");
+        if (info.value.type === "SymbolicLink") {
+          return Option.some(
+            `a symbolic link (${segment}) is in its directory`
+          );
+        }
+      }
 
-      return (yield* fs.realPath(`${root}/${Arr.join(kept, "/")}`)) !== lexical;
+      return Option.none<string>();
     });
 
   /**
    * Places one pattern of an `import.meta.glob`, or says why not. The check does not model Vite's matcher: a pattern is
-   * placed only when it is of the closed grammar of `parseGlob`, its literal directory holds no symbolic link (so the
-   * real directory is the one written), and the walk of what it can reach (`wildcardRefusal`) meets no link and no
+   * placed only when it is of the closed grammar of `parseGlob`, its directory exists and holds no symbolic link, dangling or
+   * not (so the real directory is the one written), and the walk of what it can reach (`wildcardRefusal`) meets no link and no
    * `node_modules` and reads no more than `maxGlobEntries` entries.
    */
   const place = Effect.fn("placePattern")(function* placePattern(
@@ -211,8 +217,10 @@ export const readSources = Effect.fn("readSources")(function* readSources(
 
     const { directory, glob } = written.success;
 
-    if (yield* linkIn(directory)) {
-      return Result.fail(`a symbolic link is in its directory ${directory}`);
+    const unplain = yield* directoryRefusal(directory);
+
+    if (Option.isSome(unplain)) {
+      return Result.fail(unplain.value);
     }
 
     const refused = yield* wildcardRefusal(

@@ -20,11 +20,11 @@ const walk = (
 /**
  * The one pattern that the check places, as a grammar and not as a model of Vite's matcher: `./` or one or more `../`;
  * literal directories of letters, digits, `_` and `-` (so no `.` or `..` segment and no wildcard); optionally one `**\/`;
- * and a last segment `*.ext` or `*.{ext,ext}` with `ext` letters and digits. Nothing else is read: no other brace, no
+ * and a last segment `*.ext` or `*.{ext,ext}` (a brace of two or more: picomatch keeps `{ext}` as literal text) with `ext` letters and digits. Nothing else is read: no other brace, no
  * range, no `?`, `[]`, `()`, `!`, no backslash, no `base`.
  */
 const grammar =
-  /^(?<directory>(?:\.\/|(?:\.\.\/)+)(?:[A-Za-z0-9_-]+\/)*)(?<deep>\*\*\/)?\*\.(?:(?<one>[A-Za-z0-9]+)|\{(?<many>[A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)\})$/u;
+  /^(?<directory>(?:\.\/|(?:\.\.\/)+)(?:[A-Za-z0-9_-]+\/)*)(?<deep>\*\*\/)?\*\.(?:(?<one>[A-Za-z0-9]+)|\{(?<many>[A-Za-z0-9]+(?:,[A-Za-z0-9]+)+)\})$/u;
 
 /** A pattern of the grammar: the directory it starts in (from the importer's), whether it descends, and the extensions. */
 export interface Glob {
