@@ -3,7 +3,7 @@
  * The Worker only reports facts; the verdict lives here, so a Worker that misreports
  * cannot grade itself. `smoke.ts` gathers the answers and prints these lines.
  */
-import { Array as Arr, Match, Option } from "effect";
+import { Array as Arr, Match, Option, String as Str } from "effect";
 import * as Formatter from "effect/Formatter";
 
 import {
@@ -40,11 +40,11 @@ export const connectVerdict = (connect: typeof Protocol.Connect.Type) =>
   verdict(
     connect.sqlOne === 1 &&
       connect.drizzleOne === 1 &&
-      connect.hyperdriveHost.endsWith(HYPERDRIVE_HOST_SUFFIX) &&
+      Str.endsWith(HYPERDRIVE_HOST_SUFFIX)(connect.hyperdriveHost) &&
       connect.user === EXPECTED_ROLE,
     `select 1 = ${connect.sqlOne} through the SqlClient and ${connect.drizzleOne} through Drizzle; ` +
       `the Worker's only database address is Hyperdrive (${connect.hyperdriveHost}); ` +
-      `${connect.user}@${connect.database}, ${connect.version.split(" on ")[0] ?? connect.version}; ` +
+      `${connect.user}@${connect.database}, ${Str.split(connect.version, " on ")[0] ?? connect.version}; ` +
       `Worker version ${connect.workerVersion}`
   );
 
@@ -267,5 +267,5 @@ const CPU_LIMIT = /1102|exceeded.*(?:cpu|resource)/iu;
 /** Why a request produced no answer; the evidence of a failed check. */
 export const describeRefusal = (status: number, message: string) =>
   CPU_LIMIT.test(message)
-    ? `HTTP ${status}: the Worker hit the Workers CPU limit (${message.slice(0, 120)})`
-    : `HTTP ${status}: ${message.slice(0, 400)}`;
+    ? `HTTP ${status}: the Worker hit the Workers CPU limit (${Str.slice(0, 120)(message)})`
+    : `HTTP ${status}: ${Str.slice(0, 400)(message)}`;

@@ -4,7 +4,7 @@
  * `WorkerEnv`), so this is where a change to the decision fails.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Option } from "effect";
+import { Option, String as Str } from "effect";
 
 import {
   BASE_STAGE,
@@ -31,7 +31,7 @@ describe("spec 0008b: the stage decides whether there is an outbox queue", () =>
       deadLetter: "vp-outbox-production-dlq",
       queue: "vp-outbox-production",
     });
-    assert.isTrue(base.deadLetter.endsWith(DEAD_LETTER_SUFFIX));
+    assert.isTrue(Str.endsWith(DEAD_LETTER_SUFFIX)(base.deadLetter));
     assert.notStrictEqual(base.queue, production.queue);
     assert.notStrictEqual(base.deadLetter, production.deadLetter);
   });

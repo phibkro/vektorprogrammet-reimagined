@@ -20,6 +20,7 @@ import {
   Logger,
   Predicate,
   pipe,
+  String as Str,
 } from "effect";
 import { TestClock } from "effect/testing";
 
@@ -354,7 +355,9 @@ describe("outbox delivery by id (spec 0008b)", () => {
         assert.isNull(tables.outbox[0]?.claimToken);
         assert.isAbove(logged.length, 0, "the defect was logged");
         assert.isFalse(
-          Arr.some(logged, (line) => line.includes("avdeling@example.org")),
+          Arr.some(logged, (line) =>
+            Str.includes("avdeling@example.org")(line)
+          ),
           "the log holds the defect's class, never its text"
         );
       })

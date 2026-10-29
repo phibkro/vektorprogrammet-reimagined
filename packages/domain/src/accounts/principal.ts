@@ -26,7 +26,7 @@ export const codePrincipal = Effect.fn("Account.codePrincipal")(
     const codes = yield* CodeRepository;
     const accounts = yield* AccountRepository;
     const now = yield* DateTime.now;
-    const hash = yield* Effect.orDie(hashCode(token));
+    const hash = yield* hashCode(token);
     const code = yield* codes.findUsable({ hash, now, purpose });
 
     if (Option.isNone(code)) {

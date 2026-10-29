@@ -17,7 +17,15 @@ import {
 } from "@vektorprogrammet/domain";
 import type { NotAnIntegration, Semester } from "@vektorprogrammet/domain";
 import { and, eq } from "drizzle-orm";
-import { Array as Arr, Deferred, Effect, Exit, Fiber, pipe } from "effect";
+import {
+  Array as Arr,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  pipe,
+  String as Str,
+} from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
@@ -77,7 +85,7 @@ const counts = Effect.fnUntraced(function* counts(semester: Semester) {
   const outbox = pipe(
     yield* db.select().from(schema.outbox),
     Arr.filter((row) =>
-      JSON.stringify(row.payload).includes(`semester ${semester.year}`)
+      Str.includes(`semester ${semester.year}`)(JSON.stringify(row.payload))
     )
   );
 

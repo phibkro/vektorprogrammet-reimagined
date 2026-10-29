@@ -4,7 +4,7 @@
  * capabilities (`server/panelAccess.ts`, the one declaration the sidebar and the data guard both read), and
  * sends the sidebar only the sections the actor may use.
  */
-import { Array as Arr, Option } from "effect";
+import { Array as Arr, Option, String as Str } from "effect";
 
 export const PANEL_SECTIONS = [
   {
@@ -78,14 +78,14 @@ export interface NavigationGroup {
 
 /** The section a pathname belongs to (a page below a section's path belongs to it); undefined for a path that is no section. */
 export const sectionOfPath = (pathname: string): PanelSection | undefined => {
-  const path = pathname.replace(/\/$/u, "");
+  const path = Str.replace(/\/$/u, "")(pathname);
 
   return Option.getOrUndefined(
     Arr.findFirst(
       PANEL_SECTIONS,
       (section) =>
         section.to === path ||
-        (section.key !== "overview" && path.startsWith(`${section.to}/`))
+        (section.key !== "overview" && Str.startsWith(`${section.to}/`)(path))
     )
   );
 };

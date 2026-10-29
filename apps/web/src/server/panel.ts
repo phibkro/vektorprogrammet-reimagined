@@ -25,7 +25,14 @@ import {
   semesterLabel,
 } from "@vektorprogrammet/domain";
 import type { Department, Principal, Semester } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Order,
+  String as Str,
+} from "effect";
 
 import { text } from "../lib/formText";
 import { actorSummary, nameOfActor } from "./shell";
@@ -34,7 +41,7 @@ import { actorSummary, nameOfActor } from "./shell";
 
 /** Blank → null. */
 export const optionalText = (form: FormData, name: string): string | null => {
-  const value = text(form, name).trim();
+  const value = Str.trim(text(form, name));
 
   return value === "" ? null : value;
 };
@@ -45,7 +52,7 @@ export const checkbox = (form: FormData, name: string): boolean =>
 
 /** Digits → number; anything else passes through so the domain reports it. */
 export const integer = (raw: string): number | string =>
-  /^-?\d+$/u.test(raw.trim()) ? Number(raw) : raw;
+  /^-?\d+$/u.test(Str.trim(raw)) ? Number(raw) : raw;
 
 /** Optional decimal (latitude/longitude): blank → null. */
 const optionalNumber = (
@@ -58,7 +65,7 @@ const optionalNumber = (
     return null;
   }
 
-  const parsed = Number(raw.replace(",", "."));
+  const parsed = Number(Str.replace(",", ".")(raw));
 
   return Number.isFinite(parsed) ? parsed : raw;
 };
@@ -184,19 +191,9 @@ const departmentRow = (
 });
 
 const byDepartmentName = Order.mapInput(
-  Order.make((left: string, right: string): -1 | 0 | 1 => {
-    const comparison = left.localeCompare(right, "nb");
-
-    if (comparison < 0) {
-      return -1;
-    }
-
-    if (comparison > 0) {
-      return 1;
-    }
-
-    return 0;
-  }),
+  Order.make((left: string, right: string) =>
+    Str.localeCompare(right, ["nb"])(left)
+  ),
   (row: DepartmentRow) => row.name
 );
 

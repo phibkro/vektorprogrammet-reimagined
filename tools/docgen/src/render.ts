@@ -24,7 +24,14 @@ import type {
   Machine,
   RecordRow,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
+import {
+  Array as Arr,
+  Option,
+  Order,
+  Record as Rec,
+  Result,
+  String as Str,
+} from "effect";
 
 interface Entry {
   readonly name: string;
@@ -41,7 +48,7 @@ type Declaration = Domain.Declaration;
 type GrantRow = Grant.Row;
 
 const cell = (value: string): string =>
-  value.replaceAll("|", "\\|").replaceAll("\n", " ");
+  Str.replaceAll("\n", " ")(Str.replaceAll("|", "\\|")(value));
 
 const tableRow = (values: readonly string[]): string =>
   `| ${Arr.join(Arr.map(values, cell), " | ")} |`;
@@ -76,14 +83,14 @@ const alignedTable = (
 
   const line = (values: readonly string[]) =>
     `| ${Arr.join(
-      Arr.map(values, (value, index) => value.padEnd(widths[index] ?? 3)),
+      Arr.map(values, (value, index) => Str.padEnd(widths[index] ?? 3)(value)),
       " | "
     )} |`;
 
   return Arr.join(
     [
       line(headings),
-      line(Arr.map(widths, (width) => "-".repeat(width))),
+      line(Arr.map(widths, (width) => Str.repeat(width)("-"))),
       ...Arr.map(escaped, line),
     ],
     "\n"
@@ -227,26 +234,31 @@ const replaceBlock = (
 ): Result.Result<string, string> => {
   const begin = `<!-- docgen:begin ${id} -->`;
   const end = `<!-- docgen:end ${id} -->`;
-  const first = document.indexOf(begin);
-  const last = document.indexOf(end);
+
+  const positions = Option.all({
+    first: Str.indexOf(begin)(document),
+    last: Str.indexOf(end)(document),
+  });
 
   if (
-    first === -1 ||
-    last < first ||
-    document.includes(begin, first + begin.length) ||
-    document.includes(end, last + end.length)
+    Option.isNone(positions) ||
+    positions.value.last < positions.value.first ||
+    Str.includes(begin, positions.value.first + begin.length)(document) ||
+    Str.includes(end, positions.value.last + end.length)(document)
   ) {
     return Result.fail(`Invalid markers for ${id}`);
   }
 
-  const existing = document.slice(first + begin.length, last);
+  const { first, last } = positions.value;
+
+  const existing = Str.slice(first + begin.length, last)(document);
 
   if (/<!-- docgen:(?:begin|end) /u.test(existing)) {
     return Result.fail(`Nested markers for ${id}`);
   }
 
   return Result.succeed(
-    `${document.slice(0, first)}${begin}\n\n${content}\n\n${document.slice(last)}`
+    `${Str.slice(0, first)(document)}${begin}\n\n${content}\n\n${Str.slice(last)(document)}`
   );
 };
 
@@ -505,16 +517,20 @@ const retentionSchedule = (catalog: CatalogOf): string =>
     ])
   );
 
+/** Where the table ends in a `table.column` name: at its first dot (`-1`, as `indexOf` said it, for a name without one). */
+const dotOf = (name: string): number =>
+  Option.getOrElse(Str.indexOf(".")(name), () => -1);
+
 /** The columns of one row of the record, grouped by the table that holds them. */
 const columnsByTable = (names: readonly string[]): string =>
   Arr.join(
     Arr.map(
       Rec.toEntries(
-        Arr.groupBy(names, (name) => name.slice(0, name.indexOf(".")))
+        Arr.groupBy(names, (name) => Str.slice(0, dotOf(name))(name))
       ),
       ([stored, columns]) =>
         `\`${stored}\`: ${Arr.join(
-          Arr.map(columns, (column) => column.slice(column.indexOf(".") + 1)),
+          Arr.map(columns, (column) => Str.slice(dotOf(column) + 1)(column)),
           ", "
         )}`
     ),

@@ -5,7 +5,7 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { ValidationFailed } from "@vektorprogrammet/domain";
-import { Array as Arr } from "effect";
+import { Array as Arr, Option, String as Str } from "effect";
 import { act } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -84,7 +84,7 @@ describe("OutcomeMessages (issue 26)", () => {
 
     assert.deepStrictEqual(page.alerts(), []);
     assert.strictEqual(
-      page.container.textContent?.split(DATE_REFUSAL).length,
+      Str.split(page.container.textContent ?? "", DATE_REFUSAL).length,
       2
     );
     page.unmount();
@@ -129,8 +129,12 @@ describe("OutcomeMessages (issue 26)", () => {
       page.container.querySelectorAll("input")
     );
 
-    const describedBy =
-      date?.getAttribute("aria-describedby")?.split(" ") ?? [];
+    const describedBy = Option.fromNullishOr(
+      date?.getAttribute("aria-describedby")
+    ).pipe(
+      Option.map(Str.split(" ")),
+      Option.getOrElse((): readonly string[] => [])
+    );
 
     const message = page.container.querySelector(`[id='${describedBy[1]}']`);
 

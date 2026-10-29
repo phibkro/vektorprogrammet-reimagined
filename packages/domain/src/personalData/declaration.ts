@@ -8,7 +8,7 @@
  * These are plain data with constructors; the derivations are in `derive.ts`, the values in `periods.ts` and
  * `texts.ts`, and each domain declares its tables beside its entities (`teams/personalData.ts`, …).
  */
-import { Array as Arr, Record as Rec, Schema } from "effect";
+import { Array as Arr, Record as Rec, Schema, String as Str } from "effect";
 
 /** The consents a person gives. Each has a declared, versioned text (`texts.ts`). */
 export const ConsentKind = Schema.Literals(["keepDetails", "news", "photo"]);
@@ -284,7 +284,7 @@ export const ANONYMISED_EMAIL = {
 
 /** Whether an address is one that anonymisation wrote: the person it names has been erased. */
 export const isAnonymisedEmail = (address: string): boolean =>
-  address.endsWith(ANONYMISED_EMAIL.suffix);
+  Str.endsWith(ANONYMISED_EMAIL.suffix)(address);
 
 /** What a merge says when a constraint refuses a moved row and the rule names no text of its own. */
 export const MERGE_REFUSED =

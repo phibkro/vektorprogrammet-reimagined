@@ -31,7 +31,6 @@ import type {
 import {
   Array as Arr,
   Cause,
-  Crypto,
   DateTime,
   Deferred,
   Effect,
@@ -42,7 +41,9 @@ import {
   Option,
   Predicate,
   Ref,
+  String as Str,
 } from "effect";
+import { SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
@@ -87,7 +88,7 @@ type RunnerServices =
   | Outbox
   | WorkspaceAssignments
   | WorkspaceFacts
-  | Crypto.Crypto
+  | SecureRandom.SecureRandom
   | WorkspaceReports;
 
 /** Fixture approval exercises the automatic schedule without approving production. */
@@ -247,10 +248,9 @@ layer(live, { excludeTestServices: true })(
             yield* reset;
             const transactor = yield* Transactor;
 
-            const fixedCrypto = Crypto.make({
-              digest: (_algorithm, data) => Effect.succeed(data),
-              randomBytes: (size) => new Uint8Array(size),
-            });
+            const fixedRandom = SecureRandom.make(
+              (size) => new Uint8Array(size)
+            );
 
             const request = transactor
               .run(
@@ -258,7 +258,9 @@ layer(live, { excludeTestServices: true })(
                   Effect.provideService(CurrentPrincipal, ADMIN)
                 )
               )
-              .pipe(Effect.provideService(Crypto.Crypto, fixedCrypto));
+              .pipe(
+                Effect.provideService(SecureRandom.SecureRandom, fixedRandom)
+              );
 
             yield* request;
             const second = yield* Effect.exit(request);
@@ -381,7 +383,9 @@ layer(live, { excludeTestServices: true })(
             );
             assert.isTrue(lines.length > 0, "the run logged");
             assert.isFalse(
-              Arr.some(lines, (line) => line.includes("vektorprogrammet.no")),
+              Arr.some(lines, (line) =>
+                Str.includes("vektorprogrammet.no")(line)
+              ),
               "no address in a log line"
             );
             // Negative control: the same logger detects an address if a faulty log includes it.
@@ -389,7 +393,9 @@ layer(live, { excludeTestServices: true })(
               Effect.provide(logs)
             );
             assert.isTrue(
-              Arr.some(lines, (line) => line.includes("vektorprogrammet.no"))
+              Arr.some(lines, (line) =>
+                Str.includes("vektorprogrammet.no")(line)
+              )
             );
           })
       );

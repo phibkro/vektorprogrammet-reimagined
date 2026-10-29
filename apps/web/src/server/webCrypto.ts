@@ -1,20 +1,11 @@
 /**
- * Effect's `Crypto.Crypto` over Web Crypto (`globalThis.crypto`), which both
- * workerd and Node provide. The domain's `storeUpload` uses it for SHA-256
- * content-addressed keys.
+ * The crypto services the domain needs, over Web Crypto (`globalThis.crypto`), which both workerd and Node
+ * provide. `storeUpload` and the codes use `Digest` (SHA-256), and `mintCode` and the Workspace nonce use
+ * `SecureRandom`.
  */
-import { Crypto, Effect, Layer } from "effect";
+import { Layer } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 
-export const webCrypto: Crypto.Crypto = Crypto.make({
-  digest: (algorithm, data) =>
-    Effect.promise(() =>
-      globalThis.crypto.subtle.digest(algorithm, new Uint8Array(data))
-    ).pipe(Effect.map((digest) => new Uint8Array(digest))),
-  randomBytes: (size) =>
-    globalThis.crypto.getRandomValues(new Uint8Array(size)),
-});
-
-export const webCryptoLayer: Layer.Layer<Crypto.Crypto> = Layer.succeed(
-  Crypto.Crypto,
-  webCrypto
-);
+export const webCryptoLayer: Layer.Layer<
+  Digest.Digest | SecureRandom.SecureRandom
+> = Layer.mergeAll(Digest.layerWebCrypto, SecureRandom.layerWebCrypto);

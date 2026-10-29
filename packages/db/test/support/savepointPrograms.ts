@@ -284,8 +284,9 @@ const note = (ledger: Ledger, text: string) => {
 type Needs = InTransaction | Outbox | SqlClient;
 
 /** Whether the exit is a defect that says the proof was not the live one. */
-const refusedExit = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.hasDies(exit) &&
+export const refusedExit = (exit: Exit.Exit<unknown, unknown>) =>
+  Exit.isFailure(exit) &&
+  Cause.hasDies(exit.cause) &&
   Predicate.isTagged("TransactionNotLive")(Cause.squash(exit.cause));
 
 const outcomeOf = (exit: Exit.Exit<unknown, unknown>): Outcome => {

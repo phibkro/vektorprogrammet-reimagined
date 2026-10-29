@@ -1,3 +1,4 @@
+import { String as Str } from "effect";
 import { parseSync, Visitor } from "oxc-parser";
 
 /** JSON numbers are finite; preserve the generator's checks and annotations. */
@@ -23,7 +24,7 @@ export const finiteNumbers = (source: string): string => {
     const start = positions[index];
 
     if (start !== undefined) {
-      result = `${result.slice(0, start)}Finite${result.slice(start + 6)}`;
+      result = `${Str.slice(0, start)(result)}Finite${Str.slice(start + 6)(result)}`;
     }
   }
 

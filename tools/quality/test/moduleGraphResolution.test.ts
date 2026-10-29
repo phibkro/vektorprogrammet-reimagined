@@ -6,7 +6,7 @@
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Record as Rec } from "effect";
+import { Array as Arr, Effect, Record as Rec, String as Str } from "effect";
 
 import { importSpecifiers } from "../importSpecifiers.ts";
 import type { Declaration } from "../moduleGraph.ts";
@@ -45,8 +45,8 @@ const findingsOf = (
     return Arr.filter(
       found,
       (finding) =>
-        !finding.includes(", but no file of ") &&
-        !finding.includes(", which matches no file")
+        !Str.includes(", but no file of ")(finding) &&
+        !Str.includes(", which matches no file")(finding)
     );
   }).pipe(Effect.provide(NodeServices.layer));
 
@@ -1034,6 +1034,18 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
             "its directory apps/web/src/server/nowhere does not exist"
           ),
         ]);
+
+        assert.deepStrictEqual(
+          yield* scannedGlob(globOf("./data/*.json"), {
+            "apps/web/src/server/data": "a file, not a directory\n",
+          }),
+          [
+            refusal(
+              '"./data/*.json"',
+              "its directory apps/web/src/server/data is not a directory"
+            ),
+          ]
+        );
 
         // Controls: the same globs over plain directories are placed and clean.
         assert.deepStrictEqual(

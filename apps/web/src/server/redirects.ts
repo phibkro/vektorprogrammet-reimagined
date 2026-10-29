@@ -5,7 +5,7 @@
  * string form: URL-decoded, relative to the legacy web root, no leading slash).
  */
 import { resolveLegacyFilePath } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Option, Schema } from "effect";
+import { Array as Arr, Effect, Option, Schema, String as Str } from "effect";
 
 /** The fixed legacy aliases, answered with 301. `to` receives the regex match. */
 export const LEGACY_ALIASES: readonly {
@@ -31,8 +31,8 @@ const withSearch = (location: string, search: string): string => {
     return location;
   }
 
-  return location.includes("?")
-    ? `${location}&${search.slice(1)}`
+  return Str.includes("?")(location)
+    ? `${location}&${Str.slice(1)(search)}`
     : `${location}${search}`;
 };
 
@@ -55,9 +55,9 @@ const NONE: LegacyPath = LegacyPathSchema.cases.None.make({});
 
 /** A legacy file path the importer could have registered: no empty, `.`, `..` segments or NUL. */
 const isPlainRelativePath = (path: string): boolean =>
-  !path.includes("\0") &&
+  !Str.includes("\0")(path) &&
   Arr.every(
-    path.split("/"),
+    Str.split(path, "/"),
     (segment) => segment !== "" && segment !== "." && segment !== ".."
   );
 
@@ -79,13 +79,13 @@ export const classifyLegacyPath = (
   let decoded: string;
 
   try {
-    decoded = decodeURIComponent(pathname.slice(1));
+    decoded = decodeURIComponent(Str.slice(1)(pathname));
   } catch {
     return NONE;
   }
 
   return Arr.some(LEGACY_FILE_PREFIXES, (prefix) =>
-    decoded.startsWith(prefix)
+    Str.startsWith(prefix)(decoded)
   ) && isPlainRelativePath(decoded)
     ? LegacyPathSchema.cases.LegacyFile.make({ legacyPath: decoded })
     : NONE;

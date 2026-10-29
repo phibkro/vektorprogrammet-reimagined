@@ -17,7 +17,7 @@
  * `README.md` files and `AGENTS.md` cite a guarantee by its id (`TX3`) with at most a line of summary, and the contract
  * suites (stage 3) read it. The mechanism that an adapter uses today is never part of it.
  */
-import { Array as Arr, Schema } from "effect";
+import { Array as Arr, Schema, String as Str } from "effect";
 import type { Context } from "effect";
 
 import { CodeRepository } from "../accounts/codeRepository.ts";
@@ -100,7 +100,8 @@ export const Exception = Schema.Struct({
 export type Exception = typeof Exception.Type;
 
 /** The class name of a port from its service key: `@vektorprogrammet/domain/shared/Outbox` is `Outbox`. */
-export const portNameOf = (key: string): string => key.split("/").at(-1) ?? key;
+export const portNameOf = (key: string): string =>
+  Str.split(key, "/").at(-1) ?? key;
 
 export const GuaranteeId = Schema.String.check(
   Schema.isPattern(/^[A-Z]{2}\d$/u, { expected: "an id such as TX1" })
@@ -748,7 +749,7 @@ export const problemsOf = (
         );
       }
 
-      if (guarantee.rawWriter.trim() === "") {
+      if (Str.trim(guarantee.rawWriter) === "") {
         problems.push(`${guarantee.id} has no raw-writer case`);
       }
 

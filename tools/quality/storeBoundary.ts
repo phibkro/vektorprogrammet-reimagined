@@ -14,7 +14,7 @@
  * A file must be covered by at most one allowance: a later Oxlint override replaces the rule's options instead of adding
  * to them, so two covering entries would make the lint stricter than the declaration says.
  */
-import { Array as Arr, Record as Rec } from "effect";
+import { Array as Arr, Record as Rec, String as Str } from "effect";
 import type { Option } from "effect";
 
 export type Group = "db" | "drizzle" | "pg" | "sql-pg";
@@ -154,17 +154,17 @@ export const siblingAdapterPattern = {
 };
 
 const escape = (text: string): string =>
-  text.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);
+  Str.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`)(text);
 
 /** A path segment pattern: `*` matches anything but a slash. */
 const star = (part: string): string =>
-  Arr.join(Arr.map(part.split("*"), escape), "[^/]*");
+  Arr.join(Arr.map(Str.split(part, "*"), escape), "[^/]*");
 
 /** A path glob as a regular expression: `**` crosses slashes (`**` and a slash match any number of directories), `*` does not. */
 export const globToRegExp = (glob: string): RegExp => {
   const source = Arr.join(
-    Arr.map(glob.split("**/"), (part) =>
-      Arr.join(Arr.map(part.split("**"), star), ".*")
+    Arr.map(Str.split(glob, "**/"), (part) =>
+      Arr.join(Arr.map(Str.split(part, "**"), star), ".*")
     ),
     "(?:.*/)?"
   );

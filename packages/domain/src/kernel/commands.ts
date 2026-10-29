@@ -9,7 +9,7 @@
  *   in memory, so there is no HTTP surface beside TanStack Start’s.
  * - `decodePayload`, the decoder of a command's payload schema: the form and the handler use the same schema.
  */
-import { Array as Arr, Context, Effect } from "effect";
+import { Array as Arr, Context, Effect, String as Str } from "effect";
 import type { Layer, Option } from "effect";
 import { RpcClient, RpcServer } from "effect/rpc";
 import type { Rpc, RpcGroup } from "effect/rpc";
@@ -70,7 +70,7 @@ export const isStandard = (method: Method): method is StandardMethod =>
 
 /** The verb that a command's name starts with: a standard method itself, or a custom verb without its colon. */
 export const verbOf = (method: Method): string =>
-  isStandard(method) ? method : method.slice(1);
+  isStandard(method) ? method : Str.slice(1)(method);
 
 /** A query changes nothing; a command may. `get` and `list` are queries and every other method is a command. */
 export type Kind = "command" | "query";
@@ -148,7 +148,7 @@ export const inProcess =
     use: (client: RpcClient.RpcClient<Rpcs>) => Effect.Effect<A, E, R>
   ) =>
     Effect.gen(function* inProcessClient() {
-      // Effect 4.0.6 RpcTest.makeClient uses the same no-serialization wiring.
+      // Effect 4.1.0 RpcTest.makeClient uses the same no-serialization wiring.
       const link: RpcLink<Rpcs> = {};
 
       const server = yield* RpcServer.makeNoSerialization(group, {

@@ -8,7 +8,8 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
-import { Console, Context, Effect, Layer, Redacted } from "effect";
+import type { Redacted } from "effect";
+import { Console, Context, Effect, Layer } from "effect";
 
 import { databaseDirectory, importerDirectory, runToEnd } from "./command.ts";
 
@@ -16,7 +17,7 @@ import { databaseDirectory, importerDirectory, runToEnd } from "./command.ts";
 const importFixture = (url: Redacted.Redacted) =>
   runToEnd("bun", ["run", "import:fixture"], {
     cwd: importerDirectory,
-    env: { IMPORT_TARGET_DATABASE_URL: Redacted.value(url) },
+    env: { IMPORT_TARGET_DATABASE_URL: url },
     safeOutputOnFailure: true,
   }).pipe(Effect.flatMap(Console.log));
 
@@ -24,7 +25,7 @@ const importFixture = (url: Redacted.Redacted) =>
 const seedPeople = (url: Redacted.Redacted) =>
   runToEnd("bun", ["run", "db:seed:local"], {
     cwd: databaseDirectory,
-    env: { SEED_TARGET_DATABASE_URL: Redacted.value(url) },
+    env: { SEED_TARGET_DATABASE_URL: url },
   }).pipe(Effect.flatMap(Console.log));
 
 /**

@@ -6,7 +6,14 @@ import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
  * visible label, as a person reads the page.
  */
 import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
-import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Config,
+  Effect,
+  Option,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import { TEST_ACTOR_COOKIE } from "../../src/lib/testActor.ts";
 
@@ -116,7 +123,7 @@ export const tamperWith = async (
 };
 
 const isServerFunctionPost = (response: Response): boolean =>
-  response.url().includes("/_serverFn/") &&
+  Str.includes("/_serverFn/")(response.url()) &&
   response.request().method() === "POST";
 
 /**
@@ -185,14 +192,14 @@ export const textOf = async (locator: Locator): Promise<string> => {
  * out on labels here, independent of the domain function the job uses, so the spec checks the job's answer.
  */
 export const successorOf = (label: string): string => {
-  const [term, year] = label.split(" ");
+  const [term, year] = Str.split(label, " ");
 
   return term === "Vår" ? `Høst ${year}` : `Vår ${Number(year) + 1}`;
 };
 
 /** `"Høst 2026"` → a sort key where a later semester is larger (Vår before Høst within a year). */
 export const semesterKey = (label: string): number => {
-  const [term, year] = label.split(" ");
+  const [term, year] = Str.split(label, " ");
 
   return Number(year) * 2 + (term === "Høst" ? 1 : 0);
 };

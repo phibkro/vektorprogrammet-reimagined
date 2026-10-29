@@ -7,7 +7,7 @@
  */
 import { Dialog } from "@base-ui/react/dialog";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Array as Arr, Option } from "effect";
+import { Array as Arr, Option, String as Str } from "effect";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -36,7 +36,7 @@ export const activeTab = (pathname: string): Option.Option<NavItem> =>
 
     return Arr.some(
       section,
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+      (prefix) => pathname === prefix || Str.startsWith(`${prefix}/`)(pathname)
     );
   });
 

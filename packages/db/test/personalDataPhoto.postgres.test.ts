@@ -16,7 +16,7 @@ import {
   TeamId,
   ValidationFailed,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect } from "effect";
+import { Array as Arr, DateTime, Effect, String as Str } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { postgresDatabase } from "./support/database.ts";
@@ -252,7 +252,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const exit = yield* Effect.exit(
             setPhoto(selfPrincipal(ola.personId), ola.personId, {
               consent: true,
-              photo: `${"0".repeat(64)}.png`,
+              photo: `${Str.repeat(64)("0")}.png`,
             })
           );
 

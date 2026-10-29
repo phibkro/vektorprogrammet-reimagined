@@ -27,6 +27,7 @@ import {
   Predicate,
   Record as Rec,
   pipe,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
@@ -415,7 +416,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             }
 
             // The intent holds a hash until it is delivered or ended: plant a well-formed one to see it removed.
-            const planted = `$2b$12$${"a".repeat(53)}`;
+            const planted = `$2b$12$${Str.repeat(53)("a")}`;
             yield* sql`update outbox set payload = jsonb_set(payload, '{passwordHash}', to_jsonb(${planted}::text)) where id in (${Number(ended)}, ${Number(sent)})`;
 
             yield* sql`update outbox set last_error = 'send_email rejected' where id = ${Number(ended)}`;
@@ -569,7 +570,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             assert.isFalse(
               Arr.some(overview.open, (row) =>
                 Arr.some(Rec.values(row), (value) =>
-                  String(value).includes("hemmelig")
+                  Str.includes("hemmelig")(String(value))
                 )
               ),
               "the overview holds no message content"

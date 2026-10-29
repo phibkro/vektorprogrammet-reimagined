@@ -6,7 +6,6 @@ import { assert } from "@effect/vitest";
 import {
   Array as Arr,
   Context,
-  Crypto,
   DateTime,
   Effect,
   Exit,
@@ -14,7 +13,9 @@ import {
   Option,
   Ref,
   Stream,
+  String as Str,
 } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 
 import {
   AlreadyExists,
@@ -39,6 +40,7 @@ import {
   SlackChannel,
   SocialEventId,
   SocialEventRepository,
+  TeamsEndpoints,
   TeamId,
   isListed,
 } from "../../src/index.ts";
@@ -96,13 +98,13 @@ export class TestDb extends Context.Service<
 export const departmentForTest = (
   id: DepartmentId,
   city: string,
-  shortName = city.toUpperCase(),
+  shortName: string = Str.toUpperCase(city),
   slackChannel: string | null = null
 ): Department => ({
   active: true,
   address: null,
   city,
-  email: EmailAddress.make(`${city.toLowerCase()}@example.org`),
+  email: EmailAddress.make(`${Str.toLowerCase(city)}@example.org`),
   id,
   latitude: null,
   logoKey: null,
@@ -418,22 +420,9 @@ const InTransactionTest = Layer.succeed(InTransaction)({
 });
 
 /** Web Crypto from the Node test runtime (Workers provide the same API). */
-const CryptoTest = Layer.succeed(Crypto.Crypto)(
-  Crypto.make({
-    digest: (algorithm, data) =>
-      Effect.map(
-        Effect.promise(
-          globalThis.crypto.subtle.digest.bind(
-            globalThis.crypto.subtle,
-            algorithm,
-            new Uint8Array(data)
-          )
-        ),
-        (buffer) => new Uint8Array(buffer)
-      ),
-    randomBytes: (size) =>
-      globalThis.crypto.getRandomValues(new Uint8Array(size)),
-  })
+const CryptoTest = Layer.mergeAll(
+  Digest.layerWebCrypto,
+  SecureRandom.layerWebCrypto
 );
 
 /** The origin that links in test messages carry. */
@@ -478,6 +467,16 @@ export const admin = Principal.cases.Person.make({
   memberships: [],
   personId: PersonId.make(100),
 });
+
+/** The admin registers a person, whose address is the lower-case name at example.org. */
+export const newPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
+  asPrincipal(admin)(
+    TeamsEndpoints.createPerson({
+      email: `${Str.toLowerCase(name)}@example.org`,
+      fieldOfStudyId,
+      name,
+    })
+  );
 
 /** A leader of a team in Trondheim. */
 export const teamLeaderTrondheim = Principal.cases.Person.make({

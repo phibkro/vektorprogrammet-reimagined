@@ -35,6 +35,7 @@ import {
   Redacted,
   Result,
   Schema,
+  String as Str,
 } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -54,7 +55,7 @@ const root = new URL("..", import.meta.url).pathname;
 const COMPATIBILITY_FLAGS = [...CMS_COMPATIBILITY_FLAGS, "new_module_registry"];
 
 /** A key in EmDash's format (`emdash secrets generate`): this Worker never stores a secret, it only reads the key. */
-const ENCRYPTION_KEY = `emdash_enc_v1_${"A".repeat(43)}`;
+const ENCRYPTION_KEY = `emdash_enc_v1_${Str.repeat(43)("A")}`;
 
 /** What `/_emdash/api/setup/status` answers on a database where nobody has finished the setup. */
 const SetupStatus = Schema.Struct({
@@ -95,7 +96,7 @@ const throwingRequires = (
     const ids = Arr.dedupe(
       Arr.filter(
         Arr.map(
-          [...text.matchAll(REQUIRE_OF)],
+          [...Str.matchAll(REQUIRE_OF)(text)],
           (match) => match.groups?.id ?? ""
         ),
         (id) => NODE_BUILTINS.has(id)

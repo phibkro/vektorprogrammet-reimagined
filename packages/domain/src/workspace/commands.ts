@@ -10,7 +10,6 @@
  */
 import {
   Array as Arr,
-  Crypto,
   DateTime,
   Effect,
   Match,
@@ -18,7 +17,9 @@ import {
   Order,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
+import { SecureRandom } from "effect/crypto";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import { requestPeriod } from "../jobs/job.ts";
@@ -343,7 +344,7 @@ const accountsChunk = Effect.fnUntraced(function* accountsChunk(
 
   yield* reports.open({
     actual: directory.unavailable === null ? "read" : "unavailable",
-    mode: period.startsWith("request:") ? "dry-run" : configuredMode,
+    mode: Str.startsWith("request:")(period) ? "dry-run" : configuredMode,
     period,
     semester,
   });
@@ -421,9 +422,7 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
         yield* InTransaction;
         const now = yield* DateTime.now;
 
-        const nonce = yield* Effect.orDie(
-          (yield* Crypto.Crypto).randomUUIDv4()
-        );
+        const nonce = yield* (yield* SecureRandom.SecureRandom).uuidV4();
 
         const period = requestPeriod(`${DateTime.toEpochMillis(now)}-${nonce}`);
 

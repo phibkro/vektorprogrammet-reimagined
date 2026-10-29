@@ -37,7 +37,7 @@
  * - a cast object that has the key (`{ key } as unknown as typeof InTransaction`) when the key is not a whole literal.
  */
 import { InTransaction } from "@vektorprogrammet/domain";
-import { Array as Arr, Predicate, Record as Rec } from "effect";
+import { Array as Arr, Predicate, Record as Rec, String as Str } from "effect";
 import { Visitor, parseSync, visitorKeys } from "oxc-parser";
 import type {
   Expression,
@@ -79,7 +79,7 @@ const NOT_TYPES = new Set([
 /** The type nodes, and with them whether the visitor is inside a type. */
 const typeNodes = Arr.filter(
   Rec.keys(visitorKeys),
-  (type) => type.startsWith("TS") && !NOT_TYPES.has(type)
+  (type) => Str.startsWith("TS")(type) && !NOT_TYPES.has(type)
 );
 
 /** The text that a name, a string literal or a template without substitutions gives; `undefined` for anything else. */
@@ -173,7 +173,7 @@ export const proofReferences = (
   const depth = { inType: 0 };
 
   const hold = (at: { readonly start: number }) => {
-    found.push(text.slice(0, at.start).split("\n").length);
+    found.push(Str.split(Str.slice(0, at.start)(text), "\n").length);
   };
 
   /** What is named by the node at `start` is not a reference: a key, a binding, a specifier. */

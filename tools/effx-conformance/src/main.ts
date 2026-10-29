@@ -5,8 +5,16 @@
  * vectors with the checkout of effx that `EFFX_DIR` names, at any commit, and writes nothing: it fails when they are
  * not the committed ones (gate G2, the weekly check of `.github/workflows/effx-drift.yml`).
  */
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Array as Arr, Console, Effect, FileSystem, Path } from "effect";
+import { NodeCrypto, NodeRuntime, NodeServices } from "@effect/platform-node";
+import {
+  Array as Arr,
+  Console,
+  Effect,
+  FileSystem,
+  Layer,
+  Path,
+  String as Str,
+} from "effect";
 import { Command } from "effect/cli";
 
 import { descriptionFile, directory, gapsFile } from "./artefacts.ts";
@@ -24,7 +32,7 @@ const generate = Command.make(
     const stale = Arr.filter(
       yield* fs.readDirectory(directory),
       (name) =>
-        name.endsWith(".description.json") &&
+        Str.endsWith(".description.json")(name) &&
         !Arr.some(
           derived.descriptions,
           ({ domain }) => name === `${domain}.description.json`
@@ -70,6 +78,6 @@ NodeRuntime.runMain(
   Command.make("vektorprogrammet-effx-conformance").pipe(
     Command.withSubcommands([generate, regeneration, drifting]),
     Command.run({ version: "0.0.0" }),
-    Effect.provide(NodeServices.layer)
+    Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layerDigest))
   )
 );

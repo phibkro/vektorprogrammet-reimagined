@@ -1,4 +1,4 @@
-import { Array as Arr, Effect, FileSystem, Path } from "effect";
+import { Array as Arr, Effect, FileSystem, Path, String as Str } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { isProbe } from "./probes.ts";
@@ -56,7 +56,7 @@ export const workingTreePaths = Effect.fn("workingTreePaths")(
     return Arr.flatten(
       yield* Effect.forEach(
         Arr.filter(
-          listing.split(/\r?\n/u),
+          Str.split(listing, /\r?\n/u),
           (file) => file !== "" && !isProbe(file) && keep(file)
         ),
         (file) =>

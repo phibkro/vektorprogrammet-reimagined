@@ -5,7 +5,8 @@
  * server is a child process owned by the scope that starts it: closing the scope stops its whole process group
  * (`vp`, Vite and workerd).
  */
-import { Effect, Redacted, Schedule, Schema } from "effect";
+import type { Redacted } from "effect";
+import { Effect, Schedule, Schema } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -65,9 +66,9 @@ export const startDevServer = Effect.fn("startDevServer")(
         {
           cwd: options.webDirectory,
           env: {
-            CMS_TOKEN: Redacted.value(options.cms.token),
+            CMS_TOKEN: options.cms.token,
             CMS_URL: options.cms.origin,
-            DATABASE_URL: Redacted.value(options.databaseUrl),
+            DATABASE_URL: options.databaseUrl,
             SITE_URL: origin,
             TURNSTILE_SECRET_KEY: TURNSTILE_TEST_KEYS.secretKey,
             TURNSTILE_SITE_KEY: TURNSTILE_TEST_KEYS.siteKey,

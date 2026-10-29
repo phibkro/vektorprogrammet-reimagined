@@ -9,7 +9,7 @@
  * lets a caller choose them.
  */
 import { EmailAddress, OutboxMessage } from "@vektorprogrammet/domain";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, String as Str } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 
@@ -49,7 +49,7 @@ export const FAR_AHEAD = DateTime.makeUnsafe("2100-01-01T12:00:00Z");
 const at = (instant: DateTime.Utc): Date => DateTime.toDateUtc(instant);
 
 /** The 64 hex characters that a stored code hash and a file key's hash must be. */
-const SHA = "a".repeat(64);
+const SHA = Str.repeat(64)("a");
 
 const flag = (rows: readonly { readonly present: boolean }[]): boolean =>
   rows[0]?.present === true;
@@ -295,7 +295,7 @@ export const builders = {
   "company_address(address,person_id)": fromActivity(
     (sql, { personId, tag }) =>
       sql`insert into company_address (address, person_id)
-        values (${`${tag.toLowerCase()}@vektorprogrammet.no`}, ${personId})`,
+        values (${`${Str.toLowerCase(tag)}@vektorprogrammet.no`}, ${personId})`,
     (sql, { personId }) =>
       Effect.map(
         sql<{

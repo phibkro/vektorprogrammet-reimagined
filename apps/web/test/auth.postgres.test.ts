@@ -49,6 +49,7 @@ import {
   Redacted,
   Ref,
   Schema,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { Pool } from "pg";
@@ -106,7 +107,7 @@ const seed = Effect.gen(function* seedAuthPeople() {
     [102, "Active"],
     [103, "Deactivated"],
   ] as const) {
-    const email = `${state.toLowerCase()}@example.org`;
+    const email = `${Str.toLowerCase(state)}@example.org`;
     const user = `auth-${id}`;
     yield* sql`insert into person (id, name, email, email_verified, field_of_study_id) values (${id}, ${state}, ${email}, true, 101)`;
     yield* sql`insert into account (person_id, state) values (${id}, ${state})`;
@@ -158,7 +159,7 @@ const startAbortable = <E>(
 
 const cookieOf = (response: Response): string => {
   const token = Arr.findFirst(response.headers.getSetCookie(), (value) =>
-    value.includes("session_token=")
+    Str.includes("session_token=")(value)
   );
 
   assert.isTrue(
@@ -166,7 +167,12 @@ const cookieOf = (response: Response): string => {
     "successful sign-in returns a session cookie"
   );
 
-  return Option.getOrElse(token, () => "").split(";")[0] ?? "";
+  return (
+    Str.split(
+      Option.getOrElse(token, () => ""),
+      ";"
+    )[0] ?? ""
+  );
 };
 
 const text = (response: Response) => Effect.promise(() => response.text());
@@ -740,10 +746,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         assert.strictEqual(pending.payload.personId, 102);
         assert.strictEqual(pending.payload.purpose, "resetPassword");
 
-        const code = yield* mintCode().pipe(
-          Effect.provide(webCryptoLayer),
-          Effect.orDie
-        );
+        const code = yield* mintCode().pipe(Effect.provide(webCryptoLayer));
 
         const now = yield* DateTime.now;
         yield* transacted(
@@ -787,10 +790,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
     "a code that opens nothing is refused, and the refusal names the command of the code's purpose (spec 0007c R2)",
     () =>
       Effect.gen(function* unknownCode() {
-        const code = yield* mintCode().pipe(
-          Effect.provide(webCryptoLayer),
-          Effect.orDie
-        );
+        const code = yield* mintCode().pipe(Effect.provide(webCryptoLayer));
 
         const provided = Effect.provide(
           Layer.merge(webCryptoLayer, passwordHasherLayer)
@@ -1061,7 +1061,9 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         );
 
         assert.isFalse(leaky.admitted);
-        assert.isTrue(Arr.some(leaky.logged, (line) => line.includes(typed)));
+        assert.isTrue(
+          Arr.some(leaky.logged, (line) => Str.includes(typed)(line))
+        );
 
         // The lookup fails for real: the query names a column that is gone, and Drizzle reports the SQL it ran.
         yield* Effect.acquireRelease(
@@ -1077,7 +1079,9 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         assert.isFalse(failed.admitted);
         // The failure was reported, so the assertion below reads a log that has the failure in it.
         assert.isAbove(failed.logged.length, 0);
-        assert.isFalse(Arr.some(failed.logged, (line) => line.includes(typed)));
+        assert.isFalse(
+          Arr.some(failed.logged, (line) => Str.includes(typed)(line))
+        );
       }).pipe(Effect.scoped)
   );
 

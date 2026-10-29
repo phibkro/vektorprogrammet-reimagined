@@ -79,6 +79,6 @@ Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; 
 
 - `CurrentPrincipal`: `Anonymous`, or the person's facts (`PrincipalDirectory`; Phase 2: the local test person, spec 0007 adds sign-in); a job provides `System(job)`.
 - `SiteOrigin`: the deployment's origin, for the links in messages.
-- `Crypto.Crypto` (effect): a Web Crypto implementation (`Crypto.make`), used by `storeUpload` for SHA-256.
+- `Digest.Digest` and `SecureRandom.SecureRandom` (`effect/crypto`): the Web Crypto layers (`Digest.layerWebCrypto`, `SecureRandom.layerWebCrypto`), used by `storeUpload` and the codes for SHA-256 and random bytes.
 - `FileStore`: the R2 binding.
 - `Clock`: Effect's default clock; tests use `TestClock`.

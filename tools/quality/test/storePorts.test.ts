@@ -6,7 +6,13 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { NotStorePorts, TransactionModes } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Order, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Order,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import { domainSources } from "./support/sources.ts";
 
@@ -15,7 +21,7 @@ const serviceClass =
 
 /** The names of the services that `text` declares as classes. */
 export const servicesDeclared = (text: string): readonly string[] =>
-  Arr.flatMap(Arr.fromIterable(text.matchAll(serviceClass)), (match) =>
+  Arr.flatMap(Arr.fromIterable(Str.matchAll(serviceClass)(text)), (match) =>
     match.groups?.name === undefined ? [] : [match.groups.name]
   );
 

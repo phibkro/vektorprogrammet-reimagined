@@ -1,4 +1,4 @@
-import { Array as Arr, Order, Result } from "effect";
+import { Array as Arr, Order, Result, String as Str } from "effect";
 
 interface Locked {
   readonly name: string;
@@ -13,7 +13,7 @@ const entry =
 const ownLine = /^@effect\/tsgo(?:-|$)/u;
 
 const locked = (lock: string): readonly Locked[] =>
-  Arr.filterMap(Arr.fromIterable(lock.matchAll(entry)), ({ groups }) =>
+  Arr.filterMap(Arr.fromIterable(Str.matchAll(entry)(lock)), ({ groups }) =>
     groups?.name === undefined || groups.version === undefined
       ? Result.failVoid
       : Result.succeed({ name: groups.name, version: groups.version })
@@ -50,3 +50,26 @@ export const effectFamilyDrift = (lock: string): readonly string[] => {
       : Result.succeed(`${name} is locked at ${version}, effect at ${effect}`)
   );
 };
+
+/** A workspace file that pins `@effect/tsgo`, and the version it pins. */
+export interface TsgoPin {
+  readonly file: string;
+  readonly version: string;
+}
+
+/**
+ * Sentences that describe how the workspace pins of `@effect/tsgo` step out of line with the root's. The lint presets
+ * (`@effect/tsgo/oxlint-presets`) and the diagnostic rules resolve from the nearest `node_modules`, so a package that
+ * keeps its own pin feeds its own, older rules to its own lint run. Empty when every pin is the root's.
+ */
+export const tsgoPinDrift = (
+  root: TsgoPin,
+  pins: readonly TsgoPin[]
+): readonly string[] =>
+  Arr.filterMap(pins, ({ file, version }) =>
+    version === root.version
+      ? Result.failVoid
+      : Result.succeed(
+          `${file} pins @effect/tsgo ${version}, ${root.file} pins ${root.version}`
+        )
+  );

@@ -10,7 +10,7 @@
  * (Playwright takes the files in name order) and may change what this story leaves behind.
  */
 import { expect, test } from "@playwright/test";
-import { Array as Arr, Order } from "effect";
+import { Array as Arr, Order, String as Str } from "effect";
 
 import {
   TEST_ADMIN,
@@ -161,7 +161,7 @@ test("step 2 (RULE-237, RULE-050, spec 0003): the semesters come newest first, t
     .filter({ has: page.getByText("Nåværende", { exact: true }) });
 
   const current = await textOf(currentRow);
-  const currentLabel = current.replace("Nåværende", "").trim();
+  const currentLabel = Str.trim(Str.replace("Nåværende", "")(current));
 
   expect(labels.indexOf(currentLabel)).toBeGreaterThan(0);
   expect(labels[labels.indexOf(currentLabel) - 1]).toBe(

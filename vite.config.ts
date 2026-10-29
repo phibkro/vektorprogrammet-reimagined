@@ -67,7 +67,6 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/server/fileStore.ts",
         "apps/web/src/server/senders.ts",
         "apps/web/src/server/errors.ts",
-        "apps/web/src/server/webCrypto.ts",
         "apps/web/src/server/rateLimit.ts",
         "apps/web/src/server/panel.ts",
         "apps/web/src/server/shell.ts",
@@ -563,7 +562,6 @@ export default defineConfig({
           "apps/web/test/outboxQueue.postgres.test.ts",
           "apps/web/test/support/fakeQueue.ts",
           "apps/web/test/outboxPublisher.test.ts",
-          "apps/web/src/server/webCrypto.ts",
           "apps/web/src/routes/*.tsx",
           "apps/web/src/routes/team/**",
           "apps/web/src/routes/nyheter/index.tsx",
@@ -585,11 +583,6 @@ export default defineConfig({
           "promise/prefer-await-to-then": "off",
           "typescript/promise-function-async": "off",
         },
-      },
-      {
-        // The Web Crypto adapter implements Effect's Crypto service using the Worker runtime capability.
-        files: ["apps/web/src/server/webCrypto.ts"],
-        rules: { "effect/no-ambient-authority": "off" },
       },
       {
         // TanStack loaders signal not-found, redirects and page failures by throwing host control-flow objects.

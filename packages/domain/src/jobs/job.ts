@@ -8,7 +8,7 @@
  * semester); `job_run` claims `(job, period)` once, so a period is run by one runner at a time and a finished one is
  * not run again.
  */
-import { Array as Arr, DateTime, Match, Schema } from "effect";
+import { Array as Arr, DateTime, Match, Schema, String as Str } from "effect";
 
 import { SystemJob, systemPrincipal } from "../kernel/principal.ts";
 import type { SystemPrincipal } from "../kernel/principal.ts";
@@ -157,7 +157,7 @@ export const describeDueWhen = (rule: DueWhen): string =>
       BeforeSemesterEnd: ({ weeks }) =>
         `every tick in the last ${weeks} weeks of the semester`,
       Daily: ({ hour }) =>
-        `once a day from ${String(hour).padStart(2, "0")}:00 (Europe/Oslo)`,
+        `once a day from ${Str.padStart(2, "0")(String(hour))}:00 (Europe/Oslo)`,
       EveryTick: () => "every tick",
       PerSemester: () => "once per semester",
     })

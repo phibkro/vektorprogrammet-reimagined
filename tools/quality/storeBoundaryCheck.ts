@@ -1,4 +1,11 @@
-import { Array as Arr, Effect, FileSystem, Option, Path } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  Path,
+  String as Str,
+} from "effect";
 
 import { importSpecifiers, resolveFrom } from "./importSpecifiers.ts";
 import {
@@ -28,7 +35,7 @@ const groupOfImport = (
   importer: string,
   specifier: string
 ): Option.Option<Group> =>
-  specifier.startsWith(".")
+  Str.startsWith(".")(specifier)
     ? Option.orElse(groupOf(specifier), () =>
         Option.filter(
           groupOf(resolveFrom(importer, specifier)),

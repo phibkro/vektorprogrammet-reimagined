@@ -14,6 +14,7 @@ import {
   Option,
   Predicate,
   Record as Rec,
+  String as Str,
 } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 import type { Rpc, RpcGroup } from "effect/rpc";
@@ -339,7 +340,7 @@ const misnamed = (declaration: Declaration) =>
       return tag === exact ? [] : [`${declared}, so its name must be ${exact}`];
     }
 
-    return tag.startsWith(verb)
+    return Str.startsWith(verb)(tag)
       ? []
       : [`${declared}, so its name must start with ${verb}`];
   });

@@ -11,7 +11,14 @@ import type {
   ValidationFailed,
   IntegrationTypeId,
 } from "@vektorprogrammet/domain";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import {
+  Context,
+  Effect,
+  Layer,
+  Redacted,
+  Schema,
+  String as Str,
+} from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
 export const CAPTCHA_FIELD = "captcha";
@@ -66,7 +73,7 @@ export const turnstileLiveLayer = (
           token,
           remoteIp,
         }) {
-          if (token === null || token.trim() === "") {
+          if (token === null || Str.trim(token) === "") {
             return yield* captchaRejected();
           }
 

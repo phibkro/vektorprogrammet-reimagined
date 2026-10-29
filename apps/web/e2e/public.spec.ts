@@ -13,7 +13,14 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Config,
+  Effect,
+  Option,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import {
   paragraph,
@@ -140,7 +147,7 @@ for (const { h1, h2, path } of PAGES) {
       ).toBeVisible();
     }
 
-    await screenshot(page, `public${path.replaceAll("/", "-")}`);
+    await screenshot(page, `public${Str.replaceAll("/", "-")(path)}`);
   });
 }
 
@@ -294,7 +301,7 @@ test("falsifier 3 (RULE-167): a post without a Turnstile answer is refused with 
   const answered = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      new URL(response.url()).pathname.startsWith("/kontakt")
+      Str.startsWith("/kontakt")(new URL(response.url()).pathname)
   );
 
   await page.getByRole("button", { name: "Send melding" }).click();

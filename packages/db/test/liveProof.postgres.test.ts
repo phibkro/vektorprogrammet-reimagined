@@ -49,7 +49,6 @@ import {
 import type { Duration } from "effect";
 import {
   Array as Arr,
-  Cause,
   Context,
   Deferred,
   Effect,
@@ -58,7 +57,6 @@ import {
   Layer,
   Option,
   Order,
-  Predicate,
   Record as Rec,
   Scope,
 } from "effect";
@@ -76,6 +74,7 @@ import {
   slackChannel,
 } from "./support/fixtures.ts";
 import { describeExit } from "./support/race.ts";
+import { refusedExit } from "./support/savepointPrograms.ts";
 import { twoPeople, world } from "./support/teamsWorld.ts";
 
 type Proof = InTransaction["Service"];
@@ -138,13 +137,8 @@ const WRITERS = {
   "Outbox.enqueue": { rows: outboxRows, write: enqueue },
 } satisfies Readonly<Record<string, Writer>>;
 
-/** Whether the exit is a defect that says the proof was not the live one. */
-const refused = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.hasDies(exit) &&
-  Predicate.isTagged("TransactionNotLive")(Cause.squash(exit.cause));
-
 const assertRefused = (exit: Exit.Exit<unknown, unknown>, label: string) => {
-  assert.isTrue(refused(exit), `${label}: ${describeExit(exit)}`);
+  assert.isTrue(refusedExit(exit), `${label}: ${describeExit(exit)}`);
 };
 
 /** What the forgeries run against: a port that a program of the store's reaches, `Outbox` or `AuditLog`. */
@@ -597,7 +591,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
               Exit.isSuccess(outer) &&
                 (Exit.isSuccess(outer.value[1])
                   ? kept === 1
-                  : refused(outer.value[1]) && kept === 0),
+                  : refusedExit(outer.value[1]) && kept === 0),
               `round ${round}: ${describeExit(outer)}, ${kept} rows kept`
             );
           }
@@ -721,7 +715,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
           Exit.isSuccess(outer) &&
             (Exit.isSuccess(outer.value)
               ? kept === 1
-              : refused(outer.value) && kept === 0),
+              : refusedExit(outer.value) && kept === 0),
           `${describeExit(outer)}, ${kept} rows kept`
         );
       }),
@@ -1094,7 +1088,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
 
       const holds = Exit.isSuccess(methodExit)
         ? rows === 2
-        : refused(methodExit) && rows === 0;
+        : refusedExit(methodExit) && rows === 0;
 
       return holds
         ? ""
@@ -1240,7 +1234,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
             assert.isTrue(Exit.isSuccess(nested), describeExit(nested));
 
             assert.isTrue(
-              Option.isSome(answer) && refused(answer.value),
+              Option.isSome(answer) && refusedExit(answer.value),
               `a nested level asked for while a method of the level around it is blocked in the database: ${Option.isSome(answer) ? describeExit(answer.value) : "not refused within 2 seconds"}`
             );
           })

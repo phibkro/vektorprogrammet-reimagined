@@ -67,6 +67,7 @@ import {
   Predicate,
   Record as Rec,
   Stream,
+  String as Str,
 } from "effect";
 import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
@@ -163,7 +164,7 @@ const CMS_SEEDS = {
   },
 } satisfies Record<"empty" | "seeded", Partial<CmsSeed>>;
 
-const KEY_SMALL = `${"a".repeat(64)}.png`;
+const KEY_SMALL = `${Str.repeat(64)("a")}.png`;
 const LEGACY_PATH = "Offentlige filer/logo.png";
 const TEAM_ID = 1;
 const LOCAL_PERSON = "Lise Leder";
@@ -347,7 +348,7 @@ const requestServices = (url: Redacted.Redacted) =>
 /** The fixture: a department with a field of study, and a file. */
 const SEED = [
   `insert into public_file (key, sha256, content_type, name, size, uploaded_at, legacy_path) values
-     ('${KEY_SMALL}', '${"a".repeat(64)}', 'image/png', 'liten.png', 1, now(), '${LEGACY_PATH}')`,
+     ('${KEY_SMALL}', '${Str.repeat(64)("a")}', 'image/png', 'liten.png', 1, now(), '${LEGACY_PATH}')`,
   `insert into department (id, city, email, name, short_name, active, logo_key) values
      (1, 'Alfaby', 'kontakt@alfa.example', 'Avdeling Alfa', 'ALFA', true, '${KEY_SMALL}'),
      (2, 'Betaby', 'kontakt@beta.example', 'Avdeling Beta', 'BETA', false, null)`,
@@ -582,8 +583,8 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
       Rec.toEntries(SOURCES),
       ([file, text]) =>
         [
-          file.replace("../src/", ""),
-          Arr.length(text.match(/\brunQuery\(/gu) ?? []),
+          Str.replace("../src/", "")(file),
+          Arr.length(Arr.fromIterable(Str.matchAll(/\brunQuery\(/gu)(text))),
         ] as const
     );
 
@@ -601,7 +602,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
   it("falsifier 4: no semester create command or server function exists, and the registry's runner is the only caller of the semester job", () => {
     const files = Arr.map(
       Rec.toEntries(SOURCES),
-      ([file, text]) => [file.replace("../src/", ""), text] as const
+      ([file, text]) => [Str.replace("../src/", "")(file), text] as const
     );
 
     const naming = (pattern: RegExp) =>

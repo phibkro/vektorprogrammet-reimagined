@@ -25,6 +25,7 @@ import {
   Option,
   Predicate,
   Record as Rec,
+  String as Str,
 } from "effect";
 
 const { Anonymised, Duration, PersonKey, Trigger } = PersonalDataDeclaration;
@@ -109,7 +110,7 @@ export const aboutPeople = (table: string, key: Key, people: People): SQL =>
 
 /** An Oslo wall-clock reading as the text that PostgreSQL reads as a `timestamp`: the domain's reading, labelled UTC, without the label. */
 const wallText = (reading: DateTime.Utc): string =>
-  DateTime.formatIso(reading).slice(0, -1);
+  Str.slice(0, -1)(DateTime.formatIso(reading));
 
 /**
  * Whether `instant` (an expression) lies, on the Oslo wall clock, inside one of the ranges that the domain computed

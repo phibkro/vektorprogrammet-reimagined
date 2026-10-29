@@ -5,7 +5,6 @@
  * "news yes, keep no" is two records with the text version and the time, and withdrawing one leaves the other. The code
  * lives 60 days, can be used again, and opens nothing but the answer.
  */
-import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
   CodeRepository,
@@ -26,6 +25,7 @@ import { TestClock } from "effect/testing";
 import { transactional } from "../src/index.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { assertFailedWith } from "./support/failures.ts";
+import { nodeCryptoServices } from "./support/nodeServices.ts";
 import {
   adminPrincipal,
   runAs,
@@ -136,7 +136,7 @@ const auditActions = Effect.fnUntraced(function* auditActions(
   return Arr.map(rows, (row) => row.action);
 });
 
-layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
+layer(postgresDatabase().pipe(Layer.provideMerge(nodeCryptoServices)), {
   excludeTestServices: true,
 })("spec 0007b falsifier 5: the alumni consent", (outer) => {
   outer.layer(TestClock.layer())((it) => {
@@ -371,7 +371,7 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
           const alma = yield* seedPerson("codea", nothing, NOW);
           const kari = yield* seedPerson("codek", nothing, NOW);
           const codes = yield* CodeRepository;
-          const minted = yield* mintCode().pipe(Effect.orDie);
+          const minted = yield* mintCode();
           const expires = DateTime.add(NOW, { days: 60 });
 
           // What the delivery of the e-mail does: it mints the code and stores its hash for the person.

@@ -1,11 +1,11 @@
-import { Array as Arr, Option, Result } from "effect";
+import { Array as Arr, Option, Result, String as Str } from "effect";
 
 /** The path `relative` leads to from the directory `start` (path segments from the repository root), or none when it climbs out of the repository. */
 const walk = (
   start: readonly string[],
   relative: string
 ): Option.Option<readonly string[]> =>
-  Arr.reduce(relative.split("/"), Option.some(start), (parts, segment) =>
+  Arr.reduce(Str.split(relative, "/"), Option.some(start), (parts, segment) =>
     Option.flatMap(parts, (names) => {
       if (segment === "." || segment === "") {
         return Option.some(names);
@@ -35,7 +35,7 @@ export interface Glob {
 
 /** The pattern as a `Glob`, or why the check does not place it. */
 const parseGlob = (pattern: string): Result.Result<Glob, string> => {
-  if (Arr.contains(pattern.split("/"), "node_modules")) {
+  if (Arr.contains(Str.split(pattern, "/"), "node_modules")) {
     return Result.fail("a segment of its pattern is node_modules");
   }
 
@@ -50,7 +50,7 @@ const parseGlob = (pattern: string): Result.Result<Glob, string> => {
   return Result.succeed({
     deep: found.deep !== undefined,
     directory: found.directory,
-    extensions: (found.one ?? found.many ?? "").split(","),
+    extensions: Str.split(found.one ?? found.many ?? "", ","),
   });
 };
 
@@ -62,16 +62,19 @@ export const placeGlob = (
   { readonly glob: Glob; readonly directory: string },
   string
 > => {
-  if (pattern.startsWith("!")) {
+  if (Str.startsWith("!")(pattern)) {
     return Result.fail("a negated pattern is not read");
   }
 
   return Result.flatMap(parseGlob(pattern), (glob) =>
-    Option.match(walk(Arr.dropRight(importer.split("/"), 1), glob.directory), {
-      onNone: () => Result.fail("its pattern leaves the repository"),
-      onSome: (names) =>
-        Result.succeed({ directory: Arr.join(names, "/"), glob }),
-    })
+    Option.match(
+      walk(Arr.dropRight(Str.split(importer, "/"), 1), glob.directory),
+      {
+        onNone: () => Result.fail("its pattern leaves the repository"),
+        onSome: (names) =>
+          Result.succeed({ directory: Arr.join(names, "/"), glob }),
+      }
+    )
   );
 };
 
@@ -82,12 +85,12 @@ export const globMatches = (
   paths: readonly string[]
 ): readonly string[] =>
   Arr.filter(paths, (path) => {
-    const inside = directory === "" || path.startsWith(`${directory}/`);
-    const rest = path.slice(directory === "" ? 0 : directory.length + 1);
+    const inside = directory === "" || Str.startsWith(`${directory}/`)(path);
+    const rest = Str.slice(directory === "" ? 0 : directory.length + 1)(path);
 
     return (
       inside &&
-      (deep || !rest.includes("/")) &&
-      Arr.some(extensions, (extension) => rest.endsWith(`.${extension}`))
+      (deep || !Str.includes("/")(rest)) &&
+      Arr.some(extensions, (extension) => Str.endsWith(`.${extension}`)(rest))
     );
   });

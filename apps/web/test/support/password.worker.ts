@@ -1,6 +1,6 @@
 /** Test-only Worker: bundle the real password adapter, not a substitute, into workerd. */
 import { verifyPassword as defaultVerifier } from "better-auth/crypto";
-import { Effect, Exit } from "effect";
+import { Effect, Exit, String as Str } from "effect";
 
 import { hashPassword, verifyPassword } from "../../src/server/password";
 import { bcryptFixtures, fixturePassword } from "./passwordFixtures";
@@ -35,7 +35,7 @@ export default {
         );
 
         const tooLongHash = yield* Effect.exit(
-          Effect.tryPromise(() => hashPassword("ø".repeat(37)))
+          Effect.tryPromise(() => hashPassword(Str.repeat(37)("ø")))
         );
 
         return Response.json({
@@ -43,10 +43,10 @@ export default {
           newHashCost12: /^\$2[ab]\$12\$/u.test(newHash),
           newHashVerifies: yield* verifies(newHash, fixturePassword),
           overLimitRejected:
-            !(yield* verifies(bcryptFixtures[0], "ø".repeat(37))) &&
+            !(yield* verifies(bcryptFixtures[0], Str.repeat(37)("ø"))) &&
             Exit.isFailure(tooLongHash),
           truncatedRejected: !(yield* verifies(
-            bcryptFixtures[0].slice(0, -1),
+            Str.slice(0, -1)(bcryptFixtures[0]),
             fixturePassword
           )),
           variants,

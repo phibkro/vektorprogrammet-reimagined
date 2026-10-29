@@ -14,10 +14,10 @@ import {
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
 import type { TargetTable } from "@vektorprogrammet/domain";
+import type { Redacted } from "effect";
 import {
   Array as Arr,
   Config,
-  Crypto,
   Effect,
   FileSystem,
   Layer,
@@ -25,11 +25,11 @@ import {
   Path,
   Predicate,
   Record as Rec,
-  Redacted,
   Schema,
   Stream,
+  String as Str,
 } from "effect";
-import { encode as hexEncode } from "effect/encoding/Hex";
+import { Digest } from "effect/crypto";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import type { SqlError } from "effect/sql/SqlError";
 
@@ -147,7 +147,7 @@ const fakeFilesDir = Effect.gen(function* fakeFilesDir() {
   const root = yield* fs.makeTempDirectoryScoped();
 
   for (const file of FAKE_FILES) {
-    const target = path.join(root, ...file.path.split("/"));
+    const target = path.join(root, ...Str.split(file.path, "/"));
     yield* fs.makeDirectory(path.dirname(target), { recursive: true });
     yield* fs.writeFile(target, file.bytes);
   }
@@ -168,16 +168,15 @@ const expectedKey = Effect.fn("expectedKey")(function* expectedKey(
     return yield* Effect.die(`no fake file ${legacyPath}`);
   }
 
-  const crypto = yield* Crypto.Crypto;
-  const digest = yield* Effect.orDie(crypto.digest("SHA-256", file.bytes));
+  const digests = yield* Digest.Digest;
 
-  return `${hexEncode(digest)}.${extension}`;
+  return `${yield* digests.digestHex(Digest.sha256, file.bytes)}.${extension}`;
 });
 
 /** Runs `bun src/main.ts` with an explicit environment (nothing inherited but PATH, USER and HOME). */
 const runCli = Effect.fn("runCli")(function* runCli(
   args: readonly string[],
-  env: Record<string, string>
+  env: Record<string, string | Redacted.Redacted>
 ) {
   const path = yield* Path.Path;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -225,8 +224,8 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           const reportDir = yield* fs.makeTempDirectoryScoped();
 
           const cli = yield* runCli(["--report-dir", reportDir], {
-            IMPORT_TARGET_DATABASE_URL: Redacted.value(targetUrl),
-            LEGACY_MYSQL_URL: Redacted.value(legacy.url),
+            IMPORT_TARGET_DATABASE_URL: targetUrl,
+            LEGACY_MYSQL_URL: legacy.url,
           });
 
           assert.strictEqual(
@@ -391,7 +390,7 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           );
 
           assert.isFalse(
-            Arr.some(columns, (c) => c.column_name.includes("role"))
+            Arr.some(columns, (c) => Str.includes("role")(c.column_name))
           );
           const events = yield* rowsOf("social_event");
           assert.deepStrictEqual(
@@ -440,9 +439,9 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           const reportDir = yield* fs.makeTempDirectoryScoped();
 
           const cli = yield* runCli(["--report-dir", reportDir], {
-            DATABASE_URL: Redacted.value(developmentUrl),
-            IMPORT_TARGET_DATABASE_URL: Redacted.value(developmentUrl),
-            LEGACY_MYSQL_URL: Redacted.value(legacy.url),
+            DATABASE_URL: developmentUrl,
+            IMPORT_TARGET_DATABASE_URL: developmentUrl,
+            LEGACY_MYSQL_URL: legacy.url,
           });
 
           assert.notStrictEqual(cli.exitCode, ChildProcessSpawner.ExitCode(0));

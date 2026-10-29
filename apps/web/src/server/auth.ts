@@ -32,6 +32,7 @@ import {
   Option,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
 import { Pool } from "pg";
 
@@ -340,7 +341,7 @@ export const makeAuth = (
           throw invalidCredentials();
         }
 
-        const email = body.email.toLowerCase();
+        const email = Str.toLowerCase(body.email);
 
         return run(SignInDirectory.use((directory) => directory.match(email)))
           .then<string | { readonly email: string }>((found) =>
@@ -531,7 +532,9 @@ export const authLayer = (
       const handle = Effect.fn("Auth.handle")(function* handle(
         request: Request
       ) {
-        const path = new URL(request.url).pathname.slice("/api/auth".length);
+        const path = Str.slice("/api/auth".length)(
+          new URL(request.url).pathname
+        );
 
         if (!(path in routes) || routes[path] !== request.method) {
           return new Response("Not Found", { status: 404 });

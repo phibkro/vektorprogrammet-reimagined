@@ -8,7 +8,7 @@
 import { assert, layer } from "@effect/vitest";
 import { Catalog, Forms, catalogProblems } from "@vektorprogrammet/domain";
 import type { CatalogOf } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Record as Rec } from "effect";
+import { Array as Arr, Effect, Record as Rec, String as Str } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { postgresDatabase } from "./support/database.ts";
@@ -88,7 +88,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           assert.deepStrictEqual(
             Arr.filter(
               closureProblems(Catalog, yield* readSchemaFacts),
-              (problem) => problem.includes("foreign key")
+              (problem) => Str.includes("foreign key")(problem)
             ),
             []
           );

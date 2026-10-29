@@ -14,6 +14,7 @@ import {
   Redacted,
   Schedule,
   Schema,
+  String as Str,
 } from "effect";
 import {
   FetchHttpClient,
@@ -55,8 +56,10 @@ const DevBypassAnswer = Schema.Struct({
 /** `emdash secrets generate` prints a banner and then the key on its last line. */
 const lastLine = (text: string): string =>
   Option.match(
-    Arr.last(Arr.filter(text.split("\n"), (line) => line.trim() !== "")),
-    { onNone: () => "", onSome: (line) => line.trim() }
+    Arr.last(
+      Arr.filter(Str.split(text, "\n"), (line) => Str.trim(line) !== "")
+    ),
+    { onNone: () => "", onSome: (line) => Str.trim(line) }
   );
 
 /**
@@ -140,7 +143,7 @@ const importFixtureInto = (cms: Cms) =>
   runToEnd("bun", ["run", "import:fixture:cms"], {
     cwd: importerDirectory,
     env: {
-      IMPORT_CMS_TOKEN: Redacted.value(cms.token),
+      IMPORT_CMS_TOKEN: cms.token,
       IMPORT_CMS_URL: cms.origin,
     },
   });
@@ -155,7 +158,7 @@ const CREATED_SOMETHING = /\b[1-9]\d* created\b/u;
 export const importFixtureTwice = Effect.fn("importFixtureTwice")(
   function* importFixtureTwice(cms: Cms) {
     const first = yield* importFixtureInto(cms);
-    yield* Console.log(first.trim());
+    yield* Console.log(Str.trim(first));
 
     if (!CREATED_SOMETHING.test(first)) {
       return yield* Effect.die(
@@ -164,7 +167,7 @@ export const importFixtureTwice = Effect.fn("importFixtureTwice")(
     }
 
     const second = yield* importFixtureInto(cms);
-    yield* Console.log(second.trim());
+    yield* Console.log(Str.trim(second));
 
     if (CREATED_SOMETHING.test(second)) {
       return yield* Effect.die(

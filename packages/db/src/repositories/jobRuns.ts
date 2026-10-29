@@ -13,7 +13,14 @@
  */
 import { InTransaction, Job, JobRun } from "@vektorprogrammet/domain";
 import { and, asc, eq, like, lte, or, sql } from "drizzle-orm";
-import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Layer,
+  Schema,
+  String as Str,
+} from "effect";
 
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
 import { verified } from "../live.ts";
@@ -255,7 +262,7 @@ export const JobRunsLive = Layer.effect(
 
       yield* write(held, {
         endedAt: dead ? now : null,
-        lastError: reason.slice(0, REASON_LENGTH),
+        lastError: Str.slice(0, REASON_LENGTH)(reason),
         leaseUntil: now,
         outcome: dead ? "failed" : "partial",
       });

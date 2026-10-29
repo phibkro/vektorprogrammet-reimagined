@@ -1,7 +1,7 @@
 /** The CMS half of the import as a pure function: what each legacy row becomes, and why a row is refused. */
 import { assert, describe, it } from "@effect/vitest";
 import { PortableText } from "@vektorprogrammet/cms-client";
-import { Array as Arr, DateTime, Schema } from "effect";
+import { Array as Arr, DateTime, Schema, String as Str } from "effect";
 
 import { planEmDashContent } from "../../src/emdash/plan.ts";
 import type {
@@ -140,7 +140,7 @@ describe("the CMS import plan: articles", () => {
     );
     assert.isTrue(
       Arr.every(quarantine, (row) =>
-        Arr.every(row.reasons, (reason) => !reason.includes("Hemmelig"))
+        Arr.every(row.reasons, (reason) => !Str.includes("Hemmelig")(reason))
       )
     );
   });

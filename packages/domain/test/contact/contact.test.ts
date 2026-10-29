@@ -7,6 +7,7 @@ import {
   Predicate,
   Schema,
   pipe,
+  String as Str,
 } from "effect";
 
 import {
@@ -38,7 +39,7 @@ const department = (
   id: DepartmentId,
   city: string,
   slackChannel: string | null
-) => departmentForTest(id, city, city.toUpperCase(), slackChannel);
+) => departmentForTest(id, city, Str.toUpperCase(city), slackChannel);
 
 const ticket = {
   departmentId: TRONDHEIM,
@@ -209,11 +210,11 @@ describe("C10 contact form", () => {
         const [departmentEmail, , departmentSlack] = outbox;
         assert.isTrue(
           departmentEmail?._tag === "Email" &&
-            departmentEmail.text.includes("Når åpner opptaket?")
+            Str.includes("Når åpner opptaket?")(departmentEmail.text)
         );
         assert.isTrue(
           departmentSlack?._tag === "SlackPost" &&
-            departmentSlack.text.includes("Når åpner opptaket?")
+            Str.includes("Når åpner opptaket?")(departmentSlack.text)
         );
       }).pipe(Effect.provide(TestServices))
   );

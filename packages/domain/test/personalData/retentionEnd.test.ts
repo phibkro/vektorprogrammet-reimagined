@@ -5,7 +5,13 @@
  * the arithmetic says of its end, near the end of the period, which is where an off-by-one or a wrong zone changes the answer.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Arbitrary, Array as Arr, DateTime, Effect } from "effect";
+import {
+  Arbitrary,
+  Array as Arr,
+  DateTime,
+  Effect,
+  String as Str,
+} from "effect";
 
 import {
   afterDuration,
@@ -42,7 +48,7 @@ const iso = (instant: DateTime.Utc) => DateTime.formatIso(instant);
 /** The instant of a whole Oslo-midnight date, for readable fixtures. */
 const osloMidnight = (year: number, month: number, day: number) =>
   at(
-    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+0${month >= 4 && month <= 10 ? 2 : 1}:00`
+    `${year}-${Str.padStart(2, "0")(String(month))}-${Str.padStart(2, "0")(String(day))}T00:00:00+0${month >= 4 && month <= 10 ? 2 : 1}:00`
   );
 
 describe("spec 0021 falsifier 1, worked cases: PostgreSQL's reading of the Oslo calendar", () => {

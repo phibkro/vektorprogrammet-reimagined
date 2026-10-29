@@ -1,5 +1,4 @@
 /** Spec 0007 falsifiers 2 and 4: real PostgreSQL code concurrency, expiry, scope and account states. */
-import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
   AccountEndpoints,
@@ -33,6 +32,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { transactional } from "../src/index.ts";
 import { activeAdmin, moveAccount } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
+import { nodeCryptoServices } from "./support/nodeServices.ts";
 import { raceReport } from "./support/race.ts";
 import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
 
@@ -66,7 +66,7 @@ const checkPurpose = Effect.fnUntraced(function* checkPurpose(
   state: AccountStateName,
   purpose: CodePurpose
 ) {
-  const code = yield* mintCode().pipe(Effect.orDie);
+  const code = yield* mintCode();
 
   yield* asPerson(personId, (locked) =>
     CodeRepository.use((codes) =>
@@ -89,7 +89,7 @@ const checkPurpose = Effect.fnUntraced(function* checkPurpose(
 
 layer(
   Layer.merge(
-    postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)),
+    postgresDatabase().pipe(Layer.provideMerge(nodeCryptoServices)),
     Layer.mock(PasswordHasher, {})
   ),
   {
@@ -173,7 +173,7 @@ layer(
         const codes = yield* CodeRepository;
 
         for (const round of Arr.range(1, RACE_ROUNDS)) {
-          const { hash } = yield* mintCode().pipe(Effect.orDie);
+          const { hash } = yield* mintCode();
 
           yield* asPerson(fixture.person.id, (locked) =>
             codes.replace(locked, { expiresAt, hash, purpose: "activation" })
@@ -218,8 +218,8 @@ layer(
         const fixture = yield* world("code-boundary");
         const other = yield* world("code-other");
         const codes = yield* CodeRepository;
-        const first = yield* mintCode().pipe(Effect.orDie);
-        const second = yield* mintCode().pipe(Effect.orDie);
+        const first = yield* mintCode();
+        const second = yield* mintCode();
 
         const replace = (hash: typeof first.hash) =>
           asPerson(fixture.person.id, (locked) =>

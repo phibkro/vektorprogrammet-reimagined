@@ -54,10 +54,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { Array as Arr, pipe, Record as Rec } from "effect";
+import { Array as Arr, pipe, Record as Rec, String as Str } from "effect";
 
 /** A SQL string literal for a code constant (never user input). */
-const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`;
+const literal = (value: string): string =>
+  `'${Str.replaceAll("'", "''")(value)}'`;
 
 /** `<column> IN ('a', 'b', …)` over a closed set from the domain. */
 const oneOf = (column: SQL, values: readonly string[]): SQL =>

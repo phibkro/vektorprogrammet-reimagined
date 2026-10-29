@@ -11,7 +11,7 @@ import { PersonalDataDeclaration } from "@vektorprogrammet/domain";
 import type { RetentionRule } from "@vektorprogrammet/domain";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { DateTime, Effect, FileSystem, Layer } from "effect";
+import { DateTime, Effect, FileSystem, Layer, String as Str } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { col, identifier, personOf } from "../../src/personalData/sql.ts";
@@ -30,7 +30,7 @@ const installOracle = Effect.gen(function* installOracle() {
   const file = yield* (yield* FileSystem.FileSystem).readFileString(original);
 
   yield* Effect.forEach(
-    file.split("--> statement-breakpoint"),
+    Str.split(file, "--> statement-breakpoint"),
     (statement) => client.unsafe(statement),
     { discard: true }
   );

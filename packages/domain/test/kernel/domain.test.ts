@@ -3,7 +3,15 @@
  * (ADR 0006), the in-process client, and the transition tables (ADR 0007), over the sample domain.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Exit, Option, Ref, Schema } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Exit,
+  Option,
+  Ref,
+  Schema,
+  String as Str,
+} from "effect";
 import { Rpc } from "effect/rpc";
 import { expectTypeOf } from "vite-plus/test";
 
@@ -78,7 +86,9 @@ describe("falsifier 2: a declaration is complete", () => {
     };
 
     assert.deepStrictEqual(
-      Arr.filter(Domain.problems(widened), (line) => line.includes("destroy")),
+      Arr.filter(Domain.problems(widened), (line) =>
+        Str.includes("destroy")(line)
+      ),
       ["a grant names destroy, which is neither a command nor a read of notes"]
     );
   });

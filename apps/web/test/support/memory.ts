@@ -64,6 +64,7 @@ import {
   Option,
   Record as Rec,
   Stream,
+  String as Str,
 } from "effect";
 
 interface OutboxRow {
@@ -653,13 +654,13 @@ export const fakeDepartment = (
   active: true,
   address: null,
   city,
-  email: EmailAddress.make(`${city.toLowerCase()}@example.org`),
+  email: EmailAddress.make(`${Str.toLowerCase(city)}@example.org`),
   id: DepartmentId.make(id),
   latitude: null,
   logoKey: null,
   longitude: null,
   name: `Vektor ${city}`,
-  shortName: city.slice(0, 4).toUpperCase(),
+  shortName: Str.toUpperCase(Str.slice(0, 4)(city)),
   slackChannel: null,
   ...overrides,
 });
@@ -678,4 +679,4 @@ export const fakeFieldOfStudy = (
 export const fakeKey = (
   seed: number,
   extension: "png" | "jpg" | "bin" | "pdf" | "gif" | "webp" = "png"
-) => FileKey.make(`${seed.toString(16).padStart(64, "0")}.${extension}`);
+) => FileKey.make(`${Str.padStart(64, "0")(seed.toString(16))}.${extension}`);

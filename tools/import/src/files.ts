@@ -11,7 +11,6 @@ import type { FileKey, StoredContentType } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Context,
-  Crypto,
   DateTime,
   Effect,
   FileSystem,
@@ -21,7 +20,9 @@ import {
   Path,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
+import { Digest } from "effect/crypto";
 import { encode as hexEncode } from "effect/encoding/Hex";
 
 export class LegacyFilesError extends Schema.TaggedError<
@@ -85,7 +86,7 @@ export class LegacyFiles extends Context.Service<
         ) {
           const candidate = path.join(
             realRoot,
-            ...Arr.filter(legacyPath.split("/"), (s) => s !== "")
+            ...Arr.filter(Str.split(legacyPath, "/"), (s) => s !== "")
           );
 
           const located = yield* fs.realPath(candidate).pipe(
@@ -108,7 +109,7 @@ export class LegacyFiles extends Context.Service<
 
           const relative = path.relative(realRoot, located.value);
 
-          if (relative.startsWith("..") || path.isAbsolute(relative)) {
+          if (Str.startsWith("..")(relative) || path.isAbsolute(relative)) {
             return Option.none<LegacyFileBytes>();
           }
 
@@ -160,7 +161,7 @@ export type FileIndex = ReadonlyMap<string, ResolvedFile>;
 export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(
   function* resolveLegacyFiles(paths: Iterable<string>) {
     const files = yield* LegacyFiles;
-    const crypto = yield* Crypto.Crypto;
+    const digests = yield* Digest.Digest;
     const unique = Arr.sort([...new Set(paths)], Order.String);
 
     const resolved = yield* Effect.forEach(
@@ -171,14 +172,19 @@ export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(
             Option.match({
               onNone: () => Effect.succeedNone,
               onSome: ({ bytes, modifiedAt }) =>
-                crypto.digest("SHA-256", bytes).pipe(
-                  Effect.orDie,
+                digests.digest(Digest.sha256, bytes).pipe(
                   Effect.map((digest) => {
                     const contentType = detectContentType(bytes);
 
-                    const name = legacyPath
-                      .slice(legacyPath.lastIndexOf("/") + 1)
-                      .slice(0, 255);
+                    const base = Option.match(
+                      Str.lastIndexOf("/")(legacyPath),
+                      {
+                        onNone: () => legacyPath,
+                        onSome: (at) => Str.slice(at + 1)(legacyPath),
+                      }
+                    );
+
+                    const name = Str.slice(0, 255)(base);
 
                     return Option.some<ResolvedFile>({
                       contentType,

@@ -7,7 +7,6 @@
  * Cause when it fails, and names its round count; the control runs the same race by hand without the shared lock, and
  * must show the violation.
  */
-import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
   ADMIN_LIST_ID,
@@ -47,6 +46,7 @@ import {
   noAdmins,
 } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
+import { nodeCryptoServices } from "./support/nodeServices.ts";
 import {
   describeExit,
   meetsHeldLock,
@@ -364,7 +364,7 @@ const summarized = (
 
 layer(
   Layer.mergeAll(
-    postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)),
+    postgresDatabase().pipe(Layer.provideMerge(nodeCryptoServices)),
     Layer.mock(PasswordHasher, {}),
     Layer.succeed(SiteOrigin)("https://vektorprogrammet.test")
   ),

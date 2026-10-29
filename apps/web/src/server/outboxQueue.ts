@@ -34,6 +34,7 @@ import {
   Option,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
 
 import { DEAD_LETTER_SUFFIX } from "../../worker.config";
@@ -268,7 +269,7 @@ const holdForUnavailableStack = (
  * batch at its flat `retryDelay`: nothing was recorded, so the rows stay pending and the sweep covers them.
  */
 export const handleBatch = (batch: OutboxBatch, layers: ConsumerLayers) =>
-  batch.queue.endsWith(DEAD_LETTER_SUFFIX)
+  Str.endsWith(DEAD_LETTER_SUFFIX)(batch.queue)
     ? consumeEnding(batch).pipe(Effect.provide(layers.database))
     : Effect.scoped(
         Effect.matchCauseEffect(Layer.build(layers.delivery), {

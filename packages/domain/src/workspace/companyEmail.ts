@@ -12,7 +12,7 @@
  *   rule's open question, confidence Medium). The table below is the glibc `nb_NO` one, and an address that already
  *   exists is never touched, so a different choice by the operator changes new addresses only.
  */
-import { Array as Arr, Option, Schema } from "effect";
+import { Array as Arr, Option, Schema, String as Str, pipe } from "effect";
 
 export const COMPANY_DOMAIN = "vektorprogrammet.no";
 
@@ -31,14 +31,16 @@ export type CompanyEmail = typeof CompanyEmail.Type;
 /** The words of a name in the alphabet of an address: ASCII letters and digits, lower case. The glibc `nb_NO` table. */
 const wordsOf = (name: string): readonly string[] =>
   Arr.filter(
-    name
-      .toLowerCase()
-      .replaceAll("å", "aa")
-      .replaceAll("æ", "ae")
-      .replaceAll("ø", "o")
-      .normalize("NFD")
-      .replaceAll(/[^a-z0-9 ]/gu, " ")
-      .split(/\s+/u),
+    pipe(
+      name,
+      Str.toLowerCase,
+      Str.replaceAll("å", "aa"),
+      Str.replaceAll("æ", "ae"),
+      Str.replaceAll("ø", "o"),
+      Str.normalize("NFD"),
+      Str.replaceAll(/[^a-z0-9 ]/gu, " "),
+      Str.split(/\s+/u)
+    ),
     (word) => word.length > 0
   );
 

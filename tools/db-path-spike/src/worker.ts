@@ -5,7 +5,7 @@
  * `worker/`; this is the only place that runs effects.
  */
 import type { ExecutionContext } from "@cloudflare/workers-types";
-import { Cause, Effect, Schema } from "effect";
+import { Cause, Effect, Schema, String as Str } from "effect";
 
 import { ABORT_READY_LINE, RunParams, routes } from "./protocol.ts";
 import { abortTransaction } from "./worker/checks.ts";
@@ -54,7 +54,7 @@ const streamAbortCheck = (
     Effect.provide(requestDatabase(env)),
     Effect.catchCauseIf(
       (cause) => !Cause.hasInterruptsOnly(cause),
-      (cause) => write(`failed: ${Cause.pretty(cause).slice(0, 400)}`)
+      (cause) => write(`failed: ${Str.slice(0, 400)(Cause.pretty(cause))}`)
     ),
     Effect.ensuring(bestEffort(() => writer.close()))
   );

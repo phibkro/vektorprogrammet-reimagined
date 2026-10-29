@@ -12,7 +12,7 @@ import type {
 } from "@cloudflare/workers-types";
 import handler from "@tanstack/react-start/server-entry";
 import { env as workerBindings } from "cloudflare:workers";
-import { Effect, Match, Option, Predicate } from "effect";
+import { Effect, Match, Option, Predicate, String as Str } from "effect";
 
 import { handleAccountPost } from "./server/accountPost";
 import { validateAuthStartup } from "./server/authStartup";
@@ -49,7 +49,7 @@ const fetch = (
 ): Promise<Response> => {
   const url = new URL(request.url);
 
-  if (url.pathname.startsWith("/api/auth/")) {
+  if (Str.startsWith("/api/auth/")(url.pathname)) {
     return runAuthRequest(request, env);
   }
 

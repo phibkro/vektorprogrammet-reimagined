@@ -3,7 +3,13 @@
  * that the notice and the record of processing print, and the checks of the catalog's own consistency. Nothing here
  * reads a database; `packages/db` interprets the rules, and a test closes the catalog over the migrated schema.
  */
-import { Array as Arr, Order, Predicate, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Order,
+  Predicate,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import type { CatalogOf } from "./catalog.ts";
 import { MergeRule, OnExpiry, Trigger } from "./declaration.ts";
@@ -206,7 +212,7 @@ export const expiryWords = (onExpiry: OnExpiry, language: Language): string =>
 
 // ------------------------------------------------------------------ the checks of the catalog
 
-const blank = (text: string): boolean => text.trim() === "";
+const blank = (text: string): boolean => Str.trim(text) === "";
 
 const hasColumn = (declaration: TableDeclaration, column: string): boolean =>
   Rec.has(declaration.columns, column);
@@ -406,7 +412,7 @@ const fieldProblems = (
       : [];
   }
 
-  const [tableName = "", columnName = ""] = field.storedIn.split(".");
+  const [tableName, columnName = ""] = Str.split(field.storedIn, ".");
   const stored = catalog[tableName]?.columns[columnName];
 
   return Predicate.isTagged(stored, "PersonalData")
