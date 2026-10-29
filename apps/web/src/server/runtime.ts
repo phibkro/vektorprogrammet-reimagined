@@ -43,6 +43,7 @@ import type {
   InTransaction,
   IntegrationPort,
   IsolationProbe,
+  PlatformProbe,
   NotAnIntegration,
   JobRun,
   LegalHolds,
@@ -117,9 +118,6 @@ import {
   workspaceWriterLayer,
 } from "./workspace";
 
-/** Hyperdrive pools connections itself; one request needs very few. */
-const MAX_CONNECTIONS_PER_REQUEST = 2;
-
 /** Everything about the request a program may depend on, read before entering Effect. */
 export interface RequestScope {
   readonly env: WorkerEnv;
@@ -139,6 +137,7 @@ export type DatabaseServices =
   | DepartmentRepository
   | SemesterRepository
   | IsolationProbe
+  | PlatformProbe
   | FieldOfStudyRepository
   | SocialEventRepository
   | PublicFileRepository
@@ -197,7 +196,6 @@ const databaseLayer = (
   env: Pick<TickEnv, "HYPERDRIVE">
 ): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
-    maxConnections: MAX_CONNECTIONS_PER_REQUEST,
     url: Redacted.make(env.HYPERDRIVE.connectionString),
   }).pipe(Layer.orDie);
 
@@ -314,6 +312,18 @@ export const runCommandOutcome = <
 
 /** A query (a read: it must not write) in the live per-request Layer. */
 export const runQuery = <A, E extends RequestError, R extends RequestServices>(
+  scope: RequestScope,
+  program: Effect.Effect<A, E, R>
+): Promise<Outcome<A>> =>
+  runOutcome(liveRequestLayer(scope), program, scope.signal);
+
+/**
+ * A diagnostic of the platform (spec 0025) in the live per-request Layer. It is not a query: its programs open their own
+ * transactions, take a row lock and write rows that they roll back, so it is not one of the read paths that
+ * `readsNeverWrite.postgres.test.ts` runs as a role that can only read. Only `GET /api/platform` calls it, and that route
+ * answers nothing on production.
+ */
+export const runProbe = <A, E extends RequestError, R extends RequestServices>(
   scope: RequestScope,
   program: Effect.Effect<A, E, R>
 ): Promise<Outcome<A>> =>
@@ -485,7 +495,6 @@ const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
       JobDatabaseLive({
-        maxConnections: MAX_CONNECTIONS_PER_REQUEST,
         retention: retentionModeFor(deployment),
         url: Redacted.make(env.HYPERDRIVE.connectionString),
       }).pipe(Layer.orDie)

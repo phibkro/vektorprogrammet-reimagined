@@ -141,7 +141,13 @@ jobs:
       # it must match, as a whole, `https://pr-<this pull request>-<labels>.workers.dev`: not a pull request comment,
       # because anyone can comment on a public repository and point the step at a host of their own, and not a prefix
       # and a suffix, which `user@host` and a path can both satisfy. A new Worker may need a moment before it answers.
-      - name: Check the isolation level through Hyperdrive
+      #
+      # Spec 0025 R5 adds the same question for the platform: `GET /api/platform` shows the properties that the domain asks
+      # of a platform (`PlatformRequirements`) with the adapter's own constructs through Hyperdrive (two transactions on
+      # two pooled connections, a savepoint, a rollback, `SKIP LOCKED`, the statements the client sends). It answers 200
+      # only when `platformProblems` (the domain) finds none: a check that is missing fails as surely as one that did not
+      # hold.
+      - name: Check the isolation level and the platform through Hyperdrive
         if: github.event_name == 'pull_request'
         shell: bash
         env:
@@ -157,17 +163,19 @@ jobs:
             echo "::error::the deploy printed no Worker URL of this pull request (got: ${url:-none})"
             exit 1
           fi
-          body="$RUNNER_TEMP/isolation.json"
-          status=""
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            status="$(curl -sS --max-time 20 -o "$body" -w '%{http_code}' "${url%/}/api/isolation" || true)"
-            [ "$status" = "200" ] && break
-            sleep 6
+          for route in isolation platform; do
+            body="$RUNNER_TEMP/$route.json"
+            status=""
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              status="$(curl -sS --max-time 20 -o "$body" -w '%{http_code}' "${url%/}/api/$route" || true)"
+              [ "$status" = "200" ] && break
+              sleep 6
+            done
+            echo "$route report on the Preview: HTTP ${status:-none}"
+            cat "$body" || true
+            echo
+            test "$status" = "200"
           done
-          echo "isolation report on the Preview: HTTP ${status:-none}"
-          cat "$body" || true
-          echo
-          test "$status" = "200"
 
   cleanup:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./platform/*": "./src/platform/*.ts",
     "./testing": "./test/support/disposableDatabase.ts",
     "./testing/auth-tables-role": "./test/support/authTablesRole.ts",
     "./testing/local-seed": "./test/support/localSeed.ts",

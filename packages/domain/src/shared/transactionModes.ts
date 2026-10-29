@@ -16,7 +16,7 @@ import type { SignInDirectory } from "../accounts/signInDirectory.ts";
  *   `WorkspaceWriter`) are marked `IntegrationPort`, and `Transactor.run` refuses a program that requires one (ADR 0015,
  *   spec 0020); the R2 `FileStore` is the platform and stays a convention that the type system does not check.
  * - `Opens`: opens its own transaction and takes none (`Transactor.run`, `ImportTarget.replaceAll`, and
- *   `IsolationProbe.report`, which opens the transactions it reports on).
+ *   `IsolationProbe.report` and `PlatformProbe.report`, which open the transactions they report on).
  *
  * The declaration is exhaustive by its type: a method of a port without a row, and a row without a method, do not
  * compile. `test/shared/transactionModes.test.ts` checks every row against the method's type, and
@@ -63,6 +63,7 @@ import type {
 import type { AggregateLocks } from "./aggregate.ts";
 import type { IsolationProbe } from "./isolationProbe.ts";
 import type { Outbox } from "./outbox.ts";
+import type { PlatformProbe } from "./platformProbe.ts";
 import type { Transactor } from "./transactor.ts";
 
 export type TransactionMode =
@@ -98,6 +99,7 @@ export interface StorePorts {
   readonly OutboxReports: OutboxReports;
   readonly PersonRepository: PersonRepository;
   readonly PersonalDataStore: PersonalDataStore;
+  readonly PlatformProbe: PlatformProbe;
   readonly PositionRepository: PositionRepository;
   readonly PrincipalDirectory: PrincipalDirectory;
   readonly PublicFileRepository: PublicFileRepository;
@@ -216,6 +218,7 @@ export const TransactionModes = {
     merge: "Requires",
     setPhoto: "Requires",
   },
+  PlatformProbe: { report: "Opens" },
   PositionRepository: { findById: "Read", list: "Read" },
   PrincipalDirectory: { activeById: "Read", byName: "Read", names: "Read" },
   PublicFileRepository: {

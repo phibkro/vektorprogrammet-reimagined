@@ -147,6 +147,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `OutboxReports` |  |  |  | `overview` |  |  |
 | `PersonRepository` | `create`, `findLocked` |  |  | `findById`, `list` |  |  |
 | `PersonalDataStore` | `erase`, `merge`, `setPhoto` |  |  | `exportOf` |  |  |
+| `PlatformProbe` |  |  |  |  |  | `report` |
 | `PositionRepository` |  |  |  | `findById`, `list` |  |  |
 | `PrincipalDirectory` |  |  |  | `activeById`, `byName`, `names` |  |  |
 | `PublicFileRepository` |  | `register` |  | `findByKey`, `findByLegacyPath` |  |  |

@@ -78,6 +78,10 @@ export * from "./shared/isolationProbe.ts";
 
 export * from "./shared/outbox.ts";
 
+export * from "./shared/platformProbe.ts";
+
+export * from "./shared/platformRequirements.ts";
+
 export * from "./shared/integrationGuard.ts";
 
 export * from "./shared/siteOrigin.ts";

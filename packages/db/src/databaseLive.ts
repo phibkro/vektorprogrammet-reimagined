@@ -3,9 +3,11 @@
  * `AuditLog`, `OutboxDelivery` and the `SqlClient` that `transactional` uses,
  * over `@effect/sql-pg` and Drizzle `effect-postgres`.
  *
- * Hyperdrive rules (architecture §3, §4): `prepare: false` (Hyperdrive pools
- * in transaction mode), `multiplex: false`, a small pool, and no advisory
- * locks, LISTEN/NOTIFY or session `SET` anywhere in this package.
+ * `DatabaseLive` is the Hyperdrive adapter and `ImportDatabaseLive` the direct one: each builds its client from the
+ * connection profile of that name (`platform/profiles.ts`, spec 0025), which holds the settings and the reason for each.
+ * No advisory locks, LISTEN/NOTIFY or session `SET` anywhere in this package: the constructs it uses are the ones in
+ * `platform/recipes.ts`, typed so that a direct-only construct does not fit, and `docs/system/database-platforms.md`
+ * says what Hyperdrive does with each.
  */
 import { PgClient } from "@effect/sql-pg";
 import type { RetentionMode } from "@vektorprogrammet/domain";
@@ -18,6 +20,8 @@ import { roots } from "./aggregate/declaration.ts";
 import { aggregateLocksLayer } from "./aggregate/locks.ts";
 import { Drizzle } from "./internal/drizzle.ts";
 import { IsolationProbeLive } from "./isolationProbe.ts";
+import { PlatformProbeLive } from "./platform/probe.ts";
+import { direct, hyperdrive } from "./platform/profiles.ts";
 import { AccountRepositoryLive } from "./repositories/accounts.ts";
 import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
@@ -111,7 +115,8 @@ const Repositories = Layer.mergeAll(
   WorkspaceFactsLive,
   WorkspaceReportsLive,
   TransactorLive,
-  IsolationProbeLive.pipe(Layer.provide(TransactorLive))
+  IsolationProbeLive.pipe(Layer.provide(TransactorLive)),
+  PlatformProbeLive(hyperdrive)
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 /**
@@ -126,13 +131,14 @@ export const RepositoriesLayer = Layer.mergeAll(
 
 export interface DatabaseConfig {
   readonly url: Redacted.Redacted;
-  /** Pool size; keep it small behind Hyperdrive. */
+  /** Pool size; the `hyperdrive` profile's by default, and small behind Hyperdrive. */
   readonly maxConnections?: number | undefined;
 }
 
 /**
- * One pool per Layer build, under the Hyperdrive rules above, with `services` over it. Exposes `SqlClient` for
- * `transactional`, but not `PgClient`, whose LISTEN/NOTIFY helpers Hyperdrive does not support.
+ * One pool per Layer build, with the `hyperdrive` profile's client settings (`platform/profiles.ts`: what they are and
+ * why), and `services` over it. Exposes `SqlClient` for `transactional`, but not `PgClient`, whose LISTEN/NOTIFY helpers
+ * Hyperdrive does not support.
  */
 const databaseOver = <ROut, E, RIn>(
   config: DatabaseConfig,
@@ -144,9 +150,10 @@ const databaseOver = <ROut, E, RIn>(
   ).pipe(
     Layer.provide(
       PgClient.layer({
-        maxConnections: config.maxConnections,
-        multiplex: false,
-        prepare: false,
+        maxConnections:
+          config.maxConnections ?? hyperdrive.client.maxConnections,
+        multiplex: hyperdrive.client.multiplex,
+        prepare: hyperdrive.client.prepare,
         url: config.url,
       })
     )
@@ -174,7 +181,7 @@ export const JobDatabaseLive = (
 
 /**
  * The database of the legacy importer: `ImportTarget` over a direct connection (not Hyperdrive), so prepared statements
- * stay on; two connections are plenty for a sequential import. Only the importer's composition root builds it.
+ * stay on; the settings are the `direct` profile's. Only the importer's composition root builds it.
  */
 export const ImportDatabaseLive = (config: {
   readonly url: Redacted.Redacted;
@@ -185,7 +192,9 @@ export const ImportDatabaseLive = (config: {
         Layer.provideMerge(
           PgClient.layer({
             applicationName: "vektorprogrammet-import",
-            maxConnections: 2,
+            maxConnections: direct.client.maxConnections,
+            multiplex: direct.client.multiplex,
+            prepare: direct.client.prepare,
             url: config.url,
           })
         )

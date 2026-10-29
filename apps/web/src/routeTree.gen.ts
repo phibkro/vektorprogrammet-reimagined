@@ -25,6 +25,7 @@ import { Route as SlettetRouteImport } from './routes/slettet'
 import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-passord'
 import { Route as ApiEksportRouteImport } from './routes/api/eksport'
 import { Route as ApiIsolationRouteImport } from './routes/api/isolation'
+import { Route as ApiPlatformRouteImport } from './routes/api/platform'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
@@ -122,6 +123,11 @@ const ApiEksportRoute = ApiEksportRouteImport.update({
 const ApiIsolationRoute = ApiIsolationRouteImport.update({
   id: '/api/isolation',
   path: '/api/isolation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPlatformRoute = ApiPlatformRouteImport.update({
+  id: '/api/platform',
+  path: '/api/platform',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FilerKeyRoute = FilerKeyRouteImport.update({
@@ -235,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/api/platform': typeof ApiPlatformRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -270,6 +277,7 @@ export interface FileRoutesByTo {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/api/platform': typeof ApiPlatformRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/api/platform': typeof ApiPlatformRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
@@ -345,6 +354,7 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/api/platform'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -380,6 +390,7 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/api/platform'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -416,6 +427,7 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/api/platform'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
@@ -453,6 +465,7 @@ export interface RootRouteChildren {
   TilbakestillPassordRoute: typeof TilbakestillPassordRoute
   ApiEksportRoute: typeof ApiEksportRoute
   ApiIsolationRoute: typeof ApiIsolationRoute
+  ApiPlatformRoute: typeof ApiPlatformRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
   NyhetSlugRoute: typeof NyhetSlugRoute
@@ -575,6 +588,13 @@ declare module '@tanstack/react-router' {
       path: '/api/isolation'
       fullPath: '/api/isolation'
       preLoaderRoute: typeof ApiIsolationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/platform': {
+      id: '/api/platform'
+      path: '/api/platform'
+      fullPath: '/api/platform'
+      preLoaderRoute: typeof ApiPlatformRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/filer/$key': {
@@ -752,6 +772,7 @@ const rootRouteChildren: RootRouteChildren = {
   TilbakestillPassordRoute: TilbakestillPassordRoute,
   ApiEksportRoute: ApiEksportRoute,
   ApiIsolationRoute: ApiIsolationRoute,
+  ApiPlatformRoute: ApiPlatformRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,
   NyhetSlugRoute: NyhetSlugRoute,
