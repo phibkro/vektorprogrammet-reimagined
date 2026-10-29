@@ -5,6 +5,7 @@ import { API } from "typescript-7-1/sync";
 import type { Program, ResolvedModule } from "typescript-7-1/sync";
 
 import { importForms } from "./importSpecifiers.ts";
+import { isProbe } from "./probes.ts";
 import { packageNameOf, workspacePrefix } from "./resolveImports.ts";
 import type { SourceFile, Target } from "./resolveImports.ts";
 
@@ -74,8 +75,9 @@ const edgesOf = (program: Program, root: string): readonly CompilerEdge[] =>
   Arr.flatMap(program.getSourceFileNames(), (fileName) => {
     const path = relativeTo(root, fileName);
 
-    // The syntax tree of a library or `node_modules` file is never fetched: it is most of the program's files.
-    if (path === undefined || path.includes("node_modules/")) {
+    // The syntax tree of a library or `node_modules` file is never fetched: it is most of the program's files. A probe
+    // (`probes.ts`) is a scratch file that another test of this package writes for one lint run, as in every scan of the tree.
+    if (path === undefined || path.includes("node_modules/") || isProbe(path)) {
       return [];
     }
 
