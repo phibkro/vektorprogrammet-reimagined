@@ -195,6 +195,7 @@ export const TransactionModes = {
   Outbox: { enqueue: "Requires" },
   OutboxDelivery: {
     claim: "Standalone",
+    holdClaim: "Requires",
     markDead: "Standalone",
     markDelivered: "Joins",
     markFailed: "Standalone",

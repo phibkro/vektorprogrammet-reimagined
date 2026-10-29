@@ -33,7 +33,6 @@ import {
 } from "effect";
 
 import { Auth } from "./auth";
-import { DeliveryClaimLost } from "./deliveryClaimLost";
 import { DeliveryFailed, MessageSender } from "./senders";
 
 type CodeIntent = Extract<OutboxMessage, { readonly _tag: "IssueCode" }>;
@@ -133,6 +132,16 @@ export const accountDeliveryLayer = Layer.effect(
             });
           }
 
+          // The fence: only the consumer that still holds the row's claim writes a code (spec 0024 R9). A consumer whose
+          // lease lapsed while it waited for the person's lock finds another consumer's claim, or the row delivered,
+          // and writes nothing: it would replace a code that the other one delivered. The lock on the person came first,
+          // so the order is that of transaction 2 (person, then row).
+          if (
+            (yield* delivery.holdClaim(row.id, row.claimToken)) === "claimLost"
+          ) {
+            return preparedAs.Settled({ ack: "claimLost" });
+          }
+
           const account = yield* accounts.findLocked(locked.value);
           const recipient = yield* people.findLocked(locked.value);
           const policy = codePolicy[message.purpose];
@@ -184,10 +193,11 @@ export const accountDeliveryLayer = Layer.effect(
 
     /**
      * Transaction 2, after the mail went out: `Unsent → Usable` for the code of this attempt, and the row delivered, in one
-     * commit. A code that a newer attempt replaced, or that the person's erasure removed, is not there to acknowledge:
-     * the row is delivered all the same, since the newer attempt has its own row or nothing is due. A claim that another
-     * consumer took meanwhile rolls this back, and the code stays `Unsent` until that consumer's own attempt replaces
-     * it.
+     * commit. The acknowledgement is bound to the code's hash and does not depend on the claim: a code that a newer
+     * attempt replaced, or that the person's erasure removed, is not there to acknowledge (nothing changes), and one that
+     * is still the person's current code is as good as its mail, whoever holds the row now. So when the claim was lost
+     * meanwhile the acknowledgement still commits and the answer is `claimLost`; the row is the other consumer's (spec
+     * 0024 R9, decision D5). The row is delivered here only while the claim is current.
      */
     const acknowledge = Effect.fn("AccountDelivery.acknowledgeCode")(
       function* acknowledge(
@@ -209,21 +219,10 @@ export const accountDeliveryLayer = Layer.effect(
                 });
               }
 
-              const ack = yield* delivery.markDelivered(row.id, row.claimToken);
-
-              if (ack === "claimLost") {
-                return yield* new DeliveryClaimLost();
-              }
-
-              return ack;
+              return yield* delivery.markDelivered(row.id, row.claimToken);
             })
           )
-          .pipe(
-            Effect.catchTag("DeliveryClaimLost", () =>
-              Effect.succeed("claimLost" as const)
-            ),
-            Effect.uninterruptible
-          );
+          .pipe(Effect.uninterruptible);
       }
     );
 

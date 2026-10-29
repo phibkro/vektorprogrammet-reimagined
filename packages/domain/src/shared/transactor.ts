@@ -9,8 +9,8 @@
  * built inside (`Effect.provide`), a port that a Layer captured when it was built, `Effect.serviceOption`,
  * `Effect.context` with `Context.getOption`, and a service that is not marked whose Layer captures a port. A generic
  * caller whose bound is `object` or `{}` admits every service, ports too. What the bound does not see, the runtime
- * guard refuses (spec 0024): every integration port is built through `refusingInTransaction` (`transaction.ts`), and a
- * call made while the fiber holds the transaction's proof dies as `IntegrationCalledInTransaction`.
+ * guard refuses (spec 0024): every integration port is built through `refusingInTransaction` (`integrationGuard.ts`),
+ * and a call made while the fiber holds the transaction's proof dies as `IntegrationCalledInTransaction`.
  */
 import { Context } from "effect";
 import type { Effect } from "effect";

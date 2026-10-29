@@ -537,13 +537,14 @@ export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "WorkQueue",
     carriers: [
+      carrier(OutboxDelivery, "holdClaim"),
       carrier(OutboxDelivery, "markDelivered"),
       carrier(OutboxDelivery, "markFailed"),
     ],
     id: "LS2",
     invariant: false,
     property:
-      "An acknowledgement or release that carries a claim token other than the record's current one changes nothing and reports `claimLost`.",
+      "An acknowledgement, a release or a hold (`holdClaim`, the fence of a write that depends on the claim) that carries a claim token other than the record's current one changes nothing and reports `claimLost`; a hold that succeeds keeps the record locked, so another consumer's claim waits, until the caller's transaction ends.",
     rawWriter:
       "overwrites the claim token: a stale claimant's acknowledgement then succeeds",
     strength: "port-enforced",

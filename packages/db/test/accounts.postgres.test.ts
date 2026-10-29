@@ -324,6 +324,70 @@ layer(
   );
 
   it.effect(
+    "spec 0024 F5: the reusable alumni code answers only while it is Usable and unexpired, for a person with no account; an unsent or expired one authenticates nothing, and a state-blind read finds each row (control)",
+    () =>
+      Effect.gen(function* reusableCode() {
+        const fixture = yield* world("code-alumni");
+        const personId = fixture.person.id;
+        const sql = yield* SqlClient;
+        const codes = yield* CodeRepository;
+
+        const present = (built: "expired" | "unsent" | "usable") =>
+          Effect.gen(function* presentCode() {
+            const { hash, token } = yield* mintCode().pipe(Effect.orDie);
+
+            const code = {
+              expiresAt: built === "expired" ? lapsed : expiresAt,
+              hash,
+              purpose: "alumniConsent",
+            } as const;
+
+            yield* asPerson(personId, (locked) =>
+              built === "unsent"
+                ? issueUnsent(locked, code)
+                : issueUsable(locked, code)
+            );
+
+            const principal = yield* codePrincipal(token, "alumniConsent");
+
+            const found = yield* codes.findUsable({
+              hash,
+              now,
+              purpose: "alumniConsent",
+            });
+
+            const rows = yield* sql<{
+              readonly state: string;
+            }>`select state from code where hash = ${hash}`;
+
+            return {
+              authenticates: Option.isSome(principal),
+              found: Option.isSome(found),
+              state: rows[0]?.state,
+            };
+          });
+
+        const refused = { authenticates: false, found: false };
+
+        assert.deepStrictEqual(yield* present("unsent"), {
+          ...refused,
+          state: "Unsent",
+        });
+
+        assert.deepStrictEqual(yield* present("expired"), {
+          ...refused,
+          state: "Usable",
+        });
+
+        assert.deepStrictEqual(yield* present("usable"), {
+          authenticates: true,
+          found: true,
+          state: "Usable",
+        });
+      })
+  );
+
+  it.effect(
     "spec 0024 F5: an Unsent or a Used code authenticates nothing in any purpose, an expired one neither, and only a Usable unexpired code does; a state-blind read finds each row (control)",
     () =>
       Effect.gen(function* unusableNeverAuthenticates() {

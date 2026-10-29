@@ -425,6 +425,12 @@ const repositories = Layer.effectContext(
             } satisfies ClaimedOutboxMessage,
           });
         }),
+      holdClaim: (id, claimToken) =>
+        Effect.sync(() =>
+          rowOf(id)?.claimToken === claimToken
+            ? ("recorded" as const)
+            : ("claimLost" as const)
+        ),
       markDead: (id) =>
         Effect.sync(() => {
           const row = rowOf(id);

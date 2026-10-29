@@ -12,7 +12,11 @@
  * F4  Two requests for one person: an older attempt's acknowledgement never makes the newer attempt's `Unsent` code
  *     usable (scripted), and exactly one of two concurrent attempts' mails works (100 fresh rounds).
  * F7  The ports refuse a call inside a transaction on the real stack: the delivery's sender and Better Auth, called
- *     inside `Transactor.run` on PostgreSQL, die and leave no mail.
+ *     inside `Transactor.run` on PostgreSQL, die and leave no mail; every member of `Auth` does.
+ * F11 Transaction 1 is fenced by the claim: a consumer whose lease lapsed while it waited writes nothing and mails
+ *     nothing, and the code that another consumer delivered stays usable (control: the same attempt without the fence
+ *     replaces it, with a second mail or with no working link at all).
+ * F12 Transaction 2 commits the hash-bound acknowledgement even when the claim was lost meanwhile (decision D5).
  */
 import { assert, layer } from "@effect/vitest";
 import {
@@ -25,10 +29,17 @@ import {
   OutboxMessage,
   OutboxMessageId,
   anonymous,
+  PasswordHash,
+  PersonId,
+  OutboxDelivery,
   codePrincipal,
   refusingInTransaction,
 } from "@vektorprogrammet/domain";
 import type {
+  AggregateLocks,
+  PersonRepository,
+  SiteOrigin,
+  Transactor,
   AccountRepository,
   CodePurpose,
   CodeRepository,
@@ -37,10 +48,12 @@ import type {
 import {
   Array as Arr,
   Cause,
+  DateTime,
   Deferred,
   Effect,
   Exit,
   Fiber,
+  Context,
   Layer,
   Option,
   Predicate,
@@ -49,6 +62,10 @@ import {
 import type { Crypto } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import {
+  AccountDelivery,
+  accountDeliveryLayer,
+} from "../src/server/accountDelivery";
 import { Auth } from "../src/server/auth";
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender } from "../src/server/senders";
@@ -61,11 +78,12 @@ interface Sent {
   readonly token: CodeToken;
 }
 
-/** The services that a hook reads the store with: they are the delivery stack's, provided to the test and to the sender alike. */
+/** The services that a hook reads and writes the store with: the delivery stack's own, given to the sender's fiber alike. */
 type StoreServices =
   | AccountRepository
   | CodeRepository
   | Crypto.Crypto
+  | OutboxDelivery
   | SqlClient;
 
 /** What the sender does around each send, and what it sent. A test sets the hooks and the next test starts over. */
@@ -300,6 +318,91 @@ const concurrentRound = (round: number) =>
     return Arr.map(problems, (problem) => `round ${round}: ${problem}`);
   });
 
+/** What the delivery of `AccountDelivery` is built from. */
+type DeliveryNeeds =
+  | Auth
+  | AccountRepository
+  | AggregateLocks
+  | CodeRepository
+  | Crypto.Crypto
+  | MessageSender
+  | OutboxDelivery
+  | PersonRepository
+  | SiteOrigin
+  | Transactor;
+
+/** The delivery of the account flows over the same services, with an outbox whose `holdClaim` holds nothing: the fence taken out. */
+const unfencedDelivery = Effect.gen(function* buildUnfenced() {
+  const context = yield* Effect.context<DeliveryNeeds>();
+  const real = Context.get(context, OutboxDelivery);
+
+  const unfenced = Context.add(
+    context,
+    OutboxDelivery,
+    OutboxDelivery.of({
+      ...real,
+      holdClaim: () => Effect.succeed("recorded" as const),
+    })
+  );
+
+  // `Layer.fresh`: the layer that the stack was built with is shared by reference, and would hand back its own fence.
+  const built = yield* Layer.build(Layer.fresh(accountDeliveryLayer)).pipe(
+    Effect.provide(Layer.succeedContext(unfenced))
+  );
+
+  return Context.get(built, AccountDelivery);
+}).pipe(Effect.scoped);
+
+/**
+ * Spec 0024 R9. Consumer A claims the row of an invitation, its lease lapses, and consumer B delivers the row completely
+ * (a mail, a usable code, a delivered row). Then A runs its `issueCode` on the claim that it still holds, with the send
+ * working or down (`sendFails`). What it leaves behind is what the test reads.
+ */
+const staleConsumer = (
+  personId: number,
+  options: { readonly fenced: boolean; readonly sendFails: boolean }
+) =>
+  Effect.gen(function* staleRun() {
+    yield* reset;
+    const sql = yield* SqlClient;
+    const id = yield* invite(personId);
+    const claimed = yield* (yield* OutboxDelivery).claim(id, 120);
+
+    if (!Predicate.isTagged(claimed, "Claimed")) {
+      return yield* Effect.die("consumer A did not get the claim");
+    }
+
+    const stale = claimed.row;
+
+    if (!Predicate.isTagged(stale.message, "IssueCode")) {
+      return yield* Effect.die("the row is not a code message");
+    }
+
+    const { message } = stale;
+
+    yield* sql`update outbox set claimed_until = now() - interval '1 minute' where id = ${Number(id)}`;
+    assert.strictEqual(yield* deliveryTag(id), "Delivered");
+    const deliveredToken = yield* tokenAt(0);
+
+    if (options.sendFails) {
+      hooks.before = () => Effect.die("the provider is down");
+    }
+
+    const delivery = options.fenced
+      ? yield* AccountDelivery
+      : yield* unfencedDelivery;
+
+    const exit = yield* Effect.exit(delivery.issueCode(stale, message));
+
+    return {
+      answer: Exit.isSuccess(exit) ? exit.value : "the send died",
+      deliveredCodeWorks: yield* authenticates(deliveredToken, "activation"),
+      mails: hooks.sent.length,
+      row: (yield* rowStatus(id)).status,
+      states: yield* codeStates(personId),
+    };
+  });
+
 layer(liveWith(controlled), { excludeTestServices: true })(
   "spec 0024: code delivery outside the transaction",
   (it) => {
@@ -468,7 +571,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
     );
 
     it.effect(
-      `F4: two concurrent attempts for one person: exactly one of the two mails works, in each of ${ROUNDS} fresh rounds`,
+      `F4 (a guard, not a lock falsifier): two concurrent attempts for one person end with one code, usable, and exactly one working mail, in each of ${ROUNDS} fresh rounds`,
       () =>
         Effect.gen(function* concurrentAttempts() {
           const problems = yield* Effect.forEach(
@@ -482,7 +585,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
     );
 
     it.effect(
-      "F7: the delivery's sender and Better Auth, called inside Transactor.run on PostgreSQL, die and leave no mail",
+      "F7: the delivery's sender and every member of Better Auth, called inside Transactor.run on PostgreSQL, die as the guard's defect and leave no mail",
       () =>
         Effect.gen(function* portsRefuse() {
           yield* reset;
@@ -497,16 +600,45 @@ layer(liveWith(controlled), { excludeTestServices: true })(
             to: EmailAddress.make("kari@example.org"),
           });
 
-          const sending = yield* Effect.exit(
-            transacted(sender.send(mail, "inside"))
+          const personId = PersonId.make(1);
+
+          // Each member is asked for inside the transaction with arguments that a real call would take: the guard
+          // refuses before it reads them. `Auth` has four members, and a Layer that wrapped fewer is found by name.
+          const members: readonly (readonly [
+            string,
+            Effect.Effect<unknown, unknown>,
+          ])[] = [
+            ["MessageSender.send", sender.send(mail, "inside")],
+            ["Auth.handle", auth.handle(new Request("https://mail.example/"))],
+            ["Auth.session", auth.session(new Headers())],
+            [
+              "Auth.setCredential",
+              auth.setCredential({
+                at: DateTime.makeUnsafe("2026-10-29T12:00:00Z"),
+                passwordHash: PasswordHash.make(`$2b$12$${"a".repeat(53)}`),
+                personId,
+                revokeSessions: false,
+                version: 1,
+              }),
+            ],
+            [
+              "Auth.signInPerson",
+              auth.signInPerson({
+                headers: new Headers(),
+                password: "a password",
+                personId,
+              }),
+            ],
+          ];
+
+          const refused = yield* Effect.forEach(members, ([, member]) =>
+            Effect.map(Effect.exit(transacted(member)), refusedCall)
           );
 
-          const reading = yield* Effect.exit(
-            transacted(auth.session(new Headers()))
+          assert.deepStrictEqual(
+            refused,
+            Arr.map(members, ([name]) => name)
           );
-
-          assert.strictEqual(refusedCall(sending), "MessageSender.send");
-          assert.strictEqual(refusedCall(reading), "Auth.session");
 
           const [mailbox] = yield* sql<{
             readonly n: number;
@@ -514,6 +646,93 @@ layer(liveWith(controlled), { excludeTestServices: true })(
 
           assert.strictEqual(mailbox?.n, 0);
           assert.lengthOf(hooks.sent, 0);
+        })
+    );
+
+    it.effect(
+      "F11: a consumer whose lease lapsed while another delivered the row writes nothing and mails nothing, with the send working or down, and the delivered code stays usable",
+      () =>
+        Effect.gen(function* fencedConsumer() {
+          const working = yield* staleConsumer(761, {
+            fenced: true,
+            sendFails: false,
+          });
+
+          const down = yield* staleConsumer(762, {
+            fenced: true,
+            sendFails: true,
+          });
+
+          for (const seen of [working, down]) {
+            assert.deepStrictEqual(seen, {
+              answer: "claimLost",
+              deliveredCodeWorks: true,
+              mails: 1,
+              row: "delivered",
+              states: ["Usable"],
+            });
+          }
+        }),
+      { timeout: 60_000 }
+    );
+
+    it.effect(
+      "F11 control: the same consumer without the fence replaces the delivered code: a second mail when the send works, and no working link at all, on a delivered row, when it is down",
+      () =>
+        Effect.gen(function* unfencedConsumer() {
+          const working = yield* staleConsumer(771, {
+            fenced: false,
+            sendFails: false,
+          });
+
+          const down = yield* staleConsumer(772, {
+            fenced: false,
+            sendFails: true,
+          });
+
+          // Send working: a needless second mail kills the first one's link; the newer code is acknowledged (D5).
+          assert.deepStrictEqual(working, {
+            answer: "claimLost",
+            deliveredCodeWorks: false,
+            mails: 2,
+            row: "delivered",
+            states: ["Usable"],
+          });
+
+          // Send down: the reviewer's case. The delivered code is gone, the replacement was never mailed.
+          assert.deepStrictEqual(down, {
+            answer: "the send died",
+            deliveredCodeWorks: false,
+            mails: 1,
+            row: "delivered",
+            states: ["Unsent"],
+          });
+        }),
+      { timeout: 60_000 }
+    );
+
+    it.effect(
+      "F12 (D5): a claim lost between the send and the acknowledgement: the acknowledgement still commits for the code that was mailed, and the row stays with the consumer that took it",
+      () =>
+        Effect.gen(function* lostBeforeAcknowledgement() {
+          yield* reset;
+          const id = yield* invite(781);
+          const provide = yield* withStore;
+
+          // The lease lapses after the send and another consumer claims the row, and does nothing more.
+          hooks.after = () =>
+            provide(
+              Effect.gen(function* stealClaim() {
+                const sql = yield* SqlClient;
+                yield* sql`update outbox set claimed_until = now() - interval '1 minute' where id = ${Number(id)}`;
+                yield* (yield* OutboxDelivery).claim(id, 120);
+              }).pipe(Effect.orDie)
+            );
+
+          assert.strictEqual(yield* deliveryTag(id), "Settled");
+          assert.deepStrictEqual(yield* codeStates(781), ["Usable"]);
+          assert.isTrue(yield* authenticates(yield* tokenAt(0), "activation"));
+          assert.strictEqual((yield* rowStatus(id)).status, "pending");
         })
     );
   }

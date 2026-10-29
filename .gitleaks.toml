@@ -55,7 +55,19 @@ regexes = [
 [[rules.allowlists]]
 description = "Only the exact example.org-only people and Active account of the code lifecycle test."
 condition = "AND"
-paths = ['''^apps/web/test/codeLifecycle\.postgres\.test\.ts(?:\.wip)?$''']
+paths = ['''^apps/web/test/codeLifecycle\.postgres\.test\.ts$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(\$\{LEADER\}, 'Leader', 'kodelcleader@example\.org', \$\{DEPARTMENT\}\) on conflict do nothing\x60;$''',
+  '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(\$\{id\}, 'Person', \$\{emailOf\(id\)\}, \$\{DEPARTMENT\}\)\x60;$''',
+  '''^\s*yield\* sql\x60insert into account \(person_id, state\) values \(\$\{id\}, 'Active'\)\x60;$''',
+]
+
+[[rules.allowlists]]
+description = "The same three example.org fixture lines in the one earlier commit that held the file as `.wip` (the history scan reads it); that commit and that path only."
+condition = "AND"
+commits = ["5d8f76a4425c2627708cb78f1e7314a19c5cb6ab"]
+paths = ['''^apps/web/test/codeLifecycle\.postgres\.test\.ts\.wip$''']
 regexTarget = "line"
 regexes = [
   '''^\s*yield\* sql\x60insert into person \(id, name, email, field_of_study_id\) values \(\$\{LEADER\}, 'Leader', 'kodelcleader@example\.org', \$\{DEPARTMENT\}\) on conflict do nothing\x60;$''',

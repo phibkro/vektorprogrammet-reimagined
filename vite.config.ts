@@ -423,7 +423,6 @@ export default defineConfig({
           "tools/db-path-spike/src/smoke.ts",
           "tools/db-path-spike/src/smoke/refused.ts",
           "apps/web/src/server/authError.ts",
-          "apps/web/src/server/deliveryClaimLost.ts",
           "apps/web/src/server/queueSendFailed.ts",
           "apps/web/e2e/run.ts",
           "apps/web/e2e/support/devServer.ts",

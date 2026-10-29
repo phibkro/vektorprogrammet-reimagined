@@ -76,7 +76,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | Id | Property | Strength | Invariant | Carriers | A raw writer |
 | --- | --- | --- | --- | --- | --- |
 | LS1 | A pending outbox record has at most one live claim; of any number of claimers, exactly one holds it. A duplicate message finds it `Held` or `Settled` and never sends twice. | port-enforced | no | `OutboxDelivery.claim` | claims a record that another claim holds: it takes the record, and both senders send |
-| LS2 | An acknowledgement or release that carries a claim token other than the record's current one changes nothing and reports `claimLost`. | port-enforced | no | `OutboxDelivery.markDelivered`, `OutboxDelivery.markFailed` | overwrites the claim token: a stale claimant's acknowledgement then succeeds |
+| LS2 | An acknowledgement, a release or a hold (`holdClaim`, the fence of a write that depends on the claim) that carries a claim token other than the record's current one changes nothing and reports `claimLost`; a hold that succeeds keeps the record locked, so another consumer's claim waits, until the caller's transaction ends. | port-enforced | no | `OutboxDelivery.holdClaim`, `OutboxDelivery.markDelivered`, `OutboxDelivery.markFailed` | overwrites the claim token: a stale claimant's acknowledgement then succeeds |
 | LS3 | Delivery is at least once, with no order across records; a provider can hear of a record twice when its send succeeded and the acknowledgement did not commit. | port-enforced | no | `OutboxDelivery` | no writer can make this false: it is a promise to callers |
 | LS4 | `markDelivered` is one conditional write that joins the caller's transaction when there is one (the acknowledgement then commits or rolls back with the caller's writes) and commits alone otherwise. Which of the two holds is the caller's, and the port neither requires nor reports it. | port-enforced | no | `OutboxDelivery.markDelivered` | acknowledges outside the caller's transaction: the acknowledgement survives the caller's rollback |
 | LS5 | The queue's receipt (`markQueued`) is recorded only for pending records; `stale` lists pending records with no live claim whose last receipt or next attempt is not after the cut-off; a dead ending is recorded only after a failure class was recorded. | port-enforced | no | `OutboxDelivery.markQueued`, `OutboxDelivery.stale`, `OutboxDelivery.markDead`, `OutboxDelivery.recordFailure` | ends a record that has no recorded failure: it ends, and the sweep no longer finds it |
@@ -143,7 +143,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `LegalHolds` | `of` |  |  |  |  |  |
 | `MembershipRepository` | `findLocked`, `insert`, `listLocked`, `remove`, `setEnd` |  |  | `activeIn`, `findById`, `listByPerson`, `listByTeam` |  |  |
 | `Outbox` | `enqueue` |  |  |  |  |  |
-| `OutboxDelivery` |  | `claim`, `markDead`, `markFailed`, `markQueued`, `recordFailure` | `markDelivered` | `stale` |  |  |
+| `OutboxDelivery` | `holdClaim` | `claim`, `markDead`, `markFailed`, `markQueued`, `recordFailure` | `markDelivered` | `stale` |  |  |
 | `OutboxReports` |  |  |  | `overview` |  |  |
 | `PersonRepository` | `create`, `findLocked` |  |  | `findById`, `list` |  |  |
 | `PersonalDataStore` | `erase`, `merge`, `setPhoto` |  |  | `exportOf` |  |  |

@@ -275,6 +275,7 @@ const modules: readonly Module[] = [
       "membership",
       "organisation",
       "outbox",
+      "transactions",
       "triggers",
       "vocabulary",
       "workspace",
