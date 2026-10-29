@@ -43,6 +43,37 @@ const baseName = (root: string): string =>
 const unitOf = (units: readonly Unit[], path: string): Option.Option<Unit> =>
   Arr.findFirst(units, ({ root }) => path.startsWith(`${root}/`));
 
+/**
+ * The units that a path reaches into: the one that holds it, and every unit below it when it is a directory above
+ * units (`""` is the repository root, `apps` the directory of the apps). A directory that holds no unit and sits in none
+ * (`docs`) reaches no unit.
+ */
+const unitsReachedBy = (
+  units: readonly Unit[],
+  path: string
+): readonly Unit[] =>
+  Arr.filter(
+    units,
+    ({ root }) =>
+      `${path}/`.startsWith(`${root}/`) ||
+      path === "" ||
+      root.startsWith(`${path}/`)
+  );
+
+/** The units that an import reaches into by a path: a glob by its directory, any other file by the unit that holds it. */
+const unitsReachedByImport = (
+  units: readonly Unit[],
+  { glob, target }: ResolvedImport
+): readonly Unit[] => {
+  if (target.kind === "directory") {
+    return unitsReachedBy(units, target.path);
+  }
+
+  return target.kind === "file" && glob !== true
+    ? Arr.fromOption(unitOf(units, target.path))
+    : [];
+};
+
 const unitNamed = (units: readonly Unit[], name: string): Option.Option<Unit> =>
   Arr.findFirst(units, ({ root }) => baseName(root) === name);
 
@@ -389,20 +420,21 @@ export const moduleGraphFindings = (
     Option.match(unitOf(units, use.path), {
       onNone: () => [],
       onSome: (from): UnitEdge[] => {
-        const to =
-          use.target.kind === "file"
-            ? unitOf(units, use.target.path)
-            : Option.none();
-
         if (use.target.kind === "workspace") {
           const named = unitNamed(units, use.target.name);
 
           return [{ from, reach: "name" as const, to: named, use }];
         }
 
-        return Option.isSome(to) && to.value.root !== from.root
-          ? [{ from, reach: "path" as const, to, use }]
-          : [];
+        // A glob's unit reach is its directory: the files it matches are module edges, and adding them here would
+        // report one pattern once per match.
+        const reached = unitsReachedByImport(units, use);
+
+        return Arr.flatMap(reached, (to): UnitEdge[] =>
+          to.root === from.root
+            ? []
+            : [{ from, reach: "path", to: Option.some(to), use }]
+        );
       },
     })
   );

@@ -595,6 +595,136 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
   );
 
   it.effect(
+    "R14 (glob base): a glob's unit is decided by the literal directory it starts in, so a glob that leaves its unit is found whatever it matches, and one that stays is not",
+    () =>
+      Effect.gen(function* globBaseDecidesTheUnit() {
+        const importer = "apps/web/src/server/seeds.ts";
+
+        const reach = (pattern: string, unit: string) =>
+          `${importer}:1: apps/web reaches into ${unit} by the path ${pattern}; import the package by its name`;
+
+        const scanned = (written: string, files: Record<string, string> = {}) =>
+          findingsOf({ ...base, ...files, [importer]: written });
+
+        // The reviewer's case: a glob of data files into another unit. No scanned source matches it, and it is found.
+        const json = "../../../cms/seed/*.json";
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(
+              `export const seeds = import.meta.glob("${json}");\n`,
+              {
+                "apps/cms/seed/seed.json": "{}\n",
+              }
+            ),
+            importer
+          ),
+          [reach(json, "apps/cms")]
+        );
+
+        // A glob that names a directory with no file in it reaches the same unit.
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(
+              `export const seeds = import.meta.glob("${json}");\n`
+            ),
+            importer
+          ),
+          [reach(json, "apps/cms")]
+        );
+
+        // Each brace alternative has its own directory; the one in the unit itself is no finding.
+        const braces = "../../../{cms,web}/seed/*.json";
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(
+              `export const seeds = import.meta.glob("${braces}");\n`
+            ),
+            importer
+          ),
+          [reach(braces, "apps/cms")]
+        );
+
+        // A pattern that matches several sources of another unit is one finding, not one per match.
+        const many = "../../../cms/build/*.ts";
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(
+              `export const pages = import.meta.glob("${many}");\n`,
+              {
+                "apps/cms/build/a.ts": "export const a = 1;\n",
+                "apps/cms/build/b.ts": "export const b = 1;\n",
+              }
+            ),
+            importer
+          ),
+          [reach(many, "apps/cms")]
+        );
+
+        // A pattern that starts above the units reaches every unit below it, and the unit it is written in is not one
+        // (from `apps`, only the other app).
+        const apps = "../../../**/*.json";
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(`export const all = import.meta.glob("${apps}");\n`),
+            importer
+          ),
+          [reach(apps, "apps/cms")]
+        );
+
+        const above = "../../../../**/*.json";
+
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(
+              `export const all = import.meta.glob("${above}");\n`
+            ),
+            importer
+          ),
+          [
+            reach(above, "apps/cms"),
+            reach(above, "packages/cms-client"),
+            reach(above, "packages/db"),
+            reach(above, "packages/domain"),
+          ]
+        );
+
+        // Controls. The same data glob in the unit's own tree, and one into a directory that is in no unit, are clean.
+        for (const stays of [
+          "../../data/*.json",
+          "./*.json",
+          "../../../../docs/*.md",
+        ]) {
+          assert.deepStrictEqual(
+            mentioning(
+              yield* scanned(
+                `export const x = import.meta.glob("${stays}");\n`
+              ),
+              importer
+            ),
+            [],
+            stays
+          );
+        }
+
+        // A negated pattern only removes files, so it reaches nowhere.
+        assert.deepStrictEqual(
+          mentioning(
+            yield* scanned(
+              `export const x = import.meta.glob(["./*.json", "!${json}"]);\n`
+            ),
+            importer
+          ),
+          []
+        );
+      }),
+    120_000
+  );
+
+  it.effect(
     "R12 (round 3): an import() or import.meta.glob() with a computed argument, or a pattern that cannot be placed, is a finding, and a literal one is not",
     () =>
       Effect.gen(function* computedLoadsFail() {

@@ -2,13 +2,18 @@ import { Array as Arr, Effect, FileSystem, Option } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-import { globMatches } from "./globImports.ts";
+import { globBases, globMatches } from "./globImports.ts";
 import { importForms } from "./importSpecifiers.ts";
 import type { ComputedImport, Specifier } from "./importSpecifiers.ts";
 
-/** What an import names, once resolved. A `file` is a path from the repository root, after symlinks. */
+/**
+ * What an import names, once resolved. A `file` is a path from the repository root, after symlinks. A `directory` is
+ * where an `import.meta.glob` pattern reaches, from the repository root (`""` is the root itself): the literal part of
+ * the pattern, whatever files it matches.
+ */
 export type Target =
   | { readonly kind: "file"; readonly path: string }
+  | { readonly kind: "directory"; readonly path: string }
   | { readonly kind: "unresolved" }
   | { readonly kind: "workspace"; readonly name: string }
   | { readonly kind: "external"; readonly name: string };
@@ -16,6 +21,12 @@ export type Target =
 /** One import: where it is written (line) and what it names. */
 export interface ResolvedImport extends Specifier {
   readonly target: Target;
+  /**
+   * The import is a pattern of `import.meta.glob`: a `file` target is one of its matches (a module edge), and its
+   * `directory` target is where it reaches (the unit rule reads that one, so a pattern is one finding however many
+   * files it matches, and a pattern that matches no source file is still found).
+   */
+  readonly glob?: true;
 }
 
 export const workspacePrefix = "@vektorprogrammet/";
@@ -132,8 +143,9 @@ export interface SourceFile {
 
 /**
  * Reads the files `paths` (from the repository root `root`), their imports, and what each import names. A literal
- * `import.meta.glob` pattern is an import of every file among `paths` that it matches; a pattern that cannot be placed
- * joins the loads that no check can read.
+ * `import.meta.glob` pattern is an import of every file among `paths` that it matches, and of the directory that its
+ * literal part names (a pattern of `.json` files reaches into a unit though no scanned source matches it); a pattern
+ * that cannot be placed joins the loads that no check can read.
  */
 export const readSources = Effect.fn("readSources")(function* readSources(
   root: string,
@@ -152,6 +164,7 @@ export const readSources = Effect.fn("readSources")(function* readSources(
       const globbed = Arr.map(forms.globs, ({ line, patterns }) => ({
         line,
         placed: Arr.map(patterns, (pattern) => ({
+          bases: globBases(file, pattern),
           matches: globMatches(file, pattern, paths),
           pattern,
         })),
@@ -174,16 +187,26 @@ export const readSources = Effect.fn("readSources")(function* readSources(
             target: resolve(file, found),
           })),
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ matches, pattern }) =>
-              Arr.map(
+            Arr.flatMap(placed, ({ bases, matches, pattern }) => [
+              ...Arr.map(
+                Option.getOrElse(bases, () => []),
+                (base): ResolvedImport => ({
+                  glob: true,
+                  line,
+                  specifier: pattern,
+                  target: { kind: "directory", path: base },
+                })
+              ),
+              ...Arr.map(
                 Option.getOrElse(matches, () => []),
                 (match): ResolvedImport => ({
+                  glob: true,
                   line,
                   specifier: pattern,
                   target: { kind: "file", path: match },
                 })
-              )
-            )
+              ),
+            ])
           ),
         ],
         path: file,

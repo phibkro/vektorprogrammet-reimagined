@@ -42,15 +42,14 @@ const fromRoot = (importer: string, pattern: string): Option.Option<string> =>
 const unsupported = /[()?[\]]/u;
 
 /**
- * The files among `paths` (paths from the repository root) that the pattern `pattern`, written in the file `importer` as
- * the argument of `import.meta.glob`, names; none when the pattern cannot be placed (a root-relative or aliased pattern,
- * glob syntax that the matcher does not read, a path out of the repository). A `!` pattern only removes files from the
- * others, so it names none.
+ * The patterns written in `importer` (the argument of `import.meta.glob`), each as a path-from-the-root glob with its
+ * braces expanded; none when the pattern cannot be placed (a root-relative or aliased pattern, glob syntax that the
+ * matcher does not read, a path out of the repository). A `!` pattern only removes files from the others, so it
+ * places none.
  */
-export const globMatches = (
+const placed = (
   importer: string,
-  pattern: string,
-  paths: readonly string[]
+  pattern: string
 ): Option.Option<readonly string[]> => {
   if (pattern.startsWith("!")) {
     return Option.some([]);
@@ -63,13 +62,40 @@ export const globMatches = (
     return Option.none();
   }
 
-  return Option.map(
-    Option.all(
-      Arr.map(expandBraces(pattern), (expanded) => fromRoot(importer, expanded))
-    ),
-    (globs) =>
-      Arr.filter(paths, (path) =>
-        Arr.some(globs, (glob) => globToRegExp(glob).test(path))
-      )
+  return Option.all(
+    Arr.map(expandBraces(pattern), (expanded) => fromRoot(importer, expanded))
   );
 };
+
+/** The files among `paths` (paths from the repository root) that the pattern names; none when it cannot be placed. */
+export const globMatches = (
+  importer: string,
+  pattern: string,
+  paths: readonly string[]
+): Option.Option<readonly string[]> =>
+  Option.map(placed(importer, pattern), (globs) =>
+    Arr.filter(paths, (path) =>
+      Arr.some(globs, (glob) => globToRegExp(glob).test(path))
+    )
+  );
+
+/**
+ * Where the pattern reaches, whatever it matches: the literal part of each brace alternative, the directories before
+ * the first segment that holds a wildcard (`apps/cms/seed` for `../../../cms/seed/*.json` written in `apps/web/src/x.ts`),
+ * or the file itself when there is no wildcard. The empty string is the repository root. None when the pattern cannot
+ * be placed.
+ */
+export const globBases = (
+  importer: string,
+  pattern: string
+): Option.Option<readonly string[]> =>
+  Option.map(placed(importer, pattern), (globs) =>
+    Arr.dedupe(
+      Arr.map(globs, (glob) =>
+        Arr.join(
+          Arr.takeWhile(glob.split("/"), (segment) => !segment.includes("*")),
+          "/"
+        )
+      )
+    )
+  );
