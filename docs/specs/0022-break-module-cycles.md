@@ -1,0 +1,68 @@
+# Spec 0022: Break the module cycles (ADR 0015, stages 2 and 3, and the generic kernel)
+
+**Status:** frozen when its PR opens; later changes are dated entries under [Revisions](#revisions) · **Source:** ADR 0015 (`docs/decisions/0015-module-layers.md`), its staged plan rows 2 and 3, its section 9 ("What does not fit") and operator Resolutions 2 and 3; spec 0020 (the check and its baseline) · **Branch:** `feat/break-module-cycles`, from main `c0ab784`.
+
+## Journey
+
+Nothing a user sees moves: the same commands, the same grant table, the same outbox rows, the same jobs, the same generated documents. The journeys are a developer's and a reviewer's.
+
+1. **A developer adds a service message.** She declares `{ _tag: "WelcomeSlack", … }` in her own service with `Outbox.declareMessage`, enqueues it, and lists it in the catalog (`outbox/messages.ts`). She does not touch `shared/outbox.ts`, so the library no longer names `iam` or `workspace`. A message that she declared and forgot to list fails a test that names its tag.
+2. **A developer adds a credential purpose or a second ordered value.** The kernel does not know `CodePurpose` or `Semester`: `iam` supplies the credential (`codeHolder(purpose)`), `organisation` supplies the ordered value the membership guards compare (`SemesterGuard`). A kernel file that imports either again fails `bun run check:module-graph` (`accounts/code.ts` is `iam`, and `kernel` does not use `iam`) and a test (`semester.ts` is vocabulary, so the module graph cannot see it).
+3. **A developer adds a job to Workspace.** The declaration is in `workspace/job.ts`, beside the command that reads its limits. The registry imports it. Nothing in `workspace` imports the catalog.
+4. **A reviewer reads the baseline.** It had eight entries (3 imports between modules, 5 between packages); it has five. The three module entries are gone and the test pins the new count.
+
+## Goal, constraints, values
+
+- **Goal:** ADR 0015 stage 2 (`workspace` declares its sync job), stage 3 (the outbox splits: the library keeps the `Outbox` port and the enqueue contract; each service declares the messages it enqueues; the catalog assembles the union that delivery decodes), and the generic kernel of section 9 (the kernel names neither `CodePurpose`/`codePolicy` nor `Semester`). The baseline loses every module entry these retire.
+- **Constraints:**
+  - **Behaviour does not change.** The `OutboxMessage` union has the same tags, fields and encoded shapes as before, so the persisted rows, the `outbox_kind` check and the queue body decode as they did. The grant table, the effx descriptions and the generated documents are byte-identical.
+  - **No stage 4.** No directory moves, no renames, no `cms-client` split. A file may change _module_ (a glob list in `moduleGraph.ts`), never directory.
+  - **No shims, no aliases.** Every caller moves to the new home; a name that moved is not re-exported from the old file.
+  - **The check's declaration is the one truth.** Module membership and `uses` change in `tools/quality/moduleGraph.ts` in the same change as the files.
+  - Spec 0018's files (`shared/guarantees.ts`, `shared/transactionModes.ts`) and `packages/db/src/live.ts`, `transactional.ts` (PR #51) are not edited.
+- **Values:** the bad state unrepresentable (an unlisted message cannot be enqueued by type, and a stray tag fails a test); one home per fact; every falsifier has a control that fails.
+
+## Requirements
+
+| # | Requirement |
+| --- | --- |
+| R1 | **Credentials are the supplier's.** `kernel/subject.ts` `Holder` carries `{ purpose: string, command: string }` and `holds` compares the principal's narrowing with the subject's own `command`; `kernel/commands.ts` `Info.credential` is a string; `kernel/domain.ts` `credentialGrants` reads the subject, not `codePolicy`. `accounts/code.ts` (now module `iam`) declares `codeHolder(purpose)`, the one typed constructor, and `accounts/declaration.ts` and `personalData/rpc.ts` use it. No file of `kernel/` imports `accounts/`. |
+| R2 | **Ordered values are the supplier's.** `kernel/guard.ts` takes an `Ordered<V>` (`{ schema, order }`) and builds the comparisons, the revivers and the typed `field` of a machine for it; `kernel/machine.ts` takes `Field`s built by it. `organisation/semesterGuard.ts` instantiates it for `Semester`; `teams/declaration.ts` uses that. The check ids stay `vektorprogrammet/semester/*` (they are the persisted representation: renaming them would change every machine description). No file of `kernel/` imports `organisation/`. |
+| R3 | **The library declares no service message.** `shared/outbox.ts` keeps `Outbox`, `SlackChannel`, `SlackTarget`, `slackChannelOf`, the transport messages (`EmailMessage`, `SlackPostMessage`: they name no service and every service sends them) and `declareMessage`, whose result is branded `DeclaredMessage`; `Outbox.enqueue` takes `DeclaredMessage`s. It imports no file of `accounts/` or `workspace/`. |
+| R4 | **Each service declares its messages.** `accounts/messages.ts` (`IssueCodeMessage`, `SetCredentialMessage`) and `workspace/message.ts` (`WorkspaceChangeMessage`). Every enqueue in a service builds its message from these. |
+| R5 | **The catalog assembles the union that delivery decodes.** `outbox/messages.ts` lists the five messages as `OutboxMessage` (`Schema.Union(...).pipe(Schema.toTaggedUnion("_tag"))`, so `cases`, `match` and `guards` are as before), and `outbox/delivery.ts`, the one file that decodes the whole union, joins it in module `catalog`. |
+| R6 | **`workspace` declares `workspaceSync`** in `workspace/job.ts`; `jobs/registry.ts` imports it; `TICK_CRON` moves to `jobs/job.ts`, where every declaration can read it. `workspace/commands.ts` no longer imports `jobs/registry.ts`. |
+| R7 | **The declaration follows.** `accounts/code.ts` leaves `vocabulary` for `iam`, `kernel/subject.ts` leaves it for `kernel`, `outbox/messages.ts` and `outbox/delivery.ts` join `catalog` (and leave `triggers`); the baseline loses `shared/outbox.ts` → `accounts/passwordHasher.ts`, `shared/outbox.ts` → `workspace/change.ts` and `workspace/commands.ts` → `jobs/registry.ts`; `moduleGraph.test.ts` pins five entries. |
+
+## Falsifiers
+
+Each has a negative control that fails without the mechanism.
+
+| # | Falsifier | Negative control | Where |
+| --- | --- | --- | --- |
+| F1 | **The kernel is generic.** Every import of a `kernel/` file resolves to a file of `kernel/` or `shared/`, or to an external package | A fixture kernel file that imports `../accounts/code.ts` or `../organisation/semester.ts` fails; the real tree passes. The real mutation (the import put back in `kernel/subject.ts`) fails `check:module-graph` for code and this test for semester | `tools/quality/test/kernelGeneric.test.ts` |
+| F2 | **Holder behaves as before.** The principal-atom oracle (`grantLaws.ts`) agrees with `authorize` for every grant row over generated principals; `Domain.problems` is empty for every domain; a credential command granted to a holder of another purpose or command, or to a person's grant, is reported; a holder holds only for a principal narrowed to its command and person | A mutant `holds` that ignores the subject's `command` fails; a mutant `credentialGrants` that does not compare the holder's command fails | `packages/domain/test/kernel/credential.test.ts` (new), the `grantLaws` oracle, `resourceMethod.test.ts` |
+| F3 | **The guards behave as before and the descriptions do not move.** `teams/guard.test.ts` and `kernel/guard.test.ts` pass with `SemesterGuard`; `bun run description` leaves `packages/domain/conformance/*` byte-identical | A mutated `SemesterGuard` order (reversed) fails both | existing tests; `git diff` of `conformance/` |
+| F4 | **The union is the same.** `OutboxMessage` has the five tags of before and the encoded JSON schema of each equals the golden captured on main `c0ab784` | A message with a renamed field fails the golden | `packages/domain/test/outbox/messages.test.ts` |
+| F5 | **A declared message that the catalog does not list fails.** Every `declareMessage("Tag", …)` in `packages/domain/src` is a case of `OutboxMessage`, and the converse; `Outbox.enqueue` takes only a `DeclaredMessage` (a type assertion in `messages.test.ts`) | A scratch declaration in an in-memory source map fails; a tag removed from the union fails; a literal with a message's tag is not a `DeclaredMessage` | `tools/quality/test/outboxMessages.test.ts`, `packages/domain/test/outbox/messages.test.ts` |
+| F6 | **The baseline shrank by three.** The check reports exactly the five package entries; the pinned count is five | Putting the three imports back (in memory) is three findings | `tools/quality/test/moduleGraph.test.ts` § F9 |
+| F7 | **The job declarations agree.** `registry.test.ts` (it checks that declaration, command, runner and document agree) and `check:docs` pass unchanged | A declaration without a registry entry fails (existing control) | existing |
+| F8 | **Nothing else moved.** `vp check`, `bun run test:all`, `bun run ready`, the browser tests and the effx conformance tests pass | — | CI |
+
+## Not done here
+
+- **Stage 4** (directories, `accounts` → `iam`, `teams` → `membership`, category tree) and the `cms-client` split.
+- **Directory cycles remain** wherever a directory holds files of two layers (`personalData/` holds the annotations and Privacy; `jobs/` holds the triggers and the registry; `shared/` holds libraries and two assembly files). The module graph, which is what the check enforces, is acyclic and has no upward edge among the domain's modules after this change; the directory graph is what stage 4 closes. The PR body measures it.
+- **Other jobs stay in `registry.ts`.** `retention` and `alumniConsent` are Privacy's, and Privacy sits above the catalog, so the registry cannot import them; moving the other four would leave the list in two homes and retire no edge.
+- **Renaming the check ids** (`vektorprogrammet/semester/after`, …) is a description change and so is not done.
+- **Types of `Info.credential`.** A typo in a command's `credential` string is found by `Domain.problems` (it must equal the purpose of the command's `Holder` grant), not by the compiler.
+
+## Revisions
+
+- **2026-10-29, while building: what the check forced and what the measurement said.**
+  1. **`isListed` is exported.** The in-memory `Outbox` layers of the tests (`packages/domain/test/support/inMemory.ts`, `apps/web/test/support/memory.ts`) keep `OutboxMessage` rows, and `enqueue` now takes `DeclaredMessage`s, so each narrows with `isListed` (`Schema.is(OutboxMessage)`) and dies on one that is not listed. The PostgreSQL adapter already encoded with the union (`Effect.orDie`), now `Schema.encodeUnknownEffect`.
+  2. **`TICK_CRON` and `workspaceSync` have new homes and the callers moved with them.** `JobRegistry.TICK_CRON` is `Job.TICK_CRON` (one use in `apps/web/src/server/runtime.ts` and three in tests); `JobRegistry.workspaceSync` is `WorkspaceJob.workspaceSync` (two tests). The registry keeps `Jobs`, `RegisteredJob` and the declarations that no lower module may own.
+  3. **The kernel needs no new module.** `semester.ts` stays in `vocabulary` because `personalData/retentionEnd.ts` (`annotations`) imports it, so the module graph cannot see a kernel file import it again; `kernelGeneric.test.ts` reads the directory instead. `accounts/code.ts` does leave `vocabulary`, and that part is a module rule.
+  4. **The directory graph is not acyclic after this change, and the ADR's stage 3 "done when" said it would be.** Measured by a throwaway script over the files' resolved imports (`scanImports` of `tools/quality`), on `packages/domain/src`'s 13 directories: main `c0ab784` has 22 pairs of directories that import each other and one component of 13; this branch has 21 pairs and one component of 13. What this change removed is what it set out to: `kernel` ↔ `accounts` and `kernel` ↔ `organisation`, and every edge from `shared/outbox.ts`. What is left comes from files that sit in a lower layer's directory: `shared/guarantees.ts` and `shared/transactionModes.ts` (assembly, in `shared/`), `personalData/catalog.ts` (catalog, in `personalData/`), `jobs/registry.ts` and `outbox/messages.ts`, `outbox/delivery.ts` (catalog, in service directories), and one new pair, `jobs` ↔ `workspace` (the registry imports `workspace/job.ts`, which imports `jobs/job.ts`: a catalog file in the triggers' directory). With the files of the catalog, Privacy and assembly layers left out, the same measure gives one component of 10 directories and 5 pairs on main, and one component of 4 (`audit`, `files`, `organisation`, `personalData`) and 1 pair (`organisation` ↔ `personalData`) here: `organisation/semester.ts` is vocabulary in a service directory, and `personalData/` holds the annotations. Stage 4 (directory = module) closes the rest; the ADR's row 3 says so.
+  5. **The effx vectors were not regenerated.** `bun run description` (the descriptions and the register of gaps) leaves `packages/domain/conformance/*` byte-identical, and effx reads those descriptions only, so its vectors are the same by construction. `description:regenerate` needs Nix and 10 to 24 CPU-minutes, and nothing it reads moved.
+  6. **Where this spec differs from the ADR's text.** ADR section 3 puts `accounts/code` and `kernel/subject` in `vocabulary`; they leave it (R7). Its stage 3 puts the union in `catalog` and leaves delivery where it was; `outbox/delivery.ts` decodes the whole union, so it cannot stay in `triggers` (a service may not import the catalog) and joins `catalog` (R5).
