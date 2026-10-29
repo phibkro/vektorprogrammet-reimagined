@@ -5,16 +5,13 @@
  * with. A declared message that the union lacks would be a defect at its first enqueue, in production, so this reads the
  * sources and says so at test time.
  */
-import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { OutboxMessage } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Order, Record as Rec } from "effect";
 
-import { scanImports } from "../moduleGraphCheck.ts";
 import type { SourceFile } from "../resolveImports.ts";
 import { d, parsed } from "./support/moduleGraphFixture.ts";
-
-const root = new URL("../../../", import.meta.url).pathname;
+import { realTree } from "./support/realTree.ts";
 
 const declaration = /\bdeclareMessage\(\s*"(?<tag>[A-Za-z]+)"/gu;
 
@@ -61,11 +58,8 @@ describe("spec 0022 F5: the catalog lists the messages that are declared", () =>
   it.effect(
     "the real tree declares exactly the messages that the union lists",
     () =>
-      Effect.gen(function* realTree() {
-        assert.deepStrictEqual(
-          declaredTags(yield* scanImports(root)),
-          listedTags
-        );
-      }).pipe(Effect.provide(NodeServices.layer))
+      Effect.gen(function* realDeclarations() {
+        assert.deepStrictEqual(declaredTags(yield* realTree), listedTags);
+      })
   );
 });

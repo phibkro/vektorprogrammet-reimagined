@@ -4,15 +4,12 @@
  * `organisation/semester.ts`, which is vocabulary and so legal for a library to import, and for a code or a semester
  * that is imported again from a directory that is not a module of its own; this reads the directory itself.
  */
-import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect } from "effect";
 
-import { scanImports } from "../moduleGraphCheck.ts";
 import type { SourceFile } from "../resolveImports.ts";
 import { d, parsed } from "./support/moduleGraphFixture.ts";
-
-const root = new URL("../../../", import.meta.url).pathname;
+import { realTree } from "./support/realTree.ts";
 
 const kernel = `${d}/kernel/`;
 
@@ -53,13 +50,13 @@ describe("spec 0022 F1: the kernel is generic", () => {
 
   it.effect("the real kernel imports only kernel and shared files", () =>
     Effect.gen(function* realKernel() {
-      const files = yield* scanImports(root);
+      const files = yield* realTree;
 
       assert.isAbove(
         Arr.filter(files, (file) => file.path.startsWith(kernel)).length,
         5
       );
       assert.deepStrictEqual(kernelLeaks(files), []);
-    }).pipe(Effect.provide(NodeServices.layer))
+    })
   );
 });
