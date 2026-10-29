@@ -11,7 +11,6 @@
  */
 import { Array as Arr, Match, Predicate, Schema } from "effect";
 
-import { CodePurpose, codePolicy } from "../accounts/code.ts";
 import { SystemJob, TeamFunction } from "./principal.ts";
 import type {
   MembershipFact,
@@ -32,7 +31,7 @@ export const Any = Schema.TaggedUnion({
   Admin: {},
   Anyone: {},
   Fn: { function: TeamFunction },
-  Holder: { purpose: CodePurpose },
+  Holder: { command: Schema.String, purpose: Schema.String },
   Leader: {},
   Member: {},
   Self: {},
@@ -66,9 +65,18 @@ export const system = (job: SystemJob): Global =>
 /** The person that the resource belongs to. */
 export const self: Personal = Any.cases.Self.make({});
 
-/** The recipient of a valid single-use code, restricted to its purpose and person. */
-export const holder = (purpose: CodePurpose): Personal =>
-  Any.cases.Holder.make({ purpose });
+/**
+ * A single-use credential as the kernel knows it: its name and the one command it opens. The kernel keeps no list of
+ * credentials: the service that issues them supplies each one (`accounts/code.ts` has `codeHolder`).
+ */
+export interface Credential {
+  readonly purpose: string;
+  readonly command: string;
+}
+
+/** The recipient of a valid credential, restricted to its command and person. */
+export const holder = (credential: Credential): Personal =>
+  Any.cases.Holder.make(credential);
 
 /** Has an active membership in a team of the department. */
 export const member: Departmental = Any.cases.Member.make({});
@@ -125,14 +133,14 @@ export const holds = (
         resource,
         (membership) => membership.function === teamFunction
       ),
-    Holder: ({ purpose }) =>
+    Holder: ({ command }) =>
       scope === "own" &&
       Predicate.isTagged(principal, "Person") &&
       resource.personId === principal.personId &&
       Arr.some(
         principal.narrowing ?? [],
         (restriction) =>
-          restriction.command === codePolicy[purpose].command &&
+          restriction.command === command &&
           restriction.resource.personId === principal.personId
       ),
     Leader: () =>

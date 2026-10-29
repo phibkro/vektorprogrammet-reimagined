@@ -98,9 +98,7 @@ const modules: readonly Module[] = [
       "shared/clock.ts",
       "shared/siteOrigin.ts",
       "organisation/semester.ts",
-      "kernel/principal.ts",
-      "kernel/subject.ts",
-      "accounts/code.ts"
+      "kernel/principal.ts"
     ),
     layer: "library",
     name: "vocabulary",
@@ -114,7 +112,8 @@ const modules: readonly Module[] = [
       "kernel/effx.ts",
       "kernel/grant.ts",
       "kernel/guard.ts",
-      "kernel/machine.ts"
+      "kernel/machine.ts",
+      "kernel/subject.ts"
     ),
     layer: "library",
     name: "kernel",
@@ -214,7 +213,6 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    except: src("accounts/code.ts"),
     files: src("accounts/*.ts"),
     layer: "service",
     name: "iam",
@@ -229,6 +227,7 @@ const modules: readonly Module[] = [
     ],
   },
   {
+    except: src("outbox/delivery.ts", "outbox/messages.ts"),
     files: src(
       "jobs/job.ts",
       "jobs/runs.ts",
@@ -257,7 +256,12 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src("personalData/catalog.ts", "jobs/registry.ts"),
+    files: src(
+      "personalData/catalog.ts",
+      "jobs/registry.ts",
+      "outbox/delivery.ts",
+      "outbox/messages.ts"
+    ),
     layer: "catalog",
     name: "catalog",
     uses: [
@@ -269,7 +273,9 @@ const modules: readonly Module[] = [
       "iam",
       "membership",
       "organisation",
+      "outbox",
       "triggers",
+      "vocabulary",
       "workspace",
     ],
   },
@@ -337,30 +343,12 @@ const units: readonly Unit[] = [
   { root: "tools/db-path-spike", uses: ["packages/db", "packages/domain"] },
 ];
 
-const outbox = "packages/domain/src/shared/outbox.ts";
-
 /**
  * The imports that break a rule today (ADR 0015, sections 2, 3 and 9), each with the stage that removes it. The list can
- * only shrink; `moduleGraph.test.ts` pins its length.
+ * only shrink; `moduleGraph.test.ts` pins its length. Stages 2 and 3 (spec 0022) removed the three imports between
+ * modules; what is left are imports between packages (stage 5).
  */
 export const baseline: readonly Tolerated[] = [
-  {
-    from: outbox,
-    reason:
-      "`shared/outbox.ts` is the library `Outbox` and the union of every service's messages: it names the password hash of `iam`. Stage 3 splits it.",
-    to: "packages/domain/src/accounts/passwordHasher.ts",
-  },
-  {
-    from: outbox,
-    reason: "The same union names the Workspace change. Stage 3 splits it.",
-    to: "packages/domain/src/workspace/change.ts",
-  },
-  {
-    from: "packages/domain/src/workspace/commands.ts",
-    reason:
-      "`workspace` reads the job registry, a catalog above it. Stage 2: `workspace` declares its own sync job and the registry imports it.",
-    to: "packages/domain/src/jobs/registry.ts",
-  },
   {
     from: "apps/cms/scripts/checkBundle.ts",
     reason:

@@ -45,6 +45,8 @@ export * from "./accounts/passwordHasher.ts";
 
 export * from "./accounts/commands.ts";
 
+export * from "./accounts/messages.ts";
+
 export * from "./accounts/principal.ts";
 
 export * from "./accounts/sessionDirectory.ts";
@@ -96,6 +98,8 @@ export * from "./outbox/captured.ts";
 
 export * from "./outbox/delivery.ts";
 
+export * from "./outbox/messages.ts";
+
 export * from "./outbox/status.ts";
 
 // scheduled jobs (spec 0008): the declarations, the due rules, the record of runs and the completeness check
@@ -111,6 +115,10 @@ export { jobProblems } from "./jobs/problems.ts";
 export * from "./workspace/change.ts";
 
 export * from "./workspace/commands.ts";
+
+export * as WorkspaceJob from "./workspace/job.ts";
+
+export * from "./workspace/message.ts";
 
 export * from "./workspace/companyEmail.ts";
 
@@ -153,6 +161,8 @@ export {
 } from "./organisation/semester.ts";
 
 export type { Window } from "./organisation/semester.ts";
+
+export * as SemesterGuard from "./organisation/semesterGuard.ts";
 
 export * from "./organisation/services.ts";
 

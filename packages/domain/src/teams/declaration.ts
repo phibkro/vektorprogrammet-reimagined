@@ -17,9 +17,9 @@ import {
   system,
   make as declareDomain,
 } from "../kernel/domain.ts";
-import * as Guard from "../kernel/guard.ts";
 import * as Machine from "../kernel/machine.ts";
 import { Semester } from "../organisation/semester.ts";
+import { semesters } from "../organisation/semesterGuard.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import {
   AdminGrantId,
@@ -262,7 +262,7 @@ export const MembershipMoment = Schema.Struct({
 
 export type MembershipMoment = typeof MembershipMoment.Type;
 
-const guard = Guard.semesters(MembershipMoment);
+const guard = semesters(MembershipMoment);
 
 /** End the old row before the requested semester, inside its term and not in the past. */
 const endsBefore = Schema.makeFilterGroup([
@@ -289,10 +289,10 @@ export const MembershipMachine = Machine.make({
   commands: TeamsRpc,
   context: MembershipMoment,
   fields: [
-    { kind: "clock", path: ["current"] },
-    { kind: "parameter", path: ["requested"] },
-    { kind: "stored", path: ["term", "start"] },
-    { kind: "stored", path: ["term", "end"] },
+    guard.field("clock", ["current"]),
+    guard.field("parameter", ["requested"]),
+    guard.field("stored", ["term", "start"]),
+    guard.field("stored", ["term", "end"]),
   ],
   name: "Membership",
   states: MembershipState,

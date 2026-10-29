@@ -10,7 +10,12 @@ import type { NonEmptyReadonlyArray } from "effect/Array";
 
 import type { Department } from "../organisation/department.ts";
 import { DepartmentId } from "../shared/ids.ts";
-import { OutboxMessage, SlackTarget } from "../shared/outbox.ts";
+import {
+  EmailMessage,
+  SlackPostMessage,
+  SlackTarget,
+} from "../shared/outbox.ts";
+import type { DeclaredMessage } from "../shared/outbox.ts";
 import {
   EmailAddressInput,
   REQUIRED_FIELD_MESSAGE,
@@ -63,8 +68,8 @@ export const contactReceiptNotice = (department: {
 export const supportTicketMessages = (
   ticket: SupportTicket,
   department: Pick<Department, "city" | "email" | "slackChannel">
-): NonEmptyReadonlyArray<OutboxMessage> => {
-  const departmentEmail: OutboxMessage = OutboxMessage.cases.Email.make({
+): NonEmptyReadonlyArray<DeclaredMessage> => {
+  const departmentEmail: DeclaredMessage = EmailMessage.make({
     replyTo: ticket.email,
     subject: `Henvendelse fra kontaktskjema: ${ticket.subject}`,
     text: Arr.join(
@@ -79,7 +84,7 @@ export const supportTicketMessages = (
     to: department.email,
   });
 
-  const receipt: OutboxMessage = OutboxMessage.cases.Email.make({
+  const receipt: DeclaredMessage = EmailMessage.make({
     replyTo: department.email,
     subject: `Kvittering: ${ticket.subject}`,
     text: Arr.join(
@@ -97,7 +102,7 @@ export const supportTicketMessages = (
     to: ticket.email,
   });
 
-  const notifications: OutboxMessage = OutboxMessage.cases.SlackPost.make({
+  const notifications: DeclaredMessage = SlackPostMessage.make({
     target: SlackTarget.cases.Notifications.make({}),
     text: Arr.join(
       [
@@ -114,7 +119,7 @@ export const supportTicketMessages = (
     return [departmentEmail, receipt, notifications];
   }
 
-  const departmentSlack: OutboxMessage = OutboxMessage.cases.SlackPost.make({
+  const departmentSlack: DeclaredMessage = SlackPostMessage.make({
     target: SlackTarget.cases.DepartmentChannel.make({
       channel: department.slackChannel,
     }),

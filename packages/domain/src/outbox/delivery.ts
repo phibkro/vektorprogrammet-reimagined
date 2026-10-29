@@ -27,7 +27,7 @@ import { Context, Schema } from "effect";
 import type { DateTime, Effect } from "effect";
 
 import { OutboxMessageId } from "../shared/ids.ts";
-import { OutboxMessage } from "../shared/outbox.ts";
+import { OutboxMessage } from "./messages.ts";
 
 /** Proof of a current claim on one outbox row. */
 export const OutboxClaimToken = Schema.String.pipe(

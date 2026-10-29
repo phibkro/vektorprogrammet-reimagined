@@ -1,7 +1,8 @@
 import { Array as Arr } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import { OutboxMessage } from "../shared/outbox.ts";
+import { EmailMessage } from "../shared/outbox.ts";
+import type { DeclaredMessage } from "../shared/outbox.ts";
 import type { Person, Position, Team } from "./entities.ts";
 
 /**
@@ -12,12 +13,12 @@ export const welcomeMessages = (
   person: Person,
   team: Team,
   position: Position
-): NonEmptyReadonlyArray<OutboxMessage> => {
+): NonEmptyReadonlyArray<DeclaredMessage> => {
   // Spec 0008 R2: switch this one recipient after a real Workspace account is provisioned.
   const setupRecipient = person.email;
 
   return [
-    OutboxMessage.cases.Email.make({
+    EmailMessage.make({
       replyTo: null,
       subject: `Velkommen til ${team.name}`,
       text: Arr.join(
@@ -35,7 +36,7 @@ export const welcomeMessages = (
       ),
       to: person.email,
     }),
-    OutboxMessage.cases.Email.make({
+    EmailMessage.make({
       replyTo: null,
       subject: "Fullfør oppsettet med din Vektor-epost",
       text: Arr.join(

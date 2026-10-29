@@ -10,9 +10,9 @@ import {
   CompanyEmail,
   CurrentPrincipal,
   Job,
-  JobRegistry,
   Outbox,
   WorkspaceAssignments,
+  WorkspaceJob,
   WorkspaceModeSetting,
   WorkspaceReports,
   WorkspaceWriter,
@@ -92,9 +92,9 @@ type RunnerServices =
 
 /** Fixture approval exercises the automatic schedule without approving production. */
 const approvedWorkspaceSync = Job.make({
-  ...JobRegistry.workspaceSync,
+  ...WorkspaceJob.workspaceSync,
   name: "workspaceSync",
-  schedule: { ...JobRegistry.workspaceSync.schedule, status: "approved" },
+  schedule: { ...WorkspaceJob.workspaceSync.schedule, status: "approved" },
 });
 
 const tick = dispatchTick<"workspaceSync", RunnerServices, WorkspaceDirectory>(
@@ -169,7 +169,7 @@ const runRequested = (mode: WorkspaceMode, strays: number) =>
     const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
 
     yield* dispatchTick<"workspaceSync", RunnerServices, WorkspaceDirectory>(
-      [JobRegistry.workspaceSync],
+      [WorkspaceJob.workspaceSync],
       { workspaceSync: workspaceSyncRunner },
       { at: EARLY, only: ["workspaceSync"] }
     ).pipe(

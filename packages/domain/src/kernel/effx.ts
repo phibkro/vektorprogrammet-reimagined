@@ -16,10 +16,8 @@ import * as Commands from "./commands.ts";
 import { namesOf } from "./domain.ts";
 import type { Declaration } from "./domain.ts";
 import * as Guard from "./guard.ts";
-import type {
-  Description as MachineDescription,
-  FieldKind,
-} from "./machine.ts";
+import type { FieldKind } from "./guard.ts";
+import type { Description as MachineDescription } from "./machine.ts";
 import { SystemJob } from "./principal.ts";
 import * as Subject from "./subject.ts";
 
