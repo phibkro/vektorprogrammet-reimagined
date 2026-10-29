@@ -102,12 +102,28 @@ The lead paused the lane while the machine was under memory pressure. Built and 
 - two test files are committed under the suffix `.wip` because the pre-commit lint (which may not be skipped) refuses them in their current form: `apps/web/test/integrationGuard.test.ts.wip` (it passed, 5 tests, before formatting; lint wants: no `async` fake for `SendEmail` (return a Promise from `Effect.runPromise`-free code or use `Effect.promise`), `Schema.is` for `IntegrationCalledInTransaction` instead of `instanceof`, `Arr.map`, and the unstable `HttpClient` imports need the same allowance that `sandbox.test.ts` has) and `apps/web/test/codeLifecycle.postgres.test.ts.wip` (**never run**; 54 lint findings: `SAFETY:` comments or helpers instead of `as`, `no-use-before-define` order of helpers, `Deferred<void>` via `Deferred.make<undefined>`/no `undefined` argument, a `Data.taggedEnum` for the mail literal, split `concurrentAttempts` for complexity, `Schema.is` for the defect). Rename each to its `.ts` name once it passes `vp check`.
 - `outboxQueue.postgres.test.ts` (falsifier 6 now asserts an `Unsent` code after a failed send) is edited and has **not been run**.
 
-Next steps, in order:
+### R2 (2026-10-29): resumed and finished
 
-1. Make the two `.wip` files lint-clean, rename them, run `codeLifecycle.postgres.test.ts`, `integrationGuard.test.ts` and `outboxQueue.postgres.test.ts`; fix.
-2. Add F5: `packages/domain/test/accounts/codeMachine.test.ts` (reachable states, `Used` terminal, no transition from `Unsent` to use) and the "unusable never authenticates" block in `accounts.postgres.test.ts` with its state-blind control.
-3. Add the new file `integrationGuard.ts` (one `InTransaction` reference) to the allowances of `tools/quality/test/inTransactionProviders.test.ts`; add the file and symbol `refusingInTransaction` to `EX-0025` in `tools/quality/effect-exceptions.json`; run `bun run check:exceptions`.
-4. Run each mutation of the falsifier table once (remove the hash condition of `acknowledge`; remove the state filter of `findUsable`; build one port Layer without the guard; send inside transaction 1) and record the control results in the pull request.
-5. `AGENTS.md`: replace the sentence about the tolerated `AccountDelivery.issueCode` call and "Code delivery mints, sends and acknowledges in a separate transaction" with the new shape; `docs/specs/0007` gets a pointer under R1; `STATE.md`.
-6. TLA+ model: `packages/db/src/aggregate/ownership.ts`, `schema.ts`, `drizzle` and `shared/transactor.ts` are covered paths, so run `devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh` (and `--code`), record the new `sync-digest` and a paragraph in the skill's confirmation record: no modeled statement, lock or constraint of `membership` changed (the `code` table is outside the model: its commands appear only for their locks).
-7. `bun run ready`, the accounts journey (`bun run e2e`), then open the PR with the body ending in an empty `## Review rounds`. Read memory PSI before each heavy job.
+The pause's steps are done, in the order that R1 listed them:
+
+1. The two `.wip` files are lint-clean `.ts` files. `integrationGuard.test.ts` joined the unstable-API policy of `sandbox.test.ts` (`EX-0011`, `unstablePolicy.ts`, its `asyncFunction` and `effecttsgo/async-function` overrides; `sync:effect-policy` rewrote `tsconfig.json`), because its fake provider is an `HttpClient` and a `send_email` binding.
+2. F5 is written: `packages/domain/test/accounts/codeMachine.test.ts` and, in `accounts.postgres.test.ts`, a block over both single-use purposes and each of `Unsent`, `Used`, expired and `Usable`, with the state-blind SQL read as its control.
+3. The new file `integrationGuard.ts` is allowed one `InTransaction` reference in `inTransactionProviders.test.ts`, and the file and `refusingInTransaction` are in `EX-0025` (the same cast pattern as `verified`); `check:exceptions` is clean.
+4. **The mutation controls ran, each once, and restored.**
+
+   | Mutation | What failed |
+   | --- | --- |
+   | M1: `acknowledge` without the hash condition | the scripted F4 (`expected ['Usable'] to deeply equal ['Unsent']`); the other five of `codeLifecycle` passed |
+   | M2: `findUsable` without `state = 'Usable'` | F1, the scripted F4 and the F5 block (`activation, unsent: authenticates: true`) |
+   | M2b: `activateAccount` and `resetPassword` allowed from `Unsent` in the table | two of the five tests of `codeMachine.test.ts` and the F5 block |
+   | M3: `refusingInTransaction` returns the service unguarded | all five cases of `integrationGuard.test.ts` and F7 |
+   | M4: a `send` inside transaction 1 | F1 to F4 (the guard dies, the row is `Retrying`; `check:module-graph` stays clean, since the entry is retired: the guard is what sees it) |
+   | M7: transaction 2 never acknowledges | F1 to F4 and the 100 concurrent rounds |
+
+   The retirement control of F9 ran before the entry was removed (the stale-call finding, in R7 above).
+
+5. `AGENTS.md` (the "One Worker" and module-graph bullets), spec 0007 (R17) and the generated documents say the new shape.
+6. The membership-writes model ran on `4d7b683` (every run as expected; the 53 PostgreSQL code tests passed with `--code`) and `SKILL.md` records the new digest and a paragraph: no statement, lock or constraint of `membership` changed.
+7. `bun run ready` and the browser tests (`accounts.spec.ts` and `journey.spec.ts`, 7 passed) ran on the final tree; their results are in the pull request. Changes after that: none to the spec's falsifiers.
+
+One thing the first draft got wrong: the F2 control "without the replacement of the older code leaves two working links" was not run. `issue` removes the older row before it inserts, and the primary key `(purpose, subject)` would refuse the insert otherwise, so that mutation does not run; M7 is F2's control.
