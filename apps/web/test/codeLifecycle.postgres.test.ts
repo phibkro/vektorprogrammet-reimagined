@@ -356,15 +356,11 @@ const unfencedDelivery = Effect.gen(function* buildUnfenced() {
 }).pipe(Effect.scoped);
 
 /**
- * Spec 0024 R9. Consumer A claims the row of an invitation, its lease lapses, and consumer B delivers the row completely
- * (a mail, a usable code, a delivered row). Then A runs its `issueCode` on the claim that it still holds, with the send
- * working or down (`sendFails`). What it leaves behind is what the test reads.
+ * Consumer A claims the row of an invitation and its lease lapses: what A still holds is the claim that another
+ * consumer may now take. Both stale-consumer scenarios below start here.
  */
-const staleConsumer = (
-  personId: number,
-  options: { readonly fenced: boolean; readonly sendFails: boolean }
-) =>
-  Effect.gen(function* staleRun() {
+const lapsedClaimOf = (personId: number) =>
+  Effect.gen(function* lapsedClaim() {
     yield* reset;
     const sql = yield* SqlClient;
     const id = yield* invite(personId);
@@ -380,9 +376,22 @@ const staleConsumer = (
       return yield* Effect.die("the row is not a code message");
     }
 
-    const { message } = stale;
-
     yield* sql`update outbox set claimed_until = now() - interval '1 minute' where id = ${Number(id)}`;
+
+    return { id, message: stale.message, stale };
+  });
+
+/**
+ * Spec 0024 R9. Consumer A claims the row of an invitation, its lease lapses, and consumer B delivers the row completely
+ * (a mail, a usable code, a delivered row). Then A runs its `issueCode` on the claim that it still holds, with the send
+ * working or down (`sendFails`). What it leaves behind is what the test reads.
+ */
+const staleConsumer = (
+  personId: number,
+  options: { readonly fenced: boolean; readonly sendFails: boolean }
+) =>
+  Effect.gen(function* staleRun() {
+    const { id, message, stale } = yield* lapsedClaimOf(personId);
     assert.strictEqual(yield* deliveryTag(id), "Delivered");
     const deliveredToken = yield* tokenAt(0);
 
@@ -415,26 +424,8 @@ const claimedByAnother = (
   options: { readonly fenced: boolean }
 ) =>
   Effect.gen(function* claimedRun() {
-    yield* reset;
-    const sql = yield* SqlClient;
-    const id = yield* invite(personId);
-    const outbox = yield* OutboxDelivery;
-    const claimedByA = yield* outbox.claim(id, 120);
-
-    if (!Predicate.isTagged(claimedByA, "Claimed")) {
-      return yield* Effect.die("consumer A did not get the claim");
-    }
-
-    const stale = claimedByA.row;
-
-    if (!Predicate.isTagged(stale.message, "IssueCode")) {
-      return yield* Effect.die("the row is not a code message");
-    }
-
-    const { message } = stale;
-
-    yield* sql`update outbox set claimed_until = now() - interval '1 minute' where id = ${Number(id)}`;
-    const claimedByB = yield* outbox.claim(id, 120);
+    const { id, message, stale } = yield* lapsedClaimOf(personId);
+    const claimedByB = yield* (yield* OutboxDelivery).claim(id, 120);
 
     if (!Predicate.isTagged(claimedByB, "Claimed")) {
       return yield* Effect.die("consumer B did not get the claim");
