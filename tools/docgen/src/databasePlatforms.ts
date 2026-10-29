@@ -12,6 +12,7 @@ import type {
   Construct,
   ConstructFact,
 } from "@vektorprogrammet/db/platform/constructs";
+import { evidence } from "@vektorprogrammet/db/platform/evidence";
 import {
   direct,
   directOnly,
@@ -35,6 +36,8 @@ export interface PlatformDeclarations {
   readonly requirements: Readonly<Record<Capability, CapabilityRequirement>>;
   readonly recipes: Readonly<Record<Capability, readonly Construct[]>>;
   readonly facts: Readonly<Record<Construct, ConstructFact>>;
+  /** Where each capability is shown or measured: the adapter's to say. */
+  readonly evidence: Readonly<Record<Capability, string>>;
   readonly directOnly: readonly Construct[];
   readonly profiles: readonly ConnectionProfile<Construct>[];
   readonly others: readonly { readonly name: string; readonly where: string }[];
@@ -42,6 +45,7 @@ export interface PlatformDeclarations {
 
 export const PLATFORMS: PlatformDeclarations = {
   directOnly,
+  evidence,
   facts: constructFacts,
   others: otherConsumers,
   profiles: [hyperdrive, direct],
@@ -62,6 +66,7 @@ const asks = (declared: PlatformDeclarations): string => {
             check.guarantee,
             `\`${check.id}\``,
             check.property,
+            declared.evidence[capability],
           ])
         : []
   );
@@ -79,14 +84,20 @@ const asks = (declared: PlatformDeclarations): string => {
     ([capability, requirement]) =>
       isProbed(requirement)
         ? []
-        : [[capability, requirement.reason, requirement.evidence]]
+        : [[capability, requirement.reason, declared.evidence[capability]]]
   );
 
   return Arr.join(
     [
       "### Shown on every Preview by `GET /api/platform`",
       table(
-        ["Capability", "Guarantee", "Check", "The platform must show"],
+        [
+          "Capability",
+          "Guarantee",
+          "Check",
+          "The platform must show",
+          "Evidence",
+        ],
         probed
       ),
       "### Shown by another port",

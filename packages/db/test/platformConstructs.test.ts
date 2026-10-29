@@ -25,6 +25,7 @@ import type {
   DirectOnlyConstruct,
   PooledSafeConstruct,
 } from "../src/platform/constructs.ts";
+import { evidence } from "../src/platform/evidence.ts";
 import { direct, directOnly, hyperdrive } from "../src/platform/profiles.ts";
 import { recipes } from "../src/platform/recipes.ts";
 import type { Recipe } from "../src/platform/recipes.ts";
@@ -149,6 +150,14 @@ describe("spec 0025 F4 and F5: the constructs, the subsets and the recipes", () 
       const { hyperdrive: cell } = constructFacts[construct];
       assert.notStrictEqual(cell.outcome, "works", construct);
       assert.isAbove(cell.note.length, 10, construct);
+    }
+  });
+
+  it("the adapter says where every capability is shown, and says so when it is not measured through Hyperdrive", () => {
+    assert.sameMembers(Rec.keys(evidence), [...Capability.literals]);
+
+    for (const [capability, text] of Rec.toEntries(evidence)) {
+      assert.isAbove(text.length, 20, capability);
     }
   });
 

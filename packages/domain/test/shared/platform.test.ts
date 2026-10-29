@@ -52,11 +52,10 @@ describe("spec 0025: what the domain asks of a platform", () => {
     assert.isAbove(ids.length, 0);
   });
 
-  it("F2: a capability that is not probed says why and where its evidence is", () => {
+  it("F2: a capability that is not probed says why", () => {
     for (const requirement of Rec.values(PlatformRequirements)) {
       if (!isProbed(requirement)) {
         assert.isAbove(requirement.reason.length, 20);
-        assert.isAbove(requirement.evidence.length, 20);
       }
     }
   });

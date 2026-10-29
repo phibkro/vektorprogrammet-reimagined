@@ -205,7 +205,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     120_000
   );
 
-  it("the end state: outside packages/db, only the composition roots and Better Auth's adapter hold a production allowance", () => {
+  it("the end state: outside packages/db, only the composition roots, Better Auth's adapter and the generated platform page hold a production allowance", () => {
     const production = Arr.flatMap(allowances, (allowance) =>
       Arr.filter(
         allowance.files,
@@ -213,9 +213,12 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       )
     );
 
+    // `tools/docgen/src/databasePlatforms.ts` reads the adapter's declaration of its platforms (plain data, no client and
+    // no connection: `@vektorprogrammet/db/platform/*`, spec 0025) to render the page that says what Hyperdrive does.
     assert.deepStrictEqual(Arr.sort(production, Order.String), [
       "apps/web/src/server/auth.ts",
       "apps/web/src/server/runtime.ts",
+      "tools/docgen/src/databasePlatforms.ts",
       "tools/import/src/pipeline.ts",
     ]);
   });

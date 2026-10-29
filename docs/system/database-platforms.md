@@ -17,13 +17,13 @@ The page is generated from two declarations: `packages/domain/src/shared/platfor
 
 ### Shown on every Preview by `GET /api/platform`
 
-| Capability | Guarantee | Check | The platform must show |
-| --- | --- | --- | --- |
-| AggregateLocks | LK1 | `lock-excludes-second-holder` | While one transaction holds a record's lock, a second request for the same lock does not get it. |
-| AggregateLocks | LK1 | `lock-ends-with-its-transaction` | When the holder's transaction ends, the lock is free for the next request, on whichever connection that request comes. |
-| Transactions | TX1 | `rollback-leaves-nothing` | A transaction that is rolled back leaves none of its writes visible, to the connection that wrote them or to another. |
-| Transactions | TX2 | `nested-scope-undoes-alone` | A nested scope that fails undoes its own writes, and the enclosing scope keeps what it wrote. |
-| WorkQueue | LS1 | `held-record-is-not-handed-on` | A record that one transaction holds is skipped by a second claimer: it is not waited for and not handed out again while the first transaction holds it. |
+| Capability | Guarantee | Check | The platform must show | Evidence |
+| --- | --- | --- | --- | --- |
+| AggregateLocks | LK1 | `lock-excludes-second-holder` | While one transaction holds a record's lock, a second request for the same lock does not get it. | Through Hyperdrive: `GET /api/platform` on every Preview (two transactions on two pooled connections). On PostgreSQL: `aggregates.postgres.test.ts`, 300 rounds, with its controls. |
+| AggregateLocks | LK1 | `lock-ends-with-its-transaction` | When the holder's transaction ends, the lock is free for the next request, on whichever connection that request comes. | Through Hyperdrive: `GET /api/platform` on every Preview (two transactions on two pooled connections). On PostgreSQL: `aggregates.postgres.test.ts`, 300 rounds, with its controls. |
+| Transactions | TX1 | `rollback-leaves-nothing` | A transaction that is rolled back leaves none of its writes visible, to the connection that wrote them or to another. | Through Hyperdrive: spec 0000 results (commit, rollback on a typed failure, rollback on interruption, a nested savepoint, 2026-10-16), `GET /api/isolation` (TX3) and `GET /api/platform` (TX1, TX2) on every Preview. On PostgreSQL: `transactions.postgres.test.ts`. |
+| Transactions | TX2 | `nested-scope-undoes-alone` | A nested scope that fails undoes its own writes, and the enclosing scope keeps what it wrote. | Through Hyperdrive: spec 0000 results (commit, rollback on a typed failure, rollback on interruption, a nested savepoint, 2026-10-16), `GET /api/isolation` (TX3) and `GET /api/platform` (TX1, TX2) on every Preview. On PostgreSQL: `transactions.postgres.test.ts`. |
+| WorkQueue | LS1 | `held-record-is-not-handed-on` | A record that one transaction holds is skipped by a second claimer: it is not waited for and not handed out again while the first transaction holds it. | Through Hyperdrive: `GET /api/platform` on every Preview (a held record is skipped). On PostgreSQL: `outbox.postgres.test.ts`, with its controls. |
 
 ### Shown by another port
 
@@ -36,14 +36,14 @@ The page is generated from two declarations: `packages/domain/src/shared/platfor
 | Capability | Why not | Evidence |
 | --- | --- | --- |
 | AnalyticsReads | No store serves it yet. | No adapter yet (ADR 0014, stage 6). |
-| Claims | Showing one winner takes a committed row, and a probe on a Preview leaves none. | Through Hyperdrive: spec 0000 results (20 concurrent claims of one key, one winner, PASS, 2026-10-16). On PostgreSQL: `concurrency.postgres.test.ts` and the claim tests of each repository. |
-| ConditionalWrites | A conditional write is one statement that the engine judges at its newest committed state, and a probe needs a committed row to show it. | On PostgreSQL: `aggregates.postgres.test.ts` (300 rounds) and `teams.postgres.test.ts`. Through Hyperdrive: not measured. |
-| Leases | It is made of the two capabilities above. | As `Claims` and `ConditionalWrites`: a lease is a claim and a conditional write. |
-| NonOverlap | The engine's exclusion constraint decides it, and a probe needs a committed row to show it. | On PostgreSQL: `teams.postgres.test.ts`, falsifier 4, with its control. Through Hyperdrive: not measured (the SQLSTATE of the exclusion constraint reaching the client is not in spec 0000's results). |
+| Claims | Showing one winner takes a committed record, and a probe on a Preview leaves none. | Through Hyperdrive: spec 0000 results (20 concurrent claims of one key, one winner, PASS, 2026-10-16). On PostgreSQL: `concurrency.postgres.test.ts` and the claim tests of each repository. |
+| ConditionalWrites | A conditional write is one step that the store judges at its newest committed state, and a probe needs a committed record to show it. | On PostgreSQL: `aggregates.postgres.test.ts` (300 rounds) and `teams.postgres.test.ts`. Through Hyperdrive: not measured. |
+| Leases | It is made of claims and conditional writes. | As `Claims` and `ConditionalWrites`; on PostgreSQL also `jobRuns.postgres.test.ts`. |
+| NonOverlap | The store's own constraint decides it, and a probe needs a committed record to show it. | On PostgreSQL: `teams.postgres.test.ts`, falsifier 4, with its control. Through Hyperdrive: not measured (the SQLSTATE of the exclusion constraint reaching the client is not in spec 0000's results). |
 | ObjectStore | No pooler sits between the Worker and the object store. | `FileStore` is the R2 binding, not a database. |
-| ReadOnlyReads | It is a property of the role and of the statements, shown by a role that can only read. | On PostgreSQL: `readOnlyRole.postgres.test.ts` and `readsNeverWrite.postgres.test.ts`. Through Hyperdrive: not measured. Query caching is off (`alchemy.run.ts`), so a read reaches the database. |
-| Snapshots | A snapshot is one statement, and a probe cannot tell it from another read on one connection. | On PostgreSQL: `personalDataExport.postgres.test.ts`. Through Hyperdrive: not measured. |
-| UniqueKeys | The engine's unique constraints decide it, and a probe needs a committed row to show it. | Through Hyperdrive: spec 0000 results (a unique violation classified, PASS, 2026-10-16). On PostgreSQL: the unique-key tests of each repository. |
+| ReadOnlyReads | It is a property of the role and of the reads, shown by a role that can only read. | On PostgreSQL: `readOnlyRole.postgres.test.ts` and `readsNeverWrite.postgres.test.ts`. Through Hyperdrive: not measured. Query caching is off (`alchemy.run.ts`), so a read reaches the database. |
+| Snapshots | A snapshot is one read, and a probe cannot tell it from another read on one connection. | On PostgreSQL: `personalDataExport.postgres.test.ts`. Through Hyperdrive: not measured. |
+| UniqueKeys | The store's own key constraints decide it, and a probe needs a committed record to show it. | Through Hyperdrive: spec 0000 results (a unique violation classified, PASS, 2026-10-16). On PostgreSQL: the unique-key tests of each repository. |
 
 <!-- docgen:end asks -->
 

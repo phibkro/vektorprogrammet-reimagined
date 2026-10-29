@@ -10,9 +10,9 @@
  * is false, so a report cannot pass by leaving a check out.
  *
  * `PlatformRequirements` is keyed by every `Capability`, so a capability added to ADR 0014's closed set does not compile
- * until it says what a platform must show or why nothing can be shown. A capability that is `NotProbed` says why and
- * where its evidence is; the evidence is a statement of what was measured and where, and says so when it was not
- * measured on every platform.
+ * until it says what a platform must show or why nothing can be shown. A capability that is not probed says why, in the
+ * domain's words; where it was measured (and where it was not) is the adapter's to say, because the evidence names the
+ * engine and its tests.
  */
 import { Array as Arr, Predicate, Record as Rec } from "effect";
 
@@ -34,12 +34,10 @@ export interface ProbedRequirement {
   readonly shownElsewhere?: string;
 }
 
-/** A capability that a deployed probe cannot show, with why and where its evidence is. */
+/** A capability that a deployed probe cannot show. */
 export interface NotProbedRequirement {
   /** Why a deployed probe does not show it. */
   readonly reason: string;
-  /** What was measured, where, and on which platforms. */
-  readonly evidence: string;
 }
 
 export type CapabilityRequirement = ProbedRequirement | NotProbedRequirement;
@@ -68,48 +66,30 @@ export const PlatformRequirements: Readonly<
       },
     ],
   },
-  AnalyticsReads: {
-    evidence: "No adapter yet (ADR 0014, stage 6).",
-    reason: "No store serves it yet.",
-  },
+  AnalyticsReads: { reason: "No store serves it yet." },
   Claims: {
-    evidence:
-      "Through Hyperdrive: spec 0000 results (20 concurrent claims of one key, one winner, PASS, 2026-10-16). On PostgreSQL: `concurrency.postgres.test.ts` and the claim tests of each repository.",
     reason:
-      "Showing one winner takes a committed row, and a probe on a Preview leaves none.",
+      "Showing one winner takes a committed record, and a probe on a Preview leaves none.",
   },
   ConditionalWrites: {
-    evidence:
-      "On PostgreSQL: `aggregates.postgres.test.ts` (300 rounds) and `teams.postgres.test.ts`. Through Hyperdrive: not measured.",
     reason:
-      "A conditional write is one statement that the engine judges at its newest committed state, and a probe needs a committed row to show it.",
+      "A conditional write is one step that the store judges at its newest committed state, and a probe needs a committed record to show it.",
   },
-  Leases: {
-    evidence:
-      "As `Claims` and `ConditionalWrites`: a lease is a claim and a conditional write.",
-    reason: "It is made of the two capabilities above.",
-  },
+  Leases: { reason: "It is made of claims and conditional writes." },
   NonOverlap: {
-    evidence:
-      "On PostgreSQL: `teams.postgres.test.ts`, falsifier 4, with its control. Through Hyperdrive: not measured (the SQLSTATE of the exclusion constraint reaching the client is not in spec 0000's results).",
     reason:
-      "The engine's exclusion constraint decides it, and a probe needs a committed row to show it.",
+      "The store's own constraint decides it, and a probe needs a committed record to show it.",
   },
   ObjectStore: {
-    evidence: "`FileStore` is the R2 binding, not a database.",
     reason: "No pooler sits between the Worker and the object store.",
   },
   ReadOnlyReads: {
-    evidence:
-      "On PostgreSQL: `readOnlyRole.postgres.test.ts` and `readsNeverWrite.postgres.test.ts`. Through Hyperdrive: not measured. Query caching is off (`alchemy.run.ts`), so a read reaches the database.",
     reason:
-      "It is a property of the role and of the statements, shown by a role that can only read.",
+      "It is a property of the role and of the reads, shown by a role that can only read.",
   },
   Snapshots: {
-    evidence:
-      "On PostgreSQL: `personalDataExport.postgres.test.ts`. Through Hyperdrive: not measured.",
     reason:
-      "A snapshot is one statement, and a probe cannot tell it from another read on one connection.",
+      "A snapshot is one read, and a probe cannot tell it from another read on one connection.",
   },
   Transactions: {
     checks: [
@@ -130,10 +110,8 @@ export const PlatformRequirements: Readonly<
       "TX3, the isolation floor, is shown by `IsolationProbe` (spec 0018 R10).",
   },
   UniqueKeys: {
-    evidence:
-      "Through Hyperdrive: spec 0000 results (a unique violation classified, PASS, 2026-10-16). On PostgreSQL: the unique-key tests of each repository.",
     reason:
-      "The engine's unique constraints decide it, and a probe needs a committed row to show it.",
+      "The store's own key constraints decide it, and a probe needs a committed record to show it.",
   },
   WorkQueue: {
     checks: [
