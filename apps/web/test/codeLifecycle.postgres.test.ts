@@ -796,7 +796,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
     );
 
     it.effect(
-      "F11 (token) control: without the fence the same consumer stores, mails and acknowledges a code while another consumer holds the row, so B's delivery would replace it with a second mail",
+      "F11 (token) control: without the fence the same consumer stores, mails and acknowledges a code while another consumer still holds the row (the answer is claimLost, one mail, a usable code)",
       () =>
         Effect.gen(function* unfencedByToken() {
           assert.deepStrictEqual(
