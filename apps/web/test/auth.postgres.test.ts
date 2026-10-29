@@ -753,8 +753,15 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
               PersonId.make(102)
             );
 
-            yield* (yield* CodeRepository).replace(locked, {
+            const codes = yield* CodeRepository;
+
+            yield* codes.issue(locked, {
               expiresAt: DateTime.add(now, { hours: 24 }),
+              hash: code.hash,
+              purpose: "resetPassword",
+            });
+
+            yield* codes.acknowledge(locked, {
               hash: code.hash,
               purpose: "resetPassword",
             });

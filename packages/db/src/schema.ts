@@ -21,6 +21,7 @@ import {
   AuditClient,
   COMPANY_EMAIL_PATTERN,
   CodePurpose,
+  CodeState,
   ConsentKind,
   EntityName,
   FileExtension,
@@ -254,17 +255,20 @@ export const account = pgTable(
   ]
 );
 
-/** One current, hashed code per purpose and person. Resending atomically replaces it. */
+/**
+ * One current, hashed code per purpose and person. Issuing atomically replaces it; the new code is stored `Unsent`, and
+ * only a `Usable` code authenticates (spec 0024: `CodeMachine`, the one writer of `state` is `Aggregates.apply`).
+ */
 export const code = pgTable(
   "code",
   {
     expiresAt: instant("expires_at").notNull(),
     hash: text("hash").notNull(),
     purpose: text("purpose").notNull(),
+    state: text("state").notNull(),
     subject: integer("subject")
       .notNull()
       .references(() => person.id),
-    usedAt: instant("used_at"),
   },
   (t) => [
     primaryKey({
@@ -274,6 +278,7 @@ export const code = pgTable(
     unique("code_hash_unique").on(t.hash),
     check("code_purpose", oneOf(sql`${t.purpose}`, CodePurpose.literals)),
     check("code_hash_format", sql`${t.hash} ~ '^[0-9a-f]{64}$'`),
+    check("code_state", oneOf(sql`${t.state}`, Rec.keys(CodeState.cases))),
   ]
 );
 

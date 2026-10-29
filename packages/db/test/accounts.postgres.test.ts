@@ -15,7 +15,7 @@ import {
   codePrincipal,
   mintCode,
 } from "@vektorprogrammet/domain";
-import type { CodePurpose } from "@vektorprogrammet/domain";
+import type { CodePurpose, SingleUsePurpose } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -32,6 +32,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
 import { activeAdmin, moveAccount } from "./support/accountsWorld.ts";
+import { issueUsable } from "./support/codes.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { raceReport } from "./support/race.ts";
 import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
@@ -69,9 +70,7 @@ const checkPurpose = Effect.fnUntraced(function* checkPurpose(
   const code = yield* mintCode().pipe(Effect.orDie);
 
   yield* asPerson(personId, (locked) =>
-    CodeRepository.use((codes) =>
-      codes.replace(locked, { expiresAt, hash: code.hash, purpose })
-    )
+    issueUsable(locked, { expiresAt, hash: code.hash, purpose })
   );
 
   const principal = yield* codePrincipal(code.token, purpose);
@@ -176,7 +175,7 @@ layer(
           const { hash } = yield* mintCode().pipe(Effect.orDie);
 
           yield* asPerson(fixture.person.id, (locked) =>
-            codes.replace(locked, { expiresAt, hash, purpose: "activation" })
+            issueUsable(locked, { expiresAt, hash, purpose: "activation" })
           );
 
           const uses = yield* Effect.all(
@@ -223,11 +222,7 @@ layer(
 
         const replace = (hash: typeof first.hash) =>
           asPerson(fixture.person.id, (locked) =>
-            codes.replace(locked, {
-              expiresAt,
-              hash,
-              purpose: "activation",
-            })
+            issueUsable(locked, { expiresAt, hash, purpose: "activation" })
           );
 
         /** One presentation of a code by `personId`: the lock that a command takes is the subject. */
@@ -236,7 +231,7 @@ layer(
           presented: {
             readonly hash: typeof first.hash;
             readonly now: DateTime.Utc;
-            readonly purpose: CodePurpose;
+            readonly purpose: SingleUsePurpose;
           }
         ) => asPerson(personId, (locked) => codes.consume(locked, presented));
 

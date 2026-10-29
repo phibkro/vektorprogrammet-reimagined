@@ -58,11 +58,14 @@ interface MustRequire {
     AlumniRequests["Service"]["claim"]
   >;
   readonly "AuditLog.record": ReturnType<AuditLog["Service"]["record"]>;
+  readonly "CodeRepository.acknowledge": ReturnType<
+    CodeRepository["Service"]["acknowledge"]
+  >;
   readonly "CodeRepository.consume": ReturnType<
     CodeRepository["Service"]["consume"]
   >;
-  readonly "CodeRepository.replace": ReturnType<
-    CodeRepository["Service"]["replace"]
+  readonly "CodeRepository.issue": ReturnType<
+    CodeRepository["Service"]["issue"]
   >;
   readonly "ConsentRepository.ofLocked": ReturnType<
     ConsentRepository["Service"]["ofLocked"]

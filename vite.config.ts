@@ -408,6 +408,7 @@ export default defineConfig({
         // unicorn/throw-new-error treats Schema.TaggedError class definitions as throw sites; they contain no throw.
         files: [
           "packages/domain/src/shared/errors.ts",
+          "packages/domain/src/shared/integrationGuard.ts",
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",

@@ -9,6 +9,7 @@ import {
   JobRegistry,
   Subject,
   approvalWords,
+  CodeMachine,
   codePolicy,
   consentNames,
   consentTexts,
@@ -456,6 +457,7 @@ export const renderAccountsDocument = (
         ["account", machine(diagram)],
         ["commands", commands(entries, grants)],
         ["code-policy", policy],
+        ["code-lifecycle", machine(CodeMachine)],
       ]);
     }
   );

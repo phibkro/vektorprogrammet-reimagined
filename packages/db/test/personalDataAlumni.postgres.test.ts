@@ -8,7 +8,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
-  CodeRepository,
   CurrentPrincipal,
   Forbidden,
   PersonId,
@@ -24,6 +23,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../src/index.ts";
+import { issueUsable } from "./support/codes.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { assertFailedWith } from "./support/failures.ts";
 import {
@@ -370,13 +370,12 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
           yield* at(NOW);
           const alma = yield* seedPerson("codea", nothing, NOW);
           const kari = yield* seedPerson("codek", nothing, NOW);
-          const codes = yield* CodeRepository;
           const minted = yield* mintCode().pipe(Effect.orDie);
           const expires = DateTime.add(NOW, { days: 60 });
 
-          // What the delivery of the e-mail does: it mints the code and stores its hash for the person.
+          // What the delivery of the e-mail does: it mints the code, stores its hash for the person, and acknowledges it.
           yield* asPerson(PersonId.make(alma.personId), (locked) =>
-            codes.replace(locked, {
+            issueUsable(locked, {
               expiresAt: expires,
               hash: minted.hash,
               purpose: "alumniConsent",

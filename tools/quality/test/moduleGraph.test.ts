@@ -681,17 +681,9 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       // The three imports between modules are gone (ADR 0015 stages 2 and 3, spec 0022); five between packages remain (stage 5).
       assert.lengthOf(baseline, 5);
 
-      // One call of another system inside a transaction that the type bound does not see (review round 1).
-      assert.deepStrictEqual(
-        Arr.map(
-          integrationCalls,
-          ({ file, within, call }) =>
-            `${file} ${within.service}.${within.method} ${call.service}.${call.method}`
-        ),
-        [
-          "apps/web/src/server/accountDelivery.ts Transactor.run MessageSender.send",
-        ]
-      );
+      // No call of another system inside a transaction is tolerated since spec 0024: the one that was, the code mail of
+      // `AccountDelivery.issueCode`, moved after the commit, and the ports refuse a call made inside one at run time.
+      assert.lengthOf(integrationCalls, 0);
 
       assert.deepStrictEqual(
         Arr.map(baseline, ({ from, to }) => `${from} -> ${to}`),

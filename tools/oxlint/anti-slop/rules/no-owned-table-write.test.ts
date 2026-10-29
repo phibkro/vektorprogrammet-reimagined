@@ -51,7 +51,7 @@ new RuleTester({
       errors: owned,
     },
     {
-      code: `${schemaNamed("code")}db.update(code).set({ usedAt: now }).where(w)`,
+      code: `${schemaNamed("code")}db.update(code).set({ expiresAt: now }).where(w)`,
       errors: owned,
     },
     {

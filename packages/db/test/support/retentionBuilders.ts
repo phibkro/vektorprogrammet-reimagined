@@ -271,13 +271,13 @@ export const builders = {
         start: WINTER,
       };
     }),
-  "code(expires_at,hash,purpose,subject,used_at)": (fixture) =>
+  "code(expires_at,hash,purpose,state,subject)": (fixture) =>
     Effect.gen(function* buildCode() {
       const sql = yield* SqlClient;
       yield* createdAt(fixture.personId, FAR_AHEAD);
       yield* Effect.orDie(
-        sql`insert into code (expires_at, hash, purpose, subject)
-          values (${at(WINTER)}, ${SHA}, 'resetPassword', ${fixture.personId})`
+        sql`insert into code (expires_at, hash, purpose, state, subject)
+          values (${at(WINTER)}, ${SHA}, 'resetPassword', 'Usable', ${fixture.personId})`
       );
 
       return {

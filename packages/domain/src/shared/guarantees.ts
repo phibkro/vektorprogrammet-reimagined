@@ -279,7 +279,9 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(MembershipRepository, "remove"),
       carrier(AdminGrantRepository, "create"),
       carrier(AccountRepository, "transition"),
-      carrier(CodeRepository, "replace"),
+      carrier(CodeRepository, "issue"),
+      carrier(CodeRepository, "acknowledge"),
+      carrier(CodeRepository, "consume"),
       carrier(ConsentRepository, "record"),
     ],
     id: "LK5",
@@ -327,7 +329,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(SemesterRepository, "ensure"),
       carrier(PublicFileRepository, "register"),
       carrier(WorkspaceAssignments, "assign"),
-      carrier(CodeRepository, "replace"),
+      carrier(CodeRepository, "issue"),
       carrier(CapturedMessageStore, "record"),
     ],
     id: "UK1",
@@ -411,6 +413,8 @@ export const StoreGuarantees: readonly Guarantee[] = [
     capability: "ConditionalWrites",
     carriers: [
       carrier(AccountRepository, "transition"),
+      carrier(CodeRepository, "acknowledge"),
+      carrier(CodeRepository, "consume"),
       carrier(MembershipRepository, "setEnd"),
       carrier(MembershipRepository, "remove"),
     ],
@@ -425,7 +429,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "ConditionalWrites",
     carriers: [
-      carrier(CodeRepository, "replace"),
+      carrier(CodeRepository, "issue"),
       carrier(ConsentRepository, "record"),
     ],
     id: "CW2",

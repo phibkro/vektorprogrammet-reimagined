@@ -9,8 +9,8 @@
  * 3. two deliveries of one id call the provider once, in each of 300 fresh rounds (control: without the conditional
  *    claim the provider is called twice);
  * 5. no queue message holds anything but an id (control: a message that holds an address is found by the same scan);
- * 6. code mail on the queue path is minted, sent and acknowledged in the consumer's transaction (a failed send leaves no
- *    usable code);
+ * 6. code mail on the queue path is minted and stored unusable, sent after that commit and acknowledged in a second one
+ *    (spec 0024; a failed send leaves an unusable code);
  * 7. outside production nothing reaches a real provider (control: production reaches it).
  */
 import type {
@@ -659,15 +659,15 @@ const switching = Layer.effect(
   })
 );
 
-const codesOf = (person: number) =>
-  Effect.gen(function* countCodes() {
+const codeStatesOf = (person: number) =>
+  Effect.gen(function* readCodeStates() {
     const sql = yield* SqlClient;
 
-    const [row] = yield* sql<{
-      readonly n: number;
-    }>`select count(*)::int as n from code where subject = ${person}`;
+    const rows = yield* sql<{
+      readonly state: string;
+    }>`select state from code where subject = ${person} order by purpose`;
 
-    return row?.n ?? -1;
+    return Arr.map(rows, (row) => row.state);
   });
 
 const capturedMail = Schema.Array(Schema.Struct({ text: Schema.String }));
@@ -676,7 +676,7 @@ layer(withDatabase(switching), { excludeTestServices: true })(
   "falsifier 6: code mail on the queue path (spec 0007 R1)",
   (it) => {
     it.effect(
-      "a failed send leaves no usable code and the row retrying; the next delivery mints the code, sends the mail and acknowledges in one transaction",
+      "a failed send leaves the code unusable and the row retrying; the next delivery replaces it, sends the mail and acknowledges the new code in a second transaction",
       () =>
         Effect.gen(function* codeMail() {
           const sql = yield* SqlClient;
@@ -722,7 +722,8 @@ layer(withDatabase(switching), { excludeTestServices: true })(
           assert.strictEqual(queue.sent.length, 1);
           assert.isTrue(isOnlyAnId(queue.sent[0]));
 
-          // The provider is down: the consumer mints, fails to send, and the transaction rolls the code back.
+          // The provider is down: the consumer mints and stores the code unusable, fails to send, and nothing makes it
+          // usable (spec 0024).
           switchable.fails = true;
           yield* queue.drain((batch, dead) => consumeBatch(batch, dead), {
             rounds: 1,
@@ -733,7 +734,12 @@ layer(withDatabase(switching), { excludeTestServices: true })(
 
           assert.strictEqual(failed.status, "pending");
           assert.strictEqual(failed.last_error, "code email delivery failed");
-          assert.strictEqual(yield* codesOf(INVITEE), 0, "no usable code");
+
+          assert.deepStrictEqual(
+            yield* codeStatesOf(INVITEE),
+            ["Unsent"],
+            "the code stays unusable"
+          );
           assert.strictEqual(yield* rowsIn("captured_mail"), 0);
           assert.deepStrictEqual(queue.waiting(), [id], "the queue retries it");
 
@@ -742,7 +748,11 @@ layer(withDatabase(switching), { excludeTestServices: true })(
           yield* queue.drain((batch, dead) => consumeBatch(batch, dead));
 
           assert.strictEqual((yield* rowState(id)).status, "delivered");
-          assert.strictEqual(yield* codesOf(INVITEE), 1);
+          assert.deepStrictEqual(
+            yield* codeStatesOf(INVITEE),
+            ["Usable"],
+            "the retry replaced the unsent code and acknowledged its own"
+          );
           assert.strictEqual(yield* rowsIn("captured_mail"), 1);
 
           const [mail] = yield* Schema.decodeUnknownEffect(capturedMail)(

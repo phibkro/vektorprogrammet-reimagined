@@ -122,6 +122,7 @@ const modules: readonly Module[] = [
   {
     files: src(
       "shared/transaction.ts",
+      "shared/integrationGuard.ts",
       "shared/transactor.ts",
       "shared/aggregate.ts",
       "shared/isolationProbe.ts"
@@ -386,20 +387,14 @@ export const baseline: readonly Tolerated[] = [
  * not see them: a port captured when a Layer is built is not a requirement of the program that uses it. Each is
  * tolerated until its retirement trigger. An entry names the call by the services its receivers are bound to in the file
  * (`const sender = yield* MessageSender`; `call` inside `within`), and the check fails when the file no longer has that
- * call inside that one, so the restructure that moves the mail out of the transaction retires the entry, a renamed
+ * call inside that one, so the restructure that moves the call out of the transaction retires the entry, a renamed
  * variable does not, and the list can only shrink (spec 0020, review rounds 1 to 3).
+ *
+ * It is empty since spec 0024: code delivery stores the code unusable, sends after the commit and makes the code usable
+ * in a second transaction, and every integration port refuses a call made while a transaction is open
+ * (`refusingInTransaction`), so a call that the type bound cannot see dies at run time instead of being listed here.
  */
-export const integrationCalls: readonly IntegrationCall[] = [
-  {
-    call: { method: "send", service: "MessageSender" },
-    file: "apps/web/src/server/accountDelivery.ts",
-    reason:
-      "`AccountDelivery.issueCode` mints a code, calls `MessageSender.send` and acknowledges the row in ONE transaction, so that the code is stored only if the mail went out (spec 0007 R1). The Layer captures the sender, so the bound does not see the call.",
-    retirementTrigger:
-      "code delivery restructured (next spec): code stored unusable, mail sent after commit, second transaction makes it usable; then integration adapters refuse calls while a transaction is open",
-    within: { method: "run", service: "Transactor" },
-  },
-];
+export const integrationCalls: readonly IntegrationCall[] = [];
 
 export const declaration: Declaration = {
   acyclic: ["packages/**/*.ts", "packages/**/*.tsx"],

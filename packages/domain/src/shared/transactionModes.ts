@@ -149,9 +149,10 @@ export const TransactionModes = {
   AuditLog: { latest: "Read", record: "Requires" },
   CapturedMessageStore: { record: "Standalone" },
   CodeRepository: {
+    acknowledge: "Requires",
     consume: "Requires",
     findUsable: "Read",
-    replace: "Requires",
+    issue: "Requires",
   },
   ConsentRepository: { of: "Read", ofLocked: "Requires", record: "Requires" },
   DepartmentRepository: {
