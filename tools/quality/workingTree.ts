@@ -1,6 +1,8 @@
 import { Array as Arr, Effect, FileSystem, Path } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
+import { isProbe } from "./probes.ts";
+
 /**
  * The variables that tie git to one repository, as `git rev-parse --local-env-vars` prints them (git 2.55). A git hook
  * runs with some of them set (a worktree's pre-push has `GIT_DIR` pointing at `.git/worktrees/<name>`), and they win
@@ -38,7 +40,8 @@ export const gitIn = (root: string, args: readonly string[]) =>
  * the untracked ones that no `.gitignore` excludes. A build output (`.alchemy/`, `.wrangler/`, `dist/`, `node_modules/`)
  * is ignored by the repository's own rules and so is not listed, whatever it holds. `git ls-files -c` also lists a
  * tracked file that is gone from the disk (a rename in progress, a probe file that another test removed); only files
- * present on disk are returned.
+ * present on disk are returned. A probe (`probes.ts`: a scratch file that a test of this package writes for one lint
+ * run) is never listed, so no scan of the tree can see one that a test running beside it has written.
  */
 export const workingTreePaths = Effect.fn("workingTreePaths")(
   function* workingTreePaths(root: string, keep: (path: string) => boolean) {
@@ -54,7 +57,7 @@ export const workingTreePaths = Effect.fn("workingTreePaths")(
       yield* Effect.forEach(
         Arr.filter(
           listing.split(/\r?\n/u),
-          (file) => file !== "" && keep(file)
+          (file) => file !== "" && !isProbe(file) && keep(file)
         ),
         (file) =>
           Effect.map(

@@ -76,13 +76,15 @@ const reset = Effect.gen(function* reset() {
   yield* sql`truncate membership, account, team, person, field_of_study, department, outbox, job_run, workspace_report restart identity cascade`;
 });
 
-/** What the Workspace runner needs from its Layer, besides the principal and the transaction that the scheduler provides. */
+/**
+ * What the Workspace runner's commit needs from its Layer, besides the principal and the transaction that the scheduler
+ * provides. The directory is read in `prepare`, outside the transaction: a port of another system (spec 0020).
+ */
 type RunnerServices =
   | AggregateLocks
   | AuditLog
   | JobRun.JobRuns
   | Outbox
-  | WorkspaceDirectory
   | WorkspaceAssignments
   | WorkspaceFacts
   | Crypto.Crypto
@@ -95,7 +97,7 @@ const approvedWorkspaceSync = Job.make({
   schedule: { ...JobRegistry.workspaceSync.schedule, status: "approved" },
 });
 
-const tick = dispatchTick<"workspaceSync", RunnerServices>(
+const tick = dispatchTick<"workspaceSync", RunnerServices, WorkspaceDirectory>(
   [approvedWorkspaceSync],
   { workspaceSync: workspaceSyncRunner },
   { at: NIGHT, only: ["workspaceSync"] }
@@ -166,7 +168,7 @@ const runRequested = (mode: WorkspaceMode, strays: number) =>
     const directory = yield* Ref.make(worldOfStrays(strays));
     const asked = yield* Ref.make<readonly WorkspaceChange[]>([]);
 
-    yield* dispatchTick<"workspaceSync", RunnerServices>(
+    yield* dispatchTick<"workspaceSync", RunnerServices, WorkspaceDirectory>(
       [JobRegistry.workspaceSync],
       { workspaceSync: workspaceSyncRunner },
       { at: EARLY, only: ["workspaceSync"] }
@@ -677,7 +679,11 @@ layer(live, { excludeTestServices: true })(
             );
             const nextDay = DateTime.add(NIGHT, { days: 1 });
             yield* TestClock.setTime(DateTime.toEpochMillis(nextDay));
-            yield* dispatchTick<"workspaceSync", RunnerServices>(
+            yield* dispatchTick<
+              "workspaceSync",
+              RunnerServices,
+              WorkspaceDirectory
+            >(
               [approvedWorkspaceSync],
               { workspaceSync: workspaceSyncRunner },
               { at: nextDay, only: ["workspaceSync"] }

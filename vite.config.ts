@@ -314,6 +314,12 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     overrides: [
       ...effectConfigResult.overrides,
+      // No import cycle between files of a package, type-only imports included (ADR 0015, stage 1). The files and the
+      // cycles that `tools/quality/checkModuleGraph.ts` looks for are the declaration's `acyclic` globs.
+      {
+        files: ["packages/**"],
+        rules: { "import/no-cycle": ["error", { ignoreTypes: false }] },
+      },
       // A package beside `packages/db` reaches the adapter as `../../db/…` (spec 0017); `boundaryOverrides` below
       // replace this for the files that an allowance covers, `packages/db/**` among them.
       {
@@ -409,6 +415,7 @@ export default defineConfig({
           "tools/import/src/report.ts",
           "tools/quality/checkEffectExceptions.ts",
           "tools/quality/checkStoreBoundary.ts",
+          "tools/quality/checkModuleGraph.ts",
           "tools/db-path-spike/src/worker.ts",
           "tools/db-path-spike/src/worker/checks.ts",
           "tools/db-path-spike/src/worker/http.ts",
@@ -440,9 +447,11 @@ export default defineConfig({
         rules: { "max-classes-per-file": "off" },
       },
       {
-        // Effect Data tagged variants use this exact empty payload representation; the type rule resolves it to {}.
+        // Effect Data tagged variants use this exact empty payload representation; the type rule resolves it to {}. The
+        // integration-port type test pins that a requirement bound of `{}` admits every service (spec 0020), so it names it.
         files: [
           "packages/domain/src/shared/capabilities.ts",
+          "packages/domain/test/shared/integrationPorts.types.test.ts",
           "tools/import/src/transform/legacyPath.ts",
         ],
         rules: { "typescript/no-generated-empty-object-type": "off" },

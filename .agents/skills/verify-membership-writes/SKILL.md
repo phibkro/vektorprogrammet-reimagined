@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 25f8942564260669b7832dbf93e8dfed2388d095
-confirmed-at: 0d340c398a9b1e8e76fa06ebebc3ffc014b9f14c
+sync-digest: 0f7bb9a90cf1cb97ac0f800024c4f7e22b2b31eb
+confirmed-at: 24d9135cd7a11855151e682be9b316e8750c8de6
 packages/db/src/repositories/teams.ts
 packages/db/src/repositories/accounts.ts
 packages/db/src/repositories/companyAddresses.ts
@@ -64,7 +64,11 @@ Spec 0018 review round 1 (2026-10-28) moved the explicit `BEGIN` of `transaction
 
 Spec 0018 review round 3 (2026-10-28) changed the first comment line of `packages/db/src/transactional.ts` ("The only provider" became "The one production provider … a source test guards against another") and nothing else of a covered file; the digest moved with the text. No statement, lock or constraint changed. The model ran again with `--code`: every run as expected and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
+Spec 0020 (module graph check and no integration call inside a transaction, ADR 0015 stages 1 and 1b, 2026-10-28) changed two covered paths, and both changes are types only. `packages/domain/src/shared/transactor.ts` now declares `run` as `<A, E, R extends NotAnIntegration>`, with a longer comment, and `packages/domain/src/workspace/services.ts` marks `WorkspaceDirectory` and `WorkspaceWriter` with a phantom `[IntegrationTypeId]` property (`declare readonly`, no initialiser, so no emitted code) and an `implements IntegrationPort` clause. No statement that a command issues, no lock, no constraint and no repository method changed, and no covered `packages/db` file changed. The PR's first version skipped this confirmation and said that no covered file had changed; CI's `Formal verification` caught it (DRIFT, exit 3). The model ran again with `--code` on the tree after review round 1 (`ab86150`): every run was as expected (each of the five properties holds for the current code and each variant fails as listed) and the 53 PostgreSQL code tests passed; the only line left was the stale coverage, which the digest and `confirmed-at` above now record.
+
 Spec 0021 (retention arithmetic in Effect, 2026-10-28, review round 1) changed one covered path, `packages/db/drizzle`, with the migration `drop_retention_oracle`. It drops the view `person_last_activity_end`, which read `membership` and never wrote it, and the function `semester_end`. No writer, statement, lock or constraint of `membership` changed, and `membership_no_overlap` is untouched. The same spec changes how the nightly retention run decides who is due (the domain decides from facts that the run reads after it has locked the chunk of people, `personalData/activity.ts`); that writer is outside the model as before, and its statements on `membership` (the delete under the chunk's locks) are the same. The model ran again with `--code` on that tree: every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones (`confirmed-at` is the head that the spec's pull request had when the migration was added).
+
+The merge of spec 0020 (above) with spec 0021 (2026-10-28, after both reached `main`) moved the digest once more, because the two changes to covered paths now stand together: types only in `transactor.ts` and `services.ts`, and the migration in `packages/db/drizzle`. Neither touches a statement, lock or constraint that a command issues. The model ran again with `--code` on the merged tree (`24d9135`): every run as expected (1,712,396 states for `current-code`, every broken variant caught) and the 53 PostgreSQL code tests passed; the digest and `confirmed-at` above are the new ones.
 
 ## Writers outside the model (spec 0007b)
 

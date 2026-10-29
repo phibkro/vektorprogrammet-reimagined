@@ -1,13 +1,6 @@
-import {
-  Array as Arr,
-  Effect,
-  FileSystem,
-  Option,
-  Path,
-  Predicate,
-} from "effect";
-import { parseSync } from "oxc-parser";
+import { Array as Arr, Effect, FileSystem, Option, Path } from "effect";
 
+import { importSpecifiers, resolveFrom } from "./importSpecifiers.ts";
 import {
   allowances,
   coveredBy,
@@ -25,31 +18,6 @@ export interface ImportSite {
 }
 
 const sourcePattern = /\.[cm]?[jt]sx?$/u;
-
-const stringLiteral = /^(?<quote>["'`])(?<value>[^"'`$]*)\k<quote>$/u;
-
-/** The specifier of an `import(…)` whose argument is a plain string; a computed one is not a specifier the lint can read. */
-const literalOf = (argument: string): Option.Option<string> =>
-  Option.fromNullishOr(stringLiteral.exec(argument.trim())?.groups?.value);
-
-/** `specifier`, a relative path written in the file `importer`, as a path from the repository root. */
-const resolveFrom = (importer: string, specifier: string): string =>
-  Arr.join(
-    Arr.reduce(
-      specifier.split("/"),
-      Arr.dropRight(importer.split("/"), 1),
-      (parts, segment) => {
-        if (segment === ".") {
-          return parts;
-        }
-
-        return segment === ".."
-          ? Arr.dropRight(parts, 1)
-          : Arr.append(parts, segment);
-      }
-    ),
-    "/"
-  );
 
 /**
  * The group of a module specifier written in the file `importer`. A relative specifier is also resolved against the
@@ -73,37 +41,13 @@ const groupOfImport = (
 export const restrictedImports = (
   path: string,
   text: string
-): readonly ImportSite[] => {
-  const { module } = parseSync(path, text);
-  const lineOf = (offset: number) => text.slice(0, offset).split("\n").length;
-
-  const requests = [
-    ...Arr.map(module.staticImports, ({ moduleRequest }) => moduleRequest),
-    ...Arr.flatMap(module.staticExports, ({ entries }) =>
-      Arr.flatMap(entries, ({ moduleRequest }) =>
-        Predicate.isNotNull(moduleRequest) ? [moduleRequest] : []
-      )
-    ),
-    ...Arr.flatMap(module.dynamicImports, ({ moduleRequest }) =>
-      Option.match(
-        literalOf(text.slice(moduleRequest.start, moduleRequest.end)),
-        {
-          onNone: () => [],
-          onSome: (value) => [{ ...moduleRequest, value }],
-        }
-      )
-    ),
-  ];
-
-  return Arr.flatMap(requests, (request) =>
-    Option.match(groupOfImport(path, request.value), {
+): readonly ImportSite[] =>
+  Arr.flatMap(importSpecifiers(path, text), ({ line, specifier }) =>
+    Option.match(groupOfImport(path, specifier), {
       onNone: () => [],
-      onSome: (group): ImportSite[] => [
-        { group, line: lineOf(request.start), path, specifier: request.value },
-      ],
+      onSome: (group): ImportSite[] => [{ group, line, path, specifier }],
     })
   );
-};
 
 /**
  * What is wrong with the allowances and the imports found in the repository: a restricted import that no allowance

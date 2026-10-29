@@ -15,7 +15,7 @@ import {
   Transactor,
   validationFailed,
 } from "@vektorprogrammet/domain";
-import type { Semester } from "@vektorprogrammet/domain";
+import type { NotAnIntegration, Semester } from "@vektorprogrammet/domain";
 import { and, eq } from "drizzle-orm";
 import { Array as Arr, Deferred, Effect, Exit, Fiber, pipe } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
@@ -26,7 +26,7 @@ import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { AT } from "./support/fixtures.ts";
 
 /** A way to run a program as one transaction. */
-type Run = <A, E, R>(
+type Run = <A, E, R extends NotAnIntegration>(
   program: Effect.Effect<A, E, R>
 ) => Effect.Effect<A, E, Exclude<R, InTransaction> | SqlClient | Transactor>;
 

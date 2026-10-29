@@ -19,6 +19,7 @@ import type {
   DomainError,
   InTransaction,
   JobRun,
+  NotAnIntegration,
   SiteOrigin,
   WorkspaceDirectory,
   WorkspaceWriter,
@@ -33,27 +34,39 @@ import { withOutbox } from "./outboxSweep";
 import type { DatabaseServices } from "./runtime";
 import type { MessageSender } from "./senders";
 
-/** Everything the runners (and so a tick) need besides the transaction runner, which the scheduler itself holds. */
-export type TickServices =
+/**
+ * The ports of other systems that a tick uses: a runner may call them in `prepare`, outside any transaction, and its
+ * commit may not (ADR 0015, rule 1; `Transactor.run` refuses a program that requires one).
+ */
+export type TickProviders =
+  | MessageSender
+  | WorkspaceDirectory
+  | WorkspaceWriter;
+
+/** The services a runner's commit may use besides the transaction runner, which the scheduler itself holds. */
+export type TickStore =
   | DatabaseServices
   | AccountDelivery
-  | MessageSender
   | OutboxPublisher
-  | WorkspaceDirectory
-  | WorkspaceWriter
   | Crypto.Crypto
   | SiteOrigin;
 
+/** Everything the runners (and so a tick) need besides the transaction runner, which the scheduler itself holds. */
+export type TickServices = TickStore | TickProviders;
+
 /** One runner for each registered job: a job without one does not type-check. */
 export type Runners = {
-  readonly [Name in JobRegistry.RegisteredJob]: Runner<TickServices>;
+  readonly [Name in JobRegistry.RegisteredJob]: Runner<
+    TickStore,
+    TickProviders
+  >;
 };
 
 /**
  * A job that is one transaction (the semesters, the digest): nothing to read from a provider, one chunk, done. Its
  * counts are what its result says, as integers.
  */
-const oneShot = <A, R>(
+const oneShot = <A, R extends NotAnIntegration>(
   work: Effect.Effect<A, DomainError, R | InTransaction | CurrentPrincipal>,
   counts: (result: A) => JobRun.Counts
 ): Runner<R> => ({
