@@ -874,32 +874,23 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         for (const round of Arr.range(1, 30)) {
           const before = yield* outboxRows;
 
-          const outer = yield* Effect.exit(
-            transactional(
-              Effect.all(
-                [
-                  Effect.exit(transactional(enqueue(`first ${round}`))),
-                  Effect.exit(transactional(enqueue(`second ${round}`))),
-                ],
-                { concurrency: 2 }
-              )
+          const [first, second] = yield* transactional(
+            Effect.all(
+              [
+                Effect.exit(transactional(enqueue(`first ${round}`))),
+                Effect.exit(transactional(enqueue(`second ${round}`))),
+              ],
+              { concurrency: 2 }
             )
           );
 
-          const kept = (yield* outboxRows) - before;
+          assert.isTrue(
+            Exit.isSuccess(first),
+            `round ${round}: first ${describeExit(first)}`
+          );
 
-          assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
-
-          if (Exit.isSuccess(outer)) {
-            const [first, second] = outer.value;
-
-            assert.isTrue(
-              Exit.isSuccess(first),
-              `round ${round}: first ${describeExit(first)}`
-            );
-            assertRefused(second, `round ${round}: the second of two at once`);
-            assert.strictEqual(kept, 1, `round ${round}`);
-          }
+          assertRefused(second, `round ${round}: the second of two at once`);
+          assert.strictEqual((yield* outboxRows) - before, 1, `round ${round}`);
         }
       }),
     { timeout: 60_000 }
