@@ -19,6 +19,7 @@ import { postgresDatabase } from "./support/database.ts";
 import {
   committedLabels,
   depthOf,
+  interruptedAtItsCommit as interruptedAtItsCommitProgram,
   programs,
   reportOf,
   run,
@@ -107,5 +108,63 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         );
       }),
     { timeout: 7_200_000 }
+  );
+
+  /**
+   * Spec 0019 R24: a level interrupted after its closing statement was issued has no verdict on whether it merged, but
+   * it merges whole, and it never brings back what a rolled-back level wrote. The program makes it happen: the level's
+   * `RELEASE` queues behind a statement that holds the connection for 400 ms, and a deadline of 150 ms interrupts the
+   * level while it waits. The controls change the committed state, or the evidence, and each must be caught.
+   */
+  it.effect(
+    "a level interrupted after its commit statement was issued: its writes merge whole, nothing that a rolled-back level wrote comes back, and each control is caught",
+    () =>
+      Effect.gen(function* interruptedAtItsCommit() {
+        const prefix = "u1-";
+        const ledger = yield* run(interruptedAtItsCommitProgram, prefix);
+        const present = yield* committedLabels(prefix);
+        const order = Arr.join(ledger.events, "\n");
+        const [first, second, rolledBack] = ledger.writes;
+        const [, level] = ledger.levels;
+
+        assert.isTrue(level?.unknown === true, order);
+        assert.deepStrictEqual(violations(ledger, present), [], order);
+
+        // Both writes of the interrupted level merged: the closing statement was issued, and it ran.
+        assert.isTrue(present.has(first?.label ?? ""), order);
+        assert.isTrue(present.has(second?.label ?? ""), order);
+        assert.isFalse(present.has(rolledBack?.label ?? "?"), order);
+
+        // Control: a store that let the interrupted level commit half its writes.
+        const half = new Set(present);
+        half.delete(second?.label ?? "");
+
+        assert.isTrue(
+          Arr.some(violations(ledger, half), (found) =>
+            found.includes("interrupted at its commit")
+          ),
+          "half of an interrupted level's writes were not caught"
+        );
+
+        // Control: a store that brought back what a rolled-back level wrote.
+        const resurrected = new Set(present);
+        resurrected.add(rolledBack?.label ?? "");
+
+        assert.isTrue(
+          Arr.some(violations(ledger, resurrected), (found) =>
+            found.includes(rolledBack?.label ?? "?")
+          ),
+          "a write of a rolled-back level that came back was not caught"
+        );
+
+        // Control: without the evidence that the closing statement was issued the normal verdict applies, and the
+        // level that was interrupted is a level that rolled back, whose rows are in the committed state.
+        if (level !== undefined) {
+          level.unknown = false;
+        }
+
+        assert.isAbove(violations(ledger, present).length, 0, order);
+      }),
+    { timeout: 60_000 }
   );
 });

@@ -44,9 +44,11 @@
  * (`Effect.context()`) and provides it around a method elsewhere, even inside another transaction, holds the level's
  * proof and connection together, so while that level is the innermost the check passes and the statements go to it;
  * they commit or roll back with it, which is no forgery of a transaction that does not exist, and a finished level is
- * refused. And a level that is interrupted after its body has ended: Effect runs `RELEASE` and `COMMIT` where they
- * cannot be interrupted and reports the interruption afterwards, so the level says it failed and its rows may have
- * merged, as with any commit whose acknowledgment is lost.
+ * refused. And a level that is interrupted after its closing statement was issued (`withTransaction` records that on the span
+ * of the level before it sends `RELEASE` or `COMMIT`, which it sends where it cannot be interrupted): the interruption is
+ * reported afterwards, so the level says it failed and its rows may have merged, as with any commit whose
+ * acknowledgment is lost. They merge whole or not at all, and nothing that a rolled-back level wrote comes back
+ * (R24); `liveProperty.postgres.test.ts` holds both. A level interrupted before that statement rolled back.
  *
  * Which methods verify is not listed here: it is the `Requires` rows of the domain's `TransactionModes`, the one
  * declaration of what a port method asks of a transaction, so a method that requires `InTransaction` is covered by being

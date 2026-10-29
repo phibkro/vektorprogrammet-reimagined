@@ -30,8 +30,10 @@ import {
   Exit,
   Fiber,
   Match,
+  Option,
   Predicate,
   Schema,
+  Tracer,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -69,13 +71,34 @@ interface ParStep {
   readonly branches: readonly Body[];
 }
 
+/** A statement that holds the connection for a while and is not a method of a port: the closing statement queues behind it. */
+interface SlowStep {
+  readonly _tag: "Slow";
+  readonly ms: number;
+}
+
+/** A level that commits, run under a deadline that interrupts it. */
+interface BoundedStep {
+  readonly _tag: "Bounded";
+  readonly body: Body;
+  readonly ms: number;
+}
+
 /** Steps one after the other in the level: how a generator makes a pattern of two levels. */
 interface SeqStep {
   readonly _tag: "Seq";
   readonly steps: Body;
 }
 
-type Step = WriteStep | SleepStep | LevelStep | ForkStep | ParStep | SeqStep;
+type Step =
+  | WriteStep
+  | SleepStep
+  | LevelStep
+  | ForkStep
+  | ParStep
+  | SeqStep
+  | SlowStep
+  | BoundedStep;
 
 export type Body = readonly Step[];
 
@@ -214,12 +237,25 @@ export const programs: Arbitrary.Arbitrary<Program> = Arbitrary.all({
 /** The parent of the outermost level. */
 const NO_LEVEL = -1;
 
+/** The events that `withTransaction` records on its span when the body has succeeded, before it sends `RELEASE` or `COMMIT`. */
+const COMMIT_EVENTS = [
+  "effect.sql.transaction.commit",
+  "effect.sql.transaction.savepoint",
+];
+
+/** Whether the level's transaction span says that its closing statement was issued by the success path. */
+const statementIssued = (span: Tracer.Span | undefined) =>
+  span instanceof Tracer.NativeSpan &&
+  Arr.some(span.events, ([name]) => Arr.contains(COMMIT_EVENTS, name));
+
 interface LevelRecord {
   committed: boolean;
   readonly parent: number;
   /** Its body ended and it was to commit. */
   reachedCommit: boolean;
-  /** It reached its commit and was interrupted: it may or may not have merged. */
+  /** The span of its transaction, where the closing statement is recorded. */
+  span: Tracer.Span | undefined;
+  /** It reached its commit, its closing statement was issued, and it was interrupted: it may or may not have merged. */
   unknown: boolean;
 }
 
@@ -325,7 +361,8 @@ const levelOf = (
   runBody: RunBody,
   parent: number,
   ending: Ending,
-  body: Body
+  body: Body,
+  bound: Option.Option<Duration.Duration>
 ): Effect.Effect<void, never, Outbox | SqlClient> =>
   Effect.suspend(() => {
     const id = ledger.levels.length;
@@ -334,6 +371,7 @@ const levelOf = (
       committed: false,
       parent,
       reachedCommit: false,
+      span: undefined,
       unknown: false,
     };
 
@@ -345,7 +383,11 @@ const levelOf = (
       transactional(
         Effect.andThen(
           Effect.andThen(
-            runBody(id, body),
+            Effect.flatMap(Effect.option(Effect.currentSpan), (span) => {
+              record.span = Option.getOrUndefined(span);
+
+              return runBody(id, body);
+            }),
             Effect.sync(() => {
               record.reachedCommit = ending === "commit";
               note(ledger, `L${id} body ended`);
@@ -356,26 +398,35 @@ const levelOf = (
       ),
       (exit) =>
         Effect.sync(() => {
+          const issued = statementIssued(record.span);
           record.committed = Exit.isSuccess(exit);
           record.unknown =
             record.reachedCommit &&
             Exit.isFailure(exit) &&
-            Cause.hasInterruptsOnly(exit.cause);
+            Cause.hasInterruptsOnly(exit.cause) &&
+            issued;
           note(
             ledger,
-            `L${id} exit ${Exit.isSuccess(exit) ? "success" : "failure"}${record.unknown ? " (interrupted at its commit)" : ""}`
+            `L${id} exit ${Exit.isSuccess(exit) ? "success" : "failure"}, commit statement issued: ${issued}${record.unknown ? " (interrupted at its commit)" : ""}`
           );
         })
     );
 
     return Effect.asVoid(
       Effect.exit(
-        ending === "timeout"
-          ? Effect.timeout(level, Duration.millis(12))
-          : level
+        Option.match(bound, {
+          onNone: () => level,
+          onSome: (duration) => Effect.timeout(level, duration),
+        })
       )
     );
   });
+
+/** A level that ends by timeout runs under a deadline of 12 ms, which interrupts it. */
+const boundOf = (ending: Ending) =>
+  ending === "timeout"
+    ? Option.some(Duration.millis(12))
+    : Option.none<Duration.Duration>();
 
 const runStep = (
   ledger: Ledger,
@@ -385,6 +436,15 @@ const runStep = (
   const runBody = bodyRunner((inLevel, one) => runStep(ledger, inLevel, one));
 
   return steps.$match(step, {
+    Bounded: ({ body, ms }) =>
+      levelOf(
+        ledger,
+        runBody,
+        level,
+        "commit",
+        body,
+        Option.some(Duration.millis(ms))
+      ),
     Fork: ({ body, delay, kind }) =>
       Effect.flatMap(
         FORKERS[kind](
@@ -399,7 +459,8 @@ const runStep = (
             ledger.fibers.push(fiber);
           })
       ),
-    Level: ({ body, ending }) => levelOf(ledger, runBody, level, ending, body),
+    Level: ({ body, ending }) =>
+      levelOf(ledger, runBody, level, ending, body, boundOf(ending)),
     Par: ({ branches }) =>
       Effect.forEach(branches, (branch) => runBody(level, branch), {
         concurrency: "unbounded",
@@ -407,6 +468,10 @@ const runStep = (
       }),
     Seq: ({ steps: inOrder }) => runBody(level, inOrder),
     Sleep: ({ ms }) => Effect.sleep(Duration.millis(ms)),
+    Slow: ({ ms }) =>
+      Effect.flatMap(SqlClient, (sql) =>
+        Effect.orDie(sql`select pg_sleep(${ms / 1000})`)
+      ).pipe(Effect.asVoid),
     Write: () => write(ledger, level),
   });
 };
@@ -431,7 +496,8 @@ export const run = (program: Program, prefix: string) =>
         bodyRunner((level, one) => runStep(ledger, level, one)),
         NO_LEVEL,
         program.ending,
-        program.body
+        program.body,
+        boundOf(program.ending)
       );
 
       yield* Effect.forEach(
@@ -459,10 +525,12 @@ export const committedLabels = (prefix: string) =>
 // ---- the oracle ------------------------------------------------------------------------------------------------
 
 /**
- * What became of the rows written in a level, from what its levels reported. A level that reached its commit and was
- * then interrupted has an unknown fate: Effect runs the `RELEASE` or `COMMIT` where it cannot be interrupted and reports
- * the interruption afterwards, so the rows may or may not have merged, as with any commit whose acknowledgment is lost.
- * Every other level that did not succeed rolled back, and its rows with it.
+ * What became of the rows written in a level, from what its levels reported. A level that was interrupted after its
+ * commit statement was issued (the span of its transaction has the event that `withTransaction` records before it sends
+ * the `RELEASE` or `COMMIT`, which it sends where it cannot be interrupted) has an unknown fate: the interruption is
+ * reported afterwards, so the rows may or may not have merged, as with any commit whose acknowledgment is lost. A level
+ * that failed, was interrupted before that, or was interrupted without ever reaching its commit, rolled back, and its
+ * rows with it: the normal verdict.
  */
 type Fate = "committed" | "rolledBack" | "unknown";
 
@@ -496,11 +564,49 @@ const chainFate = (ledger: Ledger, level: number): Fate => {
   return own === "unknown" || around === "unknown" ? "unknown" : "committed";
 };
 
-/** What the run got wrong: empty when every write is where the levels it reported into say it is. */
-export const violations = (
-  ledger: Ledger,
-  present: ReadonlySet<string>
-): readonly string[] =>
+/** Whether the successful writes of the level, or of a level that committed inside it, are where the level around it left them. */
+const underLevel = (ledger: Ledger, level: number, top: number): boolean => {
+  if (level === top) {
+    return true;
+  }
+
+  const record = ledger.levels[level];
+
+  return (
+    record !== undefined &&
+    record.committed &&
+    underLevel(ledger, record.parent, top)
+  );
+};
+
+/**
+ * A level that was interrupted after its commit statement was issued has no verdict on whether it merged, but it merges
+ * whole: every successful write of it, and of every level that committed inside it, is in the committed state or none is.
+ */
+const atomicity = (ledger: Ledger, present: ReadonlySet<string>) =>
+  Arr.flatMap(ledger.levels, (record, top) => {
+    if (!record.unknown) {
+      return [];
+    }
+
+    const members = Arr.filter(
+      ledger.writes,
+      (entry) => entry.outcome === "ok" && underLevel(ledger, entry.level, top)
+    );
+
+    const inState = Arr.length(
+      Arr.filter(members, (entry) => present.has(entry.label))
+    );
+
+    return inState === 0 || inState === members.length
+      ? []
+      : [
+          `level ${top} was interrupted at its commit and ${inState} of its ${members.length} successful writes are in the committed state`,
+        ];
+  });
+
+/** What each write says about itself: where it must be, from the levels it reported into. */
+const writeViolations = (ledger: Ledger, present: ReadonlySet<string>) =>
   Arr.flatMap(ledger.writes, (record) => {
     const fate = chainFate(ledger, record.level);
     const there = present.has(record.label);
@@ -524,6 +630,18 @@ export const violations = (
     return problem === "" ? [] : [problem];
   });
 
+/**
+ * What the run got wrong: empty when every write is where the levels it reported into say it is, and every level that was
+ * interrupted after its commit statement was issued merged whole or not at all.
+ */
+export const violations = (
+  ledger: Ledger,
+  present: ReadonlySet<string>
+): readonly string[] => [
+  ...writeViolations(ledger, present),
+  ...atomicity(ledger, present),
+];
+
 /** The deepest nesting of levels in the body, the root counted as 1. */
 export const depthOf = (body: Body): number =>
   1 +
@@ -531,6 +649,7 @@ export const depthOf = (body: Body): number =>
     Math.max(
       deepest,
       steps.$match(step, {
+        Bounded: (bounded) => depthOf(bounded.body),
         Fork: (fork) => depthOf(fork.body) - 1,
         Level: (level) => depthOf(level.body),
         Par: (par) =>
@@ -539,6 +658,7 @@ export const depthOf = (body: Body): number =>
           ),
         Seq: (seq) => depthOf(seq.steps) - 1,
         Sleep: () => 0,
+        Slow: () => 0,
         Write: () => 0,
       })
     )
@@ -561,3 +681,28 @@ export const reportOf = (ledger: Ledger, found: readonly string[]) =>
   found.length === 0
     ? ""
     : `${Arr.join(found, "; ")}\n${Arr.join(ledger.events, "\n")}`;
+
+/**
+ * A level that is interrupted after its closing statement was issued, made to happen: the level's two writes are
+ * followed by a statement that holds the connection for 400 ms, so its `RELEASE` queues behind it, and a deadline of 150
+ * ms interrupts the level while the statement waits. A second level after it fails, and its write rolls back.
+ */
+export const interruptedAtItsCommit: Program = {
+  body: [
+    steps.Bounded({
+      body: [
+        steps.Write(),
+        steps.Write(),
+        steps.Fork({
+          body: [steps.Slow({ ms: 400 })],
+          delay: 0,
+          kind: "child",
+        }),
+        steps.Sleep({ ms: 30 }),
+      ],
+      ms: 150,
+    }),
+    steps.Level({ body: [steps.Write()], ending: "fail" }),
+  ],
+  ending: "commit",
+};
