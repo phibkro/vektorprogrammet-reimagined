@@ -206,16 +206,16 @@ layer(live, { excludeTestServices: true })(
           const seen = yield* Ref.make<readonly Observation[]>([]);
           const transactor = yield* Transactor;
 
-          yield* transactor
-            .run(
-              Effect.gen(function* badCommand() {
-                const [id] = yield* (yield* Outbox).enqueue([email]);
+          // `Transactor.run` refuses a program that REQUIRES `MessageSender` (spec 0020, F11), so the bad command builds
+          // its provider inside the transaction: a mistake that the type cannot see, and that this probe still does.
+          yield* transactor.run(
+            Effect.gen(function* badCommand() {
+              const [id] = yield* (yield* Outbox).enqueue([email]);
 
-                // The mistake that the structure prevents: a provider call before the commit.
-                yield* (yield* MessageSender).send(email, id ?? "0");
-              })
-            )
-            .pipe(Effect.provide(probingProvider(seen)));
+              // The mistake that the structure prevents: a provider call before the commit.
+              yield* (yield* MessageSender).send(email, id ?? "0");
+            }).pipe(Effect.provide(probingProvider(seen)))
+          );
 
           const observed = yield* Ref.get(seen);
 

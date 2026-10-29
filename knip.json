@@ -6,6 +6,7 @@
     "tools/quality": {
       "entry": [
         "checkEffectExceptions.ts",
+        "checkModuleGraph.ts",
         "checkStoreBoundary.ts",
         "syncEffectPolicy.ts"
       ],

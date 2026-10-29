@@ -21,6 +21,7 @@ import {
 import type {
   DomainError,
   InTransaction,
+  NotAnIntegration,
   SystemJob,
   WorkspaceProviderFailed,
 } from "@vektorprogrammet/domain";
@@ -39,10 +40,12 @@ export interface ChunkResult {
 }
 
 /**
- * `R` is what the tick's Layer provides. A runner may also need the job's own principal, which the scheduler
- * provides, and its commit needs the transaction that the scheduler opens.
+ * `R` is what the tick's Layer provides to both steps; the commit runs inside the transaction, so no service of `R` is an
+ * integration port (ADR 0015, rule 1: `Transactor.run` refuses one). `Providers` are the ports of other systems that
+ * only `prepare` may call, before the transaction opens. A runner may also need the job's own principal, which the
+ * scheduler provides, and its commit needs the transaction that the scheduler opens.
  */
-export interface Runner<R> {
+export interface Runner<R extends NotAnIntegration, Providers = never> {
   readonly prepare: (
     held: JobRun.Held
   ) => Effect.Effect<
@@ -52,7 +55,7 @@ export interface Runner<R> {
       R | CurrentPrincipal | InTransaction
     >,
     RunnerFailure,
-    R | CurrentPrincipal
+    R | CurrentPrincipal | Providers
   >;
 }
 
@@ -83,7 +86,11 @@ const reasonOf = (cause: Cause.Cause<unknown>): string => Cause.pretty(cause);
  * One chunk: prepare outside the transaction, then commit it and its cursor together. The outbox rows that the chunk
  * enqueued are published once it has committed (spec 0008b), not at the next tick's sweep.
  */
-const oneChunk = <R>(job: Job.Job, runner: Runner<R>, held: JobRun.Held) =>
+const oneChunk = <R extends NotAnIntegration, Providers>(
+  job: Job.Job,
+  runner: Runner<R, Providers>,
+  held: JobRun.Held
+) =>
   Effect.gen(function* chunkOfRun() {
     const runs = yield* JobRun.JobRuns;
     const transactor = yield* Transactor;
@@ -109,9 +116,9 @@ const oneChunk = <R>(job: Job.Job, runner: Runner<R>, held: JobRun.Held) =>
   });
 
 /** Runs chunks of a claimed period while the budget lasts. */
-const runPeriod = <R>(
+const runPeriod = <R extends NotAnIntegration, Providers>(
   job: Job.Job,
-  runner: Runner<R>,
+  runner: Runner<R, Providers>,
   claimed: JobRun.Held,
   budget: number
 ) =>
@@ -160,7 +167,11 @@ const automaticPeriods = (job: Job.Job, at: DateTime.Utc) =>
   job.schedule.status === "approved" ? Job.duePeriods(job.dueWhen, at) : [];
 
 /** Claims the periods of `job` that are due or waiting, and runs them while the budget lasts. */
-const runDue = <R>(job: Job.Job, runner: Runner<R>, at: DateTime.Utc) =>
+const runDue = <R extends NotAnIntegration, Providers>(
+  job: Job.Job,
+  runner: Runner<R, Providers>,
+  at: DateTime.Utc
+) =>
   Effect.gen(function* periodsOfJob() {
     const runs = yield* JobRun.JobRuns;
 
@@ -213,9 +224,13 @@ export interface TickOptions {
  * One tick over `jobs`. A job that fails or dies is reported and logged and does not stop the next one: each runs in
  * its own `System` principal and its own `Effect.exit`, which an interruption of the whole tick still passes through.
  */
-export const dispatchTick = <Names extends SystemJob, R>(
+export const dispatchTick = <
+  Names extends SystemJob,
+  R extends NotAnIntegration,
+  Providers = never,
+>(
   jobs: readonly Job.Job<Names>[],
-  runners: Readonly<Record<Names, Runner<R>>>,
+  runners: Readonly<Record<Names, Runner<R, Providers>>>,
   tick: TickOptions
 ) =>
   Effect.forEach(

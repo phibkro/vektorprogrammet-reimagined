@@ -6,7 +6,11 @@
  * nothing is enqueued.
  */
 import { validationFailed } from "@vektorprogrammet/domain";
-import type { ValidationFailed } from "@vektorprogrammet/domain";
+import type {
+  IntegrationPort,
+  ValidationFailed,
+  IntegrationTypeId,
+} from "@vektorprogrammet/domain";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
@@ -24,15 +28,21 @@ export const SITEVERIFY_URL =
 export const captchaRejected = (): ValidationFailed =>
   validationFailed([CAPTCHA_FIELD], CAPTCHA_REJECTED_MESSAGE);
 
-export class TurnstileVerifier extends Context.Service<
-  TurnstileVerifier,
-  {
-    verify: (input: {
-      readonly token: string | null;
-      readonly remoteIp: string | null;
-    }) => Effect.Effect<void, ValidationFailed>;
-  }
->()("@vektorprogrammet/web/server/TurnstileVerifier") {}
+/** Spam protection: an integration port (ADR 0015, section 10), so `Transactor.run` refuses a program that requires it. */
+export class TurnstileVerifier
+  extends Context.Service<
+    TurnstileVerifier,
+    {
+      verify: (input: {
+        readonly token: string | null;
+        readonly remoteIp: string | null;
+      }) => Effect.Effect<void, ValidationFailed>;
+    }
+  >()("@vektorprogrammet/web/server/TurnstileVerifier")
+  implements IntegrationPort
+{
+  declare readonly [IntegrationTypeId]: IntegrationTypeId;
+}
 
 const SiteverifyResponse = Schema.Struct({
   "error-codes": Schema.optionalKey(Schema.Array(Schema.String)),

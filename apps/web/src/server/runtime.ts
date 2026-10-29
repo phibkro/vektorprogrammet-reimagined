@@ -40,7 +40,9 @@ import type {
   FieldOfStudyRepository,
   FileStore,
   InTransaction,
+  IntegrationPort,
   IsolationProbe,
+  NotAnIntegration,
   JobRun,
   LegalHolds,
   MembershipRepository,
@@ -179,6 +181,17 @@ export type RequestServices =
   | ContactRateLimiter
   | CmsClient;
 
+/**
+ * What a command may require: the request's services without the ports of other systems, and the transaction it runs in.
+ * `Transactor.run` refuses a program that requires an integration port (ADR 0015, rule 1; spec 0020), so a command that
+ * needs one is a `prepare` step instead, which runs before the transaction opens. `CmsClient` (EmDash's client) is an
+ * integration that the domain's marker cannot reach yet (`packages/cms-client` imports no workspace package), so it is
+ * left out here by name.
+ */
+type CommandServices =
+  | Exclude<RequestServices, CmsClient | IntegrationPort>
+  | InTransaction;
+
 const databaseLayer = (
   env: Pick<TickEnv, "HYPERDRIVE">
 ): Layer.Layer<DatabaseServices> =>
@@ -275,7 +288,7 @@ export const runCommandOutcome = <
   R0,
   A,
   E extends RequestError,
-  R,
+  R extends NotAnIntegration,
 >(
   layer: Layer.Layer<
     NoInfer<R0 | Exclude<R, InTransaction>> | Transactor | Outbox
@@ -549,7 +562,7 @@ export const runPreparedCommand = <
   R0 extends RequestServices,
   A,
   E extends RequestError,
-  R extends RequestServices | InTransaction,
+  R extends CommandServices,
 >(
   scope: RequestScope,
   prepare: Effect.Effect<B, E0, R0>,
@@ -566,7 +579,7 @@ export const runPreparedCommand = <
 export const runCommand = <
   A,
   E extends RequestError,
-  R extends RequestServices | InTransaction,
+  R extends CommandServices,
 >(
   scope: RequestScope,
   command: Effect.Effect<A, E, R>

@@ -12,7 +12,9 @@ import type { SignInDirectory } from "../accounts/signInDirectory.ts";
  * - `Joins`: one conditional write that commits alone, or with the caller's writes when the caller is in a transaction
  *   (`OutboxDelivery.markDelivered`, LS4). It cannot require what it does not need.
  * - `Read`: writes nothing and takes no lock (RR1).
- * - `Outside`: provider I/O. It must never run inside a transaction: a convention that the type system cannot check.
+ * - `Outside`: provider I/O. It must never run inside a transaction. The ports of other systems (`WorkspaceDirectory`,
+ *   `WorkspaceWriter`) are marked `IntegrationPort`, and `Transactor.run` refuses a program that requires one (ADR 0015,
+ *   spec 0020); the R2 `FileStore` is the platform and stays a convention that the type system does not check.
  * - `Opens`: opens its own transaction and takes none (`Transactor.run`, `ImportTarget.replaceAll`, and
  *   `IsolationProbe.report`, which opens the transactions it reports on).
  *

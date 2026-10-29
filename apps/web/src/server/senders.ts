@@ -15,7 +15,11 @@
  */
 import type { SendEmail } from "@cloudflare/workers-types";
 import { CapturedMessageStore, slackChannelOf } from "@vektorprogrammet/domain";
-import type { TransportMessage } from "@vektorprogrammet/domain";
+import type {
+  IntegrationPort,
+  TransportMessage,
+  IntegrationTypeId,
+} from "@vektorprogrammet/domain";
 import { Context, Effect, Layer, Match, Redacted, Schema } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
 
@@ -33,16 +37,25 @@ export class DeliveryFailed extends Schema.TaggedError<
   reason: Schema.String,
 }) {}
 
-export class MessageSender extends Context.Service<
-  MessageSender,
-  {
-    /** `key` is the outbox row's id: stable across every attempt at the same message. */
-    readonly send: (
-      message: TransportMessage,
-      key: string
-    ) => Effect.Effect<void, DeliveryFailed>;
-  }
->()("@vektorprogrammet/web/server/MessageSender") {}
+/**
+ * Mail and Slack: an integration port (ADR 0015, section 10), so `Transactor.run` refuses a program that requires it.
+ * The outbox row is what a transaction commits; the delivery after it calls this.
+ */
+export class MessageSender
+  extends Context.Service<
+    MessageSender,
+    {
+      /** `key` is the outbox row's id: stable across every attempt at the same message. */
+      readonly send: (
+        message: TransportMessage,
+        key: string
+      ) => Effect.Effect<void, DeliveryFailed>;
+    }
+  >()("@vektorprogrammet/web/server/MessageSender")
+  implements IntegrationPort
+{
+  declare readonly [IntegrationTypeId]: IntegrationTypeId;
+}
 
 /** Building the production senders outside `production` (or without their bindings) is refused. */
 export class SenderConfigRejected extends Schema.TaggedError<

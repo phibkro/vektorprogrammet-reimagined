@@ -10,7 +10,8 @@ import { Array as Arr, Effect, Order, Record as Rec } from "effect";
 
 import { domainSources } from "./support/sources.ts";
 
-const serviceClass = /export class (?<name>\w+) extends Context\.Service</gu;
+const serviceClass =
+  /export class (?<name>\w+)\s+extends\s+Context\.Service</gu;
 
 /** The names of the services that `text` declares as classes. */
 export const servicesDeclared = (text: string): readonly string[] =>
@@ -34,12 +35,15 @@ describe("every service of the domain has a place (spec 0018)", () => {
             "  B,",
             "  { readonly y: 2 }",
             '>()("b") {}',
+            "export class C",
+            '  extends Context.Service<C, { readonly z: 3 }>()("c")',
+            "  implements Marker {}",
             "export class NotAService extends Other {}",
           ],
           "\n"
         )
       ),
-      ["A", "B"]
+      ["A", "B", "C"]
     );
   });
 

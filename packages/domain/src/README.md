@@ -8,7 +8,7 @@ A store adapter owns the one production provider (`packages/db`'s `transactional
 
 - Repository Layers run in the transaction that is open, so their writes join it. A typed failure, a defect or an interruption rolls everything back, including the audit row and the outbox rows.
 - Authorization (`Domain.handle`) runs inside the transaction.
-- No provider I/O (R2, mail, Slack, Turnstile) inside a transaction.
+- No provider I/O inside a transaction. For another system (mail, Slack, Turnstile, Better Auth, the Workspace directory) it is a type: the port is an `IntegrationPort` (`shared/transaction.ts`), and `Transactor.run` does not accept a program that requires one (ADR 0015 rule 1, spec 0020). R2 (`FileStore`) is the platform, not an integration, and stays a convention.
 
 ## Store ports (spec 0017, ADR 0014 stage 1)
 
