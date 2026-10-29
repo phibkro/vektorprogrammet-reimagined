@@ -6,7 +6,15 @@
  * not the committed ones (gate G2, the weekly check of `.github/workflows/effx-drift.yml`).
  */
 import { NodeCrypto, NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Array as Arr, Console, Effect, FileSystem, Layer, Path } from "effect";
+import {
+  Array as Arr,
+  Console,
+  Effect,
+  FileSystem,
+  Layer,
+  Path,
+  String as Str,
+} from "effect";
 import { Command } from "effect/cli";
 
 import { descriptionFile, directory, gapsFile } from "./artefacts.ts";
@@ -24,7 +32,7 @@ const generate = Command.make(
     const stale = Arr.filter(
       yield* fs.readDirectory(directory),
       (name) =>
-        name.endsWith(".description.json") &&
+        Str.endsWith(".description.json")(name) &&
         !Arr.some(
           derived.descriptions,
           ({ domain }) => name === `${domain}.description.json`

@@ -4,7 +4,14 @@
  * (`test/teams.postgres.test.ts`); here the repositories keep the same contracts as fakes.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Predicate,
+  String as Str,
+} from "effect";
 import { TestClock } from "effect/testing";
 
 import {
@@ -41,6 +48,7 @@ import {
   auditActions,
   departmentForTest,
   failureTag,
+  newPerson,
   seed,
   table,
   teamLeaderTrondheim,
@@ -114,15 +122,6 @@ const newTeam = (
       departmentId,
       function: "recruitment",
       groupEmail: null,
-      name,
-    })
-  );
-
-const newPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
-  asPrincipal(admin)(
-    TeamsEndpoints.createPerson({
-      email: `${name.toLowerCase()}@example.org`,
-      fieldOfStudyId,
       name,
     })
   );
@@ -915,7 +914,7 @@ describe("falsifier 6: the admin list (RULE-113, RULE-308)", () => {
         );
 
         const entries = Arr.filter(yield* table((db) => db.audit), (entry) =>
-          entry.action.startsWith("adminGrant")
+          Str.startsWith("adminGrant")(entry.action)
         );
 
         assert.deepStrictEqual(

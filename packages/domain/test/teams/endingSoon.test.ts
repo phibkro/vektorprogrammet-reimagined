@@ -11,6 +11,7 @@ import {
   Option,
   Order,
   Predicate,
+  String as Str,
 } from "effect";
 import { TestClock } from "effect/testing";
 
@@ -35,6 +36,7 @@ import {
   asPrincipal,
   departmentForTest,
   failureTag,
+  newPerson,
   seed,
   table,
 } from "../support/inMemory.ts";
@@ -72,15 +74,6 @@ describe("falsifier 7: the digest runs in the last four weeks of the semester", 
     assert.deepStrictEqual(planDigests([], host(2026)), []);
   });
 });
-
-const createPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
-  asPrincipal(admin)(
-    TeamsEndpoints.createPerson({
-      email: `${name.toLowerCase()}@example.org`,
-      fieldOfStudyId,
-      name,
-    })
-  );
 
 const createTeam = (departmentId: DepartmentId, name: string) =>
   asPrincipal(admin)(
@@ -132,7 +125,7 @@ const departments = Effect.gen(function* departments() {
       departmentId: id,
       id: field,
       name: `Linje ${city}`,
-      shortName: city.slice(0, 3),
+      shortName: Str.slice(0, 3)(city),
     });
   }
 
@@ -152,7 +145,7 @@ const departments = Effect.gen(function* departments() {
     [bergen, "Per", BERGEN_FIELD, now, false],
     [osloTeam, "Olav", OSLO_FIELD, spring, true],
   ] as const) {
-    const registered = yield* createPerson(name, field);
+    const registered = yield* newPerson(name, field);
     yield* joinTeam(team.id, registered.id, end, leader);
   }
 });
@@ -162,7 +155,7 @@ const sentMail = Effect.map(
   (messages) =>
     Arr.flatMap(messages, (message) =>
       Predicate.isTagged(message, "Email") &&
-      message.subject.startsWith("Medlemskap som slutter")
+      Str.startsWith("Medlemskap som slutter")(message.subject)
         ? [message]
         : []
     )
@@ -215,10 +208,12 @@ describe("falsifier 7: one message per leader, once", () => {
           Option.exists(
             lise,
             (message) =>
-              message.text.includes("Per") &&
-              !message.text.includes("Kari") &&
-              message.text.includes(`${SITE_ORIGIN}/kontrollpanel/team/`) &&
-              message.text.includes("?forleng=")
+              Str.includes("Per")(message.text) &&
+              !Str.includes("Kari")(message.text) &&
+              Str.includes(`${SITE_ORIGIN}/kontrollpanel/team/`)(
+                message.text
+              ) &&
+              Str.includes("?forleng=")(message.text)
           )
         );
 

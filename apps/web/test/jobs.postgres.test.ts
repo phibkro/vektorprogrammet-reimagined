@@ -33,6 +33,7 @@ import {
   Option,
   Ref,
   Schema,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
@@ -169,7 +170,10 @@ const jobRuns = Effect.gen(function* jobRuns() {
 
 const runOf = (rows: readonly RunRow[], job: string, marker = "") =>
   Option.getOrThrow(
-    Arr.findFirst(rows, (row) => row.job === job && row.period.includes(marker))
+    Arr.findFirst(
+      rows,
+      (row) => row.job === job && Str.includes(marker)(row.period)
+    )
   );
 
 layer(live, { excludeTestServices: true })(
@@ -319,7 +323,7 @@ layer(live, { excludeTestServices: true })(
             );
             assert.deepStrictEqual(
               Arr.filter(yield* Ref.get(resumedPrepared), (call) =>
-                call.includes("12:20")
+                Str.includes("12:20")(call)
               ),
               ["2026-10-27T12:20:00.000Z#3", "2026-10-27T12:20:00.000Z#4"],
               "the resumed run prepared only chunks 3 and 4 of the killed period"
@@ -329,8 +333,11 @@ layer(live, { excludeTestServices: true })(
 
             const chunksOf = (marker: string) =>
               Arr.map(
-                Arr.filter(rows, (row) => row.includes(marker)),
-                (row) => row.slice(row.indexOf("#"))
+                Arr.filter(rows, (row) => Str.includes(marker)(row)),
+                (row) =>
+                  Str.slice(Option.getOrElse(Str.indexOf("#")(row), () => -1))(
+                    row
+                  )
               );
 
             assert.deepStrictEqual(chunksOf("12:10"), ["#1", "#2", "#3", "#4"]);
@@ -345,7 +352,8 @@ layer(live, { excludeTestServices: true })(
               yield* jobRuns,
               (row) =>
                 row.job === "endingSoon" &&
-                (row.period.includes("12:10") || row.period.includes("12:20"))
+                (Str.includes("12:10")(row.period) ||
+                  Str.includes("12:20")(row.period))
             );
 
             assert.deepStrictEqual(
@@ -467,7 +475,9 @@ layer(live, { excludeTestServices: true })(
               yield* tx.run(
                 runs.request(
                   "workspaceSync",
-                  Job.JobPeriod.make(`paused-${String(n).padStart(2, "0")}`)
+                  Job.JobPeriod.make(
+                    `paused-${Str.padStart(2, "0")(String(n))}`
+                  )
                 )
               );
             }

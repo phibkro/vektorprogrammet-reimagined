@@ -1,4 +1,4 @@
-import { Array as Arr, Option, Order, Predicate } from "effect";
+import { Array as Arr, Option, Order, Predicate, String as Str } from "effect";
 import { parseSync, Visitor } from "oxc-parser";
 import type { Argument, Program } from "oxc-parser";
 
@@ -35,7 +35,7 @@ const stringLiteral = /^(?<quote>["'`])(?<value>[^"'`$]*)\k<quote>$/u;
 
 /** The value of an argument written as a plain string; a computed one (a template with `${}`, a name) has none. */
 const literalOf = (argument: string): Option.Option<string> =>
-  Option.fromNullishOr(stringLiteral.exec(argument.trim())?.groups?.value);
+  Option.fromNullishOr(stringLiteral.exec(Str.trim(argument))?.groups?.value);
 
 /** What the syntax-tree walk finds that the parser's own list of imports and exports leaves out, as `[start, …]`. */
 interface Walked {
@@ -49,7 +49,7 @@ interface Walked {
 }
 
 /** A string whose source text holds a backslash is an escape: the check reads source text and Vite reads the value. */
-const escapes = (raw: string): boolean => raw.includes("\\");
+const escapes = (raw: string): boolean => Str.includes("\\")(raw);
 
 /** The option keys that `import.meta.glob` may be given here. Anything else (`base`, `exhaustive`, `caseSensitive`, `__proto__`, …) changes what the glob loads or runs code. */
 const allowedOptions: ReadonlySet<string> = new Set([
@@ -88,14 +88,16 @@ const optionsRefusal = (
       return "its options hold a spread, computed key, shorthand or method";
     }
 
-    const key = text.slice(property.key.start, property.key.end);
+    const key = Str.slice(property.key.start, property.key.end)(text);
 
-    if (!allowedOptions.has(key.replaceAll(/^["']|["']$/gu, ""))) {
+    if (!allowedOptions.has(Str.replaceAll(/^["']|["']$/gu, "")(key))) {
       return `its option ${key} is not one of eager, import and query`;
     }
 
     if (
-      !plainValue.test(text.slice(property.value.start, property.value.end))
+      !plainValue.test(
+        Str.slice(property.value.start, property.value.end)(text)
+      )
     ) {
       return `the value of its option ${key} is not a boolean or a plain string`;
     }
@@ -121,16 +123,16 @@ const globForm = (args: readonly Argument[], text: string): GlobForm => {
   const written =
     first === undefined || last === undefined
       ? ""
-      : text.slice(first.start, last.end);
+      : Str.slice(first.start, last.end)(text);
 
   const patternText =
-    first === undefined ? "" : text.slice(first.start, first.end);
+    first === undefined ? "" : Str.slice(first.start, first.end)(text);
 
   const elements =
     first?.type === "ArrayExpression"
       ? Arr.map(first.elements, (element) =>
           Option.flatMap(Option.fromNullishOr(element), ({ end, start }) =>
-            literalOf(text.slice(start, end))
+            literalOf(Str.slice(start, end)(text))
           )
         )
       : [literalOf(patternText)];
@@ -173,9 +175,10 @@ const walked = (program: Program, text: string): Walked => {
 
   new Visitor({
     CallExpression(node) {
-      const callee = text
-        .slice(node.callee.start, node.callee.end)
-        .replaceAll(/\s+/gu, "");
+      const callee = Str.replaceAll(
+        /\s+/gu,
+        ""
+      )(Str.slice(node.callee.start, node.callee.end)(text));
 
       if (callee !== "import.meta.glob") {
         return;
@@ -233,13 +236,16 @@ const byLine = <A extends { readonly line: number }>(items: readonly A[]) =>
  */
 export const importForms = (path: string, text: string): ImportForms => {
   const { module, program } = parseSync(path, text);
-  const lineOf = (offset: number) => text.slice(0, offset).split("\n").length;
+
+  const lineOf = (offset: number) =>
+    Str.split(Str.slice(0, offset)(text), "\n").length;
+
   const found = walked(program, text);
 
   const dynamic = Arr.map(module.dynamicImports, ({ moduleRequest }) => ({
     start: moduleRequest.start,
-    value: literalOf(text.slice(moduleRequest.start, moduleRequest.end)),
-    written: text.slice(moduleRequest.start, moduleRequest.end),
+    value: literalOf(Str.slice(moduleRequest.start, moduleRequest.end)(text)),
+    written: Str.slice(moduleRequest.start, moduleRequest.end)(text),
   }));
 
   const requests = [
@@ -298,8 +304,8 @@ export const importSpecifiers = (
 export const resolveFrom = (importer: string, specifier: string): string =>
   Arr.join(
     Arr.reduce(
-      specifier.split("/"),
-      Arr.dropRight(importer.split("/"), 1),
+      Str.split(specifier, "/"),
+      Arr.dropRight(Str.split(importer, "/"), 1),
       (parts, segment) => {
         if (segment === ".") {
           return parts;

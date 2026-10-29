@@ -24,7 +24,7 @@ import type {
   Semester,
   TeamId,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect } from "effect";
+import { Array as Arr, Effect, String as Str } from "effect";
 import type { DateTime } from "effect";
 
 import { transactional } from "../../src/index.ts";
@@ -52,7 +52,7 @@ export const world = Effect.fnUntraced(function* world(tag: string) {
   const fieldOfStudy = yield* (yield* FieldOfStudyRepository).create({
     departmentId: department.id,
     name: `Linje ${tag}`,
-    shortName: tag.slice(0, 3).toUpperCase(),
+    shortName: Str.toUpperCase(Str.slice(0, 3)(tag)),
   });
 
   const person = yield* transactional(

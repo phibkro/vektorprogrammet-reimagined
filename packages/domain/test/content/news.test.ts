@@ -4,7 +4,7 @@
  * proven over plain values.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, DateTime } from "effect";
+import { Array as Arr, DateTime, String as Str } from "effect";
 
 import {
   NEWS_PAGE_SIZE,
@@ -46,11 +46,11 @@ describe("C5 slugs", () => {
   });
 
   it("RULE-096 F22: slugs are capped at 240 characters, so a -NN suffix still fits 255 (legacy could overflow)", () => {
-    const title = "abcde".repeat(51);
+    const title = Str.repeat(51)("abcde");
     const base = slugify(title);
 
     assert.strictEqual(base.length, 240);
-    assert.strictEqual(base, title.slice(0, 240));
+    assert.strictEqual(base, Str.slice(0, 240)(title));
   });
 });
 

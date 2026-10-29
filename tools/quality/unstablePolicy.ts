@@ -1,3 +1,5 @@
+import { String as Str } from "effect";
+
 import registry from "./effect-exceptions.json" with { type: "json" };
 
 const entries = registry.unstableApis;
@@ -20,7 +22,7 @@ const paths = (...values: readonly string[]): string[] => {
   const result: string[] = [];
 
   for (const value of values) {
-    if (value.endsWith("/**")) {
+    if (Str.endsWith("/**")(value)) {
       result.push(
         `${value}/*.ts`,
         `${value}/*.tsx`,

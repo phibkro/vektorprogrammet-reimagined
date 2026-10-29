@@ -15,7 +15,13 @@
 import type { PortableText } from "@vektorprogrammet/cms-client";
 import { isTag, isText } from "domhandler";
 import type { ChildNode, Element } from "domhandler";
-import { Array as Arr, HashMap, Option, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  HashMap,
+  Option,
+  Record as Rec,
+  String as Str,
+} from "effect";
 import { DomUtils, parseDocument } from "htmlparser2";
 
 /** The blocks this converter writes; each is a member of `PortableText.PortableTextBlock`. */
@@ -100,7 +106,7 @@ interface Inline {
 
 const sameMarkList = Arr.makeEquivalence((a: string, b: string) => a === b);
 
-const collapse = (text: string) => text.replaceAll(/\s+/gu, " ");
+const collapse = (text: string) => Str.replaceAll(/\s+/gu, " ")(text);
 
 const elementsNamed = (nodes: readonly ChildNode[], names: readonly string[]) =>
   Arr.filter(
@@ -117,10 +123,10 @@ const tidy = (spans: readonly Span[]): readonly Span[] => {
 
     const startsLine =
       previous === undefined ||
-      previous.text.endsWith(" ") ||
-      previous.text.endsWith("\n");
+      Str.endsWith(" ")(previous.text) ||
+      Str.endsWith("\n")(previous.text);
 
-    const text = startsLine ? span.text.replace(/^ +/u, "") : span.text;
+    const text = startsLine ? Str.replace(/^ +/u, "")(span.text) : span.text;
 
     if (
       previous !== undefined &&
@@ -135,7 +141,7 @@ const tidy = (spans: readonly Span[]): readonly Span[] => {
   return Arr.filter(
     Arr.map(merged, (span, index) =>
       index === merged.length - 1
-        ? { ...span, text: span.text.replace(/ +$/u, "") }
+        ? { ...span, text: Str.replace(/ +$/u, "")(span.text) }
         : span
     ),
     (span) => span.text !== ""
@@ -342,7 +348,10 @@ export const htmlToPortableText = (html: string): PortableTextConversion => {
           {
             _key: nextKey(),
             _type: "code",
-            code: DomUtils.textContent(element).replaceAll(/^\n|\n$/gu, ""),
+            code: Str.replaceAll(
+              /^\n|\n$/gu,
+              ""
+            )(DomUtils.textContent(element)),
           },
         ];
       }

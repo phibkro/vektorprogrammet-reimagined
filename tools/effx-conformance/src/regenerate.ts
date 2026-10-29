@@ -14,6 +14,7 @@ import {
   Record as Rec,
   Schema,
   Stream,
+  String as Str,
 } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -90,7 +91,7 @@ const ASSERTION =
 
 /** The assertion lines that effx printed for one domain, by the name of the assertion and what it was asked about. */
 const assertionsOf = (domain: string, output: string) =>
-  Arr.flatMap(output.split("\n"), (line) => {
+  Arr.flatMap(Str.split(output, "\n"), (line) => {
     const found = ASSERTION.exec(line)?.groups;
     const name = found?.name;
 
@@ -113,17 +114,17 @@ const assertionsOf = (domain: string, output: string) =>
 
 /** The commit of a checkout of effx. A change to a tracked file would make vectors that no commit makes, so it fails. */
 const cleanHead = Effect.fn("cleanHead")(function* cleanHead(effx: string) {
-  const head = (yield* run(
-    "git",
-    ["-C", effx, "rev-parse", "HEAD"],
-    "."
-  )).trim();
+  const head = Str.trim(
+    yield* run("git", ["-C", effx, "rev-parse", "HEAD"], ".")
+  );
 
-  const changed = (yield* run(
-    "git",
-    ["-C", effx, "status", "--porcelain", "--untracked-files=no"],
-    "."
-  )).trim();
+  const changed = Str.trim(
+    yield* run(
+      "git",
+      ["-C", effx, "status", "--porcelain", "--untracked-files=no"],
+      "."
+    )
+  );
 
   if (changed !== "") {
     return yield* new ArtefactFailed({
@@ -149,11 +150,9 @@ const make = Effect.fn("make")(function* make(effx: string, pin: PinFile) {
     ...args,
   ];
 
-  const alloyVersion = (yield* run(
-    "nix",
-    nix("alloy6", "version"),
-    "."
-  )).trim();
+  const alloyVersion = Str.trim(
+    yield* run("nix", nix("alloy6", "version"), ".")
+  );
 
   if (alloyVersion !== pin.alloy) {
     return yield* new ArtefactFailed({
@@ -161,11 +160,13 @@ const make = Effect.fn("make")(function* make(effx: string, pin: PinFile) {
     });
   }
 
-  const executable = (yield* run(
-    "nix",
-    nix("sh", "-c", 'readlink -f "$(command -v alloy6)"'),
-    "."
-  )).trim();
+  const executable = Str.trim(
+    yield* run(
+      "nix",
+      nix("sh", "-c", 'readlink -f "$(command -v alloy6)"'),
+      "."
+    )
+  );
 
   const nixpkgs = (yield* readJson(Lock, path.join(effx, "flake.lock"))).nodes
     .nixpkgs.locked.rev;
@@ -308,9 +309,9 @@ export const regenerate = Effect.fn("regenerate")(function* regenerate() {
   const stale = Arr.filter(
     yield* fs.readDirectory(directory),
     (name) =>
-      (name.endsWith(".description.json") ||
-        name.endsWith(".vectors.json.gz")) &&
-      !Arr.some(made, ({ domain }) => name.startsWith(`${domain}.`))
+      (Str.endsWith(".description.json")(name) ||
+        Str.endsWith(".vectors.json.gz")(name)) &&
+      !Arr.some(made, ({ domain }) => Str.startsWith(`${domain}.`)(name))
   );
 
   yield* Effect.forEach(

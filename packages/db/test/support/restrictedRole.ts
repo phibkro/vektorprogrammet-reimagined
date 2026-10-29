@@ -4,7 +4,7 @@
  * the role owns and then the role itself; the role is cluster-wide, so that happens before the database is dropped.
  * It needs a `TEST_DATABASE_ADMIN_URL` role that may create roles (devenv's is a superuser).
  */
-import { Effect, Random, Redacted } from "effect";
+import { Effect, Random, Redacted, String as Str } from "effect";
 
 import { TestDatabaseUrl, withClient } from "./disposableDatabase.ts";
 
@@ -23,7 +23,7 @@ export const restrictedRole = (
   Effect.gen(function* createRole() {
     const database = yield* TestDatabaseUrl;
     const url = new URL(Redacted.value(database));
-    const databaseName = url.pathname.slice(1);
+    const databaseName = Str.slice(1)(url.pathname);
     const role = `${prefix}${yield* randomWord}`;
     const password = `${yield* randomWord}${yield* randomWord}`;
 

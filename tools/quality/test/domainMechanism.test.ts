@@ -5,7 +5,7 @@
  * left the list with spec 0021 (ADR 0014, answer 3). An allowance that no line needs fails, so the list only shrinks.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect } from "effect";
+import { Array as Arr, Effect, String as Str } from "effect";
 
 import { domainSources } from "./support/sources.ts";
 
@@ -20,7 +20,7 @@ interface Hit {
 }
 
 export const mechanismHits = (path: string, text: string): readonly Hit[] =>
-  Arr.flatMap(text.split("\n"), (line, index) =>
+  Arr.flatMap(Str.split(text, "\n"), (line, index) =>
     mechanism.test(line) ? [{ line: index + 1, path, text: line }] : []
   );
 
@@ -51,7 +51,7 @@ const allowed = (hit: Hit): boolean =>
   Arr.some(
     allowances,
     (allowance) =>
-      hit.path === allowance.path && hit.text.includes(allowance.includes)
+      hit.path === allowance.path && Str.includes(allowance.includes)(hit.text)
   );
 
 describe("the domain states properties, not mechanisms (spec 0018)", () => {
@@ -88,7 +88,7 @@ describe("the domain states properties, not mechanisms (spec 0018)", () => {
         assert.deepStrictEqual(
           Arr.map(
             Arr.filter(hits, (hit) => !allowed(hit)),
-            (hit) => `${hit.path}:${hit.line}: ${hit.text.trim()}`
+            (hit) => `${hit.path}:${hit.line}: ${Str.trim(hit.text)}`
           ),
           []
         );
@@ -103,7 +103,7 @@ describe("the domain states properties, not mechanisms (spec 0018)", () => {
                   hits,
                   (hit) =>
                     hit.path === allowance.path &&
-                    hit.text.includes(allowance.includes)
+                    Str.includes(allowance.includes)(hit.text)
                 )
             ),
             (allowance) => `${allowance.path}: ${allowance.includes}`

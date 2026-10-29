@@ -4,7 +4,14 @@
  * written with SQL, outside a command, because the values and the instants are the point.
  */
 import { EmailAddress, OutboxMessage } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Schema } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Schema,
+  String as Str,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { activateAccount } from "./accountsWorld.ts";
@@ -77,15 +84,16 @@ const at = (instant: string): Date =>
   DateTime.toDateUtc(DateTime.makeUnsafe(instant));
 
 /** 64 hex characters that differ per tag: the form of a code hash and of a file key's hash. */
-const hexOf = (text: string): string =>
-  Arr.join(
+const hexOf = (text: string): string => {
+  const hex = Arr.join(
     Arr.map(Arr.fromIterable(text), (character) =>
-      (character.codePointAt(0) ?? 0).toString(16)
+      Option.getOrElse(Str.codePointAt(character, 0), () => 0).toString(16)
     ),
     ""
-  )
-    .padEnd(64, "0")
-    .slice(0, 64);
+  );
+
+  return Str.slice(0, 64)(Str.padEnd(64, "0")(hex));
+};
 
 /** Writes a person with these holdings. `now` is when the rows say they were made. */
 export const seedPerson = Effect.fnUntraced(function* seedPerson(

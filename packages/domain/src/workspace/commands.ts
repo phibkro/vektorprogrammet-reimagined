@@ -17,6 +17,7 @@ import {
   Order,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
 import { SecureRandom } from "effect/crypto";
 
@@ -343,7 +344,7 @@ const accountsChunk = Effect.fnUntraced(function* accountsChunk(
 
   yield* reports.open({
     actual: directory.unavailable === null ? "read" : "unavailable",
-    mode: period.startsWith("request:") ? "dry-run" : configuredMode,
+    mode: Str.startsWith("request:")(period) ? "dry-run" : configuredMode,
     period,
     semester,
   });

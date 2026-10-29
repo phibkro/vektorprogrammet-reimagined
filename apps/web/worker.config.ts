@@ -1,5 +1,5 @@
 import { Job, JobRegistry, OutboxSweep } from "@vektorprogrammet/domain";
-import { Config, Duration, Effect, Option } from "effect";
+import { Config, Duration, Effect, Option, String as Str } from "effect";
 
 /**
  * Worker settings shared by `alchemy.run.ts` (deployed Workers) and
@@ -105,7 +105,7 @@ export const NEON_REGION = "aws-eu-central-1";
  */
 export const WORKER_PLACEMENT = {
   mode: "targeted",
-  region: `aws:${NEON_REGION.slice("aws-".length)}`,
+  region: `aws:${Str.slice("aws-".length)(NEON_REGION)}`,
 } as const;
 
 /**

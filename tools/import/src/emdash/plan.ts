@@ -22,7 +22,14 @@ import type {
 } from "@vektorprogrammet/cms-client";
 import { HttpUrl, Slug, sanitizeRichText } from "@vektorprogrammet/domain";
 import type { DateTime } from "effect";
-import { Array as Arr, HashMap, Option, Result, Schema } from "effect";
+import {
+  Array as Arr,
+  HashMap,
+  Option,
+  Result,
+  Schema,
+  String as Str,
+} from "effect";
 
 import type { LegacyArticle, LegacySnapshot } from "../legacy/rows.ts";
 import {
@@ -92,7 +99,7 @@ const TEXT_TITLES = HashMap.fromIterable<string, string>([
 const CMS_SLUG = /^[a-z0-9][a-z0-9_-]*$/u;
 
 const hasText = (value: string | null): value is string =>
-  value !== null && value.trim() !== "";
+  value !== null && Str.trim(value) !== "";
 
 const isHttpUrl = Schema.is(HttpUrl);
 

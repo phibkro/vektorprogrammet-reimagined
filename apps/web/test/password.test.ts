@@ -1,7 +1,7 @@
 /** Spec 0007 falsifier 1. The $2y$ fixture was produced by PHP 8.4 password_hash at cost 12. */
 import { assert, describe, it } from "@effect/vitest";
 import { verifyPassword as defaultVerifier } from "better-auth/crypto";
-import { Effect, Exit } from "effect";
+import { Effect, Exit, String as Str } from "effect";
 
 import { hashPassword, verifyPassword } from "../src/server/password";
 import {
@@ -28,12 +28,14 @@ describe("RULE-024, 126, 166: Worker-compatible bcrypt", () => {
     "refuses truncated hashes and passwords bcrypt would truncate",
     () =>
       Effect.gen(function* truncationChecks() {
-        assert.isFalse(yield* verifies(fixtures[0].slice(0, -1), password));
-        assert.isFalse(yield* verifies(fixtures[0], "a".repeat(73)));
-        assert.isFalse(yield* verifies(fixtures[0], "ø".repeat(37)));
+        assert.isFalse(
+          yield* verifies(Str.slice(0, -1)(fixtures[0]), password)
+        );
+        assert.isFalse(yield* verifies(fixtures[0], Str.repeat(73)("a")));
+        assert.isFalse(yield* verifies(fixtures[0], Str.repeat(37)("ø")));
 
         const rejected = yield* Effect.exit(
-          Effect.tryPromise(() => hashPassword("a".repeat(73)))
+          Effect.tryPromise(() => hashPassword(Str.repeat(73)("a")))
         );
 
         assert.isTrue(Exit.isFailure(rejected));

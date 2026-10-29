@@ -26,6 +26,7 @@ import {
   Predicate,
   Record as Rec,
   Schema,
+  String as Str,
 } from "effect";
 
 import {
@@ -480,10 +481,10 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
 
         const edited = {
           ...committed.texts,
-          accounts: (committed.texts.accounts ?? "").replace(
+          accounts: Str.replace(
             "createAccount",
             "createAccounts"
-          ),
+          )(committed.texts.accounts ?? ""),
         };
 
         const found = drift(edited, asExported);
@@ -592,7 +593,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         assert.strictEqual(entry?.vectorsSha256, yield* hash(bytes));
         assert.notStrictEqual(
           committed.provenance.domains.teams?.descriptionSha256,
-          yield* hash(utf8(text.replace("createTeam", "createTeams")))
+          yield* hash(utf8(Str.replace("createTeam", "createTeams")(text)))
         );
         assert.notStrictEqual(entry?.vectorsSha256, yield* hash(flipped));
       }).pipe(Effect.provide(services))
@@ -637,7 +638,10 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
             ...recorded,
             project: {
               ...recorded.project,
-              "effx.config.ts": config.replace("alloy: true", "alloy: false"),
+              "effx.config.ts": Str.replace(
+                "alloy: true",
+                "alloy: false"
+              )(config),
             },
           },
           "another link": {
@@ -667,7 +671,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
 
         const other = yield* differences(domains, {
           ...domains,
-          teams: { ...teams, vectorsSha256: "0".repeat(64) },
+          teams: { ...teams, vectorsSha256: Str.repeat(64)("0") },
         });
 
         assert.lengthOf(other, 1);

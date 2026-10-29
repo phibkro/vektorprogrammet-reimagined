@@ -23,6 +23,7 @@ import {
   Order,
   Record as Rec,
   Schema,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -98,7 +99,7 @@ const leaked = (
       Arr.filter(everyone, (other) => other.personId !== me.personId),
       ownedBy
     ),
-    (value) => text.includes(value)
+    (value) => Str.includes(value)(text)
   );
 
 /** A counter for the tags of the generated rounds: every round writes people of its own into the one database. */
@@ -205,7 +206,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const text = yield* encodeJson(rows);
 
           assert.deepStrictEqual(
-            Arr.filter(kari.values, (value) => text.includes(value)),
+            Arr.filter(kari.values, (value) => Str.includes(value)(text)),
             [kari.name]
           );
 

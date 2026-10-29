@@ -28,6 +28,7 @@ import {
   Order,
   Path,
   Record as Rec,
+  String as Str,
 } from "effect";
 import { ChildProcessSpawner } from "effect/process";
 
@@ -35,7 +36,10 @@ import { gitIn } from "../workingTree.ts";
 import { proofReferences } from "./support/proofReferences.ts";
 import { workingTreeSources } from "./support/sources.ts";
 
-const root = new URL("../../../", import.meta.url).pathname.replace(/\/$/u, "");
+const root = Str.replace(
+  /\/$/u,
+  ""
+)(new URL("../../../", import.meta.url).pathname);
 
 /** The key that Effect gives the service: the one reference to the service that the fixtures below need. */
 const KEY = InTransaction.key;

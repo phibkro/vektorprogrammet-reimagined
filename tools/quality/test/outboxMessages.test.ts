@@ -7,7 +7,13 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { OutboxMessage } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Order, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Order,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import type { SourceFile } from "../resolveImports.ts";
 import { d, parsed } from "./support/moduleGraphFixture.ts";
@@ -19,10 +25,10 @@ const declaration = /\bdeclareMessage\(\s*"(?<tag>[A-Za-z]+)"/gu;
 const declaredTags = (files: readonly SourceFile[]): readonly string[] =>
   Arr.sort(
     Arr.flatMap(
-      Arr.filter(files, (file) => file.path.startsWith(`${d}/`)),
+      Arr.filter(files, (file) => Str.startsWith(`${d}/`)(file.path)),
       (file: SourceFile) =>
         Arr.map(
-          [...file.text.matchAll(declaration)],
+          [...Str.matchAll(declaration)(file.text)],
           (found) => found.groups?.tag ?? ""
         )
     ),

@@ -24,6 +24,7 @@ import {
   Option,
   Predicate,
   Ref,
+  String as Str,
 } from "effect";
 import { cast } from "effect/Function";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -86,7 +87,8 @@ const lockOneByOne = (ids: readonly number[]) =>
 
 /** SQLSTATE 40P01: PostgreSQL's "deadlock detected", which the driver reports as a `DeadlockError`. */
 const isDeadlock = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.isFailure(exit) && Cause.pretty(exit.cause).includes("DeadlockError");
+  Exit.isFailure(exit) &&
+  Str.includes("DeadlockError")(Cause.pretty(exit.cause));
 
 /** Whether the exit is a defect of this tag. */
 const diedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) =>
@@ -685,8 +687,8 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             DateTime.makeUnsafe("2099-06-01T00:00:00Z")
           );
 
-          const taken = "1".repeat(64);
-          const own = "2".repeat(64);
+          const taken = Str.repeat(64)("1");
+          const own = Str.repeat(64)("2");
 
           // `code_hash_unique` is a unique index on the hash alone: a target without the owner column collides with
           // the row of whoever holds the hash.

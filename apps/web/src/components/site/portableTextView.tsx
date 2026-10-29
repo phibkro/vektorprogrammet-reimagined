@@ -14,7 +14,7 @@ import type {
   PortableTextTypeComponentProps,
 } from "@portabletext/react";
 import type { PortableText as Cms } from "@vektorprogrammet/cms-client";
-import { Array as Arr, Option, Schema } from "effect";
+import { Array as Arr, Option, Schema, String as Str } from "effect";
 
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ const parseHref = Schema.decodeUnknownOption(Schema.String);
 
 /** The address of a link mark when it is one the page may link to. */
 export const safeHref = (href: string): Option.Option<string> =>
-  SAFE_HREF.test(href.trim()) ? Option.some(href.trim()) : Option.none();
+  SAFE_HREF.test(Str.trim(href)) ? Option.some(Str.trim(href)) : Option.none();
 
 const headingColor = (tone: Tone) =>
   tone === "dark" ? "text-vektor-bg" : "text-vektor-DARKblue";
@@ -46,7 +46,7 @@ const Link = ({
       <a
         className="underline underline-offset-2 hover:no-underline"
         href={href}
-        {...(href.startsWith("http")
+        {...(Str.startsWith("http")(href)
           ? { rel: "noopener noreferrer", target: "_blank" }
           : {})}
       >

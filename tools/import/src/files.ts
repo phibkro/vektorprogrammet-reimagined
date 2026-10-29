@@ -20,6 +20,7 @@ import {
   Path,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
 import { Digest } from "effect/crypto";
 import { encode as hexEncode } from "effect/encoding/Hex";
@@ -85,7 +86,7 @@ export class LegacyFiles extends Context.Service<
         ) {
           const candidate = path.join(
             realRoot,
-            ...Arr.filter(legacyPath.split("/"), (s) => s !== "")
+            ...Arr.filter(Str.split(legacyPath, "/"), (s) => s !== "")
           );
 
           const located = yield* fs.realPath(candidate).pipe(
@@ -108,7 +109,7 @@ export class LegacyFiles extends Context.Service<
 
           const relative = path.relative(realRoot, located.value);
 
-          if (relative.startsWith("..") || path.isAbsolute(relative)) {
+          if (Str.startsWith("..")(relative) || path.isAbsolute(relative)) {
             return Option.none<LegacyFileBytes>();
           }
 
@@ -175,9 +176,15 @@ export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(
                   Effect.map((digest) => {
                     const contentType = detectContentType(bytes);
 
-                    const name = legacyPath
-                      .slice(legacyPath.lastIndexOf("/") + 1)
-                      .slice(0, 255);
+                    const base = Option.match(
+                      Str.lastIndexOf("/")(legacyPath),
+                      {
+                        onNone: () => legacyPath,
+                        onSome: (at) => Str.slice(at + 1)(legacyPath),
+                      }
+                    );
+
+                    const name = Str.slice(0, 255)(base);
 
                     return Option.some<ResolvedFile>({
                       contentType,

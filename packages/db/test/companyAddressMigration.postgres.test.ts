@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
-import { Cause, Effect, Exit, FileSystem, Layer } from "effect";
+import { Cause, Effect, Exit, FileSystem, Layer, String as Str } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
@@ -26,7 +26,7 @@ layer(live, { excludeTestServices: true })(
             migration
           );
 
-          const statements = file.split("--> statement-breakpoint");
+          const statements = Str.split(file, "--> statement-breakpoint");
 
           const insertAndBackfill = (groupAddress: string) =>
             transactional(

@@ -11,7 +11,7 @@
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, FileSystem } from "effect";
+import { Array as Arr, Effect, FileSystem, String as Str } from "effect";
 import { Visitor, parseSync } from "oxc-parser";
 
 const authFile = new URL(
@@ -27,7 +27,7 @@ const sqlMethodUses = (text: string): readonly string[] => {
 
   // A key as written, without the quotes of `x["query"]` or `{ "query": q }`.
   const keyAt = (key: { readonly start: number; readonly end: number }) =>
-    text.slice(key.start, key.end).replaceAll(/["'`]/gu, "");
+    Str.replaceAll(/["'`]/gu, "")(Str.slice(key.start, key.end)(text));
 
   const note = (name: string) => {
     if (sqlMethods.has(name)) {

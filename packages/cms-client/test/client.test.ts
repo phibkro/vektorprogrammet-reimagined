@@ -9,6 +9,7 @@ import {
   Option,
   Predicate,
   Redacted,
+  String as Str,
 } from "effect";
 import type { Schema } from "effect";
 import { Headers, HttpClient, HttpClientResponse } from "effect/http";
@@ -308,7 +309,7 @@ describe("CmsClient single entries", () => {
     "answers none for an unknown slug (404) and for an entry that is not published",
     () => {
       const cms = fakeCms((url) =>
-        url.pathname.endsWith("/missing")
+        Str.endsWith("/missing")(url.pathname)
           ? failure(404, "NOT_FOUND", "Content item not found")
           : single(item("draft", ARTICLE, "draft"))
       );

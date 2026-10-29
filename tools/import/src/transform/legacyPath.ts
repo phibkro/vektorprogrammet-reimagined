@@ -12,7 +12,7 @@
  * the permanent redirect: the decoded path relative to the web root, without a
  * leading slash (`Offentlige filer/Styret/referat.pdf`).
  */
-import { Array as Arr, Data, Schema } from "effect";
+import { Array as Arr, Data, Option, Schema, String as Str } from "effect";
 
 /** Upload directories whose files become registered public files. */
 const FILE_ROOTS = [
@@ -47,7 +47,10 @@ const NOT_LEGACY: LegacyReference = legacyReference.NotLegacy();
  * file name, which may carry personal data.
  */
 export const fileArea = (path: string): string => {
-  const segments = Arr.filter(path.split("/"), (segment) => segment !== "");
+  const segments = Arr.filter(
+    Str.split(path, "/"),
+    (segment) => segment !== ""
+  );
 
   return segments[0] === "images" && segments.length > 2
     ? `images/${segments[1] ?? ""}`
@@ -68,14 +71,17 @@ const sitePathFromUrl = (url: string): string | undefined => {
   const absolute = /^https?:\/\/(?<host>[^/]+)(?<pathname>.*)$/isu.exec(url);
 
   if (absolute === null) {
-    if (url.startsWith("/") && !url.startsWith("//")) {
+    if (Str.startsWith("/")(url) && !Str.startsWith("//")(url)) {
       return url;
     }
 
     return undefined;
   }
 
-  const host = absolute.groups?.host?.toLowerCase();
+  const host = Option.fromNullishOr(absolute.groups?.host).pipe(
+    Option.map(Str.toLowerCase),
+    Option.getOrUndefined
+  );
 
   if (!Schema.is(LEGACY_HOSTS)(host)) {
     return undefined;
@@ -96,30 +102,33 @@ const isSafeRelativePath = (path: string | undefined): path is string => {
   }
 
   return Arr.every(
-    path.split("/"),
+    Str.split(path, "/"),
     (segment) =>
       segment !== "" &&
       segment !== "." &&
       segment !== ".." &&
-      !segment.includes("\0")
+      !Str.includes("\0")(segment)
   );
 };
 
 /** Classifies a URL found in legacy data (an attribute value or a path column). */
 export const classifyReference = (raw: string): LegacyReference => {
-  const url = raw.trim().replace(/[?#].*$/su, "");
+  const url = Str.replace(/[?#].*$/su, "")(Str.trim(raw));
   const sitePath = sitePathFromUrl(url);
 
   if (sitePath === undefined) {
     return NOT_LEGACY;
   }
 
-  const relative = sitePath.slice(1);
+  const relative = Str.slice(1)(sitePath);
   const decoded = decodeOrUndefined(relative);
   const candidate = decoded ?? relative;
-  const isFileRoot = Arr.some(FILE_ROOTS, (root) => candidate.startsWith(root));
 
-  if (!isFileRoot && !candidate.startsWith(OTHER_ASSET_ROOT)) {
+  const isFileRoot = Arr.some(FILE_ROOTS, (root) =>
+    Str.startsWith(root)(candidate)
+  );
+
+  if (!isFileRoot && !Str.startsWith(OTHER_ASSET_ROOT)(candidate)) {
     return NOT_LEGACY;
   }
 

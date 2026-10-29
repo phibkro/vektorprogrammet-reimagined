@@ -96,7 +96,7 @@
           "overriddenSchemaConstructor": "error",
           "preferEffectArray": "error",
           "preferEffectRecord": "error",
-          "preferEffectString": "off",
+          "preferEffectString": "error",
           "preferSchemaOverJson": "error",
           "preferSucceedSomeOrNone": "error",
           "preferTypedSchemaDecoder": "error",

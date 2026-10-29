@@ -31,7 +31,7 @@ import {
   LEADER_POSITION,
   MEMBER_POSITION,
 } from "@vektorprogrammet/domain/testing";
-import { DateTime, Effect, Ref } from "effect";
+import { Array as Arr, DateTime, Effect, Ref, String as Str } from "effect";
 import { TestClock } from "effect/testing";
 
 import { fakeDepartment, fakeFieldOfStudy } from "./memory";
@@ -75,7 +75,9 @@ const person = (
   departmentId: number
 ): Person => ({
   departmentId: DepartmentId.make(departmentId),
-  email: EmailAddress.make(`${name.split(" ")[0]?.toLowerCase()}@example.org`),
+  email: EmailAddress.make(
+    `${Str.toLowerCase(Arr.headNonEmpty(Str.split(name, " ")))}@example.org`
+  ),
   fieldOfStudyId: FieldOfStudyId.make(fieldOfStudyId),
   id,
   name,

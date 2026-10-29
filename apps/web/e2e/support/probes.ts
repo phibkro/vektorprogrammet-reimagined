@@ -6,7 +6,7 @@
 import { PgClient } from "@effect/sql-pg";
 import { mintCode } from "@vektorprogrammet/domain";
 import type { CodePurpose } from "@vektorprogrammet/domain";
-import { Config, Effect, Layer, Schema } from "effect";
+import { Config, Effect, Layer, Schema, String as Str } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
@@ -246,7 +246,7 @@ export const activeDepartments = rowsOf(
     sql`select id, name, short_name as "shortName", city, email, slack_channel as "slackChannel" from department where active order by id`
 );
 
-const LEGACY_FILE_HASH = "e".repeat(64);
+const LEGACY_FILE_HASH = Str.repeat(64)("e");
 
 export const LEGACY_FILE_KEY = `${LEGACY_FILE_HASH}.png`;
 

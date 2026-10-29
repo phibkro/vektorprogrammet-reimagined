@@ -6,7 +6,14 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { StoreGuarantees } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, FileSystem, Result } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  Result,
+  String as Str,
+} from "effect";
 
 import {
   STORE,
@@ -50,12 +57,18 @@ describe("store guarantees document (spec 0018)", () => {
         const text = yield* page;
 
         // The prose above the markers also says "store-enforced": the change is made inside the block.
-        const at = text.indexOf(
-          "store-enforced",
-          text.indexOf("docgen:begin guarantees")
+        const block = Option.getOrElse(
+          Str.indexOf("docgen:begin guarantees")(text),
+          () => 0
         );
 
-        const changed = `${text.slice(0, at)}Store-enforced${text.slice(at + "store-enforced".length)}`;
+        const at =
+          block +
+          Option.getOrThrow(
+            Str.indexOf("store-enforced")(Str.slice(block)(text))
+          );
+
+        const changed = `${Str.slice(0, at)(text)}Store-enforced${Str.slice(at + "store-enforced".length)(text)}`;
 
         assert.isTrue(Result.isFailure(checkStoreGuaranteesDocument(changed)));
       })
@@ -90,10 +103,10 @@ describe("store guarantees document (spec 0018)", () => {
     "falsifier 9, control: a page without its markers is refused, not rewritten",
     () =>
       Effect.gen(function* withoutMarkers() {
-        const text = (yield* page).replaceAll(
+        const text = Str.replaceAll(
           "<!-- docgen:begin modes -->",
           ""
-        );
+        )(yield* page);
 
         assert.isTrue(Result.isFailure(renderStoreGuaranteesDocument(text)));
       })

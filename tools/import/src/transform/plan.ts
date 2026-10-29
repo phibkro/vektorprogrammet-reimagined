@@ -26,7 +26,15 @@ import type { FileKey, TargetRows, Term } from "@vektorprogrammet/domain";
  * - Reasons hold column names and ids only, never values: the report must not
  *   carry personal data.
  */
-import { Array as Arr, DateTime, Match, Order, pipe, Schema } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Match,
+  Order,
+  pipe,
+  Schema,
+  String as Str,
+} from "effect";
 
 import type { FileIndex } from "../files.ts";
 import type { LegacySnapshot } from "../legacy/rows.ts";
@@ -277,7 +285,7 @@ export const planImport = (
       return null;
     }
 
-    if (value.trim() !== "") {
+    if (Str.trim(value) !== "") {
       return value;
     }
 
@@ -298,7 +306,7 @@ export const planImport = (
     field: string,
     value: string | null
   ): FileKey | null | undefined => {
-    if (value === null || value.trim() === "") {
+    if (value === null || Str.trim(value) === "") {
       return null;
     }
 
@@ -467,8 +475,8 @@ export const planImport = (
         return null;
       }
 
-      if (COORDINATE.test(text.trim())) {
-        return Number(text.trim());
+      if (COORDINATE.test(Str.trim(text))) {
+        return Number(Str.trim(text));
       }
 
       reasons.push(`${field} is not a decimal number`);

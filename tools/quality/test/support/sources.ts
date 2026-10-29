@@ -1,5 +1,5 @@
 import { NodeServices } from "@effect/platform-node";
-import { Array as Arr, Effect, FileSystem } from "effect";
+import { Array as Arr, Effect, FileSystem, String as Str } from "effect";
 
 import { isProbe } from "../../probes.ts";
 import { workingTreePaths } from "../../workingTree.ts";
@@ -54,5 +54,5 @@ export const workingTreeSources = (
  */
 export const domainSources = readSources(
   new URL("../../../../packages/domain/src", import.meta.url).pathname,
-  (path) => path.endsWith(".ts") && !isProbe(`packages/domain/src/${path}`)
+  (path) => Str.endsWith(".ts")(path) && !isProbe(`packages/domain/src/${path}`)
 );

@@ -16,6 +16,7 @@ import {
   Exit,
   Option,
   Schema,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -299,7 +300,7 @@ export const unique = Effect.fn("Check.unique")(function* unique(
       Option.match(Cause.findErrorOption(cause), {
         onNone: () =>
           ClassifiedDefect.make({
-            message: Cause.pretty(cause).slice(0, 400),
+            message: Str.slice(0, 400)(Cause.pretty(cause)),
           }),
         onSome: (error) =>
           ClassifiedAlreadyExists.make({
@@ -407,7 +408,7 @@ export const sanitize = (): typeof Sanitize.Type => ({
 export const verifyBcrypt = (which: "right" | "wrong") =>
   Effect.sync((): typeof Bcrypt.Type => ({
     cost: getRounds(bcryptProbe.stored),
-    prefix: bcryptProbe.stored.slice(0, bcryptProbe.prefix.length),
+    prefix: Str.slice(0, bcryptProbe.prefix.length)(bcryptProbe.stored),
     verified: compareSync(bcryptProbe[which], bcryptProbe.stored),
   }));
 

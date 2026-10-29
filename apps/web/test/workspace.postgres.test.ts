@@ -41,6 +41,7 @@ import {
   Option,
   Predicate,
   Ref,
+  String as Str,
 } from "effect";
 import { SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -382,7 +383,9 @@ layer(live, { excludeTestServices: true })(
             );
             assert.isTrue(lines.length > 0, "the run logged");
             assert.isFalse(
-              Arr.some(lines, (line) => line.includes("vektorprogrammet.no")),
+              Arr.some(lines, (line) =>
+                Str.includes("vektorprogrammet.no")(line)
+              ),
               "no address in a log line"
             );
             // Negative control: the same logger detects an address if a faulty log includes it.
@@ -390,7 +393,9 @@ layer(live, { excludeTestServices: true })(
               Effect.provide(logs)
             );
             assert.isTrue(
-              Arr.some(lines, (line) => line.includes("vektorprogrammet.no"))
+              Arr.some(lines, (line) =>
+                Str.includes("vektorprogrammet.no")(line)
+              )
             );
           })
       );

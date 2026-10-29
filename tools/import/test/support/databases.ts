@@ -19,9 +19,11 @@ import {
   Effect,
   FileSystem,
   Layer,
+  Option,
   Path,
   Redacted,
   Stream,
+  String as Str,
 } from "effect";
 import { SecureRandom } from "effect/crypto";
 import { encode as hexEncode } from "effect/encoding/Hex";
@@ -90,12 +92,19 @@ const legacyTableDefinitions = (
   dump: string
 ): Effect.Effect<readonly string[]> =>
   Effect.forEach(PHASE_1_LEGACY_TABLES, (table) => {
-    const start = dump.indexOf(`CREATE TABLE \`${table}\` (`);
-    const end = start === -1 ? -1 : dump.indexOf(";", start);
+    const definition = Option.flatMap(
+      Str.indexOf(`CREATE TABLE \`${table}\` (`)(dump),
+      (start) =>
+        Option.map(Str.indexOf(";")(Str.slice(start)(dump)), (length) =>
+          Str.slice(start, start + length + 1)(dump)
+        )
+    );
 
-    return end < 0
-      ? Effect.die(`legacy-phase1-schema.sql has no definition of ${table}`)
-      : Effect.succeed(dump.slice(start, end + 1));
+    return Option.match(definition, {
+      onNone: () =>
+        Effect.die(`legacy-phase1-schema.sql has no definition of ${table}`),
+      onSome: Effect.succeed,
+    });
   });
 
 export class LegacyTestDatabase extends Context.Service<

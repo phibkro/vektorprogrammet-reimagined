@@ -3,7 +3,14 @@
  * `ValidationFailed` with every issue (`errors: "all"`), so a form can show all
  * field messages at once.
  */
-import { Array as Arr, Effect, Predicate, Schema, SchemaIssue } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Predicate,
+  Schema,
+  SchemaIssue,
+  String as Str,
+} from "effect";
 import { isReadonlyArrayNonEmpty } from "effect/Array";
 
 import { validationFailedWith } from "./errors.ts";
@@ -93,7 +100,7 @@ const isHttpUrl = (value: string): boolean => {
 
   return (
     (url.protocol === "http:" || url.protocol === "https:") &&
-    url.hostname.includes(".")
+    Str.includes(".")(url.hostname)
   );
 };
 

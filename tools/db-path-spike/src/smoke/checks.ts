@@ -3,7 +3,15 @@
  * deployed Worker and judges the answers with `verdicts.ts`; a request that gets no
  * usable answer is a failing line with the error as its evidence, never a retry.
  */
-import { Array as Arr, Cause, Duration, Effect, Exit, Option } from "effect";
+import {
+  Array as Arr,
+  Cause,
+  Duration,
+  Effect,
+  Exit,
+  Option,
+  String as Str,
+} from "effect";
 
 import { bcryptProbe } from "../fixtures.ts";
 import * as Protocol from "../protocol.ts";
@@ -95,9 +103,9 @@ const abort = (run: Run) =>
       run: run.id,
     });
 
-    if (!first.includes(Protocol.ABORT_READY_LINE)) {
+    if (!Str.includes(Protocol.ABORT_READY_LINE)(first)) {
       return failure(
-        `the Worker never reported the write inside the open transaction: ${first.slice(0, 300)}`
+        `the Worker never reported the write inside the open transaction: ${Str.slice(0, 300)(first)}`
       );
     }
 
@@ -201,7 +209,7 @@ const race = (run: Run) =>
       callers: CALLERS,
       failures: Arr.flatMap(exits, (exit) => {
         if (Exit.isFailure(exit)) {
-          return [Cause.pretty(exit.cause).slice(0, 300)];
+          return [Str.slice(0, 300)(Cause.pretty(exit.cause))];
         }
 
         return exit.value.row === null ? ["no row returned"] : [];
@@ -348,7 +356,7 @@ export const runCheck = (check: Check) =>
         Effect.succeed(
           failure(
             Option.match(Cause.findErrorOption(cause), {
-              onNone: () => Cause.pretty(cause).slice(0, 400),
+              onNone: () => Str.slice(0, 400)(Cause.pretty(cause)),
               onSome: (refused) => refused.message,
             })
           )

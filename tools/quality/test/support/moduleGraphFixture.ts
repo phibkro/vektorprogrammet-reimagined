@@ -1,4 +1,4 @@
-import { Array as Arr, Option } from "effect";
+import { Array as Arr, Option, String as Str } from "effect";
 
 import { importForms, resolveFrom } from "../../importSpecifiers.ts";
 import type { Declaration, Module } from "../../moduleGraph.ts";
@@ -19,14 +19,14 @@ export const own = (unit: string, name: string, line: number, path: string) =>
  * package its name.
  */
 const targetOf = (path: string, specifier: string): Target => {
-  if (specifier.startsWith(".")) {
+  if (Str.startsWith(".")(specifier)) {
     return { kind: "file", path: resolveFrom(path, specifier) };
   }
 
-  return specifier.startsWith(workspacePrefix)
+  return Str.startsWith(workspacePrefix)(specifier)
     ? {
         kind: "workspace",
-        name: packageNameOf(specifier).slice(workspacePrefix.length),
+        name: Str.slice(workspacePrefix.length)(packageNameOf(specifier)),
       }
     : { kind: "external", name: packageNameOf(specifier) };
 };
@@ -151,11 +151,11 @@ export const importing = (path: string, ...more: readonly string[]) =>
   );
 
 export const mentioning = (findings: readonly string[], text: string) =>
-  Arr.filter(findings, (finding) => finding.includes(text));
+  Arr.filter(findings, (finding) => Str.includes(text)(finding));
 
 /** The finding about the import at `site` (`path:line`), or an empty text when there is none. */
 export const at = (findings: readonly string[], site: string): string =>
   Option.getOrElse(
-    Arr.findFirst(findings, (finding) => finding.startsWith(`${site}:`)),
+    Arr.findFirst(findings, (finding) => Str.startsWith(`${site}:`)(finding)),
     () => ""
   );

@@ -1,4 +1,10 @@
-import { Array as Arr, Effect, FileSystem, Option } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  String as Str,
+} from "effect";
 
 import type { Glob } from "./globImports.ts";
 
@@ -15,7 +21,7 @@ const examine = (
     // Only what the glob can load: every entry under `**`, otherwise the files of the last segment.
     const reached =
       deep ||
-      Arr.some(extensions, (extension) => name.endsWith(`.${extension}`));
+      Arr.some(extensions, (extension) => Str.endsWith(`.${extension}`)(name));
 
     if (!reached) {
       return { descend: false, reason: Option.none<string>() };

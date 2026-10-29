@@ -1,4 +1,11 @@
-import { Array as Arr, Effect, FileSystem, Option, Result } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  Result,
+  String as Str,
+} from "effect";
 import type { PlatformError } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
@@ -39,7 +46,7 @@ export const workspacePrefix = "@vektorprogrammet/";
 /** `effect` for `effect/rpc`, `@scope/name` for `@scope/name/sub`, `node:fs` for itself. */
 export const packageNameOf = (specifier: string): string =>
   Arr.join(
-    Arr.take(specifier.split("/"), specifier.startsWith("@") ? 2 : 1),
+    Arr.take(Str.split(specifier, "/"), Str.startsWith("@")(specifier) ? 2 : 1),
     "/"
   );
 
@@ -77,9 +84,9 @@ const options: NapiResolveOptions = {
 
 /** A relative path, or an alias that a `paths` or `imports` entry maps (`@/…`, `#/…`): it names a file of the repository or it fails. */
 const mustResolve = (specifier: string): boolean =>
-  specifier.startsWith(".") ||
-  specifier.startsWith("#/") ||
-  specifier.startsWith("@/");
+  Str.startsWith(".")(specifier) ||
+  Str.startsWith("#/")(specifier) ||
+  Str.startsWith("@/")(specifier);
 
 /**
  * The function that resolves an import written in a file of the repository at `root`. A relative path or an alias that
@@ -96,17 +103,18 @@ const makeResolver = Effect.fn("makeResolver")(function* makeResolver(
 
   /** The path from the root of a file inside the repository (and not in `node_modules`), or none. */
   const inside = (absolute: string): Option.Option<string> =>
-    absolute.startsWith(`${realRoot}/`) && !absolute.includes("/node_modules/")
-      ? Option.some(absolute.slice(realRoot.length + 1))
+    Str.startsWith(`${realRoot}/`)(absolute) &&
+    !Str.includes("/node_modules/")(absolute)
+      ? Option.some(Str.slice(realRoot.length + 1)(absolute))
       : Option.none();
 
   return (importer: string, { specifier }: Specifier): Target => {
-    const request = specifier.replace(/\?.*$/u, "");
+    const request = Str.replace(/\?.*$/u, "")(specifier);
 
-    if (request.startsWith(workspacePrefix)) {
+    if (Str.startsWith(workspacePrefix)(request)) {
       return {
         kind: "workspace",
-        name: packageNameOf(request).slice(workspacePrefix.length),
+        name: Str.slice(workspacePrefix.length)(packageNameOf(request)),
       };
     }
 
@@ -125,7 +133,7 @@ const makeResolver = Effect.fn("makeResolver")(function* makeResolver(
     // A path that reaches into `node_modules` (a JSON file of a package) is another package's; one that leaves the
     // repository, or names nothing, is not a file that the check can place.
     const installed = Option.exists(resolved, (found) =>
-      found.includes("/node_modules/")
+      Str.includes("/node_modules/")(found)
     );
 
     return mustResolve(request) && !installed
@@ -176,7 +184,10 @@ export const readSources = Effect.fn("readSources")(function* readSources(
    */
   const directoryRefusal = (directory: string) =>
     Effect.gen(function* inspectDirectory() {
-      const names = Arr.filter(directory.split("/"), (name) => name !== "");
+      const names = Arr.filter(
+        Str.split(directory, "/"),
+        (name) => name !== ""
+      );
 
       for (const length of Arr.makeBy(names.length, (index) => index + 1)) {
         const segment = Arr.join(Arr.take(names, length), "/");

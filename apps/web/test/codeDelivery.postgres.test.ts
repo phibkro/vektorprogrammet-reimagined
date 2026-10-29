@@ -20,6 +20,7 @@ import {
   Option,
   Predicate,
   Schema,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -42,7 +43,7 @@ const values = Schema.Array(
 const mail = Schema.Struct({ text: Schema.String });
 
 const quote = (identifier: string): string =>
-  `"${identifier.replaceAll('"', '""')}"`;
+  `"${Str.replaceAll('"', '""')(identifier)}"`;
 
 /** Only public.captured_mail retains a link. Scan every non-system schema, including Drizzle's. */
 const snapshot = Effect.gen(function* snapshot() {
@@ -78,7 +79,7 @@ const leaked = (
   token: string
 ) =>
   Arr.filter(data, (column) =>
-    Arr.some(column.values, (value) => value.includes(token))
+    Arr.some(column.values, (value) => Str.includes(token)(value))
   );
 
 const latestToken = Effect.gen(function* latestToken() {

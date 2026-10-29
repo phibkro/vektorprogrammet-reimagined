@@ -25,6 +25,7 @@ import {
   Order,
   Predicate,
   Record as Rec,
+  String as Str,
 } from "effect";
 import type { DateTime } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
@@ -273,7 +274,7 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
 
             assert.isTrue(
               Arr.some(problems, (problem) =>
-                problem.includes("is still there one second outside")
+                Str.includes("is still there one second outside")(problem)
               ),
               `skipping ${ruleId(rule)} went unnoticed: ${Arr.join(problems, "; ")}`
             );
@@ -310,7 +311,7 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
 
             assert.isTrue(
               Arr.some(problems, (problem) =>
-                problem.includes("a report changed something")
+                Str.includes("a report changed something")(problem)
               ),
               `a report that changes ${ruleId(rule)} went unnoticed: ${Arr.join(problems, "; ")}`
             );

@@ -1,13 +1,12 @@
 import { effectNative, strict } from "@effect/tsgo/oxlint-presets";
 import { describe, it } from "@effect/vitest";
-import { Array as Arr, Option, Record as Rec } from "effect";
+import { Array as Arr, Option, Record as Rec, String as Str } from "effect";
 import { expect } from "vite-plus/test";
 
 import oxlintSchema from "../../../node_modules/@effect/tsgo/oxlint-schema.json" with { type: "json" };
 import schema from "../../../node_modules/@effect/tsgo/schema.json" with { type: "json" };
 import config from "../../../tsconfig.json" with { type: "json" };
 import { tsgoRules } from "../../../vite.config.ts";
-import { declined } from "../diagnosticRules.ts";
 
 const available = Object.getOwnPropertyNames(
   oxlintSchema.definitions.DummyRuleMap.properties
@@ -23,8 +22,8 @@ const checkRule = (name: string, severity: string) => {
   const match = Arr.findFirst(
     available,
     (key) =>
-      key.startsWith("effecttsgo/") &&
-      key.slice(11).replaceAll("-", "") === name.toLowerCase()
+      Str.startsWith("effecttsgo/")(key) &&
+      Str.replaceAll("-", "")(Str.slice(11)(key)) === Str.toLowerCase(name)
   );
 
   const rule = Option.getOrThrow(match);
@@ -34,8 +33,7 @@ const checkRule = (name: string, severity: string) => {
     rule in (strict.rules ?? {}) ||
     rule in (effectNative.rules ?? {});
 
-  const selectedSeverity = selected ? "error" : undefined;
-  const expected = name in declined ? "off" : selectedSeverity;
+  const expected = selected ? "error" : undefined;
 
   const editorSeverity: unknown = Object.getOwnPropertyDescriptor(
     editor,
@@ -47,7 +45,7 @@ const checkRule = (name: string, severity: string) => {
 };
 
 describe("Effect diagnostic coverage", () => {
-  it("sets every default-on rule and selected preset rule to error, except the declined ones, which are off", () => {
+  it("sets every default-on rule and selected preset rule to error", () => {
     for (const [name, definition] of Rec.toEntries(defaults)) {
       checkRule(name, definition.default);
     }

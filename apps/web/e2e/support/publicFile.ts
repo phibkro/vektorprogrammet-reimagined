@@ -3,7 +3,7 @@ import { PgClient } from "@effect/sql-pg";
 /** Seeds one disposable public-file row and object in the local R2 store used by vp dev. */
 import { fileKeyFor } from "@vektorprogrammet/domain";
 import type { Redacted } from "effect";
-import { Array as Arr, Effect, FileSystem, Path } from "effect";
+import { Array as Arr, Effect, FileSystem, Path, String as Str } from "effect";
 import { Digest } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 import { getPlatformProxy } from "wrangler";
@@ -87,7 +87,7 @@ export const seedPublicFile = Effect.fn("seedPublicFile")(
       const sql = yield* SqlClient;
       yield* sql`insert into public_file
         (key, sha256, content_type, name, size, uploaded_at)
-        values (${publicFileKey}, ${publicFileKey.slice(0, 64)},
+        values (${publicFileKey}, ${Str.slice(0, 64)(publicFileKey)},
           'application/octet-stream', ${PUBLIC_FILE_NAME}, ${FILE_BYTES.byteLength}, now())
         on conflict (key) do nothing`;
     }).pipe(

@@ -4,7 +4,14 @@
  * only JPEG, PNG, WebP, GIF and PDF are served inline; everything else is an
  * attachment; every response carries `nosniff` and `CSP: sandbox; default-src 'none'`.
  */
-import { Array as Arr, Match, Result, Schema } from "effect";
+import {
+  Array as Arr,
+  Match,
+  Option,
+  Result,
+  Schema,
+  String as Str,
+} from "effect";
 import { encode as hexEncode } from "effect/encoding/Hex";
 
 import { validationFailed } from "../shared/errors.ts";
@@ -45,7 +52,9 @@ const startsWith = (
   Arr.every(signature, (byte, index) => bytes[offset + index] === byte);
 
 const ascii = (text: string): readonly number[] =>
-  Array.from(text, (char) => char.codePointAt(0) ?? 0);
+  Array.from(text, (char) =>
+    Option.getOrElse(Str.codePointAt(char, 0), () => 0)
+  );
 
 /** Detects the content type from the leading bytes. Unknown → `application/octet-stream`. */
 export const detectContentType = (bytes: Uint8Array): StoredContentType => {
@@ -146,7 +155,7 @@ const contentDisposition = (
   disposition: "inline" | "attachment",
   fileName: string
 ): string => {
-  const fallback = fileName.replaceAll(/[^\u0020-\u007E]|["\\]/gu, "_");
+  const fallback = Str.replaceAll(/[^\u0020-\u007E]|["\\]/gu, "_")(fileName);
 
   return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 };

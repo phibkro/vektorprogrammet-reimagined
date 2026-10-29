@@ -40,6 +40,7 @@ import {
   Record as Rec,
   Result,
   Schema,
+  String as Str,
 } from "effect";
 
 import { TEXT_SLOTS } from "../../lib/textSlots";
@@ -108,12 +109,12 @@ export interface TeamView {
 
 /** The URL segment of a department: its city, with Å as `aa` (mono-web's `/kontakt/aas`), as a slug. */
 export const departmentSlug = (city: string): string =>
-  slugify(city.replaceAll("Å", "Aa").replaceAll("å", "aa"));
+  slugify(Str.replaceAll("å", "aa")(Str.replaceAll("Å", "Aa")(city)));
 
 const osloDate = (instant: DateTime.DateTime): string => {
   const { day, month, year } = osloParts(instant);
 
-  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`;
+  return `${Str.padStart(2, "0")(String(day))}.${Str.padStart(2, "0")(String(month))}.${year}`;
 };
 
 /** The date an article is shown and ordered by: when it was published, else when it was created. */
@@ -149,7 +150,7 @@ const withMediaOrigin = (
       );
 
 const byCity = (city: string) => (candidate: string) =>
-  candidate.toLowerCase() === city.toLowerCase();
+  Str.toLowerCase(candidate) === Str.toLowerCase(city);
 
 const departmentRows = Effect.gen(function* departmentRows() {
   const departments = yield* DepartmentRepository;
@@ -382,14 +383,18 @@ export const newsPage = Effect.fn("newsPage")(function* newsPage(query: {
 }) {
   const { cms, entries } = yield* readableArticles;
   const departments = yield* departmentViews;
-  const wanted = query.department?.toLowerCase();
 
-  const department = Option.fromNullishOr(wanted).pipe(
+  const wanted = Option.fromNullishOr(query.department).pipe(
+    Option.map(Str.toLowerCase)
+  );
+
+  const department = wanted.pipe(
     Option.flatMap((name) =>
       Arr.findFirst(
         departments,
         (candidate) =>
-          candidate.slug === name || candidate.shortName.toLowerCase() === name
+          candidate.slug === name ||
+          Str.toLowerCase(candidate.shortName) === name
       )
     )
   );

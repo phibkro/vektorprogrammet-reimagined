@@ -4,7 +4,7 @@
  *
  * The rows exercise each mapping rule; the expected outcome is noted per row.
  */
-import { Array as Arr, Predicate } from "effect";
+import { Array as Arr, Predicate, String as Str } from "effect";
 
 /** Legacy upload paths of the fake files and their bytes (typed by magic bytes, RULE-130). */
 const jpeg = (tag: string) =>
@@ -79,7 +79,7 @@ const quote = (value: string | number | null): string => {
     return String(value);
   }
 
-  return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
+  return `'${Str.replaceAll("'", "''")(Str.replaceAll("\\", "\\\\")(value))}'`;
 };
 
 const insert = (

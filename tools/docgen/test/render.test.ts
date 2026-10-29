@@ -24,6 +24,7 @@ import {
   Predicate,
   Record as Rec,
   Result,
+  String as Str,
 } from "effect";
 
 import {
@@ -60,7 +61,7 @@ describe("spec 0006 falsifier 8: generated documentation", () => {
     () =>
       Effect.gen(function* changedCharacter() {
         const document = yield* source;
-        const changed = document.replace("| You are |", "| You ure |");
+        const changed = Str.replace("| You are |", "| You ure |")(document);
         assert.notStrictEqual(changed, document);
         assert.isTrue(
           Result.isFailure(checkDocument(changed, Declarations, GrantTable))
@@ -98,15 +99,15 @@ describe("spec 0006 falsifier 8: generated documentation", () => {
       assert.isTrue(
         Result.isFailure(renderDocument(document, [incomplete], GrantTable))
       );
-      const missing = document.replace("<!-- docgen:end who -->", "");
+      const missing = Str.replace("<!-- docgen:end who -->", "")(document);
       assert.isTrue(
         Result.isFailure(renderDocument(missing, Declarations, GrantTable))
       );
 
-      const nested = document.replace(
+      const nested = Str.replace(
         "<!-- docgen:end who -->",
         "<!-- docgen:begin inner -->\n<!-- docgen:end who -->"
-      );
+      )(document);
 
       assert.isTrue(
         Result.isFailure(renderDocument(nested, Declarations, GrantTable))
@@ -154,18 +155,18 @@ const commandsSource = Effect.gen(function* commandsSource() {
 }).pipe(Effect.provide(NodeServices.layer));
 
 /** The section of `resource` in the generated page: its heading up to the next heading, or the end of the block. */
-const sectionOf = (document: string, resource: string): string => {
-  const start = document.indexOf(`\n### ${resource}\n`);
+const sectionOf = (document: string, resource: string): string =>
+  Option.match(Str.indexOf(`\n### ${resource}\n`)(document), {
+    onNone: () => "",
+    onSome: (start) => {
+      const rest = Str.slice(start + 1)(document);
 
-  if (start === -1) {
-    return "";
-  }
-
-  const rest = document.slice(start + 1);
-  const next = rest.search(/\n(?:### |<!-- docgen:end)/u);
-
-  return next === -1 ? rest : rest.slice(0, next);
-};
+      return Option.match(Str.search(rest, /\n(?:### |<!-- docgen:end)/u), {
+        onNone: () => rest,
+        onSome: (next) => Str.slice(0, next)(rest),
+      });
+    },
+  });
 
 describe("spec 0007c falsifier 5: every command by resource", () => {
   it.effect(
@@ -185,7 +186,7 @@ describe("spec 0007c falsifier 5: every command by resource", () => {
             const row = `| \`${rpc._tag}\` |`;
 
             assert.strictEqual(
-              document.split(row).length - 1,
+              Str.split(document, row).length - 1,
               1,
               `${rpc._tag} is listed once`
             );
@@ -211,10 +212,10 @@ describe("spec 0007c falsifier 5: every command by resource", () => {
       Effect.gen(function* changedCharacter() {
         const document = yield* commandsSource;
 
-        const changed = document.replace(
+        const changed = Str.replace(
           "| Command | Method |",
           "| Command | Methods |"
-        );
+        )(document);
 
         assert.notStrictEqual(changed, document);
         assert.isTrue(
@@ -298,7 +299,7 @@ describe("spec 0007c falsifier 5: every command by resource", () => {
         assert.isTrue(
           Result.isFailure(
             renderCommandsDocument(
-              document.replace("<!-- docgen:end resources -->", ""),
+              Str.replace("<!-- docgen:end resources -->", "")(document),
               Declarations,
               GrantTable
             )
@@ -308,10 +309,10 @@ describe("spec 0007c falsifier 5: every command by resource", () => {
         assert.isTrue(
           Result.isFailure(
             renderCommandsDocument(
-              document.replace(
+              Str.replace(
                 "<!-- docgen:end resources -->",
                 "<!-- docgen:begin inner -->\n<!-- docgen:end resources -->"
-              ),
+              )(document),
               Declarations,
               GrantTable
             )
@@ -335,9 +336,12 @@ const APPROVALS = ["decided", "proposed"] as const;
 /** The text between a block's markers. */
 const blockOf = (document: string, id: string): string => {
   const begin = `<!-- docgen:begin ${id} -->`;
-  const first = document.indexOf(begin) + begin.length;
+  const first = Option.getOrThrow(Str.indexOf(begin)(document)) + begin.length;
 
-  return document.slice(first, document.indexOf(`<!-- docgen:end ${id} -->`));
+  return Str.slice(
+    first,
+    Option.getOrThrow(Str.indexOf(`<!-- docgen:end ${id} -->`)(document))
+  )(document);
 };
 
 describe("spec 0007b falsifier 1: generated personal data documentation", () => {
@@ -375,7 +379,7 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
             checkAdministrationDocument(changed, Declarations, grants, sources)
           );
 
-        const changed = document.replace("| Data |", "| Dats |");
+        const changed = Str.replace("| Data |", "| Dats |")(document);
         assert.notStrictEqual(changed, document);
         assert.isTrue(fails(changed));
 
@@ -412,8 +416,11 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
           (row) => row.periodApproval === "proposed"
         );
 
-        const lines = blockOf(document, "retention").split("\n");
-        const marked = Arr.filter(lines, (line) => line.includes(" \\* |"));
+        const lines = Str.split(blockOf(document, "retention"), "\n");
+
+        const marked = Arr.filter(lines, (line) =>
+          Str.includes(" \\* |")(line)
+        );
 
         assert.isAbove(proposed.length, 0);
         assert.isBelow(proposed.length, rows.length);
@@ -439,17 +446,17 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
         const said = `${period} period, ${basis} basis: "${cell}"`;
 
         assert.strictEqual(
-          cell.includes("period"),
+          Str.includes("period")(cell),
           period === "proposed",
           said
         );
         assert.strictEqual(
-          cell.includes("legal basis"),
+          Str.includes("legal basis")(cell),
           basis === "proposed",
           said
         );
         assert.strictEqual(
-          cell.includes(words),
+          Str.includes(words)(cell),
           period === "proposed" || basis === "proposed",
           said
         );
@@ -467,7 +474,7 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
     () =>
       Effect.gen(function* rowsSay() {
         const document = yield* administrationSource;
-        const lines = blockOf(document, "record").split("\n");
+        const lines = Str.split(blockOf(document, "record"), "\n");
         const rows = recordOfProcessing(Catalog);
         const sample = Option.getOrThrow(Arr.head(rows));
         let found = 0;
@@ -487,7 +494,7 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
             ).length;
 
             const listed = Arr.filter(lines, (line) =>
-              line.endsWith(`| ${cell} |`)
+              Str.endsWith(`| ${cell} |`)(line)
             ).length;
 
             assert.strictEqual(listed, expected, cell);
@@ -544,7 +551,7 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
       assert.isTrue(
         Result.isFailure(
           renderAdministrationDocument(
-            document.replace("<!-- docgen:end record -->", ""),
+            Str.replace("<!-- docgen:end record -->", "")(document),
             Declarations,
             GrantTable,
             SOURCES
@@ -567,15 +574,15 @@ describe("spec 0007b falsifier 1: generated personal data documentation", () => 
         const block = blockOf(document, "code-policy");
 
         for (const [purpose, value] of Rec.toEntries(codePolicy)) {
-          const line = Arr.findFirst(block.split("\n"), (row) =>
-            row.startsWith(`| ${purpose} `)
+          const line = Arr.findFirst(Str.split(block, "\n"), (row) =>
+            Str.startsWith(`| ${purpose} `)(row)
           );
 
           assert.isTrue(Option.isSome(line), purpose);
 
           assert.isTrue(
             Option.exists(line, (row) =>
-              row.includes(`| ${value.singleUse ? "yes" : "no"} `)
+              Str.includes(`| ${value.singleUse ? "yes" : "no"} `)(row)
             ),
             purpose
           );
@@ -675,7 +682,7 @@ describe("spec 0008 falsifier 6: the scheduled jobs are the registry, rendered",
     () =>
       Effect.gen(function* changedCharacter() {
         const document = yield* administrationSource;
-        const changed = document.replace("| Cadence", "| Cadenze");
+        const changed = Str.replace("| Cadence", "| Cadenze")(document);
 
         assert.notStrictEqual(changed, document);
         assert.isTrue(
@@ -713,7 +720,7 @@ describe("spec 0008 falsifier 6: the scheduled jobs are the registry, rendered",
         assert.isTrue(
           Result.isFailure(
             renderAdministrationDocument(
-              document.replace("<!-- docgen:end jobs -->", ""),
+              Str.replace("<!-- docgen:end jobs -->", "")(document),
               Declarations,
               GrantTable,
               SOURCES

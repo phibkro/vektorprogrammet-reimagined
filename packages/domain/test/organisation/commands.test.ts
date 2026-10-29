@@ -7,6 +7,7 @@ import {
   Order,
   Predicate,
   pipe,
+  String as Str,
 } from "effect";
 import { TestClock } from "effect/testing";
 
@@ -45,7 +46,7 @@ const OCTOBER_15 = DateTime.toEpochMillis(
 );
 
 const department = (id: DepartmentId, city: string) =>
-  departmentForTest(id, city, city.slice(0, 4).toUpperCase());
+  departmentForTest(id, city, Str.toUpperCase(Str.slice(0, 4)(city)));
 
 const storedLabels = Effect.map(listSemestersNewestFirst, (rows) =>
   Arr.map(rows, semesterLabel)

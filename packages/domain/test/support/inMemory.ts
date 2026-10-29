@@ -13,6 +13,7 @@ import {
   Option,
   Ref,
   Stream,
+  String as Str,
 } from "effect";
 import { Digest, SecureRandom } from "effect/crypto";
 
@@ -39,6 +40,7 @@ import {
   SlackChannel,
   SocialEventId,
   SocialEventRepository,
+  TeamsEndpoints,
   TeamId,
   isListed,
 } from "../../src/index.ts";
@@ -96,13 +98,13 @@ export class TestDb extends Context.Service<
 export const departmentForTest = (
   id: DepartmentId,
   city: string,
-  shortName = city.toUpperCase(),
+  shortName: string = Str.toUpperCase(city),
   slackChannel: string | null = null
 ): Department => ({
   active: true,
   address: null,
   city,
-  email: EmailAddress.make(`${city.toLowerCase()}@example.org`),
+  email: EmailAddress.make(`${Str.toLowerCase(city)}@example.org`),
   id,
   latitude: null,
   logoKey: null,
@@ -465,6 +467,16 @@ export const admin = Principal.cases.Person.make({
   memberships: [],
   personId: PersonId.make(100),
 });
+
+/** The admin registers a person, whose address is the lower-case name at example.org. */
+export const newPerson = (name: string, fieldOfStudyId: FieldOfStudyId) =>
+  asPrincipal(admin)(
+    TeamsEndpoints.createPerson({
+      email: `${Str.toLowerCase(name)}@example.org`,
+      fieldOfStudyId,
+      name,
+    })
+  );
 
 /** A leader of a team in Trondheim. */
 export const teamLeaderTrondheim = Principal.cases.Person.make({

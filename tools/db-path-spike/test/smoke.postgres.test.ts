@@ -5,7 +5,7 @@
  * a local Worker has no Hyperdrive binding, and the check says so.
  */
 import { assert, layer } from "@effect/vitest";
-import { Array as Arr, Effect, Layer, Random } from "effect";
+import { Array as Arr, Effect, Layer, Random, String as Str } from "effect";
 
 import { checks, runCheck } from "../src/smoke/checks.ts";
 import { SpikeClient } from "../src/smoke/client.ts";
@@ -42,7 +42,9 @@ layer(localWorker(), { excludeTestServices: true })(
         );
         assert.isTrue(
           Arr.every(lines, (line) =>
-            renderLine(line).startsWith(line.verdict.pass ? "PASS" : "FAIL")
+            Str.startsWith(line.verdict.pass ? "PASS" : "FAIL")(
+              renderLine(line)
+            )
           )
         );
       }).pipe(Effect.provide(spikeClient))

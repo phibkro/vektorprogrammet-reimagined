@@ -15,6 +15,7 @@ import {
   Effect,
   Layer,
   Redacted,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -107,7 +108,7 @@ export default {
 
         yield* Effect.promise(() =>
           env.OUTBOX_QUEUE.sendBatch(
-            Arr.map(body.split(","), (id) => ({
+            Arr.map(Str.split(body, ","), (id) => ({
               body: id,
               contentType: "text" as const,
             }))

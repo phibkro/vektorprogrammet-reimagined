@@ -5,7 +5,7 @@
  * that is imported again from a directory that is not a module of its own; this reads the directory itself.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect } from "effect";
+import { Array as Arr, Effect, String as Str } from "effect";
 
 import type { SourceFile } from "../resolveImports.ts";
 import { d, parsed } from "./support/moduleGraphFixture.ts";
@@ -18,11 +18,13 @@ const allowed = [kernel, `${d}/shared/`];
 /** The imports of kernel files that reach a directory other than `kernel/` and `shared/`, as `file:line: target`. */
 const kernelLeaks = (files: readonly SourceFile[]): readonly string[] =>
   Arr.flatMap(
-    Arr.filter(files, (file) => file.path.startsWith(kernel)),
+    Arr.filter(files, (file) => Str.startsWith(kernel)(file.path)),
     (file: SourceFile) =>
       Arr.flatMap(file.imports, ({ line, target }) =>
         target.kind === "file" &&
-        !Arr.some(allowed, (directory) => target.path.startsWith(directory))
+        !Arr.some(allowed, (directory) =>
+          Str.startsWith(directory)(target.path)
+        )
           ? [`${file.path}:${line}: ${target.path}`]
           : []
       )
@@ -53,7 +55,7 @@ describe("spec 0022 F1: the kernel is generic", () => {
       const files = yield* realTree;
 
       assert.isAbove(
-        Arr.filter(files, (file) => file.path.startsWith(kernel)).length,
+        Arr.filter(files, (file) => Str.startsWith(kernel)(file.path)).length,
         5
       );
       assert.deepStrictEqual(kernelLeaks(files), []);

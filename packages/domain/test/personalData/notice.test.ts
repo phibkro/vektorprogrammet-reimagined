@@ -5,7 +5,14 @@
  * one: `periodsInText.test.ts` moves every period and checks that every declared string follows.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Option,
+  Order,
+  Predicate,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import {
   Catalog,
@@ -178,7 +185,7 @@ describe("spec 0007b R4: a notice awaits exactly the decisions that are open, an
       // The sentence names a decision exactly when it is open (the words of a closed one never stand in it).
       for (const decision of NOTICE_DECISIONS) {
         assert.strictEqual(
-          (no ?? "").includes(noticeDecisionWords[decision].no),
+          Str.includes(noticeDecisionWords[decision].no)(no ?? ""),
           open.includes(decision),
           `${decision} in ${set}`
         );
@@ -229,8 +236,12 @@ describe("spec 0007b falsifier 1: the record of processing", () => {
       (row) => row.data
     );
 
-    assert.isFalse(Arr.some(without, (name) => name.startsWith("consent.")));
-    assert.isTrue(Arr.some(everyColumn, (name) => name.startsWith("consent.")));
+    assert.isFalse(
+      Arr.some(without, (name) => Str.startsWith("consent.")(name))
+    );
+    assert.isTrue(
+      Arr.some(everyColumn, (name) => Str.startsWith("consent.")(name))
+    );
   });
 
   it("marks a row whose period is a proposal, and not one whose period is a decision", () => {

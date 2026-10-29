@@ -19,6 +19,7 @@ import {
   Exit,
   Record as Rec,
   Schema,
+  String as Str,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
@@ -205,7 +206,7 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
 
             for (const seed of seeds) {
               assert.isFalse(
-                serialised.includes(seed),
+                Str.includes(seed)(serialised),
                 `the audit rows contain ${seed}`
               );
             }

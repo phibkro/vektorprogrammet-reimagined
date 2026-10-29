@@ -1,4 +1,4 @@
-import { Array as Arr, Order, Result } from "effect";
+import { Array as Arr, Order, Result, String as Str } from "effect";
 
 interface Locked {
   readonly name: string;
@@ -13,7 +13,7 @@ const entry =
 const ownLine = /^@effect\/tsgo(?:-|$)/u;
 
 const locked = (lock: string): readonly Locked[] =>
-  Arr.filterMap(Arr.fromIterable(lock.matchAll(entry)), ({ groups }) =>
+  Arr.filterMap(Arr.fromIterable(Str.matchAll(entry)(lock)), ({ groups }) =>
     groups?.name === undefined || groups.version === undefined
       ? Result.failVoid
       : Result.succeed({ name: groups.name, version: groups.version })

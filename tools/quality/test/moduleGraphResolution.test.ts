@@ -6,7 +6,7 @@
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Record as Rec } from "effect";
+import { Array as Arr, Effect, Record as Rec, String as Str } from "effect";
 
 import { importSpecifiers } from "../importSpecifiers.ts";
 import type { Declaration } from "../moduleGraph.ts";
@@ -45,8 +45,8 @@ const findingsOf = (
     return Arr.filter(
       found,
       (finding) =>
-        !finding.includes(", but no file of ") &&
-        !finding.includes(", which matches no file")
+        !Str.includes(", but no file of ")(finding) &&
+        !Str.includes(", which matches no file")(finding)
     );
   }).pipe(Effect.provide(NodeServices.layer));
 

@@ -16,6 +16,7 @@ import {
   Option,
   Redacted,
   Schema,
+  String as Str,
 } from "effect";
 
 export const ImportConfig = Config.all({
@@ -38,13 +39,13 @@ export class RefusedTarget extends Schema.TaggedError<
 const LOOPBACK = HashSet.fromIterable(["127.0.0.1", "[::1]", "localhost"]);
 
 const databaseIdentity = (url: URL): string => {
-  const host = url.hostname.toLowerCase();
+  const host = Str.toLowerCase(url.hostname);
 
   return Arr.join(
     [
       HashSet.has(LOOPBACK, host) ? "loopback" : host,
       url.port === "" ? "5432" : url.port,
-      url.pathname.replace(/^\//u, ""),
+      Str.replace(/^\//u, "")(url.pathname),
     ],
     "\u0000"
   );

@@ -2,7 +2,7 @@
 import { PublicFile, PublicFileRepository } from "@vektorprogrammet/domain";
 import type { FileKey } from "@vektorprogrammet/domain";
 import { and, eq, isNull } from "drizzle-orm";
-import { DateTime, Effect, Layer, Schema } from "effect";
+import { DateTime, Effect, Layer, Schema, String as Str } from "effect";
 
 import {
   Drizzle,
@@ -77,7 +77,7 @@ export const PublicFileRepositoryLive = Layer.effect(
           .insert(publicFile)
           .values({
             ...file,
-            sha256: file.key.slice(0, SHA256_HEX_LENGTH),
+            sha256: Str.slice(0, SHA256_HEX_LENGTH)(file.key),
             uploadedAt: DateTime.toDateUtc(file.uploadedAt),
           })
           .onConflictDoUpdate({

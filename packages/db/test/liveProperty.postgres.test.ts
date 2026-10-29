@@ -13,7 +13,7 @@
  * the same each time); `LIVE_PROPERTY_RUNS=50000` runs more.
  */
 import { assert, layer } from "@effect/vitest";
-import { Arbitrary, Array as Arr, Config, Effect } from "effect";
+import { Arbitrary, Array as Arr, Config, Effect, String as Str } from "effect";
 
 import { postgresDatabase } from "./support/database.ts";
 import {
@@ -142,7 +142,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
 
         assert.isTrue(
           Arr.some(violations(ledger, half), (found) =>
-            found.includes(`${second?.label ?? "?"} reported success`)
+            Str.includes(`${second?.label ?? "?"} reported success`)(found)
           ),
           "a row of an interrupted level that went missing was not caught"
         );
@@ -153,7 +153,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
 
         assert.isTrue(
           Arr.some(violations(ledger, resurrected), (found) =>
-            found.includes(rolledBack?.label ?? "?")
+            Str.includes(rolledBack?.label ?? "?")(found)
           ),
           "a write of a rolled-back level that came back was not caught"
         );

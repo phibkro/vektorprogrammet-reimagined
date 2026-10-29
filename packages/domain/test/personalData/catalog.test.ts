@@ -5,7 +5,7 @@
  * controls). The closure over the migrated schema is `packages/db/test/personalDataClosure.postgres.test.ts`.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Schema } from "effect";
+import { Array as Arr, Schema, String as Str } from "effect";
 
 import { Catalog, Forms, catalogProblems } from "../../src/index.ts";
 import type { CatalogOf, FormDeclaration } from "../../src/index.ts";
@@ -268,7 +268,7 @@ const formCases: readonly (readonly [string, FormDeclaration, string])[] = [
 
 /** Whether any problem of the catalog contains `expected`, and the problems when none does. */
 const found = (problems: readonly string[], expected: string) => ({
-  found: Arr.some(problems, (problem) => problem.includes(expected)),
+  found: Arr.some(problems, (problem) => Str.includes(expected)(problem)),
   message: `${expected} in ${Arr.join(problems, "; ")}`,
 });
 

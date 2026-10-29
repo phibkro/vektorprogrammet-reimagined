@@ -12,6 +12,7 @@ import {
   Record as Rec,
   Schema,
   Stream,
+  String as Str,
 } from "effect";
 import { Digest } from "effect/crypto";
 
@@ -96,7 +97,7 @@ export default defineConfig({
 
 /** A recorded path or argument, with the checkout of effx put where `<effx>` stands. */
 export const inCheckout = (text: string, effx: string): string =>
-  text.replaceAll("<effx>", effx);
+  Str.replaceAll("<effx>", effx)(text);
 
 const Assertion = Schema.Struct({
   name: Schema.String,
@@ -194,8 +195,8 @@ export const firstDifference = (
   readonly line: number;
   readonly want: string | undefined;
 }> => {
-  const had = have.split("\n");
-  const wanted = want.split("\n");
+  const had = Str.split(have, "\n");
+  const wanted = Str.split(want, "\n");
 
   return Option.map(
     Arr.findFirst(

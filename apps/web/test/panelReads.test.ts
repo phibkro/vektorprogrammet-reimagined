@@ -31,6 +31,7 @@ import {
   Option,
   Predicate,
   Record as Rec,
+  String as Str,
 } from "effect";
 
 import type { Outcome } from "../src/lib/outcome";
@@ -321,7 +322,7 @@ describe("issue 15: a principal without the read gets no 2xx", () => {
 
           assert.isTrue(
             Arr.some(violations, (violation) =>
-              violation.includes(`: ${read}`)
+              Str.includes(`: ${read}`)(violation)
             ),
             `${read} without its guard fails the falsifier`
           );
@@ -398,17 +399,13 @@ const sourceOf = (path: string): string =>
 
 /** The address of the page a route file renders, a team id standing in for `$teamId`. */
 const pathOfRouteFile = (file: string): string =>
-  `/kontrollpanel${file
-    .replace("routes/kontrollpanel", "")
-    .replace(/\.tsx$/u, "")
-    .replace(/\/?index$/u, "")
-    .replace("$teamId", "1")}`;
+  `/kontrollpanel${Str.replace("$teamId", "1")(Str.replace(/\/?index$/u, "")(Str.replace(/\.tsx$/u, "")(Str.replace("routes/kontrollpanel", "")(file))))}`;
 
 /** The control panel's pages: every route file below `/kontrollpanel`, but the layout (the shell). */
 const PANEL_ROUTE_FILES = Arr.filter(
-  Arr.map(Rec.keys(SOURCES), (key) => key.replace("../src/", "")),
+  Arr.map(Rec.keys(SOURCES), (key) => Str.replace("../src/", "")(key)),
   (file) =>
-    file.startsWith("routes/kontrollpanel/") &&
+    Str.startsWith("routes/kontrollpanel/")(file) &&
     file !== "routes/kontrollpanel/route.tsx"
 );
 
@@ -425,9 +422,9 @@ describe("issue 15: every page and read function is under the one declaration", 
 
     const getters = Arr.map(
       Arr.fromIterable(
-        source.matchAll(
+        Str.matchAll(
           /export const (?<name>\w+) = createServerFn\(\{ method: "GET" \}\)/gu
-        )
+        )(source)
       ),
       (match) => match.groups?.name ?? ""
     );
@@ -444,9 +441,9 @@ describe("issue 15: every page and read function is under the one declaration", 
     // No read server function runs a view of its own: every `runQuery(requestScope(context), …)` runs a guarded read.
     const programs = Arr.map(
       Arr.fromIterable(
-        source.matchAll(
+        Str.matchAll(
           /runQuery\(\s*requestScope\(context\),\s*(?<program>[\w.]+)/gu
-        )
+        )(source)
       ),
       (match) => match.groups?.program ?? ""
     );
@@ -454,7 +451,7 @@ describe("issue 15: every page and read function is under the one declaration", 
     assert.strictEqual(programs.length, READS.length);
 
     for (const program of programs) {
-      assert.isTrue(program.startsWith("panelReads."), program);
+      assert.isTrue(Str.startsWith("panelReads.")(program), program);
     }
   });
 

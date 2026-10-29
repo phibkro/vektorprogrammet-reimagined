@@ -1,5 +1,11 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, DateTime, Effect, Predicate } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Predicate,
+  String as Str,
+} from "effect";
 
 import {
   ContentEndpoints,
@@ -57,7 +63,7 @@ describe("C8 social events", () => {
         asPrincipal(teamMemberBergen)(
           ContentEndpoints.createSocialEvent({
             ...eventInput,
-            link: `https://example.org/${"x".repeat(240)}`,
+            link: `https://example.org/${Str.repeat(240)("x")}`,
           })
         )
       );

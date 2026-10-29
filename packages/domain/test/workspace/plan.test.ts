@@ -3,7 +3,7 @@
  * (desired, actual, additions, removals, unmanaged, typed issues) and the removal cap, each with a negative control.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Option, Predicate } from "effect";
+import { Array as Arr, Option, Predicate, String as Str } from "effect";
 
 import {
   CompanyEmail,
@@ -85,7 +85,7 @@ describe("RULE-058, 178, 179: the company address", () => {
     for (const name of ["Kari Nordmann", "Ola", "Per Ole Hansen", "Åse Ø"]) {
       const address = Option.getOrThrow(companyEmailFor(name, new Set()));
 
-      assert.isTrue(address.endsWith("@vektorprogrammet.no"));
+      assert.isTrue(Str.endsWith("@vektorprogrammet.no")(address));
       assert.isTrue(Option.isSome(Option.some(CompanyEmail.make(address))));
     }
   });

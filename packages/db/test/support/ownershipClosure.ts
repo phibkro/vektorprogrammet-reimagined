@@ -6,7 +6,7 @@
  */
 import { getTableColumns, is } from "drizzle-orm";
 import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
-import { Array as Arr, Option, Record as Rec } from "effect";
+import { Array as Arr, Option, Record as Rec, String as Str } from "effect";
 
 import type { RootOwnership } from "../../src/aggregate/ownership.ts";
 import type * as Schema from "../../src/schema.ts";
@@ -102,7 +102,9 @@ const notOwnedProblems = (
     const found = Arr.findFirst(tables, ([entry]) => entry === name);
 
     return [
-      ...(reason.trim() === "" ? [`NotOwned \`${name}\` gives no reason`] : []),
+      ...(Str.trim(reason) === ""
+        ? [`NotOwned \`${name}\` gives no reason`]
+        : []),
       ...(Arr.some(ownership, (root) => Rec.has(root.owns, name))
         ? [`\`${name}\` is both owned and NotOwned`]
         : []),

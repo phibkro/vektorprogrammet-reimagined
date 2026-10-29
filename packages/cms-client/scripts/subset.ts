@@ -10,6 +10,7 @@ import {
   Record as Rec,
   Result,
   Schema,
+  String as Str,
 } from "effect";
 
 /** A map in an OpenAPI document: a path item, or one `components` section. */
@@ -52,7 +53,7 @@ const referencesIn = Effect.fn("referencesIn")(function* referencesIn(
   const text = yield* encodeJson(value);
 
   return Arr.map(
-    Arr.fromIterable(text.matchAll(REFERENCE)),
+    Arr.fromIterable(Str.matchAll(REFERENCE)(text)),
     (match) => `${match.groups?.section}/${match.groups?.name}`
   );
 });

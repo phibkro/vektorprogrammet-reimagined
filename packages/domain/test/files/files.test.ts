@@ -6,6 +6,7 @@ import {
   Predicate,
   Result,
   Stream,
+  String as Str,
   pipe,
 } from "effect";
 
@@ -40,10 +41,16 @@ const bytes = (...values: readonly (number | string)[]): Uint8Array =>
       Arr.flatMap((value) =>
         Predicate.isNumber(value)
           ? [value]
-          : Array.from(value, (char) => char.codePointAt(0) ?? 0)
+          : Array.from(value, (char) =>
+              Option.getOrElse(Str.codePointAt(char, 0), () => 0)
+            )
       )
     )
   );
+
+/** Whether the header is present and `test` accepts it. */
+const headerIs = (value: string | undefined, test: (text: string) => boolean) =>
+  Option.exists(Option.fromNullishOr(value), test);
 
 const JPEG = bytes(0xff, 0xd8, 0xff, 0xe0, 0, 0x10, "JFIF");
 
@@ -170,7 +177,10 @@ describe("C11 upload and serving", () => {
         assert.deepStrictEqual(body, [PNG]);
         assert.strictEqual(served.headers["Content-Type"], "image/png");
         assert.isTrue(
-          served.headers["Content-Disposition"]?.startsWith("inline;")
+          headerIs(
+            served.headers["Content-Disposition"],
+            Str.startsWith("inline;")
+          )
         );
         assert.strictEqual(served.headers["X-Content-Type-Options"], "nosniff");
         assert.strictEqual(
@@ -217,10 +227,13 @@ describe("C11 upload and serving", () => {
 
   it("RULE-290: everything outside the inline allowlist is served as an attachment", () => {
     const attachment = servingHeaders(file("application/octet-stream"));
-    assert.isTrue(attachment["Content-Disposition"]?.startsWith("attachment;"));
     assert.isTrue(
-      attachment["Content-Disposition"]?.includes(
-        "filename*=UTF-8''%C3%85rsrapport%202025.docx"
+      headerIs(attachment["Content-Disposition"], Str.startsWith("attachment;"))
+    );
+    assert.isTrue(
+      headerIs(
+        attachment["Content-Disposition"],
+        Str.includes("filename*=UTF-8''%C3%85rsrapport%202025.docx")
       )
     );
     assert.strictEqual(attachment["X-Content-Type-Options"], "nosniff");
@@ -237,8 +250,9 @@ describe("C11 upload and serving", () => {
       "application/pdf",
     ] as const) {
       assert.isTrue(
-        servingHeaders(file(inline))["Content-Disposition"]?.startsWith(
-          "inline;"
+        headerIs(
+          servingHeaders(file(inline))["Content-Disposition"],
+          Str.startsWith("inline;")
         ),
         inline
       );

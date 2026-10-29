@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Order } from "effect";
+import { Array as Arr, Effect, Order, String as Str } from "effect";
 
 import { importForms, importSpecifiers } from "../importSpecifiers.ts";
 import { baseline, declaration, integrationCalls } from "../moduleGraph.ts";
@@ -545,7 +545,8 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           const governed = Arr.map(
             Arr.filter(
               yield* scanImports(root),
-              ({ path }) => path.startsWith(`${d}/`) && path.endsWith(".ts")
+              ({ path }) =>
+                Str.startsWith(`${d}/`)(path) && Str.endsWith(".ts")(path)
             ),
             ({ path }) => path
           );
@@ -599,7 +600,7 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           assert.deepStrictEqual(
             Arr.sort(
               Arr.map(without, (finding) =>
-                finding.slice(0, finding.indexOf(":"))
+                Arr.headNonEmpty(Str.split(finding, ":"))
               ),
               Order.String
             ),
@@ -667,7 +668,9 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           for (const [from, to] of retired) {
             assert.lengthOf(
               Arr.filter(back, (finding) =>
-                finding.startsWith(`${d}/${from}:9999: imports ${d}/${to} `)
+                Str.startsWith(`${d}/${from}:9999: imports ${d}/${to} `)(
+                  finding
+                )
               ),
               1,
               `${from} -> ${to}`

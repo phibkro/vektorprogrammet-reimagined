@@ -1,6 +1,13 @@
 import { assert, describe, it } from "@effect/vitest";
 import { PortableText } from "@vektorprogrammet/cms-client";
-import { Array as Arr, Effect, Option, Predicate, Schema } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Option,
+  Predicate,
+  Schema,
+  String as Str,
+} from "effect";
 
 import { htmlToPortableText } from "../../src/emdash/portableText.ts";
 import type { Block } from "../../src/emdash/portableText.ts";
@@ -207,7 +214,7 @@ describe("htmlToPortableText", () => {
         assert.deepStrictEqual(htmlToPortableText(html).blocks, first);
 
         const keys = Arr.map(
-          Arr.fromIterable(text.matchAll(/"_key":"(?<key>[^"]+)"/gu)),
+          Arr.fromIterable(Str.matchAll(/"_key":"(?<key>[^"]+)"/gu)(text)),
           (match) => match.groups?.key
         );
 

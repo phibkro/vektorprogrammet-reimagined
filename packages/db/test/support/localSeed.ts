@@ -40,7 +40,15 @@ import type {
   TeamFunction,
 } from "@vektorprogrammet/domain";
 import { hashSync as bcryptHash } from "bcryptjs";
-import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Order,
+  Schema,
+  String as Str,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/index.ts";
@@ -53,7 +61,9 @@ const byId = Order.mapInput(
 );
 
 const emailOf = (name: string) =>
-  EmailAddress.make(`${name.toLowerCase().replaceAll(" ", ".")}@example.org`);
+  EmailAddress.make(
+    `${Str.replaceAll(" ", ".")(Str.toLowerCase(name))}@example.org`
+  );
 
 /** The first department with a field of study; the seed makes both when the database has none. */
 const placeOfSeed = Effect.gen(function* placeOfSeed() {

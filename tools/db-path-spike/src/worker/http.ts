@@ -4,7 +4,14 @@
  * defects become a JSON error body (the smoke command prints it as evidence),
  * and an interruption stays an interruption. `worker.ts` runs them.
  */
-import { Cause, Effect, Option, Record as Rec, Schema } from "effect";
+import {
+  Cause,
+  Effect,
+  Option,
+  Record as Rec,
+  Schema,
+  String as Str,
+} from "effect";
 
 import * as Protocol from "../protocol.ts";
 import * as Checks from "./checks.ts";
@@ -60,7 +67,7 @@ const refuse = (cause: Cause.Cause<unknown>) =>
           {
             error: {
               kind: body.kind,
-              message: body.text.slice(0, MAX_MESSAGE_LENGTH),
+              message: Str.slice(0, MAX_MESSAGE_LENGTH)(body.text),
             },
           } satisfies typeof Protocol.ErrorBody.Type,
           { headers: jsonHeaders, status: body.status }

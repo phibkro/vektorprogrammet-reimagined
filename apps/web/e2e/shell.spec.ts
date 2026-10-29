@@ -9,7 +9,7 @@
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
 import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
-import { Array as Arr, Record as Rec } from "effect";
+import { Array as Arr, Record as Rec, String as Str } from "effect";
 
 import { PANEL_SECTIONS } from "../src/lib/panelSections.ts";
 import {
@@ -230,7 +230,7 @@ test("falsifier 3: a forged request for a capability the page does not offer get
   // One real save of the leader's own department, to learn where the department form sends its data.
   const sent = page.waitForRequest(
     (request) =>
-      request.url().includes("/_serverFn/") && request.method() === "POST"
+      Str.includes("/_serverFn/")(request.url()) && request.method() === "POST"
   );
 
   await page.getByRole("button", { name: "Rediger Avdeling Alfa" }).click();
@@ -332,7 +332,7 @@ test("issue 15: a control-panel page answers 2xx exactly when the sidebar shows 
     const shown = new Set(
       Arr.map(
         await sidebarOf(page).getByRole("link").allTextContents(),
-        (label) => label.trim()
+        (label) => Str.trim(label)
       )
     );
 
@@ -362,7 +362,7 @@ test("issue 15: a member without viewPeople gets 403 for the people page and for
   // Learn the people read's address from the click that loads the page's data.
   const sent = page.waitForRequest(
     (request) =>
-      request.url().includes("/_serverFn/") && request.method() === "GET"
+      Str.includes("/_serverFn/")(request.url()) && request.method() === "GET"
   );
 
   await sidebarOf(page).getByRole("link", { name: "Personer" }).click();

@@ -18,7 +18,14 @@ import {
   WorkspaceWriteRefused,
   WorkspaceWriter,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Logger, Predicate } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  Layer,
+  Logger,
+  Predicate,
+  String as Str,
+} from "effect";
 
 import type { Deployment } from "../src/server/deployment";
 import {
@@ -138,11 +145,11 @@ describe("spec 0008 falsifier 5: the Workspace write gate", () => {
           "each change was captured once"
         );
         assert.isTrue(
-          Arr.every(seen, (line) => line.includes("kind=Ensure")),
+          Arr.every(seen, (line) => Str.includes("kind=Ensure")(line)),
           "the log names the kind of the change"
         );
         assert.isFalse(
-          Arr.some(seen, (line) => line.includes("vektorprogrammet.no")),
+          Arr.some(seen, (line) => Str.includes("vektorprogrammet.no")(line)),
           "and no address: an address is personal data"
         );
       })

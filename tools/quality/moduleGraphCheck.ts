@@ -1,4 +1,4 @@
-import { Array as Arr, Effect, Option, Order } from "effect";
+import { Array as Arr, Effect, Option, Order, String as Str } from "effect";
 
 import { callsWithin } from "./callSites.ts";
 import { layerRank } from "./moduleGraph.ts";
@@ -38,10 +38,13 @@ interface UnitEdge {
 const site = (use: Use): string => `${use.path}:${use.line}`;
 
 const baseName = (root: string): string =>
-  root.slice(root.lastIndexOf("/") + 1);
+  Option.match(Str.lastIndexOf("/")(root), {
+    onNone: () => root,
+    onSome: (at) => Str.slice(at + 1)(root),
+  });
 
 const unitOf = (units: readonly Unit[], path: string): Option.Option<Unit> =>
-  Arr.findFirst(units, ({ root }) => path.startsWith(`${root}/`));
+  Arr.findFirst(units, ({ root }) => Str.startsWith(`${root}/`)(path));
 
 /**
  * The units that a path reaches into: the one that holds it, and every unit below it when it is a directory above
@@ -55,9 +58,9 @@ const unitsReachedBy = (
   Arr.filter(
     units,
     ({ root }) =>
-      `${path}/`.startsWith(`${root}/`) ||
+      Str.startsWith(`${root}/`)(`${path}/`) ||
       path === "" ||
-      root.startsWith(`${path}/`)
+      Str.startsWith(`${path}/`)(root)
   );
 
 /** The units that an import reaches into by a path: a glob by its directory, any other file by the unit that holds it. */
@@ -190,7 +193,7 @@ const declarationFindings = (
   );
 
   const ownership = Arr.flatMap(governedPaths, (path) => {
-    if (!path.endsWith(".ts")) {
+    if (!Str.endsWith(".ts")(path)) {
       return [
         `${path}: is a source file of the governed tree (${governed}) and not a .ts file; the module globs read .ts only, so rename it`,
       ];
@@ -295,7 +298,7 @@ export const moduleGraphFindings = (
     const { path: target } = use.target;
 
     const sameUnit = Option.exists(unitOf(units, use.path), ({ root }) =>
-      target.startsWith(`${root}/`)
+      Str.startsWith(`${root}/`)(target)
     );
 
     return sameUnit && sourcePattern.test(target) && !isGoverned(target)

@@ -10,6 +10,7 @@ import {
   Record as Rec,
   Schema,
   SchemaAST,
+  String as Str,
 } from "effect";
 
 import { COLLECTIONS, NewsData, SponsorData, TextData } from "../src/index.ts";
@@ -196,8 +197,8 @@ describe("collection data as EmDash answers it", () => {
 
         const noTitle = yield* Effect.flip(decodeText({ content: [] }));
 
-        assert.isTrue(badSize.message.includes("size"));
-        assert.isTrue(noTitle.message.includes("title"));
+        assert.isTrue(Str.includes("size")(badSize.message));
+        assert.isTrue(Str.includes("title")(noTitle.message));
       })
   );
 });

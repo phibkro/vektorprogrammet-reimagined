@@ -5,7 +5,7 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { compareSync } from "bcryptjs";
-import { Array as Arr, Effect, Schema } from "effect";
+import { Array as Arr, Effect, Schema, String as Str } from "effect";
 
 import { allowedRichText, bcryptProbe, xssCorpus } from "../src/fixtures.ts";
 import * as Protocol from "../src/protocol.ts";
@@ -68,7 +68,7 @@ describe("check 9 fixtures", () => {
 
 describe("check 10 fixtures", () => {
   it("the made-up hash was made by libxcrypt for the probe input, with PHP's prefix and cost 12", () => {
-    assert.isTrue(bcryptProbe.stored.startsWith(bcryptProbe.prefix));
+    assert.isTrue(Str.startsWith(bcryptProbe.prefix)(bcryptProbe.stored));
     assert.isTrue(compareSync(bcryptProbe.right, bcryptProbe.stored));
     assert.isFalse(compareSync(bcryptProbe.wrong, bcryptProbe.stored));
   });

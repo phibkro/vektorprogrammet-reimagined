@@ -10,7 +10,7 @@ import {
   SlackTarget,
 } from "@vektorprogrammet/domain";
 import type { DepartmentDraft, PublicFile } from "@vektorprogrammet/domain";
-import { DateTime } from "effect";
+import { DateTime, String as Str } from "effect";
 
 export const departmentDraft = (
   city: string,
@@ -19,12 +19,12 @@ export const departmentDraft = (
   active: true,
   address: null,
   city,
-  email: EmailAddress.make(`${city.toLowerCase()}@avdeling.example`),
+  email: EmailAddress.make(`${Str.toLowerCase(city)}@avdeling.example`),
   latitude: null,
   logoKey: null,
   longitude: null,
   name: `Vektor ${city}`,
-  shortName: city.slice(0, 3).toUpperCase(),
+  shortName: Str.toUpperCase(Str.slice(0, 3)(city)),
   slackChannel: null,
   ...overrides,
 });
@@ -43,7 +43,7 @@ export const slack = (text: string): OutboxMessage =>
 export const fileKey = (
   digit: string,
   extension: "png" | "jpg" | "pdf" = "png"
-): FileKey => FileKey.make(`${digit.repeat(64)}.${extension}`);
+): FileKey => FileKey.make(`${Str.repeat(64)(digit)}.${extension}`);
 
 export const AT = DateTime.makeUnsafe("2026-10-15T10:00:00.000Z");
 

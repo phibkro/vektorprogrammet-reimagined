@@ -5,7 +5,13 @@
  * groups every personal column of the catalog by what it is for. Both are plain values: the contact form's component
  * and `tools/docgen` render them, so the page and the document cannot say different things.
  */
-import { Array as Arr, Order, Predicate, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Order,
+  Predicate,
+  Record as Rec,
+  String as Str,
+} from "effect";
 
 import type { CatalogOf } from "./catalog.ts";
 import type { Approval, PersonalData, Words } from "./declaration.ts";
@@ -90,7 +96,7 @@ const approvalOf = (data: PersonalData): Approval =>
   retentionIsProposed(data.retention) ? "proposed" : "decided";
 
 const storedAt = (catalog: CatalogOf, storedIn: string) => {
-  const [table = "", column = ""] = storedIn.split(".");
+  const [table, column = ""] = Str.split(storedIn, ".");
   const declared = catalog[table]?.columns[column];
 
   return Predicate.isTagged(declared, "PersonalData")

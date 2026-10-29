@@ -1,5 +1,12 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Array as Arr, Effect, FileSystem, Option, Schema } from "effect";
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Option,
+  Schema,
+  String as Str,
+} from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { parseSync } from "oxc-parser";
 
@@ -90,8 +97,8 @@ interface Site {
 
 const isScannable = (path: string): boolean =>
   sourcePattern.test(path) &&
-  !path.startsWith("node_modules/") &&
-  !path.startsWith(".devenv/");
+  !Str.startsWith("node_modules/")(path) &&
+  !Str.startsWith(".devenv/")(path);
 
 const main = Effect.gen(function* main() {
   const fs = yield* FileSystem.FileSystem;
@@ -101,7 +108,10 @@ const main = Effect.gen(function* main() {
     ChildProcess.make("git", ["ls-files", "-c", "-o", "--exclude-standard"])
   );
 
-  const listed = Arr.filter(listing.split(/\r?\n/u), (path) => path !== "");
+  const listed = Arr.filter(
+    Str.split(listing, /\r?\n/u),
+    (path) => path !== ""
+  );
 
   // `git ls-files -c` also lists tracked files deleted from the working tree (for example mid-rename); only files present on disk are scanned.
   const paths = Arr.flatten(
@@ -143,10 +153,13 @@ const main = Effect.gen(function* main() {
         const { comments } = parseSync(path, text);
 
         return Arr.flatMap(comments, (comment) => {
-          const line = text.slice(0, comment.start).split("\n").length;
+          const line = Str.split(
+            Str.slice(0, comment.start)(text),
+            "\n"
+          ).length;
 
           return Arr.map(
-            [...comment.value.matchAll(directivePattern)],
+            [...Str.matchAll(directivePattern)(comment.value)],
             ([directive]): Site => ({ directive, line, path })
           );
         });

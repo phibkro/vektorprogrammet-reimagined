@@ -85,7 +85,7 @@ const PHRASE = new RegExp(
 /** The period phrases of a text, in lower case, in the order they stand. */
 const phrasesIn = (text: string): readonly string[] =>
   Arr.map(Arr.fromIterable(Str.matchAll(PHRASE)(text)), ([phrase]) =>
-    phrase.toLowerCase()
+    Str.toLowerCase(phrase)
   );
 
 /**
@@ -171,7 +171,7 @@ const declaredStrings = Effect.fnUntraced(function* declaredStrings(
  */
 const isWrittenOnPurpose = (group: string, text: string): boolean =>
   group === "consentTexts" ||
-  text.startsWith("Four weeks before the semester ends");
+  Str.startsWith("Four weeks before the semester ends")(text);
 
 // ------------------------------------------------------------------ the second evaluation
 

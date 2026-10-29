@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Option, Order } from "effect";
+import { Array as Arr, Effect, Option, Order, String as Str } from "effect";
 
 import { storeBoundaryProbes } from "../probes.ts";
 import { allowances, globToRegExp, groupOf } from "../storeBoundary.ts";
@@ -29,7 +29,7 @@ const findingsAt = (
 ) =>
   Arr.filter(
     boundaryFindings([path], [site(path, specifier, group)]),
-    (finding) => finding.startsWith(path)
+    (finding) => Str.startsWith(path)(finding)
   );
 
 const groupsIn = (path: string, specifier: string) =>
@@ -165,7 +165,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       assert.deepStrictEqual(
         Arr.filter(
           boundaryFindings([path], [site(path, "drizzle-orm", "drizzle")]),
-          (finding) => finding.includes("does not allow")
+          (finding) => Str.includes("does not allow")(finding)
         ),
         [
           `${path}:1: imports drizzle-orm (drizzle), which its allowance does not allow (Better Auth's own \`pg\` adapter (ADR 0014, answer 4; exception EX-0017). It reads no domain table.)`,
@@ -177,7 +177,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       assert.isTrue(
         Arr.some(
           boundaryFindings(["tools/quality/storeBoundary.ts"], []),
-          (finding) => finding.startsWith("packages/db/**: allowance")
+          (finding) => Str.startsWith("packages/db/**: allowance")(finding)
         )
       );
     });
@@ -209,7 +209,8 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     const production = Arr.flatMap(allowances, (allowance) =>
       Arr.filter(
         allowance.files,
-        (glob) => glob.includes("/src/") && !glob.startsWith("packages/db/")
+        (glob) =>
+          Str.includes("/src/")(glob) && !Str.startsWith("packages/db/")(glob)
       )
     );
 

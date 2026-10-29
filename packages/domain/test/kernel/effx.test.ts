@@ -11,6 +11,7 @@ import {
   Predicate,
   Record as Rec,
   Schema,
+  String as Str,
 } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
@@ -614,7 +615,7 @@ describe("spec 0007d: what a machine and a domain say about themselves is checke
 
     assert.deepStrictEqual(
       Arr.filter(Domain.problems(broken), (line) =>
-        line.startsWith("Membership")
+        Str.startsWith("Membership")(line)
       ),
       [
         "Membership has the terminal state Gone, which is not one of its states",

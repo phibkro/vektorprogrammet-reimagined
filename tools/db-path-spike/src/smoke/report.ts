@@ -1,5 +1,5 @@
 /** How a smoke run is printed: one line per check, then a summary. Pure, so the output format is tested. */
-import { Array as Arr } from "effect";
+import { Array as Arr, String as Str } from "effect";
 
 import type { Verdict } from "../verdicts.ts";
 
@@ -11,7 +11,7 @@ export interface CheckLine {
 
 /** One check: its verdict and title, then the evidence on its own line. */
 export const renderLine = ({ id, title, verdict }: CheckLine) =>
-  `${verdict.pass ? "PASS" : "FAIL"}  ${id.padEnd(3)} ${title}\n          ${verdict.evidence}`;
+  `${verdict.pass ? "PASS" : "FAIL"}  ${Str.padEnd(3)(id)} ${title}\n          ${verdict.evidence}`;
 
 /** The ids of the checks that failed, in order. */
 export const failedIds = (lines: readonly CheckLine[]) =>

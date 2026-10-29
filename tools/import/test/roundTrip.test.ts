@@ -27,6 +27,7 @@ import {
   Record as Rec,
   Schema,
   Stream,
+  String as Str,
 } from "effect";
 import { Digest } from "effect/crypto";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -146,7 +147,7 @@ const fakeFilesDir = Effect.gen(function* fakeFilesDir() {
   const root = yield* fs.makeTempDirectoryScoped();
 
   for (const file of FAKE_FILES) {
-    const target = path.join(root, ...file.path.split("/"));
+    const target = path.join(root, ...Str.split(file.path, "/"));
     yield* fs.makeDirectory(path.dirname(target), { recursive: true });
     yield* fs.writeFile(target, file.bytes);
   }
@@ -389,7 +390,7 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           );
 
           assert.isFalse(
-            Arr.some(columns, (c) => c.column_name.includes("role"))
+            Arr.some(columns, (c) => Str.includes("role")(c.column_name))
           );
           const events = yield* rowsOf("social_event");
           assert.deepStrictEqual(

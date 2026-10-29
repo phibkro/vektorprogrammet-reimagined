@@ -15,7 +15,7 @@
  *   `varchar(255)`. Legacy let a 255-character title fill the column and the
  *   uniqueness suffix overflow it.
  */
-import { Array as Arr, Schema } from "effect";
+import { Array as Arr, Schema, String as Str } from "effect";
 
 /** Lenient on purpose so imported legacy slugs decode: lowercase ASCII letters, digits and dashes. */
 export const Slug = Schema.String.check(
@@ -49,15 +49,25 @@ const MAX_BASE_LENGTH = 240;
 /** The base slug of a title, before uniqueness. */
 export const slugify = (title: string): Slug => {
   const replaced = Arr.reduce(REPLACEMENTS, title, (text, [from, to]) =>
-    text.replaceAll(from, to)
+    Str.replaceAll(from, to)(text)
   );
 
-  const base = replaced
-    .replaceAll(/[^A-Za-z0-9-]+/gu, "-")
-    .replaceAll(/^-+|-+$/gu, "")
-    .toLowerCase()
-    .slice(0, MAX_BASE_LENGTH)
-    .replace(/-+$/u, "");
+  const base = Str.replace(
+    /-+$/u,
+    ""
+  )(
+    Str.slice(
+      0,
+      MAX_BASE_LENGTH
+    )(
+      Str.toLowerCase(
+        Str.replaceAll(
+          /^-+|-+$/gu,
+          ""
+        )(Str.replaceAll(/[^A-Za-z0-9-]+/gu, "-")(replaced))
+      )
+    )
+  );
 
   return Slug.make(base.length > 0 ? base : FALLBACK_SLUG);
 };

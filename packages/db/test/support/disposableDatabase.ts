@@ -11,7 +11,15 @@
 import { PgClient } from "@effect/sql-pg";
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
 import { migrate } from "drizzle-orm/effect-postgres/migrator";
-import { Config, Context, Effect, Layer, Random, Redacted } from "effect";
+import {
+  Config,
+  Context,
+  Effect,
+  Layer,
+  Random,
+  Redacted,
+  String as Str,
+} from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 
 const migrationsFolder = new URL("../../drizzle/", import.meta.url).pathname;
@@ -49,7 +57,7 @@ export const withClient = <A, E, R>(
 export const serializableByDefault = Effect.gen(
   function* serializableByDefault() {
     const url = yield* TestDatabaseUrl;
-    const name = new URL(Redacted.value(url)).pathname.slice(1);
+    const name = Str.slice(1)(new URL(Redacted.value(url)).pathname);
 
     yield* withClient(url, (client) =>
       client.unsafe(

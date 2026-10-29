@@ -20,7 +20,7 @@ import {
   privacyNotice,
   privacyText,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Order, Schema } from "effect";
+import { Array as Arr, Effect, Order, Schema, String as Str } from "effect";
 
 import { ANONYMOUS_CHOICE } from "../src/lib/testActor.ts";
 import { RETENTION_CRON } from "../worker.config.ts";
@@ -271,7 +271,7 @@ test("the link of the alumni e-mail answers without signing in, answers again, a
   // that the click made (a click that made no request fails on that, and not on a missing message), and the form of the
   // button that was clicked shows it.
   const forged = await visitorPage(browser);
-  await openPage(forged, `${origin}/alumni?kode=c_${"A".repeat(43)}`);
+  await openPage(forged, `${origin}/alumni?kode=c_${Str.repeat(43)("A")}`);
 
   const keep = question(forged, KEEP);
   expect(
