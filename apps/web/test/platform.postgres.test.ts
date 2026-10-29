@@ -10,23 +10,22 @@
  * - The failure of the request answers with its own status.
  */
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
-import {
-  Forbidden,
-  PlatformProbe,
-  requiredChecks,
-} from "@vektorprogrammet/domain";
+import { PlatformProbe, requiredChecks } from "@vektorprogrammet/domain";
 import type { PlatformReport } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
-import type { Redacted } from "effect";
+import { Array as Arr, Effect, Option, Schema } from "effect";
 
 import { success } from "../src/lib/outcome";
-import { failureOf } from "../src/server/errors";
 import { platformReport, platformResponse } from "../src/server/platform";
+import {
+  assertEmpty404,
+  assertFailureStatus,
+  bodyOf,
+  databaseAt,
+} from "./support/diagnosticRoute";
 
 const Body = Schema.Struct({
   checks: Schema.Array(
@@ -41,14 +40,7 @@ const Body = Schema.Struct({
   profile: Schema.String,
 });
 
-const bodyOf = (response: Response) =>
-  Effect.flatMap(
-    Effect.promise(() => response.text()),
-    Schema.decodeUnknownEffect(Schema.fromJsonString(Body))
-  );
-
-const databaseAt = (url: Redacted.Redacted) =>
-  DatabaseLive({ url }).pipe(Layer.orDie);
+const readBody = (response: Response) => bodyOf(Body, response);
 
 /** A probe that fails the test when it is used: production must never reach the store. */
 const untouchable = PlatformProbe.of({
@@ -82,7 +74,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
             );
 
             const response = platformResponse(success(report));
-            const body = yield* bodyOf(response);
+            const body = yield* readBody(response);
 
             assert.strictEqual(response.status, 200);
             assert.deepStrictEqual(body.problems, []);
@@ -113,22 +105,13 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
 
           assert.deepStrictEqual(report, Option.none());
 
-          const response = platformResponse(success(report));
-          assert.strictEqual(response.status, 404);
-          assert.strictEqual(yield* Effect.promise(() => response.text()), "");
+          yield* assertEmpty404(platformResponse(success(report)));
         })
     );
 
     it.effect(
       "F1: the failure of the request answers with its own status",
-      () =>
-        Effect.sync(() => {
-          const refused = platformResponse(
-            failureOf(new Forbidden({ command: "createDepartment" }))
-          );
-
-          assert.strictEqual(refused.status, 403);
-        })
+      () => assertFailureStatus(platformResponse)
     );
   }
 );
@@ -159,7 +142,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
           });
 
           assert.strictEqual(didNotHold.status, 500);
-          const failed = yield* bodyOf(didNotHold);
+          const failed = yield* readBody(didNotHold);
           assert.lengthOf(failed.problems, 1);
           assert.include(
             failed.problems[0] ?? "",
@@ -172,14 +155,14 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
           });
 
           assert.strictEqual(missing.status, 500);
-          const absent = yield* bodyOf(missing);
+          const absent = yield* readBody(missing);
           assert.lengthOf(absent.problems, 1);
           assert.include(absent.problems[0] ?? "", id);
 
           const empty = answerFor({ checks: [], profile: "test" });
           assert.strictEqual(empty.status, 500);
           assert.lengthOf(
-            (yield* bodyOf(empty)).problems,
+            (yield* readBody(empty)).problems,
             requiredChecks.length
           );
         })

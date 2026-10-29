@@ -628,6 +628,7 @@ export default defineConfig({
           "apps/web/test/support/workerEnv.ts",
           "apps/web/test/outboxQueue.postgres.test.ts",
           "apps/web/test/support/commandOutcome.ts",
+          "apps/web/test/support/diagnosticRoute.ts",
           "apps/web/test/support/fakeQueue.ts",
           "apps/web/test/outboxPublisher.test.ts",
           "apps/web/test/errors.test.ts",

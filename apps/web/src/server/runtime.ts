@@ -323,11 +323,7 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
  * `readsNeverWrite.postgres.test.ts` runs as a role that can only read. Only `GET /api/platform` calls it, and that route
  * answers nothing on production.
  */
-export const runProbe = <A, E extends RequestError, R extends RequestServices>(
-  scope: RequestScope,
-  program: Effect.Effect<A, E, R>
-): Promise<Outcome<A>> =>
-  runOutcome(liveRequestLayer(scope), program, scope.signal);
+export const runProbe: typeof runQuery = runQuery;
 
 /**
  * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the

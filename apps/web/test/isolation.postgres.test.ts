@@ -13,24 +13,27 @@
  * - A production deployment answers an empty 404 and never asks the store.
  */
 import { assert, describe, it as plain, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
   serializableByDefault,
 } from "@vektorprogrammet/db/testing";
-import { Forbidden, IsolationProbe } from "@vektorprogrammet/domain";
+import { IsolationProbe } from "@vektorprogrammet/domain";
 import type { IsolationReport } from "@vektorprogrammet/domain";
-import { Effect, Layer, Option, Schema } from "effect";
-import type { Redacted } from "effect";
+import { Effect, Option, Schema } from "effect";
 
 import { success } from "../src/lib/outcome";
-import { failureOf } from "../src/server/errors";
 import {
   isolationProblems,
   isolationReport,
   isolationResponse,
 } from "../src/server/isolation";
+import {
+  assertEmpty404,
+  assertFailureStatus,
+  bodyOf,
+  databaseAt,
+} from "./support/diagnosticRoute";
 
 const GOOD: IsolationReport = {
   probe: "serializable",
@@ -45,15 +48,6 @@ const Body = Schema.Struct({
   roleDefault: Schema.String,
   transactor: Schema.String,
 });
-
-const bodyOf = (response: Response) =>
-  Effect.flatMap(
-    Effect.promise(() => response.text()),
-    Schema.decodeUnknownEffect(Schema.fromJsonString(Body))
-  );
-
-const databaseAt = (url: Redacted.Redacted) =>
-  DatabaseLive({ maxConnections: 2, url }).pipe(Layer.orDie);
 
 /** A probe that fails the test when it is used: production must never reach the store. */
 const untouchable = IsolationProbe.of({
@@ -76,7 +70,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
 
             // The check first: a report that is not the promised one answers 500 and says why.
             const response = isolationResponse(success(report));
-            assert.deepStrictEqual(yield* bodyOf(response), {
+            assert.deepStrictEqual(yield* bodyOf(Body, response), {
               ...GOOD,
               problems: [],
             });
@@ -100,22 +94,13 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
 
           assert.deepStrictEqual(report, Option.none());
 
-          const response = isolationResponse(success(report));
-          assert.strictEqual(response.status, 404);
-          assert.strictEqual(yield* Effect.promise(() => response.text()), "");
+          yield* assertEmpty404(isolationResponse(success(report)));
         })
     );
 
     it.effect(
       "falsifier 4: the failure of the request answers with its own status",
-      () =>
-        Effect.sync(() => {
-          const refused = isolationResponse(
-            failureOf(new Forbidden({ command: "createDepartment" }))
-          );
-
-          assert.strictEqual(refused.status, 403);
-        })
+      () => assertFailureStatus(isolationResponse)
     );
   }
 );
@@ -141,7 +126,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
           const response = isolationResponse(success(report));
           assert.strictEqual(response.status, 500);
 
-          const { problems } = yield* bodyOf(response);
+          const { problems } = yield* bodyOf(Body, response);
           assert.lengthOf(problems, 1);
           assert.include(problems[0] ?? "", "the role's default");
         })

@@ -91,6 +91,7 @@ export const allowances: readonly Allowance[] = [
     files: [
       "apps/web/test/support/commandOutcome.ts",
       "apps/web/test/support/deliveryLive.ts",
+      "apps/web/test/support/diagnosticRoute.ts",
       "apps/web/test/support/outboxQueue.worker.ts",
       "apps/web/test/support/workspaceDatabase.ts",
     ],
