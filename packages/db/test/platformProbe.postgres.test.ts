@@ -69,6 +69,23 @@ const failing = (report: {
     ({ id }) => id
   );
 
+/** Runs `assertDetail` on the detail of each of the three lock checks. */
+const eachLockCheck = (
+  report: {
+    readonly checks: readonly {
+      readonly id: string;
+      readonly detail: string;
+    }[];
+  },
+  assertDetail: (detail: string) => void
+) => {
+  for (const check of report.checks) {
+    if (LOCK_IDS.includes(check.id)) {
+      assertDetail(check.detail);
+    }
+  }
+};
+
 layer(migratedTestDatabase, { excludeTestServices: true })(
   "spec 0025: the platform probe on PostgreSQL",
   (it) => {
@@ -165,11 +182,9 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
 
           assert.sameMembers(failing(report), LOCK_IDS);
 
-          for (const check of report.checks) {
-            if (LOCK_IDS.includes(check.id)) {
-              assert.include(check.detail, "could not run");
-            }
-          }
+          eachLockCheck(report, (detail) => {
+            assert.include(detail, "could not run");
+          });
 
           assert.strictEqual(platformProblems(report).length, LOCK_IDS.length);
 
@@ -214,12 +229,10 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
           assert.isBelow(Duration.toMillis(took), 12_000);
           assert.sameMembers(failing(report), LOCK_IDS);
 
-          for (const check of report.checks) {
-            if (LOCK_IDS.includes(check.id)) {
-              assert.include(check.detail, "SQLSTATE 55P03");
-              assert.isBelow(check.detail.length, 200);
-            }
-          }
+          eachLockCheck(report, (detail) => {
+            assert.include(detail, "SQLSTATE 55P03");
+            assert.isBelow(detail.length, 200);
+          });
 
           assert.isAtLeast(report.checks.length, requiredChecks.length);
         }),
