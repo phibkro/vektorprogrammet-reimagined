@@ -29,7 +29,7 @@ describe("database platforms document (spec 0025)", () => {
   );
 
   it.effect(
-    "F7: the page says what only a direct connection has, and marks the pg-txmode column unmerged",
+    "F7: the page says what only a direct connection has, marks the pg-txmode column as a pointer, and prints every pooled-safe construct",
     () =>
       Effect.gen(function* pageNamesThem() {
         const text = yield* page;
@@ -38,7 +38,20 @@ describe("database platforms document (spec 0025)", () => {
           assert.include(text, `\`${construct}\``);
         }
 
-        assert.include(text, "`pg-txmode` row (unmerged)");
+        assert.include(
+          text,
+          "`pg-txmode` row (phibkro/pg-txmode@16e11ef: a pointer, private and unpublished)"
+        );
+
+        // Every construct that Hyperdrive leaves alone has its row, a recipe's or not.
+        for (const construct of [
+          "set-local",
+          "row-lock-nowait",
+          "unnamed-statements",
+        ]) {
+          assert.include(text, `| \`${construct}\` |`);
+        }
+
         assert.include(text, "lock-excludes-second-holder");
       })
   );
