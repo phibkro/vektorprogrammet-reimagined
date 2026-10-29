@@ -17,7 +17,7 @@ import type { SourceFile, Target } from "./resolveImports.ts";
  */
 
 /** What the compiler resolved a specifier to. A `file` is a path from the repository root, after symlinks. */
-export type CompilerTarget =
+type CompilerTarget =
   | { readonly kind: "file"; readonly path: string }
   | { readonly kind: "external"; readonly path: string }
   | { readonly kind: "unresolved" };
