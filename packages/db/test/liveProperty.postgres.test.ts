@@ -111,8 +111,8 @@ layer(postgresDatabase({ maxConnections: 4 }), {
   );
 
   /**
-   * Spec 0019 R24: a level interrupted after its closing statement was issued has no verdict on whether it merged, but
-   * it merges whole, and it never brings back what a rolled-back level wrote. The program makes it happen: the level's
+   * Spec 0019 R26: a level interrupted after its closing statement was issued has merged (R26), and it never brings back
+   * what a rolled-back level wrote. The program makes it happen: the level's
    * `RELEASE` queues behind a statement that holds the connection for 400 ms, and a deadline of 150 ms interrupts the
    * level while it waits. The controls change the committed state, or the evidence, and each must be caught.
    */
@@ -127,7 +127,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         const [first, second, rolledBack] = ledger.writes;
         const [, level] = ledger.levels;
 
-        assert.isTrue(level?.unknown === true, order);
+        assert.isTrue(level?.mergedAfterInterrupt === true, order);
         assert.deepStrictEqual(violations(ledger, present), [], order);
 
         // Both writes of the interrupted level merged: the closing statement was issued, and it ran.
@@ -135,15 +135,16 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         assert.isTrue(present.has(second?.label ?? ""), order);
         assert.isFalse(present.has(rolledBack?.label ?? "?"), order);
 
-        // Control: a store that let the interrupted level commit half its writes.
+        // Control: a store that lost a row of the interrupted level, even if it were its only one. The level has merged, so
+        // a write that reported success in it and is not in the committed state is reported.
         const half = new Set(present);
         half.delete(second?.label ?? "");
 
         assert.isTrue(
           Arr.some(violations(ledger, half), (found) =>
-            found.includes("interrupted at its commit")
+            found.includes(`${second?.label ?? "?"} reported success`)
           ),
-          "half of an interrupted level's writes were not caught"
+          "a row of an interrupted level that went missing was not caught"
         );
 
         // Control: a store that brought back what a rolled-back level wrote.
@@ -160,7 +161,7 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         // Control: without the evidence that the closing statement was issued the normal verdict applies, and the
         // level that was interrupted is a level that rolled back, whose rows are in the committed state.
         if (level !== undefined) {
-          level.unknown = false;
+          level.mergedAfterInterrupt = false;
         }
 
         assert.isAbove(violations(ledger, present).length, 0, order);

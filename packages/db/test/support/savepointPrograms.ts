@@ -255,8 +255,8 @@ interface LevelRecord {
   reachedCommit: boolean;
   /** The span of its transaction, where the closing statement is recorded. */
   span: Tracer.Span | undefined;
-  /** It reached its commit, its closing statement was issued, and it was interrupted: it may or may not have merged. */
-  unknown: boolean;
+  /** It reached its commit, its closing statement was issued, and it was interrupted: it has merged. */
+  mergedAfterInterrupt: boolean;
 }
 
 type Outcome = "pending" | "ok" | "refused" | "other";
@@ -369,10 +369,10 @@ const levelOf = (
 
     const record: LevelRecord = {
       committed: false,
+      mergedAfterInterrupt: false,
       parent,
       reachedCommit: false,
       span: undefined,
-      unknown: false,
     };
 
     ledger.levels.push(record);
@@ -400,14 +400,14 @@ const levelOf = (
         Effect.sync(() => {
           const issued = statementIssued(record.span);
           record.committed = Exit.isSuccess(exit);
-          record.unknown =
+          record.mergedAfterInterrupt =
             record.reachedCommit &&
             Exit.isFailure(exit) &&
             Cause.hasInterruptsOnly(exit.cause) &&
             issued;
           note(
             ledger,
-            `L${id} exit ${Exit.isSuccess(exit) ? "success" : "failure"}, commit statement issued: ${issued}${record.unknown ? " (interrupted at its commit)" : ""}`
+            `L${id} exit ${Exit.isSuccess(exit) ? "success" : "failure"}, commit statement issued: ${issued}${record.mergedAfterInterrupt ? " (interrupted at its commit)" : ""}`
           );
         })
     );
@@ -525,24 +525,18 @@ export const committedLabels = (prefix: string) =>
 // ---- the oracle ------------------------------------------------------------------------------------------------
 
 /**
- * What became of the rows written in a level, from what its levels reported. A level that was interrupted after its
- * commit statement was issued (the span of its transaction has the event that `withTransaction` records before it sends
- * the `RELEASE` or `COMMIT`, which it sends where it cannot be interrupted) has an unknown fate: the interruption is
- * reported afterwards, so the rows may or may not have merged, as with any commit whose acknowledgment is lost. A level
- * that failed, was interrupted before that, or was interrupted without ever reaching its commit, rolled back, and its
- * rows with it: the normal verdict.
+ * What became of the rows written in a level, from what its levels reported. A level whose exit failed by interruption
+ * alone, after the event that `withTransaction` records on its span before it sends the `RELEASE` or `COMMIT`, has merged:
+ * the statement runs where it cannot be interrupted, and a statement that fails adds a defect or a failure to the cause,
+ * so an interrupts-only exit means it succeeded. The interruption is reported afterwards (R26). A level that failed, was
+ * interrupted before that event, or was interrupted without reaching its commit, rolled back, and its rows with it.
  */
-type Fate = "committed" | "rolledBack" | "unknown";
+type Fate = "committed" | "rolledBack";
 
-const fateOf = (record: LevelRecord): Fate => {
-  if (record.committed) {
-    return "committed";
-  }
+const fateOf = (record: LevelRecord): Fate =>
+  record.committed || record.mergedAfterInterrupt ? "committed" : "rolledBack";
 
-  return record.unknown ? "unknown" : "rolledBack";
-};
-
-/** The fate of the rows of a level and of every level around it: a rollback anywhere decides it, then an unknown fate. */
+/** The fate of the rows of a level and of every level around it: a rollback anywhere decides it. */
 const chainFate = (ledger: Ledger, level: number): Fate => {
   if (level === NO_LEVEL) {
     return "committed";
@@ -550,70 +544,29 @@ const chainFate = (ledger: Ledger, level: number): Fate => {
 
   const record = ledger.levels[level];
 
-  if (record === undefined) {
-    return "rolledBack";
-  }
-
-  const own = fateOf(record);
-  const around = chainFate(ledger, record.parent);
-
-  if (own === "rolledBack" || around === "rolledBack") {
-    return "rolledBack";
-  }
-
-  return own === "unknown" || around === "unknown" ? "unknown" : "committed";
-};
-
-/** Whether the successful writes of the level, or of a level that committed inside it, are where the level around it left them. */
-const underLevel = (ledger: Ledger, level: number, top: number): boolean => {
-  if (level === top) {
-    return true;
-  }
-
-  const record = ledger.levels[level];
-
-  return (
-    record !== undefined &&
-    record.committed &&
-    underLevel(ledger, record.parent, top)
-  );
+  return record !== undefined &&
+    fateOf(record) === "committed" &&
+    chainFate(ledger, record.parent) === "committed"
+    ? "committed"
+    : "rolledBack";
 };
 
 /**
- * A level that was interrupted after its commit statement was issued has no verdict on whether it merged, but it merges
- * whole: every successful write of it, and of every level that committed inside it, is in the committed state or none is.
+ * What the run got wrong: empty when every write is where the levels it reported into say it is. A write that reported
+ * success in a level that merged after its interruption must be present, and one in a level that rolled back must be
+ * absent; a refused write is absent.
  */
-const atomicity = (ledger: Ledger, present: ReadonlySet<string>) =>
-  Arr.flatMap(ledger.levels, (record, top) => {
-    if (!record.unknown) {
-      return [];
-    }
-
-    const members = Arr.filter(
-      ledger.writes,
-      (entry) => entry.outcome === "ok" && underLevel(ledger, entry.level, top)
-    );
-
-    const inState = Arr.length(
-      Arr.filter(members, (entry) => present.has(entry.label))
-    );
-
-    return inState === 0 || inState === members.length
-      ? []
-      : [
-          `level ${top} was interrupted at its commit and ${inState} of its ${members.length} successful writes are in the committed state`,
-        ];
-  });
-
-/** What each write says about itself: where it must be, from the levels it reported into. */
-const writeViolations = (ledger: Ledger, present: ReadonlySet<string>) =>
+export const violations = (
+  ledger: Ledger,
+  present: ReadonlySet<string>
+): readonly string[] =>
   Arr.flatMap(ledger.writes, (record) => {
     const fate = chainFate(ledger, record.level);
     const there = present.has(record.label);
 
     const problem = Match.value(record.outcome).pipe(
       Match.when("ok", () =>
-        fate === "unknown" || there === (fate === "committed")
+        there === (fate === "committed")
           ? ""
           : `${record.label} reported success in level ${record.level} (fate of its levels: ${fate}) and ${there ? "is" : "is not"} in the committed state`
       ),
@@ -629,18 +582,6 @@ const writeViolations = (ledger: Ledger, present: ReadonlySet<string>) =>
 
     return problem === "" ? [] : [problem];
   });
-
-/**
- * What the run got wrong: empty when every write is where the levels it reported into say it is, and every level that was
- * interrupted after its commit statement was issued merged whole or not at all.
- */
-export const violations = (
-  ledger: Ledger,
-  present: ReadonlySet<string>
-): readonly string[] => [
-  ...writeViolations(ledger, present),
-  ...atomicity(ledger, present),
-];
 
 /** The deepest nesting of levels in the body, the root counted as 1. */
 export const depthOf = (body: Body): number =>
@@ -667,7 +608,7 @@ export const depthOf = (body: Body): number =>
 /** What a run did, for the report: the levels it opened, the writes it made, how many were refused. */
 export const summary = (ledger: Ledger) => ({
   interruptedAtCommit: Arr.length(
-    Arr.filter(ledger.levels, (record) => record.unknown)
+    Arr.filter(ledger.levels, (record) => record.mergedAfterInterrupt)
   ),
   levels: ledger.levels.length,
   refused: Arr.length(

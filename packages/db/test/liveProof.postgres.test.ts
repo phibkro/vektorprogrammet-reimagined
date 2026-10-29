@@ -868,6 +868,77 @@ layer(postgresDatabase({ maxConnections: 4 }), {
   );
 
   /**
+   * Review round 6: a level ends and takes with it every level above it, as the savepoint statements do. Nested level A
+   * forks, into a scope that outlives the transaction, a fiber that opens level C and keeps it open. A ends over C and is
+   * abandoned. The outer level is then the top of the stack again and its ordinary write must succeed and commit. A `leave`
+   * that removes only its own entry leaves the closed C on top, and the outer level's write dies as `TransactionNotLive`.
+   */
+  it.effect(
+    "a level that ends over a level of a surviving fiber is abandoned, and the outer level is the top of the stack again: its write succeeds and commits",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* truncation() {
+          const scope = yield* Effect.scope;
+          const before = yield* outboxRows;
+          const cOpen = yield* Deferred.make<null>();
+          const cGate = yield* Deferred.make<null>();
+
+          const survivor =
+            yield* Deferred.make<Fiber.Fiber<Exit.Exit<unknown>>>();
+
+          const outer = yield* Effect.exit(
+            transactional(
+              Effect.gen(function* outerLevel() {
+                const a = yield* Effect.exit(
+                  transactional(
+                    Effect.gen(function* levelA() {
+                      const fiber = yield* Effect.forkIn(
+                        Effect.exit(
+                          transactional(
+                            Effect.andThen(
+                              Deferred.succeed(cOpen, null),
+                              Deferred.await(cGate)
+                            )
+                          )
+                        ),
+                        scope
+                      );
+
+                      yield* Deferred.succeed(survivor, fiber);
+                      yield* Deferred.await(cOpen);
+                    })
+                  )
+                );
+
+                assertRefused(
+                  a,
+                  "level A ended over a level that is still open"
+                );
+
+                return yield* Effect.exit(enqueue("after A"));
+              })
+            )
+          );
+
+          // C ends after the transaction has, with its connection released: that is C's own failure, not the outer level's.
+          yield* Deferred.succeed(cGate, null);
+          yield* Fiber.join(yield* Deferred.await(survivor));
+
+          assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
+
+          if (Exit.isSuccess(outer)) {
+            assert.isTrue(
+              Exit.isSuccess(outer.value),
+              describeExit(outer.value)
+            );
+          }
+
+          assert.strictEqual(yield* outboxRows, before + 1);
+        })
+      )
+  );
+
+  /**
    * Review round 4, P9: the proof conjunct of the admission of a nested level. A fiber that outlives nested level A holds
    * A's `[connection, 1]` pair. While the outer level's next nested level B is live, idle and the top of the stack, the
    * depth and the length both pass for that fiber, and only the proof it holds (A's, not B's) refuses it. Admitted, its

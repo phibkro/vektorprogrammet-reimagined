@@ -46,9 +46,9 @@
  * they commit or roll back with it, which is no forgery of a transaction that does not exist, and a finished level is
  * refused. And a level that is interrupted after its closing statement was issued (`withTransaction` records that on the span
  * of the level before it sends `RELEASE` or `COMMIT`, which it sends where it cannot be interrupted): the interruption is
- * reported afterwards, so the level says it failed and its rows may have merged, as with any commit whose
- * acknowledgment is lost. They merge whole or not at all, and nothing that a rolled-back level wrote comes back
- * (R24); `liveProperty.postgres.test.ts` holds both. A level interrupted before that statement rolled back.
+ * reported afterwards, so the level says it failed although it merged: a statement that fails adds its failure to the
+ * cause, so an exit that is interruption alone means the level merged, and its rows are in the level around it (R26;
+ * `liveProperty.postgres.test.ts` judges such a level committed). A level interrupted before that statement rolled back.
  *
  * Which methods verify is not listed here: it is the `Requires` rows of the domain's `TransactionModes`, the one
  * declaration of what a port method asks of a transaction, so a method that requires `InTransaction` is covered by being
