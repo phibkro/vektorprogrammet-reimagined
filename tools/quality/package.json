@@ -11,7 +11,8 @@
     "@effect/platform-node": "catalog:",
     "@vektorprogrammet/domain": "workspace:*",
     "effect": "catalog:",
-    "oxc-parser": "catalog:"
+    "oxc-parser": "catalog:",
+    "oxc-resolver": "catalog:"
   },
   "devDependencies": {
     "@effect/tsgo": "0.53.1",

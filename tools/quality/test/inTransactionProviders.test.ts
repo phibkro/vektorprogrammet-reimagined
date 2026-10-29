@@ -96,9 +96,6 @@ const allowances: readonly Allowance[] = [
 /** The source files that the scan reads. The listing comes from git, which leaves out what `.gitignore` leaves out. */
 const sourcePattern = /\.(?:[cm]?[jt]sx?)$/u;
 
-/** `storeBoundary.test.ts` writes its probe files into the tree for a moment, and this test runs beside it. */
-const skipped = /storeBoundaryProbe/u;
-
 const referencesIn = (source: string) => proofReferences("x.ts", source).length;
 
 /** The forgeries that the reviewers of round 1 and round 2 wrote, each of which type-checks (`/tmp/r2conf/forgery{A..F}.ts`). */
@@ -379,9 +376,7 @@ describe("InTransaction has few providers (spec 0018)", () => {
         const sources = yield* workingTreeSources(
           root,
           (path) =>
-            /^(?:apps|packages|tools)\//u.test(path) &&
-            sourcePattern.test(path) &&
-            !skipped.test(path)
+            /^(?:apps|packages|tools)\//u.test(path) && sourcePattern.test(path)
         );
 
         const providing = Arr.filter(
