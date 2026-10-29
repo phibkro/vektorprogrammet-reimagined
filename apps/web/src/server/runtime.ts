@@ -72,7 +72,7 @@ import type {
   RetentionRun,
 } from "@vektorprogrammet/domain";
 import { Cause, DateTime, Effect, Layer, Predicate, Redacted } from "effect";
-import type { Crypto } from "effect";
+import type { Digest, SecureRandom } from "effect/crypto";
 import { FetchHttpClient } from "effect/http";
 import type { SqlClient } from "effect/sql";
 
@@ -177,7 +177,8 @@ export type RequestServices =
   | FileStore
   | CurrentPrincipal
   | SiteOrigin
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | TurnstileVerifier
   | ContactRateLimiter
   | CmsClient;
@@ -333,7 +334,8 @@ export const deliveryLayer = (
   | WorkspaceWriter
   | DatabaseServices
   | Auth
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | SiteOrigin
 > =>
   Layer.unwrap(

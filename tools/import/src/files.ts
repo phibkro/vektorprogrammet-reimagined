@@ -11,7 +11,6 @@ import type { FileKey, StoredContentType } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Context,
-  Crypto,
   DateTime,
   Effect,
   FileSystem,
@@ -22,6 +21,7 @@ import {
   Predicate,
   Schema,
 } from "effect";
+import { Digest } from "effect/crypto";
 import { encode as hexEncode } from "effect/encoding/Hex";
 
 export class LegacyFilesError extends Schema.TaggedError<
@@ -160,7 +160,7 @@ export type FileIndex = ReadonlyMap<string, ResolvedFile>;
 export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(
   function* resolveLegacyFiles(paths: Iterable<string>) {
     const files = yield* LegacyFiles;
-    const crypto = yield* Crypto.Crypto;
+    const digests = yield* Digest.Digest;
     const unique = Arr.sort([...new Set(paths)], Order.String);
 
     const resolved = yield* Effect.forEach(
@@ -171,8 +171,7 @@ export const resolveLegacyFiles = Effect.fn("resolveLegacyFiles")(
             Option.match({
               onNone: () => Effect.succeedNone,
               onSome: ({ bytes, modifiedAt }) =>
-                crypto.digest("SHA-256", bytes).pipe(
-                  Effect.orDie,
+                digests.digest(Digest.sha256, bytes).pipe(
                   Effect.map((digest) => {
                     const contentType = detectContentType(bytes);
 

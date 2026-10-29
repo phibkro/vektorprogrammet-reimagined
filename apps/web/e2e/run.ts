@@ -6,11 +6,11 @@
  * Playwright and its Chromium come from devenv (`PLAYWRIGHT_BROWSERS_PATH`); the specs read the database,
  * the CMS and the origin from the environment this program sets.
  */
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Effect, Redacted, Schema } from "effect";
+import { NodeRuntime } from "@effect/platform-node";
+import { Effect, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-import { startStack } from "./support/stack.ts";
+import { stackServices, startStack } from "./support/stack.ts";
 
 class BrowserTestsFailed extends Schema.TaggedError<
   BrowserTestsFailed,
@@ -43,9 +43,9 @@ const main = Effect.gen(function* main() {
         cwd: webDirectory,
         env: {
           E2E_BASE_URL: origin,
-          E2E_CMS_TOKEN: Redacted.value(cms.token),
+          E2E_CMS_TOKEN: cms.token,
           E2E_CMS_URL: cms.origin,
-          E2E_DATABASE_URL: Redacted.value(databaseUrl),
+          E2E_DATABASE_URL: databaseUrl,
           E2E_PUBLIC_FILE_KEY: publicFileKey,
         },
         extendEnv: true,
@@ -65,4 +65,4 @@ const main = Effect.gen(function* main() {
   return yield* Effect.void;
 }).pipe(Effect.scoped);
 
-NodeRuntime.runMain(main.pipe(Effect.provide(NodeServices.layer)));
+NodeRuntime.runMain(main.pipe(Effect.provide(stackServices)));

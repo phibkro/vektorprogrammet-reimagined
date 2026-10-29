@@ -6,7 +6,6 @@
  */
 import {
   Array as Arr,
-  Crypto,
   Effect,
   FileSystem,
   Option,
@@ -14,6 +13,7 @@ import {
   Schema,
   Stream,
 } from "effect";
+import { Digest } from "effect/crypto";
 
 export const directory = "../../packages/domain/conformance";
 
@@ -150,15 +150,9 @@ export class ArtefactFailed extends Schema.TaggedError<
 export const sha256Hex = Effect.fn("sha256Hex")(function* sha256Hex(
   bytes: Uint8Array
 ) {
-  const crypto = yield* Crypto.Crypto;
-  const digest = yield* crypto.digest("SHA-256", bytes);
+  const digests = yield* Digest.Digest;
 
-  return Arr.join(
-    Arr.map(Arr.fromIterable(digest), (byte) =>
-      byte.toString(16).padStart(2, "0")
-    ),
-    ""
-  );
+  return yield* digests.digestHex(Digest.sha256, bytes);
 });
 
 /** Some bytes through a web stream transform, read to the end. */

@@ -740,10 +740,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
         assert.strictEqual(pending.payload.personId, 102);
         assert.strictEqual(pending.payload.purpose, "resetPassword");
 
-        const code = yield* mintCode().pipe(
-          Effect.provide(webCryptoLayer),
-          Effect.orDie
-        );
+        const code = yield* mintCode().pipe(Effect.provide(webCryptoLayer));
 
         const now = yield* DateTime.now;
         yield* transacted(
@@ -787,10 +784,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(seeded)), {
     "a code that opens nothing is refused, and the refusal names the command of the code's purpose (spec 0007c R2)",
     () =>
       Effect.gen(function* unknownCode() {
-        const code = yield* mintCode().pipe(
-          Effect.provide(webCryptoLayer),
-          Effect.orDie
-        );
+        const code = yield* mintCode().pipe(Effect.provide(webCryptoLayer));
 
         const provided = Effect.provide(
           Layer.merge(webCryptoLayer, passwordHasherLayer)

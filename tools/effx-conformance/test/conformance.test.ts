@@ -4,7 +4,7 @@
  * say, and what effx cannot state is the committed register of gaps. Each check has a negative control that changes one
  * thing and fails.
  */
-import { NodeServices } from "@effect/platform-node";
+import { NodeCrypto, NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
   Effx,
@@ -53,6 +53,9 @@ import type { Derived } from "../src/generate.ts";
 import { machines } from "../src/machines.ts";
 import { Vectors, countRows } from "../src/vectors.ts";
 import type { VectorsFile } from "../src/vectors.ts";
+
+/** `NodeServices` carries no crypto service since Effect 4.1: the SHA-256 of the committed files comes from `NodeCrypto`. */
+const services = Layer.mergeAll(NodeServices.layer, NodeCrypto.layerDigest);
 
 /**
  * Everything committed, read once. A vectors file is gunzipped and digested when the layer is built (what the digests
@@ -128,11 +131,11 @@ class Committed extends Context.Service<
         vectors,
       });
     })
-  ).pipe(Layer.provide(NodeServices.layer));
+  ).pipe(Layer.provide(services));
 }
 
 const hash = (bytes: Uint8Array) =>
-  sha256Hex(bytes).pipe(Effect.provide(NodeServices.layer));
+  sha256Hex(bytes).pipe(Effect.provide(services));
 
 /** The committed vectors of a domain, asked of the kernel with `table` and `machines` standing in for its own. */
 const conform = Effect.fn("conform")(function* conform(
@@ -592,7 +595,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           yield* hash(utf8(text.replace("createTeam", "createTeams")))
         );
         assert.notStrictEqual(entry?.vectorsSha256, yield* hash(flipped));
-      }).pipe(Effect.provide(NodeServices.layer))
+      }).pipe(Effect.provide(services))
   );
 
   it.effect(

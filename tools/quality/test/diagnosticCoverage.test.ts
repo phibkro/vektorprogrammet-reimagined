@@ -7,6 +7,7 @@ import oxlintSchema from "../../../node_modules/@effect/tsgo/oxlint-schema.json"
 import schema from "../../../node_modules/@effect/tsgo/schema.json" with { type: "json" };
 import config from "../../../tsconfig.json" with { type: "json" };
 import { tsgoRules } from "../../../vite.config.ts";
+import { declined } from "../diagnosticRules.ts";
 
 const available = Object.getOwnPropertyNames(
   oxlintSchema.definitions.DummyRuleMap.properties
@@ -33,7 +34,8 @@ const checkRule = (name: string, severity: string) => {
     rule in (strict.rules ?? {}) ||
     rule in (effectNative.rules ?? {});
 
-  const expected = selected ? "error" : undefined;
+  const selectedSeverity = selected ? "error" : undefined;
+  const expected = name in declined ? "off" : selectedSeverity;
 
   const editorSeverity: unknown = Object.getOwnPropertyDescriptor(
     editor,
@@ -45,7 +47,7 @@ const checkRule = (name: string, severity: string) => {
 };
 
 describe("Effect diagnostic coverage", () => {
-  it("sets every default-on rule and selected preset rule to error", () => {
+  it("sets every default-on rule and selected preset rule to error, except the declined ones, which are off", () => {
     for (const [name, definition] of Rec.toEntries(defaults)) {
       checkRule(name, definition.default);
     }

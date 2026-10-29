@@ -27,7 +27,7 @@ Each server function or server route:
    - `FileStore` over the R2 binding (`server/fileStore.ts`)
    - `CurrentPrincipal` from the Better Auth session and one account-and-membership read (`server/principal.ts`)
    - `SiteOrigin` for digest links
-   - Web Crypto `Crypto.Crypto` (`server/webCrypto.ts`)
+   - Web Crypto `Digest` and `SecureRandom` from `effect/crypto` (`webCryptoLayer` in `server/webCrypto.ts`)
    - `TurnstileVerifier` and `ContactRateLimiter`
    - `CmsClient` (`packages/cms-client`) over `fetch` to `CMS_URL`, authorised with the read-only `CMS_TOKEN`: the public pages' texts, FAQ, news and sponsors
    - `Transactor` (the domain's port, provided by `DatabaseLive`), which wraps a command in `@vektorprogrammet/db`'s `transactional` (the one production provider of `InTransaction`; a test fails if another file holds the service as a value, a guard against accidental use and not a proof, spec 0018 R20)
@@ -233,7 +233,7 @@ disposable PostgreSQL → legacy fixture → local people → CMS → vp dev →
 
 These checks run only on a deployed preview (workerd + Hyperdrive + Neon). Slice 0000 ran items 1–7 there and they pass (`docs/specs/0000-results.md`, final run from the committed tree). Item 8 was not part of slice 0000 and is still unproven:
 
-1. `DatabaseLive` (`@effect/sql-pg` 4.0.6 over `node:net` + `prepare: false`) connects and selects through Hyperdrive. Drizzle `effect-postgres` works on top of it.
+1. `DatabaseLive` (`@effect/sql-pg` 4.1.0 over `node:net` + `prepare: false`) connects and selects through Hyperdrive. Drizzle `effect-postgres` works on top of it.
 2. A `transactional` command commits; a typed failure and an interruption (request abort) roll back; a nested savepoint works.
 3. `INSERT … ON CONFLICT … RETURNING` and unique-violation classification work through Hyperdrive.
 4. `timestamptz`, `date`, `jsonb` and `numeric` round-trip.
@@ -249,7 +249,7 @@ Slice 0000 did not need the architecture §4 fallback. Its verdict holds on one 
 | Id | Scope | Reason | Retirement trigger |
 | --- | --- | --- | --- |
 | WEB-001 | `src/server/fileStore.ts`: `object.body as unknown as ReadableStream<Uint8Array>` | `@cloudflare/workers-types` and lib.dom declare `ReadableStream` separately; it is the same runtime object. Verified by the deployed `/filer` check (slice 0000 item 8). | workers-types and lib.dom types unify, or Alchemy's typed R2 client is adopted for the binding |
-| WEB-002 | `Effect.promise` around R2, `send_email` (`tryPromise`), Rate Limiting and Web Crypto | Boundary adapters for foreign Promise APIs. Effect has no Workers bindings of its own. R2 or rate-limit rejections are defects because the domain's `FileStore` contract has no error channel. | Alchemy's Effect-native binding clients become usable from a TanStack Start Worker entry |
+| WEB-002 | `Effect.promise` around R2, `send_email` (`tryPromise`) and Rate Limiting | Boundary adapters for foreign Promise APIs. Effect has no Workers bindings of its own. R2 or rate-limit rejections are defects because the domain's `FileStore` contract has no error channel. | Alchemy's Effect-native binding clients become usable from a TanStack Start Worker entry |
 | WEB-003 | Server-function `.validator(formData)` throws `Error` on non-`FormData` input | TanStack's validator contract is throw-based; the domain decodes the fields. | TanStack Start accepts an Effect Schema (Standard Schema) for `FormData` input |
 
 Scoped lint exceptions are listed in `tools/quality/effect-exceptions.json`.

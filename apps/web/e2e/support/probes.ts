@@ -205,7 +205,7 @@ export const deactivateResetFixture = Effect.flatMap(
 export const codeFor = (email: string, purpose: CodePurpose) =>
   Effect.gen(function* seedCode() {
     const sql = yield* SqlClient;
-    const { hash, token } = yield* mintCode().pipe(Effect.orDie);
+    const { hash, token } = yield* mintCode();
     yield* sql`insert into code (purpose, subject, hash, expires_at, used_at)
       select ${purpose}, id, ${hash}, now() + interval '1 hour', null from person where email = ${email}
       on conflict (purpose, subject) do update set hash = excluded.hash, expires_at = excluded.expires_at, used_at = null`;

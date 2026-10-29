@@ -31,7 +31,6 @@ import type {
 import {
   Array as Arr,
   Cause,
-  Crypto,
   DateTime,
   Deferred,
   Effect,
@@ -43,6 +42,7 @@ import {
   Predicate,
   Ref,
 } from "effect";
+import { SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
@@ -87,7 +87,7 @@ type RunnerServices =
   | Outbox
   | WorkspaceAssignments
   | WorkspaceFacts
-  | Crypto.Crypto
+  | SecureRandom.SecureRandom
   | WorkspaceReports;
 
 /** Fixture approval exercises the automatic schedule without approving production. */
@@ -247,10 +247,9 @@ layer(live, { excludeTestServices: true })(
             yield* reset;
             const transactor = yield* Transactor;
 
-            const fixedCrypto = Crypto.make({
-              digest: (_algorithm, data) => Effect.succeed(data),
-              randomBytes: (size) => new Uint8Array(size),
-            });
+            const fixedRandom = SecureRandom.make(
+              (size) => new Uint8Array(size)
+            );
 
             const request = transactor
               .run(
@@ -258,7 +257,9 @@ layer(live, { excludeTestServices: true })(
                   Effect.provideService(CurrentPrincipal, ADMIN)
                 )
               )
-              .pipe(Effect.provideService(Crypto.Crypto, fixedCrypto));
+              .pipe(
+                Effect.provideService(SecureRandom.SecureRandom, fixedRandom)
+              );
 
             yield* request;
             const second = yield* Effect.exit(request);

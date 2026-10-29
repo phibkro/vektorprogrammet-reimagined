@@ -71,7 +71,7 @@ A principal is a person with facts, never a role (ADR 0001). Every scheduled job
 | `WorkspaceDirectory`, `WorkspaceWriter` | Separate provider read and mutation capabilities. The production Google adapter is not configured. |
 | `SiteOrigin` | the origin that the links in messages carry |
 
-`storeUpload` also needs Effect's `Crypto.Crypto` (SHA-256); `apps/web` provides a Web Crypto implementation.
+`storeUpload` also needs Effect's `Digest.Digest` (SHA-256), and the codes and the Workspace nonce need `SecureRandom.SecureRandom` (both `effect/crypto`); `apps/web` provides them over Web Crypto (`webCryptoLayer`).
 
 `authorize` is the one answer to "may this principal do this?". Every command handler is built with its domain's `handle`, which asks the table before the command runs (and refuses with `Forbidden`); `apps/web` asks the same function for the control panel's sidebar and for every control a page offers (spec 0004), so a control the principal may not use is not rendered. A role check in `apps/web` is a second list, and `apps/web/test/shell.test.ts` fails when a control and its command disagree.
 

@@ -10,7 +10,6 @@
  */
 import {
   Array as Arr,
-  Crypto,
   DateTime,
   Effect,
   Match,
@@ -19,6 +18,7 @@ import {
   Predicate,
   Schema,
 } from "effect";
+import { SecureRandom } from "effect/crypto";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import { requestPeriod } from "../jobs/job.ts";
@@ -421,9 +421,7 @@ export const WorkspaceHandlers = WorkspaceRpc.toLayer({
         yield* InTransaction;
         const now = yield* DateTime.now;
 
-        const nonce = yield* Effect.orDie(
-          (yield* Crypto.Crypto).randomUUIDv4()
-        );
+        const nonce = yield* (yield* SecureRandom.SecureRandom).uuidV4();
 
         const period = requestPeriod(`${DateTime.toEpochMillis(now)}-${nonce}`);
 

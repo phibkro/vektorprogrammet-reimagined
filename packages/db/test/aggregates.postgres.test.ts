@@ -90,7 +90,9 @@ const isDeadlock = (exit: Exit.Exit<unknown, unknown>) =>
 
 /** Whether the exit is a defect of this tag. */
 const diedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) =>
-  Exit.hasDies(exit) && Predicate.isTagged(tag)(Cause.squash(exit.cause));
+  Exit.isFailure(exit) &&
+  Cause.hasDies(exit.cause) &&
+  Predicate.isTagged(tag)(Cause.squash(exit.cause));
 
 /** A token that no lock made: what a caller would have to forge. The compiler refuses it; the registry must too. */
 const forged = (id: number, root: "AdminList" | "Person") =>

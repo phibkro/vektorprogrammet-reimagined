@@ -140,7 +140,7 @@ const importFixtureInto = (cms: Cms) =>
   runToEnd("bun", ["run", "import:fixture:cms"], {
     cwd: importerDirectory,
     env: {
-      IMPORT_CMS_TOKEN: Redacted.value(cms.token),
+      IMPORT_CMS_TOKEN: cms.token,
       IMPORT_CMS_URL: cms.origin,
     },
   });

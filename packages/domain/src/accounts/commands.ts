@@ -74,7 +74,7 @@ const consumeCode = Effect.fn("Account.consumeCode")(function* consumeCode(
   now: DateTime.Utc
 ) {
   const codes = yield* CodeRepository;
-  const hash = yield* Effect.orDie(hashCode(token));
+  const hash = yield* hashCode(token);
   const consumed = yield* codes.consume(locked, { hash, now, purpose });
 
   if (!consumed) {

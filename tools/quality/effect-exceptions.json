@@ -39,7 +39,7 @@
       ],
       "owner": "tools/docgen",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -82,8 +82,8 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1",
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0",
         "@playwright/test": "1.63.0",
         "typescript": "7.0.2"
       },
@@ -98,9 +98,9 @@
         "directives": ["oxlint-disable-next-line"]
       },
       "reason": "Spec 0007 requires Worker-compatible bcrypt and verification of legacy PHP hashes. Better Auth owns the Promise callback ABI.",
-      "missingCapability": "Effect 4.0.6 Crypto provides digests and random bytes, not bcrypt password hashing.",
+      "missingCapability": "Effect 4.1.0 `effect/crypto` provides digests (`Digest`), random bytes (`SecureRandom`) and key derivation (`Kdf`: HKDF, PBKDF2, Argon2id), not bcrypt password hashing.",
       "nativeAlternativesExamined": [
-        "Effect Crypto.digest provides SHA digests but not bcrypt password hashing.",
+        "Effect `Digest` provides SHA and MD5 digests and `Kdf` provides HKDF, PBKDF2 and Argon2id, but neither verifies or makes bcrypt hashes.",
         "Better Auth's default verifier uses scrypt and cannot verify PHP bcrypt hashes."
       ],
       "verification": [
@@ -109,7 +109,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "better-auth": "1.7.14",
         "bcryptjs": "3.0.3"
       },
@@ -151,10 +151,10 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "better-auth": "1.7.14",
         "pg": "8.23.1",
-        "@effect/tsgo": "0.53.1"
+        "@effect/tsgo": "0.63.0"
       },
       "retirementTrigger": "Retire when Better Auth forwards cancellation to its pg adapter and supports an equivalent cancellable transaction."
     },
@@ -182,8 +182,8 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1",
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0",
         "wrangler": "4.151.0"
       },
       "retirementTrigger": "Remove the local Promise-boundary suppressions when Wrangler exposes an Effect API or the lint rules accept Effect Promise thunks."
@@ -200,7 +200,7 @@
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
       "owner": "packages/db",
-      "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
+      "versions": { "effect": "4.1.0", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
@@ -215,7 +215,7 @@
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
       "owner": "packages/domain",
-      "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
+      "versions": { "effect": "4.1.0", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
@@ -238,7 +238,7 @@
       ],
       "owner": "tools/effx-conformance",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -267,7 +267,7 @@
       ],
       "owner": "packages/domain",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "typescript": "7.0.2",
         "vite-plus": "1.2.0"
       },
@@ -300,7 +300,7 @@
       "verification": ["devenv shell -- bun run ready"],
       "owner": "packages/domain",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -338,8 +338,8 @@
       "verification": ["devenv shell -- bun run ready"],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1",
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0",
         "typescript": "7.0.2"
       },
       "retirementTrigger": "Remove the override when diagnostics accept the Effect Promise thunk for this runtime boundary."
@@ -362,7 +362,7 @@
       ],
       "owner": "packages/cms-client",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "oxc-parser": "0.153.0"
       },
       "retirementTrigger": "Retire when the upstream generator emits finite schemas directly or Effect provides a suitable TypeScript parser."
@@ -375,9 +375,9 @@
         "symbols": ["seedFakeAccounts"]
       },
       "reason": "Fake browser and Preview accounts must use the same bcrypt algorithm and cost as real credentials.",
-      "missingCapability": "Effect Crypto does not implement bcrypt.",
+      "missingCapability": "Effect `effect/crypto` (`Digest`, `Kdf`, `SecureRandom`) does not implement bcrypt.",
       "nativeAlternativesExamined": [
-        "Effect Crypto supplies random bytes and SHA digests, not bcrypt.",
+        "Effect `SecureRandom`, `Digest` and `Kdf` supply random bytes, digests and PBKDF2/HKDF/Argon2id, not bcrypt.",
         "Better Auth's default password hashing is scrypt, which cannot seed the required bcrypt credentials."
       ],
       "verification": [
@@ -385,7 +385,7 @@
         "devenv shell -- bun run e2e"
       ],
       "owner": "packages/db",
-      "versions": { "effect": "4.0.6", "bcryptjs": "3.0.3" },
+      "versions": { "effect": "4.1.0", "bcryptjs": "3.0.3" },
       "retirementTrigger": "Retire when a native Worker-compatible bcrypt implementation replaces bcryptjs for both live and fake credentials."
     },
     {
@@ -416,7 +416,7 @@
       ],
       "verification": ["devenv shell -- bun run ready"],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.6", "vite-plus": "1.2.0" },
+      "versions": { "effect": "4.1.0", "vite-plus": "1.2.0" },
       "retirementTrigger": "Remove the narrow lint override when the rule recognizes Schema.TaggedError declarations."
     },
     {
@@ -444,7 +444,7 @@
         "devenv shell -- bun run ready"
       ],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.6", "@effect/tsgo": "0.53.1" },
+      "versions": { "effect": "4.1.0", "@effect/tsgo": "0.63.0" },
       "retirementTrigger": "Remove the scoped override when the Promise rule accepts Effect's foreign-call thunks and Worker callbacks."
     },
     {
@@ -466,7 +466,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "@cloudflare/workers-types": "5.20261015.1"
       },
       "retirementTrigger": "Remove the bridge when Cloudflare publishes a module-scoped env type compatible with the app's DOM and Node type configuration."
@@ -497,7 +497,7 @@
       ],
       "owner": "packages/db",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.0",
         "drizzle-orm": "1.0.0-rc.5",
         "typescript": "7.0.2"
       },
@@ -513,13 +513,13 @@
         "modules": [
           "effect/FileSystem",
           "effect/Path",
-          "effect/Crypto",
+          "effect/crypto",
           "effect/PlatformError",
           "effect/Stdio"
         ]
       },
       "reason": "Platform services lack stable markings.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -529,10 +529,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0006",
@@ -550,11 +550,12 @@
           "@effect/platform-bun/BunRuntime",
           "@effect/platform-bun/BunServices",
           "@effect/platform-node/NodeRuntime",
-          "@effect/platform-node/NodeServices"
+          "@effect/platform-node/NodeServices",
+          "@effect/platform-node-shared/NodeCrypto"
         ]
       },
       "reason": "Process roots and test platform services.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -564,10 +565,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0007",
@@ -582,7 +583,7 @@
         ]
       },
       "reason": "Test infrastructure.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -592,10 +593,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0008",
@@ -610,7 +611,7 @@
         ]
       },
       "reason": "Command definitions and in-process client (ADR 0006).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -620,10 +621,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0009",
@@ -642,7 +643,7 @@
         "modules": ["effect/sql", "@effect/sql-pg"]
       },
       "reason": "Database path from spec 0000.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -652,10 +653,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0010",
@@ -665,7 +666,7 @@
         "modules": ["@effect/sql-mysql2"]
       },
       "reason": "Legacy import.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -675,10 +676,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0011",
@@ -703,7 +704,7 @@
         ]
       },
       "reason": "Outbound HTTP for the CMS and Turnstile.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -713,10 +714,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0012",
@@ -732,7 +733,7 @@
         "modules": ["effect/process", "effect/cli"]
       },
       "reason": "Build and process tools.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -742,10 +743,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0013",
@@ -758,7 +759,7 @@
         "modules": ["effect/reactivity/Reactivity"]
       },
       "reason": "Derived reactivity keys (ADR 0009).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -768,10 +769,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0014",
@@ -781,7 +782,7 @@
         "modules": ["effect/http-api/OpenApi"]
       },
       "reason": "CMS client generation from EmDash OpenAPI (spec 0005).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.0.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
@@ -791,10 +792,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
+        "effect": "4.1.0",
+        "@effect/tsgo": "0.63.0"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable, or a 4.1.x release breaks a member this repository uses; then move that use behind an adapter."
     }
   ]
 }

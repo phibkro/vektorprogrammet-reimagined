@@ -3,6 +3,7 @@
  * goes to this process's own; its standard output comes back as text, so the caller reads what the program printed
  * (and chooses whether to show it: one of them prints a secret).
  */
+import type { Redacted } from "effect";
 import { Console, Effect, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -32,7 +33,7 @@ export const runToEnd = Effect.fn("runToEnd")(function* runToEnd(
   args: readonly string[],
   options: {
     readonly cwd: string;
-    readonly env?: Readonly<Record<string, string>>;
+    readonly env?: Readonly<Record<string, string | Redacted.Redacted>>;
     readonly safeOutputOnFailure?: boolean;
   }
 ) {

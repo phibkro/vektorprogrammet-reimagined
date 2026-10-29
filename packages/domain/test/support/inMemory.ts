@@ -6,7 +6,6 @@ import { assert } from "@effect/vitest";
 import {
   Array as Arr,
   Context,
-  Crypto,
   DateTime,
   Effect,
   Exit,
@@ -15,6 +14,7 @@ import {
   Ref,
   Stream,
 } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 
 import {
   AlreadyExists,
@@ -418,22 +418,9 @@ const InTransactionTest = Layer.succeed(InTransaction)({
 });
 
 /** Web Crypto from the Node test runtime (Workers provide the same API). */
-const CryptoTest = Layer.succeed(Crypto.Crypto)(
-  Crypto.make({
-    digest: (algorithm, data) =>
-      Effect.map(
-        Effect.promise(
-          globalThis.crypto.subtle.digest.bind(
-            globalThis.crypto.subtle,
-            algorithm,
-            new Uint8Array(data)
-          )
-        ),
-        (buffer) => new Uint8Array(buffer)
-      ),
-    randomBytes: (size) =>
-      globalThis.crypto.getRandomValues(new Uint8Array(size)),
-  })
+const CryptoTest = Layer.mergeAll(
+  Digest.layerWebCrypto,
+  SecureRandom.layerWebCrypto
 );
 
 /** The origin that links in test messages carry. */

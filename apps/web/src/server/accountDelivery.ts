@@ -18,7 +18,8 @@ import type {
   ClaimedOutboxMessage,
   OutboxAck,
 } from "@vektorprogrammet/domain";
-import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
+import { Context, DateTime, Effect, Layer, Option } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 
 import { Auth } from "./auth";
 import { DeliveryClaimLost } from "./deliveryClaimLost";
@@ -85,7 +86,8 @@ export const accountDeliveryLayer = Layer.effect(
     const sender = yield* MessageSender;
     const delivery = yield* OutboxDelivery;
     const origin = yield* SiteOrigin;
-    const crypto = yield* Crypto.Crypto;
+    const digest = yield* Digest.Digest;
+    const random = yield* SecureRandom.SecureRandom;
     const auth = yield* Auth;
 
     const issueCode = Effect.fn("AccountDelivery.issueCode")(
@@ -117,8 +119,8 @@ export const accountDeliveryLayer = Layer.effect(
               const now = yield* DateTime.now;
 
               const { token, hash } = yield* mintCode().pipe(
-                Effect.provideService(Crypto.Crypto, crypto),
-                Effect.orDie
+                Effect.provideService(Digest.Digest, digest),
+                Effect.provideService(SecureRandom.SecureRandom, random)
               );
 
               yield* codes.replace(locked.value, {

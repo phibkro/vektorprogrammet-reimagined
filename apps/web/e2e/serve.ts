@@ -9,7 +9,7 @@
  *  - `secrets.env` (mode 0600), the CMS token that the specs read as `E2E_CMS_TOKEN`,
  * and then prints one `VERIFY READY` line, the marker a supervisor waits for.
  */
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { NodeRuntime } from "@effect/platform-node";
 import {
   Array as Arr,
   Config,
@@ -20,7 +20,7 @@ import {
   Redacted,
 } from "effect";
 
-import { startStack } from "./support/stack.ts";
+import { stackServices, startStack } from "./support/stack.ts";
 
 const webDirectory = new URL("..", import.meta.url).pathname;
 
@@ -58,4 +58,4 @@ const main = Effect.gen(function* main() {
   return yield* Effect.never;
 }).pipe(Effect.scoped);
 
-NodeRuntime.runMain(main.pipe(Effect.provide(NodeServices.layer)));
+NodeRuntime.runMain(main.pipe(Effect.provide(stackServices)));
