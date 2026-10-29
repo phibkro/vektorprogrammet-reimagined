@@ -318,14 +318,6 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
   runOutcome(liveRequestLayer(scope), program, scope.signal);
 
 /**
- * A diagnostic of the platform (spec 0025) in the live per-request Layer. It is not a query: its programs open their own
- * transactions, take a row lock and write rows that they roll back, so it is not one of the read paths that
- * `readsNeverWrite.postgres.test.ts` runs as a role that can only read. Only `GET /api/platform` calls it, and that route
- * answers nothing on production.
- */
-export const runProbe: typeof runQuery = runQuery;
-
-/**
  * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the
  * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one. Better Auth asks the domain through that same
  * database layer (one build, shared by reference). Exported for tests.
