@@ -1,8 +1,10 @@
 /**
- * The one production provider of the domain's `InTransaction` (spec 0018 TX5; a source test guards against another).
+ * The one production provider of the domain's `InTransaction` (spec 0018 TX5; spec 0019 makes the proof the live
+ * transaction's own, and `live.ts` has how an adapter checks it).
  *
  * Runs `self` in `SqlClient.withTransaction` (a savepoint when already inside
- * one) with `InTransaction` provided. A typed failure, a defect or an
+ * one) with that level's own `InTransaction` provided (`liveLevel`: a fresh proof for each level, on a stack of the
+ * levels of the connection, taken back when the level ends). A typed failure, a defect or an
  * interruption rolls back every row the program wrote: domain rows, the audit
  * row and the outbox rows. A failing BEGIN or COMMIT is an infrastructure
  * failure and therefore a defect.
@@ -18,13 +20,15 @@
  *
  * Receipt: success means committed. No provider I/O may run inside `self`.
  */
-import { InTransaction, Transactor } from "@vektorprogrammet/domain";
+import { Transactor } from "@vektorprogrammet/domain";
+import type { InTransaction } from "@vektorprogrammet/domain";
 import { Effect, Layer, Option } from "effect";
 import { BeginTransaction, SqlClient } from "effect/sql/SqlClient";
 import { isSqlError } from "effect/sql/SqlError";
 import type { SqlError } from "effect/sql/SqlError";
 
 import { CurrentLockScope, handUp, openScope } from "./aggregate/lockScope.ts";
+import { liveLevel } from "./live.ts";
 
 /** The statement that a top-level transaction begins with: the isolation floor of `InTransaction`, by name. */
 const BEGIN_READ_COMMITTED = "BEGIN ISOLATION LEVEL READ COMMITTED";
@@ -36,8 +40,6 @@ const BEGIN_READ_COMMITTED = "BEGIN ISOLATION LEVEL READ COMMITTED";
  */
 export const atReadCommitted = <A, E, R>(opens: Effect.Effect<A, E, R>) =>
   Effect.provideService(opens, BeginTransaction, BEGIN_READ_COMMITTED);
-
-const inTransaction = InTransaction.of({ kind: "database-transaction" });
 
 const withLockScope = <A, E, R>(self: Effect.Effect<A, E, R>) =>
   Effect.gen(function* lockScopeLevel() {
@@ -63,13 +65,9 @@ export const transactional = <A, E, R>(
 > =>
   SqlClient.pipe(
     Effect.flatMap((sql) =>
-      sql
-        .withTransaction(
-          withLockScope(
-            Effect.provideService(self, InTransaction, inTransaction)
-          )
-        )
-        .pipe(atReadCommitted)
+      liveLevel(sql, (live) =>
+        sql.withTransaction(withLockScope(live(self))).pipe(atReadCommitted)
+      )
     ),
     Effect.catchIf<E | SqlError, SqlError, never, never, never>(
       isSqlError,

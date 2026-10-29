@@ -1,14 +1,14 @@
 /**
  * Every place of a source text that holds the domain's `InTransaction` as a value, or its key as a string (spec 0018,
- * falsifier 6, guarantee TX5).
+ * falsifier 6, guarantee TX5; reframed by spec 0019).
  *
- * **This is a guard against accidental misuse, not a proof that the proof cannot be forged.** `InTransaction` is an
- * ordinary value, and Effect keys a service by a string: a `Context` entry is the pair of that string and a value, and
- * a service "key" is nothing but `{ key: "<the string>" }`. So a program can make the proof without naming the service
- * at all, and no scan of the source can close that. What the scan does is make the careless and the convenient
- * spellings fail the test: a second provider written by someone who did not know the rule, in whatever clothes. The
- * unforgeable construction is a check at run time that the proof is the live transaction's own, as a lock token is
- * (`Locked`, spec 0006b); that is a later spec (R20 of spec 0018 names it).
+ * **This is a lint against accidental provision, not what makes the proof unforgeable.** `InTransaction` is an ordinary
+ * value, and Effect keys a service by a string: a `Context` entry is the pair of that string and a value, and a service
+ * "key" is nothing but `{ key: "<the string>" }`. So a program can make a value of the service without naming it at all,
+ * and no scan of the source can close that. What the scan does is make the careless and the convenient spellings fail
+ * the test at review time: a second provider written by someone who did not know the rule, in whatever clothes. The
+ * proof itself is checked at run time: every adapter method that requires it verifies that the proof is the live
+ * transaction's own (`packages/db/src/live.ts`), and a forged one dies as `TransactionNotLive` at first use.
  *
  * The scan does not list the ways to provide (`provideService`, `Layer.succeed`, `provideServiceEffect`, ...). It flags
  * every reference to the service as a value, except the ones that only read it. A reference is an identifier that

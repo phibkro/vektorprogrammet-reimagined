@@ -16,6 +16,7 @@ import { and, asc, eq, like, lte, or, sql } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { jobRun } from "../schema.ts";
 
 const heldColumns = {
@@ -264,14 +265,17 @@ export const JobRunsLive = Layer.effect(
       return outcome;
     });
 
-    return JobRun.JobRuns.of({
-      advance,
-      claim,
-      fail,
-      finish,
-      release,
-      request,
-      resumable,
-    });
+    return yield* verified(
+      "JobRuns",
+      JobRun.JobRuns.of({
+        advance,
+        claim,
+        fail,
+        finish,
+        release,
+        request,
+        resumable,
+      })
+    );
   })
 );

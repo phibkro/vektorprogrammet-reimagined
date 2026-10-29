@@ -60,6 +60,7 @@ import {
   decodeWith,
   single,
 } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import {
   account,
   adminGrant,
@@ -177,7 +178,10 @@ export const PersonRepositoryLive = Layer.effect(
       }
     );
 
-    return PersonRepository.of({ create, findById, findLocked, list });
+    return yield* verified(
+      "PersonRepository",
+      PersonRepository.of({ create, findById, findLocked, list })
+    );
   })
 );
 
@@ -325,7 +329,10 @@ export const TeamRepositoryLive = Layer.effect(
       }
     );
 
-    return TeamRepository.of({ create, deactivate, findById, list, update });
+    return yield* verified(
+      "TeamRepository",
+      TeamRepository.of({ create, deactivate, findById, list, update })
+    );
   })
 );
 
@@ -655,17 +662,20 @@ export const MembershipRepositoryLive = Layer.effect(
       return yield* Effect.void;
     });
 
-    return MembershipRepository.of({
-      activeIn,
-      findById,
-      findLocked,
-      insert,
-      listByPerson,
-      listByTeam,
-      listLocked,
-      remove,
-      setEnd,
-    });
+    return yield* verified(
+      "MembershipRepository",
+      MembershipRepository.of({
+        activeIn,
+        findById,
+        findLocked,
+        insert,
+        listByPerson,
+        listByTeam,
+        listLocked,
+        remove,
+        setEnd,
+      })
+    );
   })
 );
 
@@ -751,27 +761,30 @@ export const AdminGrantRepositoryLive = Layer.effect(
         : ("revoked" as const);
     });
 
-    return AdminGrantRepository.of({
-      create,
-      findById,
-      list: db
-        .select({
-          grantedBy: adminGrant.grantedBy,
-          id: adminGrant.id,
-          personId: adminGrant.personId,
-          personName: person.name,
-          until: adminGrant.until,
-        })
-        .from(adminGrant)
-        .innerJoin(person, eq(adminGrant.personId, person.id))
-        .orderBy(desc(adminGrant.until), asc(adminGrant.id))
-        .pipe(
-          Effect.orDie,
-          Effect.flatMap(decodeViews),
-          Effect.withSpan("AdminGrantRepository.list")
-        ),
-      revoke,
-    });
+    return yield* verified(
+      "AdminGrantRepository",
+      AdminGrantRepository.of({
+        create,
+        findById,
+        list: db
+          .select({
+            grantedBy: adminGrant.grantedBy,
+            id: adminGrant.id,
+            personId: adminGrant.personId,
+            personName: person.name,
+            until: adminGrant.until,
+          })
+          .from(adminGrant)
+          .innerJoin(person, eq(adminGrant.personId, person.id))
+          .orderBy(desc(adminGrant.until), asc(adminGrant.id))
+          .pipe(
+            Effect.orDie,
+            Effect.flatMap(decodeViews),
+            Effect.withSpan("AdminGrantRepository.list")
+          ),
+        revoke,
+      })
+    );
   })
 );
 
@@ -802,7 +815,7 @@ export const DigestLedgerLive = Layer.effect(
       return rows.length > 0;
     });
 
-    return DigestLedger.of({ claim });
+    return yield* verified("DigestLedger", DigestLedger.of({ claim }));
   })
 );
 
@@ -812,21 +825,24 @@ export const WelcomeLedgerLive = Layer.effect(
   Effect.gen(function* WelcomeLedgerLive() {
     const aggregates = yield* Aggregates;
 
-    return WelcomeLedger.of({
-      claim: (locked) =>
-        Effect.gen(function* claimWelcome() {
-          const rows = yield* aggregates
-            .insert(
-              locked,
-              owned.welcomeLedger,
-              { recordedAt: DateTime.toDateUtc(yield* DateTime.now) },
-              { action: "ignore" }
-            )
-            .pipe(Effect.orDie);
+    return yield* verified(
+      "WelcomeLedger",
+      WelcomeLedger.of({
+        claim: (locked) =>
+          Effect.gen(function* claimWelcome() {
+            const rows = yield* aggregates
+              .insert(
+                locked,
+                owned.welcomeLedger,
+                { recordedAt: DateTime.toDateUtc(yield* DateTime.now) },
+                { action: "ignore" }
+              )
+              .pipe(Effect.orDie);
 
-          return rows.length > 0;
-        }),
-    });
+            return rows.length > 0;
+          }),
+      })
+    );
   })
 );
 

@@ -314,7 +314,7 @@ AcquireLock(t) ==
                                   seen, pending, replaced, backed >>
 
 \* The membership that an INSERT writes: a command's own input, or for `changeMembership`
-\* the rest of the term of the membership that it ends (teams/commands.ts:197-203).
+\* the rest of the term of the membership that it ends (teams/commands.ts:200-206).
 InsertedTerm(t) ==
     IF plan[t].kind = "changeMembership"
         THEN [team |-> plan[t].team2, s |-> plan[t].from, e |-> seen[t].e]

@@ -61,6 +61,7 @@ import {
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { auditLog, outbox } from "../schema.ts";
 
 const encodeMessage = Schema.encodeUnknownEffect(OutboxMessage);
@@ -107,7 +108,7 @@ export const OutboxLive = Layer.effect(
       );
     });
 
-    return Outbox.of({ enqueue });
+    return yield* verified("Outbox", Outbox.of({ enqueue }));
   })
 );
 
@@ -530,6 +531,6 @@ export const AuditLogLive = Layer.effect(
       return yield* Effect.forEach(rows, entryOf);
     });
 
-    return AuditLog.of({ latest, record });
+    return yield* verified("AuditLog", AuditLog.of({ latest, record }));
   })
 );
