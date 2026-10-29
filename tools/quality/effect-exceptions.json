@@ -482,6 +482,7 @@
           "packages/db/src/live.ts",
           "packages/db/test/aggregates.postgres.test.ts",
           "packages/db/test/liveProof.postgres.test.ts",
+          "packages/domain/src/shared/integrationGuard.ts",
           "packages/domain/test/support/teamsInMemory.ts"
         ],
         "symbols": [
@@ -490,7 +491,8 @@
           "declare",
           "forged",
           "aggregateLocks",
-          "verified"
+          "verified",
+          "refusingInTransaction"
         ]
       },
       "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table. `verified` (spec 0019) puts the check of the live transaction proof in front of every `Requires` member of a port: it maps the members of a service by name and gives back an object of the service's own type.",

@@ -90,6 +90,12 @@ const allowances: readonly Allowance[] = [
   },
   {
     calls: 1,
+    path: "packages/domain/src/shared/integrationGuard.ts",
+    reason:
+      "the runtime guard of the integration ports reads the proof with `Effect.serviceOption` to refuse a call made while it is held (spec 0024 R6); it provides nothing",
+  },
+  {
+    calls: 1,
     path: "tools/quality/test/support/proofReferences.ts",
     reason:
       "the scan reads the service's key from the service, to find that string written elsewhere; it provides nothing",

@@ -128,8 +128,8 @@ export const seedPerson = Effect.fnUntraced(function* seedPerson(
   }
 
   if (holdings.code) {
-    yield* sql`insert into code (expires_at, hash, purpose, subject)
-      values (${at("2099-01-01T00:00:00Z")}, ${codeHash}, 'resetPassword', ${personId})`;
+    yield* sql`insert into code (expires_at, hash, purpose, state, subject)
+      values (${at("2099-01-01T00:00:00Z")}, ${codeHash}, 'resetPassword', 'Usable', ${personId})`;
   }
 
   for (const [kind, given] of [
