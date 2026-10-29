@@ -320,11 +320,18 @@ export const PlatformProbeLive = (
       const statementsFollowTheProfile = sql
         .withTransaction(
           Effect.gen(function* sendStatements() {
-            yield* sql`select ${1}::int as n`;
-            yield* sql`select ${"probe"}::text as t`;
+            // The statement carries a token that no other client has, so the count is of this client's statements and
+            // not of whatever another client left on a server connection that a pooler shares.
+            const [issued] = yield* sql<{
+              readonly token: string;
+            }>`select replace(gen_random_uuid()::text, '-', '') as token`;
 
-            const rows = yield* sql<{ readonly named: number }>`
-              select count(*)::int as named from pg_prepared_statements where name like 'effect%'`;
+            const marker = `platform-probe-${issued?.token ?? "none"}`;
+            yield* sql.unsafe(`select $1::int as n /* ${marker} */`, [1]);
+
+            const rows = yield* sql<{
+              readonly named: number;
+            }>`select count(*)::int as named from pg_prepared_statements where statement like ${`%${marker}%`}`;
 
             return rows[0]?.named ?? -1;
           })
