@@ -880,31 +880,31 @@ layer(postgresDatabase({ maxConnections: 4 }), {
         const before = yield* outboxRows;
         const bIsLive = yield* Deferred.make<null>();
 
-        const outer = yield* Effect.exit(
-          transactional(
-            Effect.gen(function* outerLevel() {
-              const survivor = yield* transactional(
-                Effect.forkChild(
-                  Effect.andThen(
-                    Deferred.await(bIsLive),
-                    Effect.exit(transactional(enqueue("Cx")))
-                  )
-                )
-              );
+        const survivors =
+          yield* Deferred.make<Fiber.Fiber<Exit.Exit<unknown>>>();
 
-              const cx = yield* Effect.exit(
-                transactional(
-                  Effect.gen(function* levelB() {
-                    yield* Deferred.succeed(bIsLive, null);
-
-                    return yield* Fiber.join(survivor);
-                  })
-                )
-              );
-
-              return cx;
-            })
+        // Level A forks the survivor and ends; level B then waits for the survivor's attempt at a level of its own.
+        const levelA = transactional(
+          Effect.flatMap(
+            Effect.forkChild(
+              Effect.andThen(
+                Deferred.await(bIsLive),
+                Effect.exit(transactional(enqueue("Cx")))
+              )
+            ),
+            (fiber) => Deferred.succeed(survivors, fiber)
           )
+        );
+
+        const levelB = transactional(
+          Effect.andThen(
+            Deferred.succeed(bIsLive, null),
+            Effect.flatMap(Deferred.await(survivors), Fiber.join)
+          )
+        );
+
+        const outer = yield* Effect.exit(
+          transactional(Effect.andThen(levelA, Effect.exit(levelB)))
         );
 
         assert.isTrue(Exit.isSuccess(outer), describeExit(outer));
