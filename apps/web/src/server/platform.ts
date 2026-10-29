@@ -18,6 +18,8 @@ import type { Option } from "effect";
 import type { Outcome } from "../lib/outcome";
 import { diagnosticReport, diagnosticResponse } from "./diagnosticResponse";
 import type { WorkerEnv } from "./env";
+import { liveRequestLayer, runOutcome } from "./runtime";
+import type { RequestScope } from "./runtime";
 
 /** The store's report with the deployment it was read on, or `None` on a production deployment (which asks nothing). */
 export const platformReport = (setting: WorkerEnv["DEPLOYMENT"]) =>
@@ -41,3 +43,16 @@ export const platformResponse = (
 
     return { body: { ...report, deployment, problems }, problems };
   });
+
+/**
+ * What `GET /api/platform` does, from the request's scope to its answer. It runs through `runOutcome` over the live
+ * request layer and not through `runQuery`: a query must not write, and the probe takes a row lock and writes rows that
+ * it rolls back, so it is not one of the read paths that `readsNeverWrite.postgres.test.ts` runs as a role that can only
+ * read. A test calls this, so the production answer is tested where the route has it.
+ */
+export const runPlatformRoute = (scope: RequestScope) =>
+  runOutcome(
+    liveRequestLayer(scope),
+    platformReport(scope.env.DEPLOYMENT),
+    scope.signal
+  ).then(platformResponse);

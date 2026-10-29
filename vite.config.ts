@@ -574,6 +574,7 @@ export default defineConfig({
           "apps/web/src/routes/api/eksport.ts",
           "apps/web/src/routes/api/isolation.ts",
           "apps/web/src/routes/api/platform.ts",
+          "apps/web/src/server/platform.ts",
           "apps/web/src/routes/nyhet/$slug.tsx",
           "apps/web/src/routes/kontrollpanel/**",
           "apps/web/src/routes/kontakt/*.tsx",

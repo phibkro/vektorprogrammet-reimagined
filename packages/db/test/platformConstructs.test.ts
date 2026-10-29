@@ -35,7 +35,7 @@ import {
   sqlWords,
 } from "../src/platform/statements.ts";
 import { sourcesOfTheAdapter } from "./support/platformSources.ts";
-import { sqlTextsIn } from "./support/sqlLiterals.ts";
+import { findingsIn, textsIn } from "./support/sqlLiterals.ts";
 
 /** One planted statement for each direct-only construct, and the construct it must be found as. */
 const planted: readonly (readonly [DirectOnlyConstruct, string])[] = [
@@ -184,56 +184,75 @@ describe("spec 0025 F4 and F5: the constructs, the subsets and the recipes", () 
   });
 
   it.effect(
-    "F4 on the real tree: the SQL of the adapter, the Worker and the migrations uses no direct-only construct",
+    "F4 on the real tree: the string and template literals of the adapter, the Worker and the migrations use no direct-only construct",
     () =>
       Effect.gen(function* theRealTree() {
         const sources = yield* sourcesOfTheAdapter;
         assert.isAbove(sources.length, 50, "the scan found the tree");
 
-        const findings = Arr.flatMap(sources, ({ path, source }) =>
-          Arr.flatMap(
-            path.endsWith(".sql")
-              ? [{ line: 1, text: source }]
-              : sqlTextsIn(path, source),
-            ({ line, text }) =>
-              Arr.map(
-                forbiddenConstructsOf(text),
-                (construct) => `${path}:${line}: ${construct}`
-              )
-          )
+        assert.deepStrictEqual(
+          Arr.flatMap(sources, ({ path, source }) => findingsIn(path, source)),
+          []
         );
 
-        assert.deepStrictEqual(findings, []);
-
-        // The scan saw SQL at all: the adapter's own statements are in it.
+        // The scan saw statements at all: the adapter's own are in it, handed over as tagged templates and as calls.
         const seen = Arr.flatMap(sources, ({ path, source }) =>
-          path.endsWith(".sql") ? [] : sqlTextsIn(path, source)
+          path.endsWith(".sql")
+            ? []
+            : Arr.filter(textsIn(path, source), ({ statement }) => statement)
         );
 
-        assert.isAbove(seen.length, 20);
+        assert.isAbove(seen.length, 100);
       }).pipe(Effect.provide(NodeServices.layer))
   );
 
-  it("F4 control: the scan reads a planted statement in a source text, with its line", () => {
+  /** The reviewer's four: each was a statement that the first version of the scan did not read. */
+  it("F4 control: a planted construct is found in a plain constant, a call, a renamed tag and a template, with its line and its catalogue row", () => {
     const source = Arr.join(
       [
         "const a = 1;",
-        "const lock = sql`select pg_advisory_lock(42)`;",
-        'const b = client.unsafe("listen outbox");',
-        "const c = sql`select id from t for no key update`;",
+        'const plain = "select pg_advisory_lock(42)";',
+        'const viaPool = pool.query("select pg_try_advisory_lock($1)");',
+        "const viaTag = db`select pg_advisory_xact_lock(1)`;",
+        'const viaExec = client.exec("listen outbox");',
+        "const viaNew = new Query(`set search_path = x`);",
+        "const fine = sql`select id from t for no key update`;",
       ],
       "\n"
     );
 
-    const found = Arr.flatMap(
-      sqlTextsIn("planted.ts", source),
-      ({ line, text }) =>
-        Arr.map(
-          forbiddenConstructsOf(text),
-          (construct) => `${line}:${construct}`
-        )
+    assert.deepStrictEqual(
+      Arr.map(findingsIn("planted.ts", source), (finding) =>
+        finding.replace(/ \(.*$/u, "")
+      ),
+      [
+        "planted.ts:2: advisory-lock-session",
+        "planted.ts:3: advisory-lock-session",
+        "planted.ts:4: advisory-lock-transaction",
+        "planted.ts:5: listen",
+        "planted.ts:6: set-session",
+      ]
     );
 
-    assert.deepStrictEqual(found, ["2:advisory-lock-session", "3:listen"]);
+    assert.include(
+      findingsIn("planted.ts", 'const q = client.exec("listen outbox");')[0],
+      "pg-txmode row: listen"
+    );
+
+    assert.include(
+      findingsIn("planted.ts", 'const q = "select pg_advisory_lock(1)";')[0],
+      "Hyperdrive: unsupported, hyperdrive-docs"
+    );
+  });
+
+  it("F4 control: an opening word in a sentence of a constant is not a construct, and in a statement it is", () => {
+    const prose = [
+      'const label = "Listen to the list";',
+      'const note = "set the table";',
+      'const text = "prepare the room, load the van, notify the team";',
+    ];
+
+    assert.deepStrictEqual(findingsIn("prose.ts", Arr.join(prose, "\n")), []);
+    assert.lengthOf(findingsIn("call.ts", 'db.run("listen outbox");'), 1);
   });
 });

@@ -62,11 +62,15 @@ const sqlStateOf = (
       )
     : Option.none();
 
+/** What a cause says in a report that an anonymous request can read: its first line, trimmed. */
+const shortCause = (cause: Cause.Cause<unknown>): string =>
+  (Cause.pretty(cause).split("\n")[0] ?? "").slice(0, 160);
+
 /** What a failed exit says, short enough for a report. */
 const failureText = (exit: Exit.Exit<unknown, unknown>): string =>
   Exit.isFailure(exit)
     ? Option.match(sqlStateOf(exit), {
-        onNone: () => `failed: ${Cause.pretty(exit.cause).slice(0, 240)}`,
+        onNone: () => `failed: ${shortCause(exit.cause)}`,
         onSome: (state) => `failed with SQLSTATE ${state}`,
       })
     : "succeeded";
@@ -119,7 +123,7 @@ export const PlatformProbeLive = (
           Effect.map((verdict) => ({ id, ...verdict })),
           Effect.catchCause((cause) =>
             Effect.succeed({
-              detail: `could not run: ${Cause.pretty(cause).slice(0, 300)}`,
+              detail: `could not run: ${shortCause(cause)}`,
               held: false,
               id,
             })
@@ -253,6 +257,8 @@ export const PlatformProbeLive = (
           sql
             .withTransaction(
               Effect.gen(function* hold() {
+                // The holder never waits for a command that holds the admin list (a few seconds, then the check says so).
+                yield* sql`set local lock_timeout = '3s'`;
                 yield* lockRow;
                 yield* Deferred.succeed(taken, true);
                 yield* Deferred.await(release);
@@ -310,9 +316,7 @@ export const PlatformProbeLive = (
         Effect.timeout(checkTimeout),
         Effect.catchCause((cause) =>
           Effect.succeed(
-            lockChecksNotRun(
-              `could not run: ${Cause.pretty(cause).slice(0, 300)}`
-            )
+            lockChecksNotRun(`could not run: ${shortCause(cause)}`)
           )
         )
       );

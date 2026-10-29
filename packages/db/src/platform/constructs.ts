@@ -10,9 +10,9 @@
  * connection is free. The sets are types: a recipe takes `PooledSafeConstruct` only, so a construct of the second set
  * does not type-check there, and the page's third table is the second set.
  *
- * **`pgTxmodeRow`** names the row of the `pg-txmode` catalogue that says the same thing (`/srv/share/projects/pg-txmode`,
- * pull requests 1, 3 and 4 of `phibkro/pg-txmode`, head `afc310d`). That catalogue is **unmerged and unpublished**: the
- * reference is a pointer for a reader, no cell here rests on it alone, and nothing imports it.
+ * **`pgTxmodeRow`** names the row of the `pg-txmode` catalogue that says the same thing (`phibkro/pg-txmode`, main at
+ * `16e11ef`, where specs 0001 to 0003 and 0005 are merged). The package is private and unpublished, so the reference is
+ * a pointer for a reader: no cell here rests on it alone, and nothing imports it.
  */
 
 /** What a transaction pooler leaves alone: every construct that this adapter's recipes may name. */
@@ -84,7 +84,7 @@ export interface ConstructFact {
   readonly direct: Cell;
   readonly hyperdrive: Cell;
   readonly sources: readonly string[];
-  /** A row of the unmerged `pg-txmode` catalogue that says the same; a pointer, never the evidence. */
+  /** A row of the `pg-txmode` catalogue (another repository, private and unpublished) that says the same; a pointer, never the evidence. */
   readonly pgTxmodeRow?: string;
 }
 
@@ -127,7 +127,7 @@ export const constructFacts = {
     direct: works("postgres-docs", "Held until the transaction ends."),
     hyperdrive: {
       how: "unverified",
-      note: "Neither listed nor excluded: the documents say nothing about the transaction-level form. This adapter does not use it, so that nothing depends on the answer.",
+      note: 'Not settled by the documents: Cloudflare lists "Advisory locks" as unsupported without separating the session level from the transaction level. This adapter does not use the transaction-level form, so that nothing depends on the answer.',
       outcome: "unknown",
     },
     pgTxmodeRow: "advisory-xact",

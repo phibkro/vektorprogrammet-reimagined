@@ -2,6 +2,7 @@
  * The files whose SQL must stay inside the subset that Hyperdrive takes (spec 0025, decision D6): the adapter's own
  * sources, the Worker's server sources (`apps/web/src`, but not the generated route tree) and the migrations.
  * Tests are not read: they use `SET LOCAL` and other session constructs on purpose, each ending with its own transaction.
+ * The adapter's `src/platform/constructs.ts` is not read either: it is the declaration of the forbidden constructs, and names each.
  */
 import { Array as Arr, Effect, FileSystem, Path } from "effect";
 
@@ -26,7 +27,9 @@ export const sourcesOfTheAdapter = Effect.gen(function* sourcesOfTheAdapter() {
             names,
             (name) =>
               Arr.some(extensions, (extension) => name.endsWith(extension)) &&
-              path.basename(name) !== "routeTree.gen.ts"
+              path.basename(name) !== "routeTree.gen.ts" &&
+              // `src/platform/constructs.ts` is the declaration of what is forbidden: it names every construct in prose.
+              name !== path.join("platform", "constructs.ts")
           ),
           (name) => path.join(directory, name)
         )

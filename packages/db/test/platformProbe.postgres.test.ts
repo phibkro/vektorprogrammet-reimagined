@@ -13,11 +13,13 @@
 import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
 import {
+  ADMIN_LIST_ID,
   PlatformProbe,
   platformProblems,
   requiredChecks,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer } from "effect";
+import { Array as Arr, Deferred, Duration, Effect, Fiber, Layer } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
 
 import { DatabaseLive } from "../src/index.ts";
 import { PlatformProbeLive } from "../src/platform/probe.ts";
@@ -170,6 +172,54 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
           }
 
           assert.strictEqual(platformProblems(report).length, LOCK_IDS.length);
+
+          assert.isAtLeast(report.checks.length, requiredChecks.length);
+        }),
+      { timeout: 60_000 }
+    );
+
+    it.effect(
+      "F3: a command that holds the admin list does not queue the probe: the lock checks say so after the lock timeout, with a short detail, and the other checks are reported",
+      () =>
+        Effect.gen(function* adminListHeld() {
+          const url = yield* TestDatabaseUrl;
+          const taken = yield* Deferred.make<null>();
+          const release = yield* Deferred.make<null>();
+
+          const holder = yield* Effect.forkChild(
+            SqlClient.use((sql) =>
+              sql.withTransaction(
+                Effect.gen(function* holdTheAdminList() {
+                  yield* sql`select id from admin_list where id = ${ADMIN_LIST_ID} for no key update`;
+                  yield* Deferred.succeed(taken, null);
+                  yield* Deferred.await(release);
+                })
+              )
+            ).pipe(
+              Effect.provide(
+                PgClient.layer({ maxConnections: 1, prepare: false, url })
+              ),
+              Effect.orDie
+            )
+          );
+
+          yield* Deferred.await(taken);
+
+          const [took, report] = yield* Effect.timed(
+            reportOf(hyperdrive, hyperdrive.client)
+          ).pipe(Effect.ensuring(Deferred.succeed(release, null)));
+
+          yield* Fiber.join(holder);
+
+          assert.isBelow(Duration.toMillis(took), 12_000);
+          assert.sameMembers(failing(report), LOCK_IDS);
+
+          for (const check of report.checks) {
+            if (LOCK_IDS.includes(check.id)) {
+              assert.include(check.detail, "SQLSTATE 55P03");
+              assert.isBelow(check.detail.length, 200);
+            }
+          }
 
           assert.isAtLeast(report.checks.length, requiredChecks.length);
         }),

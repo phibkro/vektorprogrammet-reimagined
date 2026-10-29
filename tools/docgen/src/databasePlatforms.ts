@@ -4,7 +4,7 @@
  * other renderers: the two declarations go in, the page comes out, and the check compares it with the committed one.
  *
  * The domain's side is `PlatformRequirements`; the adapter's side is `@vektorprogrammet/db/platform/*` (plain data, no
- * client). The `pg-txmode` column is a pointer into an unmerged catalogue and says so in its header.
+ * client). The `pg-txmode` column is a pointer into another repository's catalogue (private and unpublished) and says so in its header.
  */
 import { constructFacts } from "@vektorprogrammet/db/platform/constructs";
 import type {
@@ -120,8 +120,21 @@ const constructRow = (
   fact.pgTxmodeRow === undefined ? "none" : `\`${fact.pgTxmodeRow}\``,
 ];
 
+const CONSTRUCT_HEADER = [
+  "Construct",
+  "What",
+  "Direct",
+  "Hyperdrive",
+  "`pg-txmode` row (phibkro/pg-txmode@16e11ef: a pointer, private and unpublished)",
+];
+
 const recipesBlock = (declared: PlatformDeclarations): string => {
-  const used = Arr.dedupe(Arr.flatten(Rec.values(declared.recipes)));
+  // Every construct that Hyperdrive leaves alone, whether or not a recipe names it: the probe and the client use the
+  // others (`set-local`, `row-lock-nowait`, `unnamed-statements`), and a claim about them belongs on the page.
+  const pooledSafe = Arr.difference(
+    Rec.keys(declared.facts),
+    declared.directOnly
+  );
 
   return Arr.join(
     [
@@ -138,14 +151,8 @@ const recipesBlock = (declared: PlatformDeclarations): string => {
         ])
       ),
       table(
-        [
-          "Construct",
-          "What",
-          "Direct",
-          "Hyperdrive",
-          "`pg-txmode` row (unmerged)",
-        ],
-        Arr.map(used, (construct) =>
+        CONSTRUCT_HEADER,
+        Arr.map(pooledSafe, (construct) =>
           constructRow(construct, declared.facts[construct])
         )
       ),
@@ -156,7 +163,7 @@ const recipesBlock = (declared: PlatformDeclarations): string => {
 
 const directOnlyBlock = (declared: PlatformDeclarations): string =>
   table(
-    ["Construct", "What", "Direct", "Hyperdrive", "`pg-txmode` row (unmerged)"],
+    CONSTRUCT_HEADER,
     Arr.map(declared.directOnly, (construct) =>
       constructRow(construct, declared.facts[construct])
     )

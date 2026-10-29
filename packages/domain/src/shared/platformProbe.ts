@@ -3,8 +3,8 @@
  *
  * The domain declares which checks a platform must show (`PlatformRequirements`, `platformRequirements.ts`); a store
  * adapter runs them on the platform it is on and reports each one as `held` or not, with a detail in the engine's own
- * words. The port reports and a composition root decides what it expects, as `IsolationProbe` does: a platform that is a
- * pooler between the Worker and the database can only be asked from the store itself, through the pooler.
+ * words. The port reports and a composition root decides what it expects, as `IsolationProbe` does: what a platform
+ * between the Worker and the database does with a transaction can only be asked from the store itself, through it.
  *
  * The port opens its own transactions and takes none (`TransactionModes`: `Opens`). It writes nothing that a command
  * reads: a probe that writes rolls the write back.

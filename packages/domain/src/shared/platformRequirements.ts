@@ -2,7 +2,7 @@
  * What the domain asks of a platform (spec 0025, ADR 0014): for each capability, the properties that a store adapter
  * must show on the platform it runs on, or why none can be shown there.
  *
- * A guarantee (`guarantees.ts`) is a property of an abstract store. Whether it still holds when a pooler sits between
+ * A guarantee (`guarantees.ts`) is a property of an abstract store. Whether it still holds when a platform sits between
  * the Worker and the database is a fact of the platform, and only the platform can show it. This is the list of what it
  * must show: an id, the guarantee that the check protects, and the property in the domain's words (no statement, no
  * table, no engine feature). The adapter runs each check with the constructs it really uses (`PlatformProbe`), and
@@ -81,7 +81,7 @@ export const PlatformRequirements: Readonly<
       "The store's own constraint decides it, and a probe needs a committed record to show it.",
   },
   ObjectStore: {
-    reason: "No pooler sits between the Worker and the object store.",
+    reason: "No platform sits between the Worker and the object store.",
   },
   ReadOnlyReads: {
     reason:

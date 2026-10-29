@@ -16,16 +16,30 @@ import {
 } from "@vektorprogrammet/db/testing";
 import { PlatformProbe, requiredChecks } from "@vektorprogrammet/domain";
 import type { PlatformReport } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Option, Schema } from "effect";
+import { Array as Arr, Effect, Option, Redacted, Schema } from "effect";
 
 import { success } from "../src/lib/outcome";
-import { platformReport, platformResponse } from "../src/server/platform";
+import {
+  platformReport,
+  platformResponse,
+  runPlatformRoute,
+} from "../src/server/platform";
+import type { RequestScope } from "../src/server/runtime";
 import {
   assertEmpty404,
   assertFailureStatus,
   bodyOf,
   databaseAt,
 } from "./support/diagnosticRoute";
+import { workerEnv } from "./support/workerEnv";
+
+const scopeOf = (env: RequestScope["env"]): RequestScope => ({
+  ctx: { waitUntil: () => {} },
+  env,
+  headers: new Headers(),
+  signal: new AbortController().signal,
+  testActor: undefined,
+});
 
 const Body = Schema.Struct({
   checks: Schema.Array(
@@ -107,6 +121,40 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
 
           yield* assertEmpty404(platformResponse(success(report)));
         })
+    );
+
+    it.effect(
+      "F1: what the route runs: production answers an empty 404, a preview answers 200",
+      () =>
+        Effect.gen(function* theRoute() {
+          const url = yield* TestDatabaseUrl;
+
+          // A report is a 200 or a 500 with a body, so an empty 404 is an answer that ran no probe. (The request still
+          // resolves its principal, which reads the session: that is the database, and it is not the probe.)
+          const production = yield* Effect.promise(() =>
+            runPlatformRoute(
+              scopeOf({
+                ...workerEnv(Redacted.value(url)),
+                DEPLOYMENT: "production",
+              })
+            )
+          );
+
+          yield* assertEmpty404(production);
+
+          const preview = yield* Effect.promise(() =>
+            runPlatformRoute(
+              scopeOf({
+                ...workerEnv(Redacted.value(url)),
+                DEPLOYMENT: "preview",
+              })
+            )
+          );
+
+          assert.strictEqual(preview.status, 200);
+          assert.deepStrictEqual((yield* readBody(preview)).problems, []);
+        }),
+      { timeout: 60_000 }
     );
 
     it.effect(

@@ -13,11 +13,11 @@ export const evidence: Readonly<Record<Capability, string>> = {
     "Through Hyperdrive: `GET /api/platform` on every Preview (two transactions on two pooled connections). On PostgreSQL: `aggregates.postgres.test.ts`, 300 rounds, with its controls.",
   AnalyticsReads: "No adapter yet (ADR 0014, stage 6).",
   Claims:
-    "Through Hyperdrive: spec 0000 results (20 concurrent claims of one key, one winner, PASS, 2026-10-16). On PostgreSQL: `concurrency.postgres.test.ts` and the claim tests of each repository.",
+    "Through Hyperdrive: spec 0000 results, checks 5 and 8 (2026-10-16): an `ON CONFLICT … RETURNING` statement, and 20 concurrent upserts of one key that all returned the same row. A concurrent claim with exactly one winner (`DO NOTHING`) was **not** run through Hyperdrive. On PostgreSQL: `concurrency.postgres.test.ts` and the claim tests of each repository.",
   ConditionalWrites:
     "On PostgreSQL: `aggregates.postgres.test.ts` (300 rounds) and `teams.postgres.test.ts`. Through Hyperdrive: not measured.",
   Leases:
-    "As `Claims` and `ConditionalWrites`; on PostgreSQL also `jobRuns.postgres.test.ts`.",
+    "As `Claims` and `ConditionalWrites` (neither is measured through Hyperdrive for one winner or for a conditional write); on PostgreSQL also `jobRuns.postgres.test.ts`.",
   NonOverlap:
     "On PostgreSQL: `teams.postgres.test.ts`, falsifier 4, with its control. Through Hyperdrive: not measured (the SQLSTATE of the exclusion constraint reaching the client is not in spec 0000's results).",
   ObjectStore: "`FileStore` is the R2 binding, not a database.",
