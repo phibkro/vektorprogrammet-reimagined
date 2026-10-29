@@ -1,8 +1,9 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, FileSystem, Path } from "effect";
+import { Array as Arr, Effect, FileSystem, Option, Path, Schema } from "effect";
 
-import { effectFamilyDrift } from "../effectFamily.ts";
+import { effectFamilyDrift, tsgoPinDrift } from "../effectFamily.ts";
+import type { TsgoPin } from "../effectFamily.ts";
 
 const readLock = Effect.gen(function* readLock() {
   const fs = yield* FileSystem.FileSystem;
@@ -59,4 +60,95 @@ describe("Effect family versions", () => {
     );
     assert.lengthOf(effectFamilyDrift(entry("@effect/sql-pg", "4.0.6")), 1);
   });
+});
+
+const Manifest = Schema.Struct({
+  dependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+});
+
+const decodeManifest = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Manifest)
+);
+
+/** The `@effect/tsgo` pin that a `package.json` text declares, if it does. */
+const pinOf = (file: string, text: string) =>
+  Effect.map(decodeManifest(text), (manifest): readonly TsgoPin[] => {
+    const version =
+      manifest.devDependencies?.["@effect/tsgo"] ??
+      manifest.dependencies?.["@effect/tsgo"];
+
+    return version === undefined ? [] : [{ file, version }];
+  });
+
+describe("one @effect/tsgo feeds the lint of every workspace package", () => {
+  it("a package that pins another version is reported by file and version", () => {
+    assert.deepStrictEqual(
+      tsgoPinDrift({ file: "package.json", version: "0.63.0" }, [
+        { file: "package.json", version: "0.63.0" },
+        { file: "tools/quality/package.json", version: "0.53.1" },
+      ]),
+      [
+        "tools/quality/package.json pins @effect/tsgo 0.53.1, package.json pins 0.63.0",
+      ]
+    );
+  });
+
+  it.effect(
+    "the root and every workspace package pin the same version, and the lock's own entry is that version",
+    () =>
+      Effect.gen(function* workspacePins() {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        const repository = yield* path.fromFileUrl(
+          new URL("../../../", import.meta.url)
+        );
+
+        const files = ["package.json"];
+
+        const workspaces = Arr.flatten(
+          yield* Effect.forEach(["apps", "packages", "tools"], (group) =>
+            Effect.map(
+              Effect.option(fs.readDirectory(path.join(repository, group))),
+              (names) =>
+                Arr.map(
+                  Option.getOrElse(names, (): string[] => []),
+                  (name) => `${group}/${name}/package.json`
+                )
+            )
+          )
+        );
+
+        const pins = Arr.flatten(
+          yield* Effect.forEach([...files, ...workspaces], (file) =>
+            Effect.flatMap(
+              Effect.option(fs.readFileString(path.join(repository, file))),
+              Option.match({
+                onNone: () => Effect.succeed<readonly TsgoPin[]>([]),
+                onSome: (text) => pinOf(file, text),
+              })
+            )
+          )
+        );
+
+        const root = Arr.findFirst(pins, ({ file }) => file === "package.json");
+        assert.isTrue(Option.isSome(root));
+
+        if (Option.isNone(root)) {
+          return;
+        }
+
+        assert.isAbove(pins.length, 1);
+        assert.deepStrictEqual(tsgoPinDrift(root.value, pins), []);
+
+        // The lock's own entry (not the copy that `@phibkro/oxlint-effect-plugin` brings for itself) is the root's pin.
+        const lock = yield* readLock;
+
+        assert.include(
+          lock,
+          `"@effect/tsgo": ["@effect/tsgo@${root.value.version}",`
+        );
+      }).pipe(Effect.provide(NodeServices.layer))
+  );
 });
