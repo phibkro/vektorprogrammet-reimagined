@@ -7,9 +7,15 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Schema } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Guard, Machine, MembershipState, Teams } from "../../src/index.ts";
+import {
+  Guard,
+  Machine,
+  MembershipState,
+  SemesterGuard,
+  Teams,
+} from "../../src/index.ts";
 
-const check = Guard.semesters(Teams.MembershipMoment);
+const check = SemesterGuard.semesters(Teams.MembershipMoment);
 
 const startAhead = check.after(["term", "start"], ["current"]);
 const endPassed = check.after(["current"], ["term", "end"]);

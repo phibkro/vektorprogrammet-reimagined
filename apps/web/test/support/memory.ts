@@ -34,6 +34,7 @@ import {
   WorkspaceReports,
   anonymous,
   deliveryState,
+  isListed,
 } from "@vektorprogrammet/domain";
 import type {
   AdmissionPeriod,
@@ -345,21 +346,23 @@ const repositories = Layer.effectContext(
 
     const outbox = Outbox.of({
       enqueue: (messages) =>
-        Effect.sync(() =>
-          Arr.map(messages, (message) => {
-            const id = OutboxMessageId.make(`outbox-${takeId()}`);
-            db.outbox.push({
-              attempts: 0,
-              claimToken: null,
-              id,
-              lastError: null,
-              message,
-              nextAttemptAt: null,
-              status: "pending",
-            });
+        Effect.forEach(messages, (message) =>
+          isListed(message)
+            ? Effect.sync(() => {
+                const id = OutboxMessageId.make(`outbox-${takeId()}`);
+                db.outbox.push({
+                  attempts: 0,
+                  claimToken: null,
+                  id,
+                  lastError: null,
+                  message,
+                  nextAttemptAt: null,
+                  status: "pending",
+                });
 
-            return id;
-          })
+                return id;
+              })
+            : Effect.die(`${message._tag} is not a message of the catalog`)
         ),
     });
 

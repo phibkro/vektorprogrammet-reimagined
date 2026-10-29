@@ -1,7 +1,11 @@
 /**
- * Reusable semester checks for machine contexts. A check is an Effect Schema filter; its representation is the
+ * Reusable ordered-value checks for machine contexts. A check is an Effect Schema filter; its representation is the
  * data from which a later compiler can recover the operation and its operand paths. The runtime and the revivers
  * use the same constructors, so the persisted check and its interpretation cannot diverge.
+ *
+ * The kernel does not know what is ordered. The service that owns the value hands over its schema and its order
+ * (`ordered`): `organisation/semesterGuard.ts` does it for a semester (spec 0022 R2). The ids stay the ones that the
+ * descriptions already carry.
  */
 import {
   Array as Arr,
@@ -10,10 +14,13 @@ import {
   Schema,
   SchemaRepresentation,
 } from "effect";
-import type { SchemaAST } from "effect";
+import type { Order, SchemaAST } from "effect";
 
-import { Semester, SemesterOrder } from "../organisation/semester.ts";
-import type { Semester as SemesterValue } from "../organisation/semester.ts";
+/** What a guard compares: the schema that recognises the value, and the order of its values. */
+export interface Ordered<Value> {
+  readonly schema: Schema.Schema<Value>;
+  readonly order: Order.Order<Value>;
+}
 
 const AFTER = "vektorprogrammet/semester/after";
 const SAME = "vektorprogrammet/semester/same";
@@ -26,16 +33,14 @@ const OR = "vektorprogrammet/semester/or";
  */
 export const ids = { after: AFTER, not: NOT, or: OR, same: SAME } as const;
 
-/** Paths to semesters in this context, including semesters nested in one struct. */
-export type SemesterPath<Context> = {
-  readonly [Key in keyof Context & string]: Context[Key] extends SemesterValue
+/** Paths to ordered values in this context, including values nested in one struct. */
+export type OrderedPath<Context, Value> = {
+  readonly [Key in keyof Context & string]: Context[Key] extends Value
     ? readonly [Key]
     : {
         readonly [
           Nested in keyof Context[Key] & string
-        ]: Context[Key][Nested] extends SemesterValue
-          ? readonly [Key, Nested]
-          : never;
+        ]: Context[Key][Nested] extends Value ? readonly [Key, Nested] : never;
       }[keyof Context[Key] & string];
 }[keyof Context & string] &
   readonly [string, ...string[]];
@@ -45,28 +50,27 @@ const Comparison = Schema.Struct({ left: Path, right: Path });
 
 type Comparison = typeof Comparison.Type;
 
-const isSemester = Schema.is(Semester);
-
-const comparison = <Context>(
+const comparison = <Context, Value>(
+  value: Ordered<Value>,
   id: typeof AFTER | typeof SAME,
   payload: Comparison
-): SchemaAST.Filter<Context> =>
-  Schema.makeFilter<Context>(
+): SchemaAST.Filter<Context> => {
+  const isValue = Schema.is(value.schema);
+
+  return Schema.makeFilter<Context>(
     (context) => {
-      const select = (
-        path: readonly string[]
-      ): Option.Option<SemesterValue> => {
-        let value: unknown = context;
+      const select = (path: readonly string[]): Option.Option<Value> => {
+        let found: unknown = context;
 
         for (const key of path) {
-          if (!Predicate.isObject(value)) {
+          if (!Predicate.isObject(found)) {
             return Option.none();
           }
 
-          value = value[key];
+          found = found[key];
         }
 
-        return isSemester(value) ? Option.some(value) : Option.none();
+        return isValue(found) ? Option.some(found) : Option.none();
       };
 
       const left = select(payload.left);
@@ -76,7 +80,7 @@ const comparison = <Context>(
         return false;
       }
 
-      const order = SemesterOrder(left.value, right.value);
+      const order = value.order(left.value, right.value);
 
       return id === AFTER ? order > 0 : order === 0;
     },
@@ -85,6 +89,7 @@ const comparison = <Context>(
       representation: { id, payload },
     }
   );
+};
 
 const hasOneOperand = Schema.is(Schema.Tuple([Schema.Unknown]));
 const hasOperands = Schema.is(Schema.NonEmptyArray(Schema.Unknown));
@@ -116,28 +121,52 @@ const logical = (
   );
 };
 
-/** Build typed semester comparisons and logical checks for a single machine's context schema. */
-export const semesters = <Context>(context: Schema.Schema<Context>) => ({
-  after: (
-    left: SemesterPath<Context>,
-    right: SemesterPath<Context>
-  ): SchemaAST.Filter<Context> => comparison(AFTER, { left, right }),
-  not: (check: SchemaAST.Check<Context>): SchemaAST.Filter<Context> =>
-    logical(NOT, [context.check(check)]),
-  or: (
-    ...checks: readonly [
-      SchemaAST.Check<Context>,
-      ...SchemaAST.Check<Context>[],
-    ]
-  ): SchemaAST.Filter<Context> =>
-    logical(
-      OR,
-      Arr.map(checks, (check) => context.check(check))
+/**
+ * Typed comparisons and logical checks over `value`, for a single machine's context schema, and the revivers of the
+ * checks that this builds. `field` declares one of the context's ordered values for the machine (`Machine.make`'s
+ * `fields`), its path typed like an operand.
+ */
+export const ordered = <Value>(value: Ordered<Value>) => ({
+  comparisons: <Context>(context: Schema.Schema<Context>) => ({
+    after: (
+      left: OrderedPath<Context, Value>,
+      right: OrderedPath<Context, Value>
+    ): SchemaAST.Filter<Context> => comparison(value, AFTER, { left, right }),
+    field: <const Kind extends string>(
+      kind: Kind,
+      path: OrderedPath<Context, Value>
+    ) => ({ kind, path }),
+    not: (check: SchemaAST.Check<Context>): SchemaAST.Filter<Context> =>
+      logical(NOT, [context.check(check)]),
+    or: (
+      ...checks: readonly [
+        SchemaAST.Check<Context>,
+        ...SchemaAST.Check<Context>[],
+      ]
+    ): SchemaAST.Filter<Context> =>
+      logical(
+        OR,
+        Arr.map(checks, (check) => context.check(check))
+      ),
+    same: (
+      left: OrderedPath<Context, Value>,
+      right: OrderedPath<Context, Value>
+    ): SchemaAST.Filter<Context> => comparison(value, SAME, { left, right }),
+  }),
+  revivers: [
+    SchemaRepresentation.makeReviverFilter(AFTER, Comparison, ({ payload }) =>
+      comparison(value, AFTER, payload)
     ),
-  same: (
-    left: SemesterPath<Context>,
-    right: SemesterPath<Context>
-  ): SchemaAST.Filter<Context> => comparison(SAME, { left, right }),
+    SchemaRepresentation.makeReviverFilter(SAME, Comparison, ({ payload }) =>
+      comparison(value, SAME, payload)
+    ),
+    SchemaRepresentation.makeReviverFilter(NOT, Schema.Null, ({ schemas }) =>
+      logical(NOT, schemas)
+    ),
+    SchemaRepresentation.makeReviverFilter(OR, Schema.Null, ({ schemas }) =>
+      logical(OR, schemas)
+    ),
+  ] as const,
 });
 
 /**
@@ -226,21 +255,3 @@ const sentenceOf = (check: SchemaAST.Check<never>): Sentence => {
  */
 export const describe = (check: SchemaAST.Check<never>): string =>
   sentenceOf(check).text;
-
-/** Revivers of the closed check vocabulary, including Effect's checks on semester years. */
-export const revivers = [
-  SchemaRepresentation.isIntReviver,
-  SchemaRepresentation.isBetweenReviver,
-  SchemaRepresentation.makeReviverFilter(AFTER, Comparison, ({ payload }) =>
-    comparison(AFTER, payload)
-  ),
-  SchemaRepresentation.makeReviverFilter(SAME, Comparison, ({ payload }) =>
-    comparison(SAME, payload)
-  ),
-  SchemaRepresentation.makeReviverFilter(NOT, Schema.Null, ({ schemas }) =>
-    logical(NOT, schemas)
-  ),
-  SchemaRepresentation.makeReviverFilter(OR, Schema.Null, ({ schemas }) =>
-    logical(OR, schemas)
-  ),
-] as const;

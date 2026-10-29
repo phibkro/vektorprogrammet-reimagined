@@ -10,7 +10,12 @@ import {
 } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Guard, Machine, MembershipState, Teams } from "../../src/index.ts";
+import {
+  Machine,
+  MembershipState,
+  SemesterGuard,
+  Teams,
+} from "../../src/index.ts";
 import type { MembershipMoment } from "../../src/teams/declaration.ts";
 import { host, vaar } from "../support/calendar.ts";
 
@@ -22,7 +27,7 @@ const moment = {
   term: { end: vaar(2027), start: vaar(2026) },
 };
 
-const comparisons = Guard.semesters(ContextSchema);
+const comparisons = SemesterGuard.semesters(ContextSchema);
 
 /** Encode the schema as JSON, decode it again, and revive every check using its registered Effect reviver. */
 const revived = (json: Schema.Json) =>
@@ -30,7 +35,7 @@ const revived = (json: Schema.Json) =>
     SchemaRepresentation.fromRepresentation(
       SchemaRepresentation.fromJson(json),
       {
-        revivers: Guard.revivers,
+        revivers: SemesterGuard.revivers,
       }
     )
   );
@@ -132,7 +137,7 @@ describe("spec 0006 R4: native checks are declaration data", () => {
 
   it("semester operand paths name existing semester fields of this context", () => {
     type Accepted<Path> =
-      Path extends Guard.SemesterPath<MembershipMoment> ? true : false;
+      Path extends SemesterGuard.SemesterPath<MembershipMoment> ? true : false;
 
     expectTypeOf<Accepted<readonly ["current"]>>().toEqualTypeOf<true>();
     expectTypeOf<Accepted<readonly ["term", "end"]>>().toEqualTypeOf<true>();

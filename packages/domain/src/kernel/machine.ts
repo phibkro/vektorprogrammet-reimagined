@@ -172,11 +172,8 @@ export const make = <
   readonly states: States;
   /** The states that nothing leaves (`[]` when every state has a way out). Required: it is never a default. */
   readonly terminal: readonly TagOf<States>[];
-  /** The semesters that the guards read, by path, with the kind of each. */
-  readonly fields?: readonly {
-    readonly kind: FieldKind;
-    readonly path: Guard.SemesterPath<Context>;
-  }[];
+  /** The ordered values that the guards read, by path, with the kind of each (the `field` of `Guard.ordered`). */
+  readonly fields?: readonly Field[];
   readonly transitions: readonly Transition<
     TagOf<States>,
     Rpcs["_tag"],

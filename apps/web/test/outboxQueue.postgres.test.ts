@@ -25,7 +25,7 @@ import {
   CapturedMessageStore,
   CodeToken,
   CurrentPrincipal,
-  JobRegistry,
+  Job,
   OutboxDelivery,
   OutboxSweep,
   Transactor,
@@ -322,7 +322,7 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
             Effect.promise(async () => {
               await runTick(
                 envFor(url, queue),
-                { cron: JobRegistry.TICK_CRON, scheduledTime },
+                { cron: Job.TICK_CRON, scheduledTime },
                 ["outboxSweep"]
               );
             });
@@ -371,7 +371,7 @@ layer(withDatabase(captureSenderLayer), { excludeTestServices: true })(
           yield* Effect.promise(async () => {
             await runTick(
               envFor(url, queue),
-              { cron: JobRegistry.TICK_CRON, scheduledTime: later },
+              { cron: Job.TICK_CRON, scheduledTime: later },
               []
             );
           });

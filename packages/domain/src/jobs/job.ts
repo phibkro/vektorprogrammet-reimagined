@@ -47,6 +47,13 @@ const Cron = Schema.String.check(
   })
 );
 
+/**
+ * The ten-minute tick: the one trigger of most jobs. Jobs that are not due at a tick do nothing at it. A local trigger
+ * without a cron (`/cdn-cgi/handler/scheduled`) runs this tick, as the platform's cron would. It is declared here so
+ * that every service can name it in its own job declaration.
+ */
+export const TICK_CRON = "*/10 * * * *";
+
 export const Schedule = Schema.Struct({ cron: Cron, status: ScheduleStatus });
 
 export type Schedule = typeof Schedule.Type;

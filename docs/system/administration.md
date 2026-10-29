@@ -209,7 +209,7 @@ A consent record names the version of the text that the person saw, when they ga
 
 ### Scheduled jobs
 
-Every job is declared once, in `packages/domain/src/jobs/registry.ts` (spec 0008). The Worker's cron triggers, the scheduler and this table are generated from that registry. A job runs as its own `System` principal, through the commands that its grant names, in periods that `job_run` claims once: a run that is cut short resumes at its cursor on the next tick. The retention run's mode (apply, or count only) is not in the registry: the database layer that the Worker builds for the job fixes it (see Retention above).
+Every job is declared once and listed in `packages/domain/src/jobs/registry.ts` (spec 0008; a service that owns its job declares it beside its commands, as `workspace/job.ts` does, and the registry imports it). The Worker's cron triggers, the scheduler and this table are generated from that registry. A job runs as its own `System` principal, through the commands that its grant names, in periods that `job_run` claims once: a run that is cut short resumes at its cursor on the next tick. The retention run's mode (apply, or count only) is not in the registry: the database layer that the Worker builds for the job fixes it (see Retention above).
 
 <!-- docgen:begin jobs -->
 

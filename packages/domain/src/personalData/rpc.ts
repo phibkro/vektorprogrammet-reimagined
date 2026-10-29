@@ -6,11 +6,10 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { CodeToken, codePolicy } from "../accounts/code.ts";
+import { CodeToken, codeHolder, codePolicy } from "../accounts/code.ts";
 import {
   Info,
   grant,
-  holder,
   info,
   leader,
   self,
@@ -209,7 +208,7 @@ export const PersonalDataDomain = declareDomain({
       "own"
     ),
     grant([leader], ["setPhoto"], "department"),
-    grant([holder("alumniConsent")], ["answerAlumniConsent"], "own"),
+    grant([codeHolder("alumniConsent")], ["answerAlumniConsent"], "own"),
     grant([system("retention")], ["runRetention"], "all"),
     grant([system("alumniConsent")], ["sendAlumniConsent"], "all"),
   ],

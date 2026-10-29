@@ -635,8 +635,8 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
     );
 
     it("the baseline is pinned: a stage that removes an import lowers the count, and nothing adds to it", () => {
-      // Three imports between modules (ADR 0015 stages 2 and 3 remove them) and five between packages (stage 5).
-      assert.lengthOf(baseline, 8);
+      // The three imports between modules are gone (ADR 0015 stages 2 and 3, spec 0022); five between packages remain (stage 5).
+      assert.lengthOf(baseline, 5);
 
       // One call of another system inside a transaction that the type bound does not see (review round 1).
       assert.deepStrictEqual(
@@ -653,9 +653,6 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
       assert.deepStrictEqual(
         Arr.map(baseline, ({ from, to }) => `${from} -> ${to}`),
         [
-          `${d}/shared/outbox.ts -> ${d}/accounts/passwordHasher.ts`,
-          `${d}/shared/outbox.ts -> ${d}/workspace/change.ts`,
-          `${d}/workspace/commands.ts -> ${d}/jobs/registry.ts`,
           "apps/cms/scripts/checkBundle.ts -> packages/db",
           "apps/cms/scripts/checkBundle.ts -> apps/web",
           "apps/web/test/textSlots.test.ts -> apps/cms",

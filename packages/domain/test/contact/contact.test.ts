@@ -14,6 +14,7 @@ import {
   DEPARTMENT_UNAVAILABLE_MESSAGE,
   DepartmentId,
   INVALID_EMAIL_MESSAGE,
+  SlackPostMessage,
   SupportTicket,
   anonymous,
   supportTicketMessages,
@@ -240,6 +241,8 @@ describe("C10 contact form", () => {
   );
 });
 
+const isSlackPost = Schema.is(SlackPostMessage);
+
 // Fixtures F43/F44 of the independent verification; the expected strings are
 // the legacy output (SupportTicketSubscriber + SlackMessenger), except the
 // trailing space legacy left after "vektorprogrammet.no.", which is not
@@ -261,9 +264,7 @@ const slackTexts = Effect.fn("slackTexts")(function* slackTexts(
       decoded,
       departmentForTest(TRONDHEIM, "Kristiansand", "UiA", slackChannel)
     ),
-    Arr.flatMap((outbox) =>
-      Predicate.isTagged(outbox, "SlackPost") ? [outbox.text] : []
-    )
+    Arr.flatMap((outbox) => (isSlackPost(outbox) ? [outbox.text] : []))
   );
 });
 

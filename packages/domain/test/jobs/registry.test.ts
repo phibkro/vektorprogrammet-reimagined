@@ -13,6 +13,7 @@ import {
   OutboxSweep,
   Periods,
   SystemJob,
+  WorkspaceJob,
   afterDuration,
   jobProblems,
   systemPrincipal,
@@ -29,7 +30,8 @@ const sortedNames = (list: readonly string[]): readonly string[] =>
 const periods = (...values: readonly string[]) =>
   Arr.map(values, (value) => Job.JobPeriod.make(value));
 
-const { Jobs, semesters, workspaceSync } = JobRegistry;
+const { Jobs, semesters } = JobRegistry;
+const { workspaceSync } = WorkspaceJob;
 
 describe("spec 0008 falsifier 6: the job registry is complete", () => {
   it("every System principal has a declaration, and every declaration a command", () => {
@@ -233,7 +235,7 @@ describe("spec 0008 with spec 0007b: the two jobs of the personal data engine ar
     assert.strictEqual(retention.schedule.status, "approved");
     assert.notStrictEqual(retention.schedule.cron, semesters.schedule.cron);
     assert.strictEqual(alumniConsent.schedule.cron, semesters.schedule.cron);
-    assert.strictEqual(alumniConsent.schedule.cron, JobRegistry.TICK_CRON);
+    assert.strictEqual(alumniConsent.schedule.cron, Job.TICK_CRON);
 
     for (const job of [retention, alumniConsent]) {
       assert.deepStrictEqual(job.dueWhen, [
@@ -246,7 +248,7 @@ describe("spec 0008 with spec 0007b: the two jobs of the personal data engine ar
     const tick = Arr.map(
       Arr.filter(
         JobRegistry.Jobs,
-        (job) => job.schedule.cron === JobRegistry.TICK_CRON
+        (job) => job.schedule.cron === Job.TICK_CRON
       ),
       (job) => job.name
     );
