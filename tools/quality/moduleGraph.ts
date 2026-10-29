@@ -330,6 +330,7 @@ const units: readonly Unit[] = [
   { root: "tools/docgen", uses: ["packages/domain"] },
   { root: "tools/effx-conformance", uses: ["packages/domain"] },
   { root: "tools/oxlint", uses: [] },
+  { root: "tools/ttsc-edges", uses: [] },
   {
     root: "tools/import",
     uses: ["packages/domain", "packages/db", "packages/cms-client"],
