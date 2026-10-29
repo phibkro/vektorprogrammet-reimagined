@@ -38,50 +38,44 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { transactional } from "../../src/index.ts";
 import { slack } from "./fixtures.ts";
 
-export type Ending = "commit" | "fail" | "die" | "interrupt" | "timeout";
+type Ending = "commit" | "fail" | "die" | "interrupt" | "timeout";
 
-export type ForkKind = "child" | "in" | "detach";
+type ForkKind = "child" | "in" | "detach";
 
-export interface WriteStep {
+interface WriteStep {
   readonly _tag: "Write";
 }
 
-export interface SleepStep {
+interface SleepStep {
   readonly _tag: "Sleep";
   readonly ms: number;
 }
 
-export interface LevelStep {
+interface LevelStep {
   readonly _tag: "Level";
   readonly body: Body;
   readonly ending: Ending;
 }
 
-export interface ForkStep {
+interface ForkStep {
   readonly _tag: "Fork";
   readonly body: Body;
   readonly delay: number;
   readonly kind: ForkKind;
 }
 
-export interface ParStep {
+interface ParStep {
   readonly _tag: "Par";
   readonly branches: readonly Body[];
 }
 
 /** Steps one after the other in the level: how a generator makes a pattern of two levels. */
-export interface SeqStep {
+interface SeqStep {
   readonly _tag: "Seq";
   readonly steps: Body;
 }
 
-export type Step =
-  | WriteStep
-  | SleepStep
-  | LevelStep
-  | ForkStep
-  | ParStep
-  | SeqStep;
+type Step = WriteStep | SleepStep | LevelStep | ForkStep | ParStep | SeqStep;
 
 export type Body = readonly Step[];
 
