@@ -170,8 +170,9 @@ export const readSources = Effect.fn("readSources")(function* readSources(
 
   /**
    * Why `directory` (from the root) is not plain, or none when it is: each of its segments is looked at with `lstat`, so a
-   * symbolic link is refused whether or not its target exists, and a segment that is not there at all is refused (an
-   * absent directory cannot be placed, and a link may be put in its place).
+   * symbolic link is refused whether or not its target exists, a segment that is not there at all is refused (an absent
+   * directory cannot be placed, and a link may be put in its place), and so is a segment that is another kind of file (a
+   * regular file is not a directory).
    */
   const directoryRefusal = (directory: string) =>
     Effect.gen(function* inspectDirectory() {
@@ -189,6 +190,10 @@ export const readSources = Effect.fn("readSources")(function* readSources(
           return Option.some(
             `a symbolic link (${segment}) is in its directory`
           );
+        }
+
+        if (info.value.type !== "Directory") {
+          return Option.some(`its directory ${segment} is not a directory`);
         }
       }
 

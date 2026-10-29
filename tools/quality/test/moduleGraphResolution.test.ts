@@ -1035,6 +1035,18 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           ),
         ]);
 
+        assert.deepStrictEqual(
+          yield* scannedGlob(globOf("./data/*.json"), {
+            "apps/web/src/server/data": "a file, not a directory\n",
+          }),
+          [
+            refusal(
+              '"./data/*.json"',
+              "its directory apps/web/src/server/data is not a directory"
+            ),
+          ]
+        );
+
         // Controls: the same globs over plain directories are placed and clean.
         assert.deepStrictEqual(
           yield* scannedGlob(globOf(vendored), {
