@@ -1,17 +1,19 @@
 /**
- * Spec 0018, falsifier 6 (guarantee TX5): `InTransaction` is provided only by a `Transactor` or by a test composition that
- * keeps TX1 to TX3. The proof is an ordinary value, so nothing in the types stops `Effect.provideService(program,
- * InTransaction, …)` anywhere; this test is what catches it.
+ * A lint against accidental provision of `InTransaction` (spec 0018, falsifier 6; reframed by spec 0019). It is not what
+ * makes the proof unforgeable: the adapter does. Every adapter method that requires `InTransaction` checks at run time,
+ * before its first statement, that the proof the program holds is the live transaction's own (`packages/db/src/live.ts`,
+ * guarantee TX5), and a forged or leaked proof dies as `TransactionNotLive`. `packages/db/test/liveProof.postgres.test.ts`
+ * shows it, with the forgeries that three rounds of review beat this scan with.
  *
- * **It is a guard against accidental misuse, not a proof that the proof cannot be forged** (round 3, R20). Effect keys a
- * service by a string, and a `Context` is a map from strings to values, so a program can make the proof without
- * naming the service; no scan of the source closes that. The scan does not list the ways to provide the proof, which
- * three rounds of reviewers each beat with a new spelling; it flags every reference to the service as a value, and the
- * service's key as a whole string (`support/proofReferences.ts` has the rule and the list of what it does not see),
+ * What this test is for is the cheap, early signal: a file that holds `InTransaction` as a value, or writes its key as a
+ * string, is one more place that could make a proof by accident, and the scan fails at review time what the adapter would
+ * refuse only at first use. Effect keys a service by a string, and a `Context` is a map from strings to values, so a
+ * program can make a value of the service without naming it; no scan of the source closes that, and none is meant to.
+ * The scan therefore does not list the ways to provide the proof. It flags every reference to the service as a value, and
+ * the service's key as a whole string (`support/proofReferences.ts` has the rule and the list of what it does not see),
  * except `yield* InTransaction`, a type position and the import and export declarations. A file with such a reference
  * must be in one allowlist with its reason and the number of its places, and an allowance that no file needs, or that
- * is exceeded, fails, so the list only shrinks. The construction that cannot be forged, a check at run time that the
- * proof is the live transaction's own, is a later spec.
+ * is exceeded, fails, so the list only shrinks.
  *
  * The files are the working tree's as git lists them (tracked, and untracked that no `.gitignore` excludes), so a build
  * output such as `.alchemy/` or `dist/` is not read.
@@ -47,10 +49,10 @@ interface Allowance {
 
 const allowances: readonly Allowance[] = [
   {
-    calls: 2,
-    path: "packages/db/src/transactional.ts",
+    calls: 4,
+    path: "packages/db/src/live.ts",
     reason:
-      "the one production provider: `transactional`, under `Transactor.run`",
+      "the one production provider (`liveLevel`, which `transactional` runs each level in: the proof of each level, made once, provided in one place and read from the context to admit a nested level from its own level) and the check of the proof that every `Requires` method of an adapter makes (`verify`); it holds the proofs in a private stack of levels",
   },
   {
     calls: 1,
@@ -65,7 +67,14 @@ const allowances: readonly Allowance[] = [
   {
     calls: 2,
     path: "packages/db/test/aggregates.postgres.test.ts",
-    reason: "the case that shows a forged proof is refused by the lock (LK3)",
+    reason:
+      "the case that shows a forged proof is refused where a lock is asked for (spec 0019 and LK3)",
+  },
+  {
+    calls: 12,
+    path: "packages/db/test/liveProof.postgres.test.ts",
+    reason:
+      "the forgeries and the leaked proofs that the adapters' check refuses (spec 0019), and the sweep that calls every `Requires` method under a forged proof",
   },
   {
     calls: 2,

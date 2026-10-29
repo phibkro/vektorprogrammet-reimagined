@@ -15,6 +15,7 @@ import { DateTime, Effect, Layer, Schema } from "effect";
 import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { code } from "../schema.ts";
 
 const StoredCode = Schema.Struct({
@@ -95,6 +96,9 @@ export const CodeRepositoryLive = Layer.effect(
       return rows.length === 1;
     });
 
-    return CodeRepository.of({ consume, findUsable, replace });
+    return yield* verified(
+      "CodeRepository",
+      CodeRepository.of({ consume, findUsable, replace })
+    );
   })
 );

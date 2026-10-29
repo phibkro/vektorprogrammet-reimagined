@@ -30,7 +30,7 @@ Each server function or server route:
    - Web Crypto `Digest` and `SecureRandom` from `effect/crypto` (`webCryptoLayer` in `server/webCrypto.ts`)
    - `TurnstileVerifier` and `ContactRateLimiter`
    - `CmsClient` (`packages/cms-client`) over `fetch` to `CMS_URL`, authorised with the read-only `CMS_TOKEN`: the public pages' texts, FAQ, news and sponsors
-   - `Transactor` (the domain's port, provided by `DatabaseLive`), which wraps a command in `@vektorprogrammet/db`'s `transactional` (the one production provider of `InTransaction`; a test fails if another file holds the service as a value, a guard against accidental use and not a proof, spec 0018 R20)
+   - `Transactor` (the domain's port, provided by `DatabaseLive`), which wraps a command in `@vektorprogrammet/db`'s `transactional` (the one production provider of `InTransaction`: it makes a fresh proof for each level, and every adapter method that requires it checks at run time that the proof is the live transaction's own, spec 0019; a test fails if another file holds the service as a value, a lint against accidental use)
 3. Runs the Effect with the request's `AbortSignal`. A prepared command runs `prepare` outside any transaction (provider I/O such as rate limit, Turnstile and R2 uploads), then the command inside one.
 4. Maps typed failures through **one table** (`server/errors.ts`):
 

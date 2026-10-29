@@ -479,14 +479,24 @@
           "packages/db/src/aggregate/aggregates.ts",
           "packages/db/src/aggregate/locks.ts",
           "packages/db/src/aggregate/model.ts",
+          "packages/db/src/live.ts",
           "packages/db/test/aggregates.postgres.test.ts",
+          "packages/db/test/liveProof.postgres.test.ts",
           "packages/domain/test/support/teamsInMemory.ts"
         ],
-        "symbols": ["asRows", "mint", "declare", "forged", "aggregateLocks"]
+        "symbols": [
+          "asRows",
+          "mint",
+          "declare",
+          "forged",
+          "aggregateLocks",
+          "verified"
+        ]
       },
-      "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table.",
+      "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table. `verified` (spec 0019) puts the check of the live transaction proof in front of every `Requires` member of a port: it maps the members of a service by name and gives back an object of the service's own type.",
       "missingCapability": "TypeScript cannot build a value of an opaque type with an unexported brand from a plain object, and Drizzle 1.0.0-rc.5 has no generic form of insert, update, delete and select on a table type parameter whose rows follow that parameter.",
       "nativeAlternativesExamined": [
+        "`verified` maps the members of whichever port it is given, and TypeScript has no mapped-type form that is also a runtime map over a generic service shape, so the object that it builds is stated to have the service's type with one Function.cast at each end of the map.",
         "Effect Brand.nominal makes a token without a cast, but its brand key is Effect's public type id, so a hand-made literal with that key would type-check. The spec asks for an unexported brand.",
         "A class with a private constructor needs a factory that packages/db can call, and anything that can call it can make a token.",
         "Decoding every returned row through a schema would check at run time what the statement already guarantees, for every write of every repository.",
