@@ -3,15 +3,16 @@
  * transaction; `apps/web` delivers them after commit (`waitUntil` plus a cron
  * sweep). Only production builds real mail/Slack transports; other deployments
  * capture messages (architecture §4).
+ *
+ * This library is the pattern: the `Outbox` port, the transport messages that every service may send (an e-mail, a
+ * Slack post: they name no service) and `declareMessage`, with which a service declares each message it enqueues
+ * itself (`accounts/messages.ts`, `workspace/message.ts`). It lists none of them and imports no service. The catalog
+ * assembles the union that delivery decodes (`outbox/messages.ts`, ADR 0015 stage 3, spec 0022).
  */
 import { Context, Match, Schema } from "effect";
-import type { Effect } from "effect";
+import type { Brand, Effect } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import { CodePurpose } from "../accounts/code.ts";
-import { PasswordHash } from "../accounts/passwordHasher.ts";
-import { WorkspaceChange } from "../workspace/change.ts";
-import { PersonId } from "./ids.ts";
 import type { OutboxMessageId } from "./ids.ts";
 import type { InTransaction } from "./transaction.ts";
 import { EmailAddress } from "./validation.ts";
@@ -43,40 +44,44 @@ export const slackChannelOf = (target: SlackTarget): string =>
     })
   );
 
-/** Persisted as JSON by `packages/db`; decode with this schema on read. */
-export const OutboxMessage = Schema.TaggedUnion({
-  Email: {
-    replyTo: Schema.NullOr(EmailAddress),
-    subject: Schema.String,
-    text: Schema.String,
-    to: EmailAddress,
-  },
-  IssueCode: {
-    personId: PersonId,
-    purpose: CodePurpose,
-  },
-  SetCredential: {
-    passwordHash: Schema.NullOr(PasswordHash),
-    personId: PersonId,
-    revokeSessions: Schema.Boolean,
-  },
-  SlackPost: {
-    target: SlackTarget,
-    text: Schema.String,
-  },
-  /** A change to the Google Workspace directory (spec 0008): delivered by the sweep to `WorkspaceWriter`, not a transport message. */
-  WorkspaceChange: {
-    change: WorkspaceChange,
-  },
+/**
+ * A message that a service declares it enqueues, built with `declareMessage`. The brand is how `Outbox.enqueue` refuses
+ * a value that nobody declared; that the catalog lists it is checked by `test/outbox/messages.test.ts`.
+ */
+export type DeclaredMessage = Brand.Brand<"OutboxMessage"> & {
+  readonly _tag: string;
+};
+
+/**
+ * Declares one message of the outbox: a tag and its fields, persisted as JSON by `packages/db` (decode with the
+ * catalog's `OutboxMessage` on read). The service that enqueues the message calls this where it declares its commands.
+ */
+export const declareMessage = <
+  const Tag extends string,
+  const Fields extends Schema.Struct.Fields,
+>(
+  tag: Tag,
+  fields: Fields
+) => Schema.TaggedStruct(tag, fields).pipe(Schema.brand("OutboxMessage"));
+
+/** An e-mail, delivered by the transport (or captured, outside production). */
+export const EmailMessage = declareMessage("Email", {
+  replyTo: Schema.NullOr(EmailAddress),
+  subject: Schema.String,
+  text: Schema.String,
+  to: EmailAddress,
 });
 
-export type OutboxMessage = typeof OutboxMessage.Type;
+/** A Slack post, delivered by the transport (or captured, outside production). */
+export const SlackPostMessage = declareMessage("SlackPost", {
+  target: SlackTarget,
+  text: Schema.String,
+});
 
 /** Messages handed to e-mail and Slack transports after domain intents are interpreted. */
-export type TransportMessage = Extract<
-  OutboxMessage,
-  { readonly _tag: "Email" | "SlackPost" }
->;
+export type TransportMessage =
+  | typeof EmailMessage.Type
+  | typeof SlackPostMessage.Type;
 
 export class Outbox extends Context.Service<
   Outbox,
@@ -87,7 +92,7 @@ export class Outbox extends Context.Service<
      * reverse (CL3).
      */
     readonly enqueue: (
-      messages: NonEmptyReadonlyArray<OutboxMessage>
+      messages: NonEmptyReadonlyArray<DeclaredMessage>
     ) => Effect.Effect<readonly OutboxMessageId[], never, InTransaction>;
   }
 >()("@vektorprogrammet/domain/shared/Outbox") {}

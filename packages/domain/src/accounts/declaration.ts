@@ -5,7 +5,6 @@ import { Rpc, RpcGroup } from "effect/rpc";
 import {
   Info,
   grant,
-  holder,
   info,
   leader,
   self,
@@ -16,7 +15,7 @@ import * as Machine from "../kernel/machine.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { PersonId } from "../shared/ids.ts";
 import { Person, PersonEmailInput, PersonInput } from "../teams/entities.ts";
-import { CodeToken } from "./code.ts";
+import { CodeToken, codeHolder } from "./code.ts";
 import { Account, AccountState, Password } from "./entities.ts";
 
 export const createAccount = Rpc.make("createAccount", {
@@ -224,8 +223,8 @@ export const AccountDomain = declareDomain({
   grants: [
     grant([leader], ["createAccount", "updatePerson"], "department"),
     grant([self], ["updatePerson"], "own"),
-    grant([holder("activation")], ["activateAccount"], "own"),
-    grant([holder("resetPassword")], ["resetPassword"], "own"),
+    grant([codeHolder("activation")], ["activateAccount"], "own"),
+    grant([codeHolder("resetPassword")], ["resetPassword"], "own"),
     grant([anyone], ["requestPasswordReset"], "all"),
   ],
   machines: [AccountMachine],

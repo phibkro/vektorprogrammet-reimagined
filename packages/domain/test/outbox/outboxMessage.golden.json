@@ -1,0 +1,897 @@
+{
+  "cases": [
+    "Email",
+    "IssueCode",
+    "SetCredential",
+    "SlackPost",
+    "WorkspaceChange"
+  ],
+  "representation": {
+    "representation": {
+      "_tag": "Union",
+      "checks": [],
+      "types": [
+        {
+          "_tag": "Objects",
+          "checks": [],
+          "propertySignatures": [
+            {
+              "name": {
+                "type": "string",
+                "value": "_tag"
+              },
+              "type": {
+                "_tag": "Literal",
+                "checks": [],
+                "literal": {
+                  "type": "string",
+                  "value": "Email"
+                }
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "replyTo"
+              },
+              "type": {
+                "_tag": "Union",
+                "checks": [],
+                "types": [
+                  {
+                    "_tag": "String",
+                    "checks": [
+                      {
+                        "_tag": "Filter",
+                        "representation": {
+                          "id": "effect/schema/isPattern",
+                          "payload": {
+                            "source": "^[^\\s@]+@[^\\s@.]+(?<domainSegment>\\.[^\\s@.]+)+$",
+                            "flags": "u"
+                          }
+                        },
+                        "annotations": {
+                          "expected": "a string matching the RegExp ^[^\\s@]+@[^\\s@.]+(?<domainSegment>\\.[^\\s@.]+)+$",
+                          "arbitraryConstraint": {
+                            "patterns": [
+                              {
+                                "source": "^[^\\s@]+@[^\\s@.]+(?<domainSegment>\\.[^\\s@.]+)+$",
+                                "flags": "u"
+                              }
+                            ]
+                          },
+                          "message": "Ugyldig e-postadresse."
+                        },
+                        "aborted": false
+                      }
+                    ]
+                  },
+                  {
+                    "_tag": "Null",
+                    "checks": []
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "subject"
+              },
+              "type": {
+                "_tag": "String",
+                "checks": []
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "text"
+              },
+              "type": {
+                "_tag": "String",
+                "checks": []
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "to"
+              },
+              "type": {
+                "_tag": "String",
+                "checks": [
+                  {
+                    "_tag": "Filter",
+                    "representation": {
+                      "id": "effect/schema/isPattern",
+                      "payload": {
+                        "source": "^[^\\s@]+@[^\\s@.]+(?<domainSegment>\\.[^\\s@.]+)+$",
+                        "flags": "u"
+                      }
+                    },
+                    "annotations": {
+                      "expected": "a string matching the RegExp ^[^\\s@]+@[^\\s@.]+(?<domainSegment>\\.[^\\s@.]+)+$",
+                      "arbitraryConstraint": {
+                        "patterns": [
+                          {
+                            "source": "^[^\\s@]+@[^\\s@.]+(?<domainSegment>\\.[^\\s@.]+)+$",
+                            "flags": "u"
+                          }
+                        ]
+                      },
+                      "message": "Ugyldig e-postadresse."
+                    },
+                    "aborted": false
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            }
+          ],
+          "indexSignatures": []
+        },
+        {
+          "_tag": "Objects",
+          "checks": [],
+          "propertySignatures": [
+            {
+              "name": {
+                "type": "string",
+                "value": "_tag"
+              },
+              "type": {
+                "_tag": "Literal",
+                "checks": [],
+                "literal": {
+                  "type": "string",
+                  "value": "IssueCode"
+                }
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "personId"
+              },
+              "type": {
+                "_tag": "Number",
+                "checks": [
+                  {
+                    "_tag": "Filter",
+                    "representation": {
+                      "id": "effect/schema/isInt",
+                      "payload": null
+                    },
+                    "annotations": {
+                      "expected": "an integer",
+                      "arbitraryConstraint": {
+                        "number": "integer"
+                      }
+                    },
+                    "aborted": false
+                  },
+                  {
+                    "_tag": "Filter",
+                    "representation": {
+                      "id": "effect/schema/isGreaterThan",
+                      "payload": {
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "annotations": {
+                      "expected": "a value greater than 0"
+                    },
+                    "aborted": false
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "purpose"
+              },
+              "type": {
+                "_tag": "Union",
+                "checks": [],
+                "types": [
+                  {
+                    "_tag": "Literal",
+                    "checks": [],
+                    "literal": {
+                      "type": "string",
+                      "value": "activation"
+                    }
+                  },
+                  {
+                    "_tag": "Literal",
+                    "checks": [],
+                    "literal": {
+                      "type": "string",
+                      "value": "alumniConsent"
+                    }
+                  },
+                  {
+                    "_tag": "Literal",
+                    "checks": [],
+                    "literal": {
+                      "type": "string",
+                      "value": "resetPassword"
+                    }
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            }
+          ],
+          "indexSignatures": []
+        },
+        {
+          "_tag": "Objects",
+          "checks": [],
+          "propertySignatures": [
+            {
+              "name": {
+                "type": "string",
+                "value": "_tag"
+              },
+              "type": {
+                "_tag": "Literal",
+                "checks": [],
+                "literal": {
+                  "type": "string",
+                  "value": "SetCredential"
+                }
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "passwordHash"
+              },
+              "type": {
+                "_tag": "Union",
+                "checks": [],
+                "types": [
+                  {
+                    "_tag": "String",
+                    "checks": [
+                      {
+                        "_tag": "Filter",
+                        "representation": {
+                          "id": "effect/schema/isPattern",
+                          "payload": {
+                            "source": "^\\$2[aby]\\$(?:0[4-9]|[12][0-9]|3[01])\\$[./A-Za-z0-9]{53}$",
+                            "flags": "u"
+                          }
+                        },
+                        "annotations": {
+                          "expected": "a bcrypt password hash",
+                          "arbitraryConstraint": {
+                            "patterns": [
+                              {
+                                "source": "^\\$2[aby]\\$(?:0[4-9]|[12][0-9]|3[01])\\$[./A-Za-z0-9]{53}$",
+                                "flags": "u"
+                              }
+                            ]
+                          }
+                        },
+                        "aborted": false
+                      }
+                    ]
+                  },
+                  {
+                    "_tag": "Null",
+                    "checks": []
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "personId"
+              },
+              "type": {
+                "_tag": "Number",
+                "checks": [
+                  {
+                    "_tag": "Filter",
+                    "representation": {
+                      "id": "effect/schema/isInt",
+                      "payload": null
+                    },
+                    "annotations": {
+                      "expected": "an integer",
+                      "arbitraryConstraint": {
+                        "number": "integer"
+                      }
+                    },
+                    "aborted": false
+                  },
+                  {
+                    "_tag": "Filter",
+                    "representation": {
+                      "id": "effect/schema/isGreaterThan",
+                      "payload": {
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "annotations": {
+                      "expected": "a value greater than 0"
+                    },
+                    "aborted": false
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "revokeSessions"
+              },
+              "type": {
+                "_tag": "Boolean",
+                "checks": []
+              },
+              "isOptional": false,
+              "isMutable": false
+            }
+          ],
+          "indexSignatures": []
+        },
+        {
+          "_tag": "Objects",
+          "checks": [],
+          "propertySignatures": [
+            {
+              "name": {
+                "type": "string",
+                "value": "_tag"
+              },
+              "type": {
+                "_tag": "Literal",
+                "checks": [],
+                "literal": {
+                  "type": "string",
+                  "value": "SlackPost"
+                }
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "target"
+              },
+              "type": {
+                "_tag": "Union",
+                "checks": [],
+                "types": [
+                  {
+                    "_tag": "Objects",
+                    "checks": [],
+                    "propertySignatures": [
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "_tag"
+                        },
+                        "type": {
+                          "_tag": "Literal",
+                          "checks": [],
+                          "literal": {
+                            "type": "string",
+                            "value": "DepartmentChannel"
+                          }
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "channel"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^#[^\\s#]{1,80}$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "a Slack channel such as #kanal",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^#[^\\s#]{1,80}$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      }
+                    ],
+                    "indexSignatures": []
+                  },
+                  {
+                    "_tag": "Objects",
+                    "checks": [],
+                    "propertySignatures": [
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "_tag"
+                        },
+                        "type": {
+                          "_tag": "Literal",
+                          "checks": [],
+                          "literal": {
+                            "type": "string",
+                            "value": "Notifications"
+                          }
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      }
+                    ],
+                    "indexSignatures": []
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "text"
+              },
+              "type": {
+                "_tag": "String",
+                "checks": []
+              },
+              "isOptional": false,
+              "isMutable": false
+            }
+          ],
+          "indexSignatures": []
+        },
+        {
+          "_tag": "Objects",
+          "checks": [],
+          "propertySignatures": [
+            {
+              "name": {
+                "type": "string",
+                "value": "_tag"
+              },
+              "type": {
+                "_tag": "Literal",
+                "checks": [],
+                "literal": {
+                  "type": "string",
+                  "value": "WorkspaceChange"
+                }
+              },
+              "isOptional": false,
+              "isMutable": false
+            },
+            {
+              "name": {
+                "type": "string",
+                "value": "change"
+              },
+              "type": {
+                "_tag": "Union",
+                "checks": [],
+                "types": [
+                  {
+                    "_tag": "Objects",
+                    "checks": [],
+                    "propertySignatures": [
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "_tag"
+                        },
+                        "type": {
+                          "_tag": "Literal",
+                          "checks": [],
+                          "literal": {
+                            "type": "string",
+                            "value": "EnsureAbsent"
+                          }
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "group"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "an address that ends in @vektorprogrammet.no",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "member"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "an address that ends in @vektorprogrammet.no",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      }
+                    ],
+                    "indexSignatures": []
+                  },
+                  {
+                    "_tag": "Objects",
+                    "checks": [],
+                    "propertySignatures": [
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "_tag"
+                        },
+                        "type": {
+                          "_tag": "Literal",
+                          "checks": [],
+                          "literal": {
+                            "type": "string",
+                            "value": "EnsureAccount"
+                          }
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "address"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "an address that ends in @vektorprogrammet.no",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "name"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isMinLength",
+                                "payload": {
+                                  "minLength": 1
+                                }
+                              },
+                              "annotations": {
+                                "expected": "a value with a length of at least 1",
+                                "~structural": true,
+                                "arbitraryConstraint": {
+                                  "minLength": 1
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      }
+                    ],
+                    "indexSignatures": []
+                  },
+                  {
+                    "_tag": "Objects",
+                    "checks": [],
+                    "propertySignatures": [
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "_tag"
+                        },
+                        "type": {
+                          "_tag": "Literal",
+                          "checks": [],
+                          "literal": {
+                            "type": "string",
+                            "value": "EnsureGroup"
+                          }
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "address"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "an address that ends in @vektorprogrammet.no",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "name"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isMinLength",
+                                "payload": {
+                                  "minLength": 1
+                                }
+                              },
+                              "annotations": {
+                                "expected": "a value with a length of at least 1",
+                                "~structural": true,
+                                "arbitraryConstraint": {
+                                  "minLength": 1
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      }
+                    ],
+                    "indexSignatures": []
+                  },
+                  {
+                    "_tag": "Objects",
+                    "checks": [],
+                    "propertySignatures": [
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "_tag"
+                        },
+                        "type": {
+                          "_tag": "Literal",
+                          "checks": [],
+                          "literal": {
+                            "type": "string",
+                            "value": "EnsureMember"
+                          }
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "group"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "an address that ends in @vektorprogrammet.no",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      },
+                      {
+                        "name": {
+                          "type": "string",
+                          "value": "member"
+                        },
+                        "type": {
+                          "_tag": "String",
+                          "checks": [
+                            {
+                              "_tag": "Filter",
+                              "representation": {
+                                "id": "effect/schema/isPattern",
+                                "payload": {
+                                  "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                  "flags": "u"
+                                }
+                              },
+                              "annotations": {
+                                "expected": "an address that ends in @vektorprogrammet.no",
+                                "arbitraryConstraint": {
+                                  "patterns": [
+                                    {
+                                      "source": "^[a-z0-9._+-]+@vektorprogrammet\\.no$",
+                                      "flags": "u"
+                                    }
+                                  ]
+                                }
+                              },
+                              "aborted": false
+                            }
+                          ]
+                        },
+                        "isOptional": false,
+                        "isMutable": false
+                      }
+                    ],
+                    "indexSignatures": []
+                  }
+                ]
+              },
+              "isOptional": false,
+              "isMutable": false
+            }
+          ],
+          "indexSignatures": []
+        }
+      ]
+    },
+    "references": {}
+  }
+}

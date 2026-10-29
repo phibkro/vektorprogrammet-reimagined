@@ -19,7 +19,8 @@ import {
 } from "../organisation/semester.ts";
 import type { Semester } from "../organisation/semester.ts";
 import type { DepartmentId, PersonId } from "../shared/ids.ts";
-import { Outbox, OutboxMessage } from "../shared/outbox.ts";
+import { EmailMessage, Outbox } from "../shared/outbox.ts";
+import type { DeclaredMessage } from "../shared/outbox.ts";
 import { SiteOrigin } from "../shared/siteOrigin.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { MembershipRepository, DigestLedger } from "./services.ts";
@@ -121,8 +122,8 @@ export const digestEmail = (
   digest: Digest,
   semester: Semester,
   origin: string
-): OutboxMessage =>
-  OutboxMessage.cases.Email.make({
+): DeclaredMessage =>
+  EmailMessage.make({
     replyTo: null,
     subject: `Medlemskap som slutter i ${semesterLabel(semester)}`,
     text: Arr.join(

@@ -18,8 +18,6 @@ import {
 import type { NonEmptyReadonlyArray } from "effect/Array";
 import type { Rpc, RpcGroup } from "effect/rpc";
 
-import { codePolicy } from "../accounts/code.ts";
-import type { CodePurpose } from "../accounts/code.ts";
 import { Forbidden } from "../shared/errors.ts";
 import { PersonId } from "../shared/ids.ts";
 import type { DepartmentId } from "../shared/ids.ts";
@@ -171,8 +169,8 @@ const jobOf = (rpc: Rpc.Any): SystemJob | null =>
     Option.getOrNull
   );
 
-/** The code purpose that alone runs a command, if any. */
-const credentialOf = (rpc: Rpc.Any): CodePurpose | null =>
+/** The credential that alone runs a command, if any. */
+const credentialOf = (rpc: Rpc.Any): string | null =>
   Commands.infoOf(rpc).pipe(
     Option.flatMapNullishOr((info) => info.credential),
     Option.getOrNull
@@ -447,30 +445,30 @@ const jobGrants = (declaration: Declaration) =>
     );
   });
 
-/** A code-only command is granted solely to the holder of that purpose. */
+/**
+ * A credential's command is granted solely to the holder of that credential, and a holder opens the command that
+ * names it. The issuing service builds the holder (`accounts/code.ts`); the kernel only compares.
+ */
 const credentialGrants = (declaration: Declaration) =>
   Arr.flatMap(declaration.commands, (rpc) => {
     const purpose = credentialOf(rpc);
 
-    const wrongCommand =
-      purpose !== null && codePolicy[purpose].command !== rpc._tag
-        ? [`${purpose} is not the credential for ${rpc._tag}`]
-        : [];
+    return Arr.flatMap(rowsNaming(declaration, rpc._tag), (row) =>
+      Arr.flatMap(row.subjects, (subject) => {
+        const holderPurpose = Predicate.isTagged(subject, "Holder")
+          ? subject.purpose
+          : null;
 
-    return [
-      ...wrongCommand,
-      ...Arr.flatMap(rowsNaming(declaration, rpc._tag), (row) =>
-        Arr.flatMap(row.subjects, (subject) => {
-          const holderPurpose = Predicate.isTagged(subject, "Holder")
-            ? subject.purpose
-            : null;
+        if (holderPurpose !== purpose) {
+          return [`${rpc._tag} is not granted to ${Subject.notation(subject)}`];
+        }
 
-          return holderPurpose === purpose
-            ? []
-            : [`${rpc._tag} is not granted to ${Subject.notation(subject)}`];
-        })
-      ),
-    ];
+        return Predicate.isTagged(subject, "Holder") &&
+          subject.command !== rpc._tag
+          ? [`${subject.purpose} is not the credential for ${rpc._tag}`]
+          : [];
+      })
+    );
   });
 
 const jobsWithoutGrant = (declaration: Declaration) =>

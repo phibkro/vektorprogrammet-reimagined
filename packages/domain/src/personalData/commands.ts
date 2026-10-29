@@ -14,6 +14,7 @@ import {
 } from "effect";
 import type { Rpc } from "effect/rpc";
 
+import { IssueCodeMessage } from "../accounts/messages.ts";
 import { codeResource, personOf, runWithCode } from "../accounts/principal.ts";
 import { AccountRepository } from "../accounts/services.ts";
 import { recordAudit } from "../audit/auditLog.ts";
@@ -24,7 +25,7 @@ import type { Principal } from "../kernel/principal.ts";
 import { AggregateLocks, lockAdminList } from "../shared/aggregate.ts";
 import { Conflict, validationFailed } from "../shared/errors.ts";
 import type { PersonId } from "../shared/ids.ts";
-import { Outbox, OutboxMessage } from "../shared/outbox.ts";
+import { Outbox } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { personResource } from "../teams/personResource.ts";
 import { MembershipRepository, PersonRepository } from "../teams/services.ts";
@@ -410,7 +411,7 @@ export const PersonalDataHandlers = PersonalDataRpc.toLayer({
             }
 
             yield* outbox.enqueue([
-              OutboxMessage.cases.IssueCode.make({
+              IssueCodeMessage.make({
                 personId,
                 purpose: "alumniConsent",
               }),
