@@ -60,12 +60,12 @@ export const globStart = (
 const unsupported = /[()?[\]]/u;
 
 /**
- * The patterns of an `import.meta.glob` that starts in the directory `start` (`globStart`), each as a path-from-the-root glob with its
- * braces expanded; none when the pattern cannot be placed (a root-relative or aliased pattern, glob syntax that the
- * matcher does not read, a path out of the repository). A `!` pattern only removes files from the others, so it
+ * The patterns of an `import.meta.glob` that starts in the directory `start` (`globStart`), each as a path-from-the-root
+ * glob with its braces expanded; none when the pattern cannot be placed (a root-relative or aliased pattern, glob syntax
+ * that the matcher does not read, a path out of the repository). A `!` pattern only removes files from the others, so it
  * places none.
  */
-const placed = (
+export const globsOf = (
   start: readonly string[],
   pattern: string
 ): Option.Option<readonly string[]> => {
@@ -87,35 +87,30 @@ const placed = (
   );
 };
 
-/** The files among `paths` (paths from the repository root) that the pattern names; none when it cannot be placed. */
+/** The files among `paths` (paths from the repository root) that the globs (`globsOf`) name. */
 export const globMatches = (
-  start: readonly string[],
-  pattern: string,
+  globs: readonly string[],
   paths: readonly string[]
-): Option.Option<readonly string[]> =>
-  Option.map(placed(start, pattern), (globs) =>
-    Arr.filter(paths, (path) =>
-      Arr.some(globs, (glob) => globToRegExp(glob).test(path))
-    )
+): readonly string[] =>
+  Arr.filter(paths, (path) =>
+    Arr.some(globs, (glob) => globToRegExp(glob).test(path))
   );
 
 /**
- * Where the pattern reaches, whatever it matches: the literal part of each brace alternative, the directories before
- * the first segment that holds a wildcard (`apps/cms/seed` for `../../../cms/seed/*.json` written in `apps/web/src/x.ts`),
- * or the file itself when there is no wildcard. The empty string is the repository root. None when the pattern cannot
- * be placed.
+ * One glob split where it starts to use a wildcard: the literal directories before the first segment that holds one
+ * (`apps/cms/seed` for `apps/cms/seed/*.json`; the file itself when there is no wildcard, and the empty string is the
+ * repository root), and the segments from that one on.
  */
-export const globBases = (
-  start: readonly string[],
-  pattern: string
-): Option.Option<readonly string[]> =>
-  Option.map(placed(start, pattern), (globs) =>
-    Arr.dedupe(
-      Arr.map(globs, (glob) =>
-        Arr.join(
-          Arr.takeWhile(glob.split("/"), (segment) => !segment.includes("*")),
-          "/"
-        )
-      )
-    )
-  );
+export const globParts = (glob: string) => {
+  const segments = glob.split("/");
+  const literal = Arr.takeWhile(segments, (segment) => !segment.includes("*"));
+
+  return {
+    base: Arr.join(literal, "/"),
+    wildcards: Arr.drop(segments, literal.length),
+  };
+};
+
+/** Where the globs reach, whatever they match: the literal directory of each one (`globParts`). */
+export const globBases = (globs: readonly string[]): readonly string[] =>
+  Arr.dedupe(Arr.map(globs, (glob) => globParts(glob).base));

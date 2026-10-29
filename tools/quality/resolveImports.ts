@@ -2,7 +2,14 @@ import { Array as Arr, Effect, FileSystem, Option } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-import { globBases, globMatches, globStart } from "./globImports.ts";
+import {
+  globBases,
+  globMatches,
+  globParts,
+  globsOf,
+  globStart,
+} from "./globImports.ts";
+import { wildcardRefusal } from "./globWalk.ts";
 import { importForms } from "./importSpecifiers.ts";
 import type { ComputedImport, Specifier } from "./importSpecifiers.ts";
 
@@ -28,6 +35,9 @@ export interface ResolvedImport extends Specifier {
    */
   readonly glob?: true;
 }
+
+/** The most entries that the walk of a glob's wildcards lists on disk: a glob that reaches more is not placed. */
+export const maxGlobEntries = 10_000;
 
 export const workspacePrefix = "@vektorprogrammet/";
 
@@ -145,11 +155,14 @@ export interface SourceFile {
  * Reads the files `paths` (from the repository root `root`), their imports, and what each import names. A literal
  * `import.meta.glob` pattern is an import of every file among `paths` that it matches, and of the directory that its
  * literal part names (a pattern of `.json` files reaches into a unit though no scanned source matches it); a pattern
- * that cannot be placed joins the loads that no check can read.
+ * that cannot be placed joins the loads that no check can read. A glob is placed only when nothing about it depends on
+ * how Vite expands it (`globRefusal`): none of its segments is or reaches `node_modules`, and no symbolic link is in the
+ * tree that its wildcards can reach; `maxGlobEntries` bounds that walk.
  */
 export const readSources = Effect.fn("readSources")(function* readSources(
   root: string,
-  paths: readonly string[]
+  paths: readonly string[],
+  limits: { readonly maxGlobEntries?: number } = {}
 ) {
   const fs = yield* FileSystem.FileSystem;
   const realRoot = yield* fs.realPath(root);
@@ -203,6 +216,50 @@ export const readSources = Effect.fn("readSources")(function* readSources(
       );
     });
 
+  /**
+   * Why a glob (its alternatives, `globsOf`) is not placed, or none when it is. The check places a glob by its text and
+   * the files that git lists; Vite places it by walking the disk, so the two agree only when the walk meets nothing that
+   * the text does not say: a segment that is or reaches `node_modules` (Vite drops its ignore of it with `exhaustive`), a
+   * symbolic link under a wildcard (a link is followed to another package), or more entries than the check will list.
+   * The literal directories before the first wildcard may cross links: they are placed after them, as a plain import is.
+   */
+  const globRefusal = (globs: readonly string[]) =>
+    Effect.gen(function* refuse() {
+      if (
+        Arr.some(globs, (glob) => Arr.contains(glob.split("/"), "node_modules"))
+      ) {
+        return Option.some("a segment of its pattern or base is node_modules");
+      }
+
+      const limit = limits.maxGlobEntries ?? maxGlobEntries;
+      const budget = { left: limit };
+
+      for (const glob of globs) {
+        const { base, wildcards } = globParts(glob);
+        const real = yield* realPathOf(base);
+
+        if (Arr.contains(real.split("/"), "node_modules")) {
+          return Option.some(
+            `its base reaches node_modules (${real}) through a symbolic link`
+          );
+        }
+
+        const refused = yield* wildcardRefusal(
+          root,
+          real,
+          wildcards,
+          budget,
+          limit
+        );
+
+        if (Option.isSome(refused)) {
+          return refused;
+        }
+      }
+
+      return Option.none<string>();
+    });
+
   return yield* Effect.forEach(paths, (file) =>
     Effect.gen(function* readSource() {
       const text = yield* fs.readFileString(`${root}/${file}`);
@@ -223,18 +280,33 @@ export const readSources = Effect.fn("readSources")(function* readSources(
 
           const placed = yield* Effect.forEach(patterns, (pattern) =>
             Effect.gen(function* placePattern() {
-              const found = Option.flatMap(start, (from) =>
-                globBases(from, pattern)
+              const alternatives = Option.flatMap(start, (from) =>
+                globsOf(from, pattern)
+              );
+
+              const refused = Option.isNone(alternatives)
+                ? Option.none<string>()
+                : yield* globRefusal(alternatives.value);
+
+              // A glob that is refused adds no edge: it is a finding of its own.
+              const accepted = Option.filter(alternatives, () =>
+                Option.isNone(refused)
               );
 
               return {
-                bases: Option.isNone(found)
-                  ? found
-                  : Option.some(yield* Effect.forEach(found.value, realPathOf)),
-                matches: Option.flatMap(start, (from) =>
-                  globMatches(from, pattern, paths)
+                bases: Option.isNone(accepted)
+                  ? accepted
+                  : Option.some(
+                      yield* Effect.forEach(
+                        globBases(accepted.value),
+                        realPathOf
+                      )
+                    ),
+                matches: Option.map(accepted, (globs) =>
+                  globMatches(globs, paths)
                 ),
                 pattern,
+                refused,
                 // How a finding names the glob: its pattern, and the `base` that it starts from when it has one.
                 shown: Option.match(base, {
                   onNone: () => pattern,
@@ -256,10 +328,16 @@ export const readSources = Effect.fn("readSources")(function* readSources(
         computed: [
           ...forms.computed,
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ matches, written }) =>
-              Option.isNone(matches)
-                ? [{ line, text: `import.meta.glob(${written})` }]
-                : []
+            Arr.flatMap(placed, ({ matches, refused, written }) =>
+              Option.match(refused, {
+                onNone: () =>
+                  Option.isNone(matches)
+                    ? [{ line, text: `import.meta.glob(${written})` }]
+                    : [],
+                onSome: (reason) => [
+                  { line, reason, text: `import.meta.glob(${written})` },
+                ],
+              })
             )
           ),
         ],

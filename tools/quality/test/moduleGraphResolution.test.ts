@@ -6,12 +6,13 @@
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect } from "effect";
+import { Array as Arr, Effect, Record as Rec } from "effect";
 
 import { importSpecifiers } from "../importSpecifiers.ts";
 import type { Declaration } from "../moduleGraph.ts";
 import { moduleGraphFindings, scanImports } from "../moduleGraphCheck.ts";
 import { isProbe, moduleGraphProbes } from "../probes.ts";
+import { readSources } from "../resolveImports.ts";
 import type { SourceFile } from "../resolveImports.ts";
 import {
   check,
@@ -725,7 +726,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
   );
 
   it.effect(
-    "R15 (review of #56): a glob's `base` option moves where its patterns start, a base that cannot be read fails closed, and a glob's directory is placed after symbolic links",
+    "R15 (review of #56): a glob's `base` option moves where its patterns start, a base that cannot be read fails closed, and the literal directory of a glob is placed after symbolic links",
     () =>
       Effect.gen(function* globBaseOption() {
         const importer = "apps/web/src/server/seeds.ts";
@@ -822,35 +823,232 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           ]
         );
 
-        // A directory is placed after symbolic links, as a plain import is: `node_modules/@vektorprogrammet/domain`
-        // of the web package is `packages/domain`.
-        const link = {
-          "apps/web/node_modules/@vektorprogrammet/domain": "packages/domain",
-        };
-
-        const throughLink =
-          "../../node_modules/@vektorprogrammet/domain/src/*.ts";
+        // The literal directories before the first wildcard are placed after symbolic links, as a plain import is: the
+        // `vendor/domain` of the web package is `packages/domain`.
+        const vendored = "../../vendor/domain/src/*.ts";
 
         assert.deepStrictEqual(
           yield* scanned(
-            `export const s = import.meta.glob("${throughLink}", { exhaustive: true });\n`,
+            `export const s = import.meta.glob("${vendored}");\n`,
             { [`${d}/index.ts`]: "export const x = 1;\n" },
-            link
+            { "apps/web/vendor/domain": "packages/domain" }
           ),
-          [reach(throughLink, "packages/domain")]
+          [reach(vendored, "packages/domain")]
         );
 
         // Control: the same glob where the directory is a real directory of the web package is clean.
         assert.deepStrictEqual(
           yield* scanned(
-            `export const s = import.meta.glob("${throughLink}", { exhaustive: true });\n`,
+            `export const s = import.meta.glob("${vendored}");\n`,
             {
-              "apps/web/node_modules/@vektorprogrammet/domain/src/a.ts":
-                "export const a = 1;\n",
+              "apps/web/vendor/domain/src/a.ts": "export const a = 1;\n",
             }
           ),
           []
         );
+      }),
+    120_000
+  );
+
+  it.effect(
+    "R16 (review of #56, round 2): a glob is placed only when nothing about it depends on how Vite expands it: no escape in its pattern, option keys or base, no node_modules, no symbolic link under a wildcard, a bounded walk",
+    () =>
+      Effect.gen(function* globsAreNotModelled() {
+        const importer = "apps/web/src/server/seeds.ts";
+        const web = { "apps/web/package.json": "{}\n" };
+
+        const scanned = (
+          written: string,
+          files: Record<string, string> = {},
+          links: Record<string, string> = {}
+        ) =>
+          findingsOf(
+            { ...base, ...web, ...files, [importer]: written },
+            links
+          ).pipe(Effect.map((found) => mentioning(found, importer)));
+
+        const refused = (text: string, reason: string) =>
+          `${importer}:1: ${text}: glob not placeable: ${reason}; use a literal own-unit pattern`;
+
+        const escape =
+          "its pattern, an option key or its base is written with an escape (a backslash): the check reads the source text and Vite the string it spells";
+
+        const slash = "\\u002f";
+
+        // Strings that spell the reviewer's path with escapes: the source text is not the value that Vite reads.
+        for (const call of [
+          `"./*.json", { base: "..${slash}..${slash}..${slash}cms/seed" }`,
+          `"./*.json", { "ba\\u0073e": "../../../cms/seed" }`,
+          `"./*.json", { ba\\u0073e: "../../../cms/seed" }`,
+          `"./..${slash}..${slash}..${slash}cms/seed/*.json"`,
+        ]) {
+          assert.deepStrictEqual(
+            yield* scanned(`export const s = import.meta.glob(${call});\n`),
+            [refused(`import.meta.glob(${call})`, escape)],
+            call
+          );
+        }
+
+        // Control: the same globs written without an escape are placed, and reach into another unit.
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob("./*.json", { base: "../../../cms/seed" });\n'
+          ),
+          [
+            `${importer}:1: apps/web reaches into apps/cms by the path ./*.json (base ../../../cms/seed); import the package by its name`,
+          ]
+        );
+
+        // A wildcard over a link to another package: Vite follows the link, a text match would not see it.
+        const viaLink = "../../vendor/*/src/*.ts";
+
+        assert.deepStrictEqual(
+          yield* scanned(
+            `export const s = import.meta.glob("${viaLink}", { exhaustive: true });\n`,
+            { [`${d}/index.ts`]: "export const x = 1;\n" },
+            { "apps/web/vendor/domain": "packages/domain" }
+          ),
+          [
+            refused(
+              `import.meta.glob("${viaLink}")`,
+              "a symbolic link (apps/web/vendor/domain) is under a wildcard: Vite follows it to another package"
+            ),
+          ]
+        );
+
+        // ... and under `**`, however deep the link is.
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob("../**/*.ts");\n',
+            { "apps/web/src/a/b/c.ts": "export const c = 1;\n" },
+            { "apps/web/src/a/b/db": "packages/db" }
+          ),
+          [
+            refused(
+              'import.meta.glob("../**/*.ts")',
+              "a symbolic link (apps/web/src/a/b/db) is under a wildcard: Vite follows it to another package"
+            ),
+          ]
+        );
+
+        // Control: the same globs over real directories of the web package are clean.
+        assert.deepStrictEqual(
+          yield* scanned(`export const s = import.meta.glob("${viaLink}");\n`, {
+            "apps/web/vendor/domain/src/a.ts": "export const a = 1;\n",
+          }),
+          []
+        );
+
+        assert.deepStrictEqual(
+          yield* scanned('export const s = import.meta.glob("../**/*.ts");\n', {
+            "apps/web/src/a/b/c.ts": "export const c = 1;\n",
+          }),
+          []
+        );
+
+        // node_modules: by name in the pattern or the base, or reached by a wildcard, or through a link in the literal part.
+        const named = "../../node_modules/@vektorprogrammet/*/src/*.ts";
+
+        assert.deepStrictEqual(
+          yield* scanned(
+            `export const s = import.meta.glob("${named}", { exhaustive: true });\n`
+          ),
+          [
+            refused(
+              `import.meta.glob("${named}")`,
+              "a segment of its pattern or base is node_modules"
+            ),
+          ]
+        );
+
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob("./*/x.ts", { base: "../../node_modules" });\n'
+          ),
+          [
+            refused(
+              'import.meta.glob("./*/x.ts", { base: "../../node_modules" })',
+              "a segment of its pattern or base is node_modules"
+            ),
+          ]
+        );
+
+        const reaching = "../../*/x.ts";
+
+        assert.deepStrictEqual(
+          yield* scanned(
+            `export const s = import.meta.glob("${reaching}", { exhaustive: true });\n`,
+            { "apps/web/node_modules/x.ts": "export const x = 1;\n" }
+          ),
+          [
+            refused(
+              `import.meta.glob("${reaching}")`,
+              "a wildcard reaches node_modules (apps/web/node_modules)"
+            ),
+          ]
+        );
+
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob("./*/x.ts", { base: "../../via" });\n',
+            { "apps/web/node_modules/x.ts": "export const x = 1;\n" },
+            { "apps/web/via": "apps/web/node_modules" }
+          ),
+          [
+            refused(
+              'import.meta.glob("./*/x.ts", { base: "../../via" })',
+              "its base reaches node_modules (apps/web/node_modules) through a symbolic link"
+            ),
+          ]
+        );
+
+        // Control: the same wildcard with no node_modules in the directory is clean.
+        assert.deepStrictEqual(
+          yield* scanned(
+            `export const s = import.meta.glob("${reaching}");\n`,
+            { "apps/web/data/x.ts": "export const x = 1;\n" }
+          ),
+          []
+        );
+
+        // The walk is bounded: a glob that reaches more entries than the limit is refused; under the limit it is placed.
+        const crowded = {
+          "apps/web/data/a.ts": "export const a = 1;\n",
+          "apps/web/data/b.ts": "export const b = 1;\n",
+          "apps/web/data/c.ts": "export const c = 1;\n",
+        };
+
+        const within = (maxGlobEntries: number) =>
+          Effect.gen(function* limited() {
+            const repo = yield* tempRepo({
+              ...base,
+              ...web,
+              ...crowded,
+              [importer]:
+                'export const s = import.meta.glob("../../data/*.ts");\n',
+            });
+
+            return mentioning(
+              moduleGraphFindings(
+                fixture,
+                yield* readSources(
+                  repo,
+                  [importer, ...Rec.keys(crowded), ...Rec.keys(base)],
+                  { maxGlobEntries }
+                )
+              ),
+              importer
+            );
+          }).pipe(Effect.provide(NodeServices.layer));
+
+        assert.deepStrictEqual(yield* within(2), [
+          refused(
+            'import.meta.glob("../../data/*.ts")',
+            "its wildcards reach more than 2 entries (the walk of the disk is bounded)"
+          ),
+        ]);
+
+        assert.deepStrictEqual(yield* within(3), []);
       }),
     120_000
   );

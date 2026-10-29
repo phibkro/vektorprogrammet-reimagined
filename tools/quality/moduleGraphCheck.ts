@@ -614,12 +614,13 @@ export const moduleGraphFindings = (
   );
 
   // A load that no check can read: `import(expr)` and `import.meta.glob(expr)` with a computed argument, and a glob
-  // pattern that cannot be placed. Its target is whatever the expression says at run time, so the check fails closed.
+  // pattern that cannot be placed, or that the check refuses to place and says why. Its target is whatever the expression
+  // says at run time or what Vite finds on disk, so the check fails closed.
   const unreadable = Arr.flatMap(files, ({ computed, path }) =>
-    Arr.map(
-      computed,
-      ({ line, text }) =>
-        `${path}:${line}: ${text} loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../`
+    Arr.map(computed, ({ line, reason, text }) =>
+      reason === undefined
+        ? `${path}:${line}: ${text} loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../`
+        : `${path}:${line}: ${text}: glob not placeable: ${reason}; use a literal own-unit pattern`
     )
   );
 
