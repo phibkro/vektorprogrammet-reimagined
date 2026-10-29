@@ -37,7 +37,7 @@ export interface ResolvedImport extends Specifier {
 }
 
 /** The most entries that the walk of a glob's wildcards lists on disk: a glob that reaches more is not placed. */
-export const maxGlobEntries = 10_000;
+const maxGlobEntries = 10_000;
 
 export const workspacePrefix = "@vektorprogrammet/";
 
