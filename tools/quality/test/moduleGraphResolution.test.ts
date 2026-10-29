@@ -59,6 +59,24 @@ const base = {
   [`${d}/team/a.ts`]: 'import "../vocab/ids.ts";\n',
 };
 
+/** The findings about `apps/web/src/server/seeds.ts`, which holds `written`, in a repository of `files` and `links` (the web package has a `package.json`, so its Vite root is its directory). */
+const scannedGlob = (
+  written: string,
+  files: Record<string, string> = {},
+  links: Record<string, string> = {}
+) =>
+  findingsOf(
+    {
+      ...base,
+      "apps/web/package.json": "{}\n",
+      ...files,
+      "apps/web/src/server/seeds.ts": written,
+    },
+    links
+  ).pipe(
+    Effect.map((found) => mentioning(found, "apps/web/src/server/seeds.ts"))
+  );
+
 /** `${name}`, the hole of a template literal, built so that no string of this file looks like a template. */
 const hole = Arr.join(["$", "{name}"], "");
 
@@ -730,17 +748,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
     () =>
       Effect.gen(function* globBaseOption() {
         const importer = "apps/web/src/server/seeds.ts";
-        const web = { "apps/web/package.json": "{}\n" };
-
-        const scanned = (
-          written: string,
-          files: Record<string, string> = {},
-          links: Record<string, string> = {}
-        ) =>
-          findingsOf(
-            { ...base, ...web, ...files, [importer]: written },
-            links
-          ).pipe(Effect.map((found) => mentioning(found, importer)));
+        const scanned = scannedGlob;
 
         const reach = (specifier: string, unit: string) =>
           `${importer}:1: apps/web reaches into ${unit} by the path ${specifier}; import the package by its name`;
@@ -855,17 +863,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
     () =>
       Effect.gen(function* globsAreNotModelled() {
         const importer = "apps/web/src/server/seeds.ts";
-        const web = { "apps/web/package.json": "{}\n" };
-
-        const scanned = (
-          written: string,
-          files: Record<string, string> = {},
-          links: Record<string, string> = {}
-        ) =>
-          findingsOf(
-            { ...base, ...web, ...files, [importer]: written },
-            links
-          ).pipe(Effect.map((found) => mentioning(found, importer)));
+        const scanned = scannedGlob;
 
         const refused = (text: string, reason: string) =>
           `${importer}:1: ${text}: glob not placeable: ${reason}; use a literal own-unit pattern`;
@@ -1022,7 +1020,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           Effect.gen(function* limited() {
             const repo = yield* tempRepo({
               ...base,
-              ...web,
+              "apps/web/package.json": "{}\n",
               ...crowded,
               [importer]:
                 'export const s = import.meta.glob("../../data/*.ts");\n',
