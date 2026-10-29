@@ -5,7 +5,10 @@
  * `ValidationFailed` on the `captcha` field: the form is shown again and
  * nothing is enqueued.
  */
-import { validationFailed } from "@vektorprogrammet/domain";
+import {
+  refusingInTransaction,
+  validationFailed,
+} from "@vektorprogrammet/domain";
 import type {
   IntegrationPort,
   ValidationFailed,
@@ -61,45 +64,47 @@ export const turnstileLiveLayer = (
     Effect.gen(function* makeTurnstileLayer() {
       const http = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
-      return TurnstileVerifier.of({
-        verify: Effect.fn("TurnstileVerifier.verify")(function* verify({
-          token,
-          remoteIp,
-        }) {
-          if (token === null || token.trim() === "") {
-            return yield* captchaRejected();
-          }
+      return TurnstileVerifier.of(
+        refusingInTransaction("TurnstileVerifier", {
+          verify: Effect.fn("TurnstileVerifier.verify")(function* verify({
+            token,
+            remoteIp,
+          }) {
+            if (token === null || token.trim() === "") {
+              return yield* captchaRejected();
+            }
 
-          const body =
-            remoteIp === null
-              ? { response: token, secret: Redacted.value(secret) }
-              : {
-                  remoteip: remoteIp,
-                  response: token,
-                  secret: Redacted.value(secret),
-                };
+            const body =
+              remoteIp === null
+                ? { response: token, secret: Redacted.value(secret) }
+                : {
+                    remoteip: remoteIp,
+                    response: token,
+                    secret: Redacted.value(secret),
+                  };
 
-          const answer = yield* HttpClientRequest.post(SITEVERIFY_URL).pipe(
-            HttpClientRequest.bodyUrlParams(body),
-            http.execute,
-            Effect.flatMap(
-              HttpClientResponse.schemaBodyJson(SiteverifyResponse)
-            ),
-            Effect.tapError((error) =>
-              Effect.logWarning("turnstile siteverify failed").pipe(
-                Effect.annotateLogs({ error: String(error) })
-              )
-            ),
-            Effect.orElseSucceed(() => ({ success: false }))
-          );
+            const answer = yield* HttpClientRequest.post(SITEVERIFY_URL).pipe(
+              HttpClientRequest.bodyUrlParams(body),
+              http.execute,
+              Effect.flatMap(
+                HttpClientResponse.schemaBodyJson(SiteverifyResponse)
+              ),
+              Effect.tapError((error) =>
+                Effect.logWarning("turnstile siteverify failed").pipe(
+                  Effect.annotateLogs({ error: String(error) })
+                )
+              ),
+              Effect.orElseSucceed(() => ({ success: false }))
+            );
 
-          if (!answer.success) {
-            return yield* captchaRejected();
-          }
+            if (!answer.success) {
+              return yield* captchaRejected();
+            }
 
-          return yield* Effect.void;
-        }),
-      });
+            return yield* Effect.void;
+          }),
+        })
+      );
     })
   );
 
@@ -109,8 +114,12 @@ export const turnstileTestLayer = (
 ): Layer.Layer<TurnstileVerifier> =>
   Layer.succeed(
     TurnstileVerifier,
-    TurnstileVerifier.of({
-      verify: ({ token }) =>
-        token === acceptedToken ? Effect.void : Effect.fail(captchaRejected()),
-    })
+    TurnstileVerifier.of(
+      refusingInTransaction("TurnstileVerifier", {
+        verify: ({ token }) =>
+          token === acceptedToken
+            ? Effect.void
+            : Effect.fail(captchaRejected()),
+      })
+    )
   );

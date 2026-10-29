@@ -41,6 +41,10 @@ export * from "./accounts/services.ts";
 
 export * from "./accounts/codeRepository.ts";
 
+export { CodeMachine, codeTransition } from "./accounts/codeMachine.ts";
+
+export type { CodeStep } from "./accounts/codeMachine.ts";
+
 export * from "./accounts/passwordHasher.ts";
 
 export * from "./accounts/commands.ts";
@@ -73,6 +77,8 @@ export * from "./shared/ids.ts";
 export * from "./shared/isolationProbe.ts";
 
 export * from "./shared/outbox.ts";
+
+export * from "./shared/integrationGuard.ts";
 
 export * from "./shared/siteOrigin.ts";
 

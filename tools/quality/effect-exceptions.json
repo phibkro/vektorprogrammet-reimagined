@@ -394,13 +394,11 @@
       "scope": {
         "files": [
           "apps/web/src/server/authError.ts",
-          "apps/web/src/server/deliveryClaimLost.ts",
           "apps/web/src/server/queueSendFailed.ts",
           "packages/db/src/aggregate/defects.ts"
         ],
         "symbols": [
           "AuthBoundaryFailure",
-          "DeliveryClaimLost",
           "QueueSendFailed",
           "LockOrderViolation",
           "LockNotHeld",
@@ -482,6 +480,7 @@
           "packages/db/src/live.ts",
           "packages/db/test/aggregates.postgres.test.ts",
           "packages/db/test/liveProof.postgres.test.ts",
+          "packages/domain/src/shared/integrationGuard.ts",
           "packages/domain/test/support/teamsInMemory.ts"
         ],
         "symbols": [
@@ -490,20 +489,23 @@
           "declare",
           "forged",
           "aggregateLocks",
-          "verified"
+          "verified",
+          "refusingInTransaction"
         ]
       },
-      "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table. `verified` (spec 0019) puts the check of the live transaction proof in front of every `Requires` member of a port: it maps the members of a service by name and gives back an object of the service's own type.",
+      "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table. `verified` (spec 0019) puts the check of the live transaction proof in front of every `Requires` member of a port: it maps the members of a service by name and gives back an object of the service's own type. `refusingInTransaction` (spec 0024) does the same for an integration port, putting the refusal of a call made while a transaction is open in front of every member.",
       "missingCapability": "TypeScript cannot build a value of an opaque type with an unexported brand from a plain object, and Drizzle 1.0.0-rc.5 has no generic form of insert, update, delete and select on a table type parameter whose rows follow that parameter.",
       "nativeAlternativesExamined": [
         "`verified` maps the members of whichever port it is given, and TypeScript has no mapped-type form that is also a runtime map over a generic service shape, so the object that it builds is stated to have the service's type with one Function.cast at each end of the map.",
+        "`refusingInTransaction` (spec 0024, `packages/domain/src/shared/integrationGuard.ts`) is the same map over an integration port: its bound says that every member of the service is a method or an effect, and the two casts only read the members by name and give the object back as the service's own type. Each shipped Layer of a port is called member by member inside `Transactor.run` by `integrationGuard.test.ts`, so a Layer that wraps fewer members than it has fails.",
         "Effect Brand.nominal makes a token without a cast, but its brand key is Effect's public type id, so a hand-made literal with that key would type-check. The spec asks for an unexported brand.",
         "A class with a private constructor needs a factory that packages/db can call, and anything that can call it can make a token.",
         "Decoding every returned row through a schema would check at run time what the statement already guarantees, for every write of every repository.",
         "A type assertion is flagged by typescript/no-unsafe-type-assertion, which the repository keeps on, so each narrowing is one Function.cast with a SAFETY comment at the site."
       ],
       "verification": [
-        "devenv shell -- bunx vp -C packages/db test test/aggregate.types.test.ts test/aggregates.postgres.test.ts"
+        "devenv shell -- bunx vp -C packages/db test test/aggregate.types.test.ts test/aggregates.postgres.test.ts",
+        "devenv shell -- bunx vp -C apps/web test test/integrationGuard.test.ts test/codeLifecycle.postgres.test.ts"
       ],
       "owner": "packages/db",
       "versions": {
@@ -699,6 +701,7 @@
           "apps/web/src/server/**",
           "packages/cms-client/test/client.test.ts",
           "apps/web/test/sandbox.test.ts",
+          "apps/web/test/integrationGuard.test.ts",
           "tools/**",
           "apps/*/scripts/**",
           "apps/*/e2e/**"

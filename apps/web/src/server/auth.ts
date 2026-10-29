@@ -13,6 +13,7 @@ import {
   PersonId,
   SignInDirectory,
   passwordAllowed,
+  refusingInTransaction,
 } from "@vektorprogrammet/domain";
 import type {
   IntegrationPort,
@@ -592,6 +593,13 @@ export const authLayer = (
         }
       );
 
-      return Auth.of({ handle, session, setCredential, signInPerson });
+      return Auth.of(
+        refusingInTransaction("Auth", {
+          handle,
+          session,
+          setCredential,
+          signInPerson,
+        })
+      );
     })
   );

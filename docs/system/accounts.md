@@ -63,7 +63,21 @@ stateDiagram-v2
 
 <!-- docgen:end code-policy -->
 
-Delivery mints a new random code and stores only its SHA-256 hash. A retry replaces the previous code. The plaintext stays in memory and in the delivered email. The non-production mailbox stores that email for tests. A conditional update gives one winner. The expiry comparison uses the whole stored instant.
+Delivery mints a new random code and stores only its SHA-256 hash, in a transaction of its own. The code starts `Unsent`, and an `Unsent` code authenticates nothing. The mail is sent after that transaction has committed, from the plaintext that delivery holds in memory, and a second transaction makes the code `Usable` and records the delivery. A retry replaces the previous code, in any state. The plaintext stays in memory and in the delivered email. The non-production mailbox stores that email for tests. A conditional update gives one winner. The expiry comparison uses the whole stored instant. [Spec 0024](../specs/0024-code-delivery-after-commit.md) has the journey, the races and the recovery.
+
+### Code lifecycle
+
+<!-- docgen:begin code-lifecycle -->
+
+```mermaid
+stateDiagram-v2
+  [*] --> Unsent : issueCode
+  Unsent --> Usable : acknowledgeCode
+  Usable --> Used : activateAccount
+  Usable --> Used : resetPassword
+```
+
+<!-- docgen:end code-lifecycle -->
 
 A single-use code ends with its first use. A code that is not single use (the alumni consent code) is checked and never consumed, so the person can answer again until it expires. It opens one command, and only for the person it names. A purpose that needs no account (the alumni consent code) works for a person who has none.
 

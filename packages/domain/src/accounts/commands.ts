@@ -21,8 +21,9 @@ import { InTransaction } from "../shared/transaction.ts";
 import { personResource } from "../teams/personResource.ts";
 import { PersonRepository } from "../teams/services.ts";
 import { hashCode } from "./code.ts";
-import type { CodePurpose, CodeToken } from "./code.ts";
+import type { CodeToken } from "./code.ts";
 import { CodeRepository } from "./codeRepository.ts";
+import type { SingleUsePurpose } from "./codeRepository.ts";
 import {
   AccountDomain,
   AccountMachine,
@@ -69,7 +70,7 @@ const lockAccount = Effect.fn("Account.lock")(function* lockAccount(
 
 const consumeCode = Effect.fn("Account.consumeCode")(function* consumeCode(
   locked: Locked<"Person">,
-  purpose: CodePurpose,
+  purpose: SingleUsePurpose,
   token: CodeToken,
   now: DateTime.Utc
 ) {

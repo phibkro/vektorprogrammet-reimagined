@@ -46,7 +46,7 @@ const code = table({
         no: "koden utløper",
       })
     ),
-    ["expires_at", "hash", "purpose", "subject", "used_at"]
+    ["expires_at", "hash", "purpose", "state", "subject"]
   ),
   person: ofPerson("subject", Rules.Drop, exported.rows({ hash: SECRET })),
 });

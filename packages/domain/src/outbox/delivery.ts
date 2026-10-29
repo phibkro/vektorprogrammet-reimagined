@@ -10,7 +10,8 @@
  *   it), so two deliveries of one id never both hold it; a claim expires after `leaseSeconds`. The other delivery is
  *   told why: `Held` (a live claim: look again after its lease) or `Settled` (the row is delivered, failed or gone:
  *   nothing to do).
- * - Fencing (LS2): `markDelivered`/`markFailed` change a row only while its claim token is current; otherwise they
+ * - Fencing (LS2): `markDelivered`/`markFailed`, and `holdClaim` for a write that is not the acknowledgement, change
+ *   a row, or allow the caller's write, only while its claim token is current; otherwise they
  *   report `claimLost` and write nothing. `markDelivered` joins the caller's transaction when there is one (LS4): the
  *   acknowledgement then commits or rolls back with the caller's writes, and it commits alone otherwise.
  * - Attempts and dead letters: `attempts` counts claims, for the record. The
@@ -27,6 +28,7 @@ import { Context, Schema } from "effect";
 import type { DateTime, Effect } from "effect";
 
 import { OutboxMessageId } from "../shared/ids.ts";
+import type { InTransaction } from "../shared/transaction.ts";
 import { OutboxMessage } from "./messages.ts";
 
 /** Proof of a current claim on one outbox row. */
@@ -83,6 +85,17 @@ export class OutboxDelivery extends Context.Service<
       id: OutboxMessageId,
       leaseSeconds: number
     ) => Effect.Effect<OutboxClaim>;
+    /**
+     * The fence of a write that is not the acknowledgement itself (spec 0024 R9): `recorded` while `claimToken` is the
+     * row's current claim and the row is pending, and then a lock on the row that lasts to the end of the caller's
+     * transaction, so another consumer's claim of it waits; `claimLost` otherwise, and the caller writes nothing. It
+     * takes the lock after the caller's aggregate lock (the order of `markDelivered` in the second transaction), never
+     * before it.
+     */
+    readonly holdClaim: (
+      id: OutboxMessageId,
+      claimToken: OutboxClaimToken
+    ) => Effect.Effect<OutboxAck, never, InTransaction>;
     readonly markDelivered: (
       id: OutboxMessageId,
       claimToken: OutboxClaimToken

@@ -7,16 +7,15 @@
 import { assert, layer } from "@effect/vitest";
 import {
   Outbox,
+  OutboxClaimToken,
   OutboxDelivery,
   OutboxMessage,
+  OutboxMessageId,
   OutboxReports,
   PersonId,
   Transactor,
 } from "@vektorprogrammet/domain";
-import type {
-  ClaimedOutboxMessage,
-  OutboxMessageId,
-} from "@vektorprogrammet/domain";
+import type { ClaimedOutboxMessage } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -34,7 +33,7 @@ import { TestClock } from "effect/testing";
 import { postgresDatabase } from "./support/database.ts";
 import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
 import { AT, slack } from "./support/fixtures.ts";
-import { race } from "./support/race.ts";
+import { meetsHeldLock, race } from "./support/race.ts";
 
 /** Every test starts at `AT`; the clock is then the test's to move, so nothing below sets it again. */
 const atStart = TestClock.setTime(DateTime.toEpochMillis(AT));
@@ -655,6 +654,91 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             claimed: false,
             status: "delivered",
           });
+        })
+    );
+
+    it.effect(
+      "spec 0024 R9: holdClaim answers `recorded` only for the row's current claim token, and `claimLost` for another token, a delivered row and a row that is not there",
+      () =>
+        Effect.gen(function* holdsOnlyTheCurrentClaim() {
+          const { delivery, transactor } = yield* services;
+          const claim = yield* claimOrFail(yield* one("hold"), 60);
+
+          const hold = (id: OutboxMessageId, token: typeof claim.claimToken) =>
+            transactor.run(delivery.holdClaim(id, token));
+
+          assert.strictEqual(
+            yield* hold(claim.id, claim.claimToken),
+            "recorded"
+          );
+
+          assert.strictEqual(
+            yield* hold(
+              claim.id,
+              OutboxClaimToken.make("00000000-0000-4000-8000-000000000000")
+            ),
+            "claimLost"
+          );
+
+          assert.strictEqual(
+            yield* delivery.markDelivered(claim.id, claim.claimToken),
+            "recorded"
+          );
+
+          assert.strictEqual(
+            yield* hold(claim.id, claim.claimToken),
+            "claimLost"
+          );
+
+          assert.strictEqual(
+            yield* hold(OutboxMessageId.make("999999"), claim.claimToken),
+            "claimLost"
+          );
+        })
+    );
+
+    it.effect(
+      "spec 0024 R9: a hold keeps the row locked until the caller's transaction ends, so another consumer's claim of it waits (control: without the hold the claim does not wait)",
+      () =>
+        Effect.gen(function* holdLocksTheRow() {
+          const { delivery, sql } = yield* services;
+          const waitingForClaim = '%update "outbox" set%';
+
+          const lapsedClaim = Effect.fnUntraced(function* lapsedClaim(
+            text: string
+          ) {
+            const row = yield* claimOrFail(yield* one(text), 60);
+            yield* sql`update outbox set claimed_until = now() - interval '1 minute' where id = ${Number(row.id)}`;
+
+            return row;
+          });
+
+          const held = yield* lapsedClaim("held");
+
+          const withHold = yield* meetsHeldLock(
+            delivery.holdClaim(held.id, held.claimToken),
+            waitingForClaim,
+            delivery.claim(held.id, 60)
+          );
+
+          assert.strictEqual(withHold.waiting, 1);
+          assert.isTrue(withHold.stillRunning);
+
+          assert.isTrue(
+            Exit.isSuccess(withHold.exit) &&
+              Predicate.isTagged(withHold.exit.value, "Claimed")
+          );
+
+          const free = yield* lapsedClaim("free");
+
+          const withoutHold = yield* meetsHeldLock(
+            Effect.void,
+            waitingForClaim,
+            delivery.claim(free.id, 60)
+          );
+
+          assert.strictEqual(withoutHold.waiting, 0);
+          assert.isFalse(withoutHold.stillRunning);
         })
     );
   }

@@ -1,0 +1,72 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "483821bc-ede1-4316-9711-44585c1b60a5",
+  "prevIds": ["682241f2-5504-4f81-9edc-ba5d15b66c0e"],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "code", "state"],
+      "writes": [
+        "s|col|public.code.state",
+        "n|col|public.code.state",
+        "e|col|public.code.state"
+      ],
+      "reads": ["n|tbl|public.code", "n|sch|public"]
+    },
+    {
+      "statementType": "drop_column",
+      "statementTarget": ["column", "public", "code", "used_at"],
+      "writes": [
+        "s|col|public.code.used_at",
+        "n|col|public.code.used_at",
+        "e|col|public.code.used_at"
+      ],
+      "reads": ["n|tbl|public.code", "n|sch|public"]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "code"],
+      "writes": [
+        "s|ck|public.code.code_state",
+        "n|ck|public.code.code_state",
+        "e|ck|public.code.code_state",
+        "n|con|public.code.code_state"
+      ],
+      "reads": ["n|tbl|public.code", "n|sch|public", "n|col|public.code.state"]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "code",
+        "name": "state",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "code",
+        "name": "code_state",
+        "value": "\"state\" in ('Unsent', 'Usable', 'Used')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"code\",\"used_at\"]"
+    }
+  ]
+}

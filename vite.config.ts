@@ -408,6 +408,7 @@ export default defineConfig({
         // unicorn/throw-new-error treats Schema.TaggedError class definitions as throw sites; they contain no throw.
         files: [
           "packages/domain/src/shared/errors.ts",
+          "packages/domain/src/shared/integrationGuard.ts",
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
@@ -422,7 +423,6 @@ export default defineConfig({
           "tools/db-path-spike/src/smoke.ts",
           "tools/db-path-spike/src/smoke/refused.ts",
           "apps/web/src/server/authError.ts",
-          "apps/web/src/server/deliveryClaimLost.ts",
           "apps/web/src/server/queueSendFailed.ts",
           "apps/web/e2e/run.ts",
           "apps/web/e2e/support/devServer.ts",
@@ -634,6 +634,7 @@ export default defineConfig({
           "apps/web/test/publicFiles.test.ts",
           "apps/web/test/redirects.test.ts",
           "apps/web/test/sandbox.test.ts",
+          "apps/web/test/integrationGuard.test.ts",
           "tools/db-path-spike/test/support/localWorker.ts",
           "tools/db-path-spike/test/worker.postgres.test.ts",
           "tools/db-path-spike/test/pure.test.ts",

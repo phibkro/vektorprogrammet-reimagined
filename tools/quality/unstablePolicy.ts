@@ -71,6 +71,7 @@ export const unstablePolicy = {
       [
         "packages/cms-client/test/client.test.ts",
         "apps/web/test/sandbox.test.ts",
+        "apps/web/test/integrationGuard.test.ts",
       ],
       ...testing,
       "http"
@@ -111,6 +112,7 @@ export const unstablePolicy = {
         "apps/web/test/publicFiles.test.ts",
         "apps/web/test/redirects.test.ts",
         "apps/web/test/sandbox.test.ts",
+        "apps/web/test/integrationGuard.test.ts",
         "tools/db-path-spike/test/**"
       ),
       options: { diagnosticSeverity: { asyncFunction: "off" } },

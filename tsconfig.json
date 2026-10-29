@@ -452,7 +452,9 @@
               "packages/cms-client/test/client.test.ts",
               "../../packages/cms-client/test/client.test.ts",
               "apps/web/test/sandbox.test.ts",
-              "../../apps/web/test/sandbox.test.ts"
+              "../../apps/web/test/sandbox.test.ts",
+              "apps/web/test/integrationGuard.test.ts",
+              "../../apps/web/test/integrationGuard.test.ts"
             ],
             "options": {
               "allowedUnstableApis": [
@@ -592,6 +594,8 @@
               "../../apps/web/test/redirects.test.ts",
               "apps/web/test/sandbox.test.ts",
               "../../apps/web/test/sandbox.test.ts",
+              "apps/web/test/integrationGuard.test.ts",
+              "../../apps/web/test/integrationGuard.test.ts",
               "tools/db-path-spike/test/**/*.ts",
               "tools/db-path-spike/test/**/*.tsx",
               "../../tools/db-path-spike/test/**/*.ts",

@@ -16,12 +16,23 @@ import {
 import type {
   Account,
   ClaimedOutboxMessage,
+  CodeHash,
   OutboxAck,
+  TransportMessage,
 } from "@vektorprogrammet/domain";
-import { Context, Crypto, DateTime, Effect, Layer, Option } from "effect";
+import {
+  Context,
+  Crypto,
+  Data,
+  DateTime,
+  Effect,
+  Layer,
+  Option,
+  Predicate,
+  Redacted,
+} from "effect";
 
 import { Auth } from "./auth";
-import { DeliveryClaimLost } from "./deliveryClaimLost";
 import { DeliveryFailed, MessageSender } from "./senders";
 
 type CodeIntent = Extract<OutboxMessage, { readonly _tag: "IssueCode" }>;
@@ -59,6 +70,17 @@ const accountFits = (
   needed === null ||
   Option.exists(account, (found) => found.state._tag === needed);
 
+/** What transaction 1 hands on: the row is settled there, or a code is stored and its mail waits in memory. */
+type Prepared = Data.TaggedEnum<{
+  Settled: { readonly ack: OutboxAck };
+  Stored: {
+    readonly hash: CodeHash;
+    readonly mail: Redacted.Redacted<TransportMessage>;
+  };
+}>;
+
+const preparedAs = Data.taggedEnum<Prepared>();
+
 export class AccountDelivery extends Context.Service<
   AccountDelivery,
   {
@@ -88,51 +110,73 @@ export const accountDeliveryLayer = Layer.effect(
     const crypto = yield* Crypto.Crypto;
     const auth = yield* Auth;
 
-    const issueCode = Effect.fn("AccountDelivery.issueCode")(
-      function* issueCode(row: ClaimedOutboxMessage, message: CodeIntent) {
-        return yield* transactor
-          .run(
-            Effect.gen(function* mintSendAndAcknowledge() {
-              const locked = yield* locks
-                .lock("Person", message.personId)
-                .pipe(Effect.option);
+    /**
+     * Transaction 1: lock the person, decide that a code is still due, mint it and store its hash `Unsent`. Nothing is
+     * sent here, and the port that sends refuses a call made inside this transaction (spec 0024 R6). Either the row is
+     * settled here (nothing to send: the person or the account is gone) or the mail is built, with the plaintext link, and
+     * handed on in memory; the plaintext is in no table and in no log (a `Redacted` value does not print).
+     */
+    const store = Effect.fn("AccountDelivery.storeCode")(function* store(
+      row: ClaimedOutboxMessage,
+      message: CodeIntent
+    ) {
+      return yield* transactor.run(
+        Effect.gen(function* mintAndStore() {
+          const locked = yield* locks
+            .lock("Person", message.personId)
+            .pipe(Effect.option);
 
-              if (Option.isNone(locked)) {
-                return yield* delivery.markDelivered(row.id, row.claimToken);
-              }
+          if (Option.isNone(locked)) {
+            return preparedAs.Settled({
+              ack: yield* delivery.markDelivered(row.id, row.claimToken),
+            });
+          }
 
-              const account = yield* accounts.findLocked(locked.value);
-              const recipient = yield* people.findLocked(locked.value);
-              const policy = codePolicy[message.purpose];
+          // The fence: only the consumer that still holds the row's claim writes a code (spec 0024 R9). A consumer whose
+          // lease lapsed while it waited for the person's lock finds another consumer's claim, or the row delivered,
+          // and writes nothing: it would replace a code that the other one delivered. The lock on the person came first,
+          // so the order is that of transaction 2 (person, then row).
+          if (
+            (yield* delivery.holdClaim(row.id, row.claimToken)) === "claimLost"
+          ) {
+            return preparedAs.Settled({ ack: "claimLost" });
+          }
 
-              // Nothing is sent when the purpose's account is not there any more, or the person was erased meanwhile:
-              // anonymisation leaves an address that cannot receive mail.
-              if (
-                !accountFits(policy.account, account) ||
-                PersonalDataDeclaration.isAnonymisedEmail(recipient.email)
-              ) {
-                return yield* delivery.markDelivered(row.id, row.claimToken);
-              }
+          const account = yield* accounts.findLocked(locked.value);
+          const recipient = yield* people.findLocked(locked.value);
+          const policy = codePolicy[message.purpose];
 
-              const now = yield* DateTime.now;
+          // Nothing is sent when the purpose's account is not there any more, or the person was erased meanwhile:
+          // anonymisation leaves an address that cannot receive mail.
+          if (
+            !accountFits(policy.account, account) ||
+            PersonalDataDeclaration.isAnonymisedEmail(recipient.email)
+          ) {
+            return preparedAs.Settled({
+              ack: yield* delivery.markDelivered(row.id, row.claimToken),
+            });
+          }
 
-              const { token, hash } = yield* mintCode().pipe(
-                Effect.provideService(Crypto.Crypto, crypto),
-                Effect.orDie
-              );
+          const now = yield* DateTime.now;
 
-              yield* codes.replace(locked.value, {
-                expiresAt: DateTime.add(now, {
-                  seconds: policy.lifetimeSeconds,
-                }),
-                hash,
-                purpose: message.purpose,
-              });
+          const { token, hash } = yield* mintCode().pipe(
+            Effect.provideService(Crypto.Crypto, crypto),
+            Effect.orDie
+          );
 
-              const presentation = codeMail[message.purpose];
-              const link = `${origin}${presentation.path}?kode=${token}`;
+          yield* codes.issue(locked.value, {
+            expiresAt: DateTime.add(now, { seconds: policy.lifetimeSeconds }),
+            hash,
+            purpose: message.purpose,
+          });
 
-              const email = OutboxMessage.cases.Email.make({
+          const presentation = codeMail[message.purpose];
+          const link = `${origin}${presentation.path}?kode=${token}`;
+
+          return preparedAs.Stored({
+            hash,
+            mail: Redacted.make(
+              OutboxMessage.cases.Email.make({
                 replyTo: null,
                 subject: presentation.subject,
                 text: presentation.text(
@@ -140,33 +184,72 @@ export const accountDeliveryLayer = Layer.effect(
                   lifetimeWords(policy.lifetimeSeconds, "no")
                 ),
                 to: recipient.email,
-              });
+              })
+            ),
+          });
+        })
+      );
+    });
 
-              // Provider errors may contain request data: never persist or log them with a code. Each attempt mints a
-              // new code, so its mail is its own message: the key is the row and the attempt, not the row alone.
-              yield* sender.send(email, `${row.id}.${row.attempts}`).pipe(
-                Effect.mapError(
-                  () =>
-                    new DeliveryFailed({
-                      reason: "code email delivery failed",
-                    })
-                )
-              );
-              const ack = yield* delivery.markDelivered(row.id, row.claimToken);
+    /**
+     * Transaction 2, after the mail went out: `Unsent → Usable` for the code of this attempt, and the row delivered, in one
+     * commit. The acknowledgement is bound to the code's hash and does not depend on the claim: a code that a newer
+     * attempt replaced, or that the person's erasure removed, is not there to acknowledge (nothing changes), and one that
+     * is still the person's current code is as good as its mail, whoever holds the row now. So when the claim was lost
+     * meanwhile the acknowledgement still commits and the answer is `claimLost`; the row is the other consumer's (spec
+     * 0024 R9, decision D5). The row is delivered here only while the claim is current.
+     */
+    const acknowledge = Effect.fn("AccountDelivery.acknowledgeCode")(
+      function* acknowledge(
+        row: ClaimedOutboxMessage,
+        message: CodeIntent,
+        hash: CodeHash
+      ) {
+        return yield* transactor
+          .run(
+            Effect.gen(function* makeUsable() {
+              const locked = yield* locks
+                .lock("Person", message.personId)
+                .pipe(Effect.option);
 
-              if (ack === "claimLost") {
-                return yield* new DeliveryClaimLost();
+              if (Option.isSome(locked)) {
+                yield* codes.acknowledge(locked.value, {
+                  hash,
+                  purpose: message.purpose,
+                });
               }
 
-              return ack;
+              return yield* delivery.markDelivered(row.id, row.claimToken);
             })
           )
+          .pipe(Effect.uninterruptible);
+      }
+    );
+
+    /**
+     * Mint, send, acknowledge: two transactions with the send between them (spec 0024). The send is at least once: a
+     * crash after the provider answered and before transaction 2 leaves the code `Unsent`, so the mail's link refuses,
+     * and the claim's lease runs out and the row is delivered again, which issues a new code and mails it.
+     */
+    const issueCode = Effect.fn("AccountDelivery.issueCode")(
+      function* issueCode(row: ClaimedOutboxMessage, message: CodeIntent) {
+        const prepared = yield* store(row, message);
+
+        if (Predicate.isTagged(prepared, "Settled")) {
+          return prepared.ack;
+        }
+
+        // Provider errors may contain request data: never persist or log them with a code. Each attempt mints a new
+        // code, so its mail is its own message: the key is the row and the attempt, not the row alone.
+        yield* sender
+          .send(Redacted.value(prepared.mail), `${row.id}.${row.attempts}`)
           .pipe(
-            Effect.catchTag("DeliveryClaimLost", () =>
-              Effect.succeed("claimLost" as const)
-            ),
-            Effect.uninterruptible
+            Effect.mapError(
+              () => new DeliveryFailed({ reason: "code email delivery failed" })
+            )
           );
+
+        return yield* acknowledge(row, message, prepared.hash);
       }
     );
 

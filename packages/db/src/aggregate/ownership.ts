@@ -49,7 +49,7 @@ export const Ownership = [
       account: { owner: "personId", state: "state" },
       adminGrant: { owner: "personId" },
       alumniRequest: { owner: "personId" },
-      code: { owner: "subject" },
+      code: { owner: "subject", state: "state" },
       consent: { owner: "personId" },
       membership: { owner: "personId" },
       welcomeLedger: { owner: "personId" },
