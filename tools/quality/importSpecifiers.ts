@@ -1,6 +1,6 @@
 import { Array as Arr, Option, Order, Predicate } from "effect";
 import { parseSync, Visitor } from "oxc-parser";
-import type { Program } from "oxc-parser";
+import type { Argument, Program } from "oxc-parser";
 
 /** One module specifier written in a source file, with the line it starts on. */
 export interface Specifier {
@@ -8,8 +8,13 @@ export interface Specifier {
   readonly specifier: string;
 }
 
-/** An `import.meta.glob(…)` whose patterns are all plain strings: each pattern names every file that it matches. */
+/**
+ * An `import.meta.glob(…)` whose patterns are all plain strings and whose options, if any, are an object literal whose
+ * `base` is a plain string: each pattern names every file that it matches, from `base` (Vite's option: the directory
+ * that the patterns start from; one that starts with `/` is from the project's root) or else from the importer's.
+ */
 interface GlobImport {
+  readonly base: Option.Option<string>;
   readonly line: number;
   readonly patterns: readonly string[];
 }
@@ -36,9 +41,58 @@ const literalOf = (argument: string): Option.Option<string> =>
 /** What the syntax-tree walk finds that the parser's own list of imports and exports leaves out, as `[start, …]`. */
 interface Walked {
   readonly computedGlobs: readonly (readonly [number, string])[];
-  readonly globs: readonly (readonly [number, readonly string[]])[];
+  readonly globs: readonly (readonly [
+    number,
+    readonly string[],
+    Option.Option<string>,
+  ])[];
   readonly specifiers: readonly (readonly [number, string])[];
 }
+
+/** What the options argument of `import.meta.glob` says about where the patterns start. */
+interface GlobOptions {
+  /** The options are an object literal that holds no spread and no computed key, and whose `base` is a plain string. */
+  readonly readable: boolean;
+  readonly base: Option.Option<string>;
+}
+
+/**
+ * The `base` option of `import.meta.glob`. No options argument, or none that names `base`, is no base. Options that no
+ * check can read (not an object literal, a spread or a computed key that could be a `base`, a `base` that is not a plain
+ * string) are not readable: such a glob joins the loads that fail closed.
+ */
+const optionsOf = (
+  options: Argument | undefined,
+  text: string
+): GlobOptions => {
+  if (options === undefined) {
+    return { base: Option.none(), readable: true };
+  }
+
+  if (options.type !== "ObjectExpression") {
+    return { base: Option.none(), readable: false };
+  }
+
+  let base = Option.none<string>();
+
+  for (const property of options.properties) {
+    if (property.type === "SpreadElement" || property.computed) {
+      return { base: Option.none(), readable: false };
+    }
+
+    const key = text.slice(property.key.start, property.key.end);
+
+    if (key === "base" || key === '"base"' || key === "'base'") {
+      base = literalOf(text.slice(property.value.start, property.value.end));
+
+      if (Option.isNone(base)) {
+        return { base, readable: false };
+      }
+    }
+  }
+
+  return { base, readable: true };
+};
 
 /**
  * The nodes that `module` (the parser's list of imports and exports) leaves out: the type-level `import("…")`
@@ -48,7 +102,10 @@ interface Walked {
  */
 const walked = (program: Program, text: string): Walked => {
   const specifiers: (readonly [number, string])[] = [];
-  const globs: (readonly [number, readonly string[]])[] = [];
+
+  const globs: (readonly [number, readonly string[], Option.Option<string>])[] =
+    [];
+
   const computedGlobs: (readonly [number, string])[] = [];
 
   new Visitor({
@@ -61,10 +118,15 @@ const walked = (program: Program, text: string): Walked => {
         return;
       }
 
-      const [first] = node.arguments;
+      const [first, second] = node.arguments;
+      const last = node.arguments.at(-1);
 
       const written =
-        first === undefined ? "" : text.slice(first.start, first.end);
+        first === undefined || last === undefined
+          ? ""
+          : text.slice(first.start, last.end);
+
+      const options = optionsOf(second, text);
 
       const elements =
         first?.type === "ArrayExpression"
@@ -73,12 +135,20 @@ const walked = (program: Program, text: string): Walked => {
                 literalOf(text.slice(start, end))
               )
             )
-          : [literalOf(written)];
+          : [
+              literalOf(
+                first === undefined ? "" : text.slice(first.start, first.end)
+              ),
+            ];
 
       const patterns = Arr.getSomes(elements);
 
-      if (patterns.length === elements.length && patterns.length > 0) {
-        globs.push([node.start, patterns]);
+      if (
+        patterns.length === elements.length &&
+        patterns.length > 0 &&
+        options.readable
+      ) {
+        globs.push([node.start, patterns, options.base]);
       } else {
         computedGlobs.push([node.start, `import.meta.glob(${written})`]);
       }
@@ -161,7 +231,8 @@ export const importForms = (path: string, text: string): ImportForms => {
       })),
     ]),
     globs: byLine(
-      Arr.map(found.globs, ([start, patterns]) => ({
+      Arr.map(found.globs, ([start, patterns, base]) => ({
+        base,
         line: lineOf(start),
         patterns,
       }))

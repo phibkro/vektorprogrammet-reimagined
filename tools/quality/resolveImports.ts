@@ -2,7 +2,7 @@ import { Array as Arr, Effect, FileSystem, Option } from "effect";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-import { globBases, globMatches } from "./globImports.ts";
+import { globBases, globMatches, globStart } from "./globImports.ts";
 import { importForms } from "./importSpecifiers.ts";
 import type { ComputedImport, Specifier } from "./importSpecifiers.ts";
 
@@ -155,28 +155,110 @@ export const readSources = Effect.fn("readSources")(function* readSources(
   const realRoot = yield* fs.realPath(root);
   const resolve = yield* makeResolver(root);
 
+  /** The directory of the package that holds `file`: the nearest ancestor with a `package.json`, from the root. */
+  const packageRootOf = (file: string) =>
+    Effect.findFirst(
+      Arr.makeBy(file.split("/").length, (depth) =>
+        Arr.join(
+          Arr.take(file.split("/"), file.split("/").length - 1 - depth),
+          "/"
+        )
+      ),
+      (directory) => fs.exists(`${root}/${directory}/package.json`)
+    );
+
+  /**
+   * A directory (from the repository root) after symbolic links, as a plain import is placed: its longest prefix that
+   * exists is made real (`apps/web/node_modules/@vektorprogrammet/domain` is `packages/domain`) and the rest is kept.
+   * A directory that leaves the repository, or has no existing prefix, stays as written.
+   */
+  const realPathOf = (directory: string) =>
+    Effect.gen(function* realDirectory() {
+      const names = Arr.filter(directory.split("/"), (name) => name !== "");
+
+      const prefix = yield* Effect.findFirst(
+        Arr.makeBy(names.length + 1, (cut) => names.length - cut),
+        (length) =>
+          fs.exists(`${root}/${Arr.join(Arr.take(names, length), "/")}`)
+      );
+
+      if (Option.isNone(prefix)) {
+        return directory;
+      }
+
+      const real = yield* fs.realPath(
+        `${root}/${Arr.join(Arr.take(names, prefix.value), "/")}`
+      );
+
+      if (real !== realRoot && !real.startsWith(`${realRoot}/`)) {
+        return directory;
+      }
+
+      return Arr.join(
+        [
+          ...(real === realRoot ? [] : [real.slice(realRoot.length + 1)]),
+          ...Arr.drop(names, prefix.value),
+        ],
+        "/"
+      );
+    });
+
   return yield* Effect.forEach(paths, (file) =>
     Effect.gen(function* readSource() {
       const text = yield* fs.readFileString(`${root}/${file}`);
       const real = yield* fs.realPath(`${root}/${file}`);
       const forms = importForms(file, text);
 
-      const globbed = Arr.map(forms.globs, ({ line, patterns }) => ({
-        line,
-        placed: Arr.map(patterns, (pattern) => ({
-          bases: globBases(file, pattern),
-          matches: globMatches(file, pattern, paths),
-          pattern,
-        })),
-      }));
+      const globbed = yield* Effect.forEach(
+        forms.globs,
+        Effect.fn("placeGlob")(function* placeGlob({ base, line, patterns }) {
+          // Vite's project root, for a `base` that starts with `/`: the directory of the importer's package.
+          const viteRoot = Option.exists(base, (written) =>
+            written.startsWith("/")
+          )
+            ? yield* packageRootOf(file)
+            : Option.none<string>();
+
+          const start = globStart(file, base, viteRoot);
+
+          const placed = yield* Effect.forEach(patterns, (pattern) =>
+            Effect.gen(function* placePattern() {
+              const found = Option.flatMap(start, (from) =>
+                globBases(from, pattern)
+              );
+
+              return {
+                bases: Option.isNone(found)
+                  ? found
+                  : Option.some(yield* Effect.forEach(found.value, realPathOf)),
+                matches: Option.flatMap(start, (from) =>
+                  globMatches(from, pattern, paths)
+                ),
+                pattern,
+                // How a finding names the glob: its pattern, and the `base` that it starts from when it has one.
+                shown: Option.match(base, {
+                  onNone: () => pattern,
+                  onSome: (written) => `${pattern} (base ${written})`,
+                }),
+                written: Option.match(base, {
+                  onNone: () => `"${pattern}"`,
+                  onSome: (value) => `"${pattern}", { base: "${value}" }`,
+                }),
+              };
+            })
+          );
+
+          return { line, placed };
+        })
+      );
 
       return {
         computed: [
           ...forms.computed,
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ matches, pattern }) =>
+            Arr.flatMap(placed, ({ matches, written }) =>
               Option.isNone(matches)
-                ? [{ line, text: `import.meta.glob("${pattern}")` }]
+                ? [{ line, text: `import.meta.glob(${written})` }]
                 : []
             )
           ),
@@ -187,13 +269,13 @@ export const readSources = Effect.fn("readSources")(function* readSources(
             target: resolve(file, found),
           })),
           ...Arr.flatMap(globbed, ({ line, placed }) =>
-            Arr.flatMap(placed, ({ bases, matches, pattern }) => [
+            Arr.flatMap(placed, ({ bases, matches, shown }) => [
               ...Arr.map(
                 Option.getOrElse(bases, () => []),
                 (base): ResolvedImport => ({
                   glob: true,
                   line,
-                  specifier: pattern,
+                  specifier: shown,
                   target: { kind: "directory", path: base },
                 })
               ),
@@ -202,7 +284,7 @@ export const readSources = Effect.fn("readSources")(function* readSources(
                 (match): ResolvedImport => ({
                   glob: true,
                   line,
-                  specifier: pattern,
+                  specifier: shown,
                   target: { kind: "file", path: match },
                 })
               ),

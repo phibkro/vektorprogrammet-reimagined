@@ -15,40 +15,58 @@ const expandBraces = (pattern: string): readonly string[] => {
       );
 };
 
-/** The pattern as a path from the repository root, or none when it climbs out of the repository. */
-const fromRoot = (importer: string, pattern: string): Option.Option<string> =>
-  Option.map(
-    Arr.reduce(
-      pattern.split("/"),
-      Option.some(Arr.dropRight(importer.split("/"), 1)),
-      (parts, segment) =>
-        Option.flatMap(parts, (names) => {
-          if (segment === ".") {
-            return Option.some(names);
-          }
+/** The path `relative` leads to from the directory `start` (path segments from the repository root), or none when it climbs out of the repository. */
+const walk = (
+  start: readonly string[],
+  relative: string
+): Option.Option<readonly string[]> =>
+  Arr.reduce(relative.split("/"), Option.some(start), (parts, segment) =>
+    Option.flatMap(parts, (names) => {
+      if (segment === "." || segment === "") {
+        return Option.some(names);
+      }
 
-          return segment === ".."
-            ? Option.liftPredicate(
-                Arr.dropRight(names, 1),
-                () => names.length > 0
-              )
-            : Option.some(Arr.append(names, segment));
-        })
-    ),
-    (names) => Arr.join(names, "/")
+      return segment === ".."
+        ? Option.liftPredicate(Arr.dropRight(names, 1), () => names.length > 0)
+        : Option.some(Arr.append(names, segment));
+    })
   );
+
+/**
+ * The directory that the patterns of an `import.meta.glob` written in `importer` start from, as path segments from the
+ * repository root: the importer's directory, or `base` from it (Vite's `base` option), or, when `base` starts with `/`,
+ * from `viteRoot` (the directory of the importer's package, Vite's project root; none when it has none). None when the
+ * directory climbs out of the repository.
+ */
+export const globStart = (
+  importer: string,
+  base: Option.Option<string>,
+  viteRoot: Option.Option<string>
+): Option.Option<readonly string[]> => {
+  const own = Arr.dropRight(importer.split("/"), 1);
+
+  return Option.match(base, {
+    onNone: () => Option.some(own),
+    onSome: (written) =>
+      written.startsWith("/")
+        ? Option.flatMap(viteRoot, (root) =>
+            walk(root === "" ? [] : root.split("/"), written.slice(1))
+          )
+        : walk(own, written),
+  });
+};
 
 /** Glob syntax beyond `*`, `**` and `{a,b}`: classes, extended groups and `?`, which the matcher does not read. */
 const unsupported = /[()?[\]]/u;
 
 /**
- * The patterns written in `importer` (the argument of `import.meta.glob`), each as a path-from-the-root glob with its
+ * The patterns of an `import.meta.glob` that starts in the directory `start` (`globStart`), each as a path-from-the-root glob with its
  * braces expanded; none when the pattern cannot be placed (a root-relative or aliased pattern, glob syntax that the
  * matcher does not read, a path out of the repository). A `!` pattern only removes files from the others, so it
  * places none.
  */
 const placed = (
-  importer: string,
+  start: readonly string[],
   pattern: string
 ): Option.Option<readonly string[]> => {
   if (pattern.startsWith("!")) {
@@ -63,17 +81,19 @@ const placed = (
   }
 
   return Option.all(
-    Arr.map(expandBraces(pattern), (expanded) => fromRoot(importer, expanded))
+    Arr.map(expandBraces(pattern), (expanded) =>
+      Option.map(walk(start, expanded), (names) => Arr.join(names, "/"))
+    )
   );
 };
 
 /** The files among `paths` (paths from the repository root) that the pattern names; none when it cannot be placed. */
 export const globMatches = (
-  importer: string,
+  start: readonly string[],
   pattern: string,
   paths: readonly string[]
 ): Option.Option<readonly string[]> =>
-  Option.map(placed(importer, pattern), (globs) =>
+  Option.map(placed(start, pattern), (globs) =>
     Arr.filter(paths, (path) =>
       Arr.some(globs, (glob) => globToRegExp(glob).test(path))
     )
@@ -86,10 +106,10 @@ export const globMatches = (
  * be placed.
  */
 export const globBases = (
-  importer: string,
+  start: readonly string[],
   pattern: string
 ): Option.Option<readonly string[]> =>
-  Option.map(placed(importer, pattern), (globs) =>
+  Option.map(placed(start, pattern), (globs) =>
     Arr.dedupe(
       Arr.map(globs, (glob) =>
         Arr.join(

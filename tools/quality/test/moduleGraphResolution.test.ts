@@ -725,6 +725,137 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
   );
 
   it.effect(
+    "R15 (review of #56): a glob's `base` option moves where its patterns start, a base that cannot be read fails closed, and a glob's directory is placed after symbolic links",
+    () =>
+      Effect.gen(function* globBaseOption() {
+        const importer = "apps/web/src/server/seeds.ts";
+        const web = { "apps/web/package.json": "{}\n" };
+
+        const scanned = (
+          written: string,
+          files: Record<string, string> = {},
+          links: Record<string, string> = {}
+        ) =>
+          findingsOf(
+            { ...base, ...web, ...files, [importer]: written },
+            links
+          ).pipe(Effect.map((found) => mentioning(found, importer)));
+
+        const reach = (specifier: string, unit: string) =>
+          `${importer}:1: apps/web reaches into ${unit} by the path ${specifier}; import the package by its name`;
+
+        const unreadable = (text: string) =>
+          `${importer}:1: ${text} loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../`;
+
+        // A base from the importer's directory: the reviewer's first probe.
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob("./*.json", { base: "../../../cms/seed" });\n'
+          ),
+          [reach("./*.json (base ../../../cms/seed)", "apps/cms")]
+        );
+
+        // A base that starts with `/` is from the project's root: the directory of the importer's package.
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob("./*.json", { base: "/../cms/seed" });\n'
+          ),
+          [reach("./*.json (base /../cms/seed)", "apps/cms")]
+        );
+
+        // The pattern is read from the base, and a quoted key is a key.
+        assert.deepStrictEqual(
+          yield* scanned(
+            'export const s = import.meta.glob(["../*.json"], { eager: true, "base": "../../../cms/seed/x" });\n'
+          ),
+          [reach("../*.json (base ../../../cms/seed/x)", "apps/cms")]
+        );
+
+        // Controls: a base inside the importer's own unit, from the importer or from the root, is clean, and so are
+        // options with no base.
+        for (const stays of [
+          '{ base: "../../data" }',
+          '{ base: "/public" }',
+          '{ eager: true, query: "?raw" }',
+        ]) {
+          assert.deepStrictEqual(
+            yield* scanned(
+              `export const s = import.meta.glob("./*.json", ${stays});\n`
+            ),
+            [],
+            stays
+          );
+        }
+
+        // Options that cannot be read fail closed: a variable, a spread, a computed key, a base that is not a string.
+        for (const options of [
+          "opts",
+          "{ ...opts }",
+          "{ [key]: 1 }",
+          "{ base: dir }",
+          `{ base: \`${hole}/x\` }`,
+        ]) {
+          assert.deepStrictEqual(
+            yield* scanned(
+              `export const s = import.meta.glob("./*.json", ${options});\n`
+            ),
+            [unreadable(`import.meta.glob("./*.json", ${options})`)],
+            options
+          );
+        }
+
+        // A `/` base in a package with no `package.json` has no root to start from: it fails closed too.
+        assert.deepStrictEqual(
+          Arr.filter(
+            mentioning(
+              yield* findingsOf({
+                ...base,
+                "apps/other/src/x.ts":
+                  'export const s = import.meta.glob("./*.json", { base: "/data" });\n',
+              }),
+              "apps/other/src/x.ts"
+            ),
+            (line) => line.includes("no check can read")
+          ),
+          [
+            'apps/other/src/x.ts:1: import.meta.glob("./*.json", { base: "/data" }) loads modules by an expression that no check can read (the check fails closed): write the specifier as a plain string, or a glob pattern that starts with ./ or ../',
+          ]
+        );
+
+        // A directory is placed after symbolic links, as a plain import is: `node_modules/@vektorprogrammet/domain`
+        // of the web package is `packages/domain`.
+        const link = {
+          "apps/web/node_modules/@vektorprogrammet/domain": "packages/domain",
+        };
+
+        const throughLink =
+          "../../node_modules/@vektorprogrammet/domain/src/*.ts";
+
+        assert.deepStrictEqual(
+          yield* scanned(
+            `export const s = import.meta.glob("${throughLink}", { exhaustive: true });\n`,
+            { [`${d}/index.ts`]: "export const x = 1;\n" },
+            link
+          ),
+          [reach(throughLink, "packages/domain")]
+        );
+
+        // Control: the same glob where the directory is a real directory of the web package is clean.
+        assert.deepStrictEqual(
+          yield* scanned(
+            `export const s = import.meta.glob("${throughLink}", { exhaustive: true });\n`,
+            {
+              "apps/web/node_modules/@vektorprogrammet/domain/src/a.ts":
+                "export const a = 1;\n",
+            }
+          ),
+          []
+        );
+      }),
+    120_000
+  );
+
+  it.effect(
     "R12 (round 3): an import() or import.meta.glob() with a computed argument, or a pattern that cannot be placed, is a finding, and a literal one is not",
     () =>
       Effect.gen(function* computedLoadsFail() {

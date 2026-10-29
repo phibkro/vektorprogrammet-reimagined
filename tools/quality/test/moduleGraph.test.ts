@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Order } from "effect";
+import { Array as Arr, Effect, Option, Order } from "effect";
 
 import { importForms, importSpecifiers } from "../importSpecifiers.ts";
 import { baseline, declaration, integrationCalls } from "../moduleGraph.ts";
@@ -96,8 +96,8 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
     );
 
     assert.deepStrictEqual(forms.globs, [
-      { line: 1, patterns: ["../src/**/*.{ts,tsx}"] },
-      { line: 2, patterns: ["./x/*.ts", "!./x/skip.ts"] },
+      { base: Option.none(), line: 1, patterns: ["../src/**/*.{ts,tsx}"] },
+      { base: Option.none(), line: 2, patterns: ["./x/*.ts", "!./x/skip.ts"] },
     ]);
 
     assert.deepStrictEqual(forms.computed, [
