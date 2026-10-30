@@ -24,6 +24,7 @@ import {
 import { success } from "../src/lib/outcome";
 import type { Outcome } from "../src/lib/outcome";
 import { failureOf } from "../src/server/errors";
+import { typeInto } from "./support/typeInto";
 
 const REFUSAL = "Plassen kan ikke fjernes.";
 const DATE_REFUSAL = "Ugyldig dato.";
@@ -253,6 +254,33 @@ describe("a form the schema refuses", () => {
 
     await page.submit();
     assert.deepStrictEqual(sent.length, 0);
+    assert.deepStrictEqual(page.messages(), [REQUIRED]);
+    page.unmount();
+  });
+
+  it("issue 74: an earlier server message does not stay beside the schema's new one; without the refusal it stays", async () => {
+    const page = mount(
+      view(
+        answers(refused({ message: DATE_REFUSAL, path: ["until"] })),
+        fields("until")
+      )
+    );
+
+    await page.submit();
+    assert.deepStrictEqual(page.messages(), [DATE_REFUSAL]);
+
+    // Control: another valid post keeps the server's answer (the server said it again).
+    await page.submit();
+    assert.deepStrictEqual(page.messages(), [DATE_REFUSAL]);
+
+    const input = page.container.querySelector("input");
+    assert.isNotNull(input);
+
+    if (input !== null) {
+      typeInto(input, "");
+    }
+
+    await page.submit();
     assert.deepStrictEqual(page.messages(), [REQUIRED]);
     page.unmount();
   });

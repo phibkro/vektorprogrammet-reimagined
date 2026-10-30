@@ -1,21 +1,26 @@
 import { Contact } from "@vektorprogrammet/domain";
-import { Schema } from "effect";
+import { Record as Rec, Schema } from "effect";
 
 import { Text, formSchema, wholeNumber } from "./formSchema";
 
+/** The names of the contact form's inputs: the one list that the page, the post and its echo read. `captcha` is the Turnstile widget's place for a message. */
+const ContactText = Schema.Struct({
+  captcha: Text,
+  departmentId: Text,
+  email: Text,
+  message: Text,
+  name: Text,
+  subject: Text,
+});
+
+export const CONTACT_FIELDS = Rec.keys(ContactText.fields);
+
 /**
- * C10: the contact form. `captcha` is the Turnstile widget's place for a message (its token travels in
- * `cf-turnstile-response`, which the widget puts in the page, not in a value of this form), and no field reads it.
+ * C10: the contact form. The Turnstile token travels in `cf-turnstile-response`, which the widget puts in the page, not
+ * in a value of this form, and no field reads it.
  */
 export const ContactForm = formSchema(
-  Schema.Struct({
-    captcha: Text,
-    departmentId: Text,
-    email: Text,
-    message: Text,
-    name: Text,
-    subject: Text,
-  }),
+  ContactText,
   Contact.submitContact.payloadSchema,
   (text) => ({
     departmentId: wholeNumber(text.departmentId),

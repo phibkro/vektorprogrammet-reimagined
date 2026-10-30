@@ -77,6 +77,10 @@ export const CommandFormView = <
 
   const { Field, form, onSubmit } = useConstructForm({
     defaults,
+    onRefused: () => {
+      setOutcome(null);
+      setCrashed(false);
+    },
     onValid: (values, reset) => {
       setCrashed(false);
 
