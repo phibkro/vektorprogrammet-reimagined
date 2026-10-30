@@ -27,6 +27,7 @@
     "@portabletext/react": "8.0.1",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/query-core": "catalog:",
+    "@tanstack/react-form": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
