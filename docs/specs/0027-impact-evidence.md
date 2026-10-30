@@ -137,5 +137,13 @@ What the build changed in the plan above (the text of the decisions is edited to
 - **The close is a registry job and a command** (D8): `impactClose` joins `SystemJob`, so every effx description changed and the conformance vectors were regenerated at the pinned commit.
 - **Panel negative control.** `listImpact` is a command and refuses a non-administrator on its own, so `panelReads.test.ts`'s control "without the guard nothing leaks" exempts the self-guarded reads (`SELF_GUARDED`) and a second control shows that the command alone refuses them.
 - **The legacy aggregate import is named** as the follow-up in "What is out of scope", "Not done here" and open item 8: nothing here imports `AssistantHistory`, and the history before the reimagined system stays `Unavailable`.
-- **D3 stands, and the lead asked for it to be explicit:** `Unavailable` is the honest state of a live source that does not exist. A zero would be a result nobody computed; the first real number would then read as growth; and an `Unavailable` that is never snapshotted keeps a semester fillable later. The F2 test shows that the shipped source yields no number, no snapshot and no CSV value.
+- **D3 stands, and the lead asked for it to be explicit:** `Unavailable` is the honest state of a live source that does not exist. A zero would be a result nobody computed; the first real number would then read as growth; and an `Unavailable` that is never snapshotted keeps a semester fillable later. The F2 tests show that the shipped source yields no number and no snapshot.
 - **Claims limited to what runs:** release's two attacks (exact elimination, bound narrowing) are not a proof that nothing can be recovered; the tests add an independent brute-force oracle over small lattices, which found nothing the release leaks, and the primary-only release as its control.
+
+### R3 (2026-10-30): what the negative controls are, as built
+
+The falsifier table names a control for each row; this entry says which exist, so that a planned control is not taken for one that ran.
+
+- **F1:** the control of the table (a planted measure without a Norwegian definition) was **not built**. What exists: D1 in `release.test.ts` asserts that each of the three declared measures has both definitions and both names, and `bun run check:docs` fails when `docs/system/impact.md` differs from the declarations. A fourth measure would need adding to that test's list.
+- **F5:** the control is the CSV test: it asserts that an `Incomplete` cell's reason is in its line, so dropping the reason from `impactCsv` fails it. No separate mutation was run.
+- **F3, F4, F7, F8, F9:** as in the table (the minimum of 1, the primary-only release, no update or delete on the port, the source that answers, `SELF_GUARDED`). F3 and F4's controls are tests that fail by construction when the protected property is removed; no manual mutation of `release.ts` was run beyond them.
