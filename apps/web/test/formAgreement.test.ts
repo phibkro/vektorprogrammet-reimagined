@@ -10,6 +10,7 @@ import { assert, describe, it } from "@effect/vitest";
 import type { ValidationFailed } from "@vektorprogrammet/domain";
 import {
   Accounts,
+  Admission,
   Contact,
   Content,
   Organisation,
@@ -20,6 +21,16 @@ import {
 import { Array as Arr, Effect, Order, Predicate, Schema } from "effect";
 
 import { ChoosePasswordForm, RequestResetForm } from "../src/forms/account";
+import {
+  ApplicationForm,
+  CancelPeriodForm,
+  ExtendPeriodForm,
+  RegisterApplicationForm,
+  SPECIAL_NEEDS_TEXT,
+  SchedulePeriodForm,
+  VerifyApplicantForm,
+  WithdrawApplicationForm,
+} from "../src/forms/admission";
 import { ContactForm } from "../src/forms/contact";
 import { DepartmentForm } from "../src/forms/department";
 import {
@@ -146,6 +157,69 @@ const CASES = [
     name: "consent without an answer",
     payload: PersonalDataRpcs.setAlumniConsent.payloadSchema,
     text: { personId: "3" },
+  },
+  {
+    form: ApplicationForm,
+    name: "application (public)",
+    payload: Admission.submitApplication.payloadSchema,
+    text: {
+      bolk: "",
+      departmentId: "x",
+      email: "nope",
+      fieldOfStudyId: "",
+      name: "",
+      [SPECIAL_NEEDS_TEXT]: "Rullestol",
+      yearOfStudy: "7",
+    },
+  },
+  {
+    form: RegisterApplicationForm,
+    name: "application (registered by staff)",
+    payload: Admission.registerApplication.payloadSchema,
+    text: {
+      bolk: "Bolk3",
+      email: "",
+      fieldOfStudyId: "x",
+      name: longName,
+      periodId: "",
+      "weekday-Sunday": "on",
+      yearOfStudy: "0",
+    },
+  },
+  {
+    form: SchedulePeriodForm,
+    name: "admission period",
+    payload: Admission.createAdmissionPeriod.payloadSchema,
+    text: {
+      departmentId: "",
+      end: "2030-01-01T10:00",
+      semester: "våren",
+      start: "2030-02-01T10:00",
+    },
+  },
+  {
+    form: ExtendPeriodForm,
+    name: "extend period",
+    payload: Admission.extendAdmissionPeriod.payloadSchema,
+    text: { end: "i morgen", id: "" },
+  },
+  {
+    form: CancelPeriodForm,
+    name: "cancel period",
+    payload: Admission.deleteAdmissionPeriod.payloadSchema,
+    text: { id: "x" },
+  },
+  {
+    form: WithdrawApplicationForm,
+    name: "withdraw application",
+    payload: Admission.withdrawApplication.payloadSchema,
+    text: { id: "" },
+  },
+  {
+    form: VerifyApplicantForm,
+    name: "verify applicant",
+    payload: PersonalDataRpcs.verifyApplicantEmail.payloadSchema,
+    text: { kode: "x" },
   },
 ] as const;
 

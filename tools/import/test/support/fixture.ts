@@ -194,6 +194,7 @@ export const FIXTURE_SQL = Arr.join(
       [
         [1, 1, 3, "2024-01-10 08:00:00", "2024-02-01 23:59:59", null], // semester 3 → 1
         [2, 2, 2, "2024-08-10 00:00:00", "2024-08-01 00:00:00", null], // end before start → quarantined
+        [3, 1, 3, "2024-03-01 08:00:00", "2024-03-20 23:59:59", null], // the same department and semester as period 1 → quarantined (spec 0009 UK1)
       ]
     ),
     insert(
