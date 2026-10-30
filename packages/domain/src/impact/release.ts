@@ -7,13 +7,19 @@
  * Two attacks decide "can still be recovered", and both read the output and nothing else, so what they can do is what
  * a reader of the page can do: **exact elimination** (a suppressed cell that is a linear combination of published
  * cells over the additive relations) and **bound narrowing** (a suppressed cell whose feasible interval collapses to
- * one value when the relations' bounds are propagated to a fixed point). A suppressed cell may hold any count for the
- * attacker, because a complementary cell is suppressed with a value above the minimum and looks the same. Neither
- * attack is complete: an integer program could pin a value that these miss. The spec claims what the tests run.
+ * one value when the relations' bounds are propagated to a fixed point).
+ *
+ * **The reader.** The page says only that a cell is hidden, but the reader is assumed to know which hidden cells hold a
+ * count below the minimum (the primary ones), because the release is public: such a cell lies between 1 and
+ * `minimum − 1` for bound narrowing, and any other hidden cell (a complementary one, hidden beside it) may hold any
+ * count. A prior of 0 and up for every hidden cell would miss a total that is at most the sum of its parts: with a
+ * total of 21 and published parts of 7 and 10, a hidden part below 5 is exactly 4. A cell is protected when neither
+ * attack pins its exact value; an interval narrower than 1 to `minimum − 1` is not prevented, and the spec says so.
+ * Neither attack is complete: an integer program could pin a value that these miss. The spec claims what the tests run.
  */
 import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
 
-import { Answer, Released } from "./measures.ts";
+import { Answer, Released, isSmall, releasedCount } from "./measures.ts";
 
 /** One cell: an id that the relations name, and what the source or the snapshot answered. */
 export interface Cell {
@@ -32,6 +38,27 @@ export interface Relation {
 }
 
 type Output = Readonly<Record<string, Released>>;
+
+/**
+ * What the reader is assumed to know about the hidden cells (see the head of this file): the minimum, and which hidden
+ * cells are primary, that is hold a count from 1 to `minimum − 1`. The page does not say which they are; assuming that the
+ * reader knows is the safe side, because a reader who knows less learns less.
+ */
+export interface Prior {
+  readonly minimum: number;
+  readonly primary: readonly string[];
+}
+
+/** The cells that a minimum hides on their own (the primary ones). */
+export const primaryOf = (
+  cells: readonly Cell[],
+  minimum: number
+): readonly string[] =>
+  Arr.flatMap(cells, ({ answer, id }) =>
+    Predicate.isTagged(answer, "Available") && isSmall(answer.value, minimum)
+      ? [id]
+      : []
+  );
 
 type Interval = readonly [low: number, high: number];
 
@@ -118,10 +145,14 @@ const propagate = (
     : propagate(next, relations, rounds - 1);
 };
 
-/** The suppressed cells whose feasible interval holds one value. */
-const collapsed = (
+/**
+ * The suppressed cells whose feasible interval holds one value (bound narrowing). A primary cell starts at 1 to
+ * `minimum − 1`: the reader is assumed to know which hidden cells are small. Any other hidden cell starts at 0 and up.
+ */
+export const recoverableByNarrowing = (
   released: Output,
-  relations: readonly Relation[]
+  relations: readonly Relation[],
+  prior: Prior
 ): readonly string[] => {
   const named = Arr.dedupe(Arr.flatMap(relations, members));
 
@@ -132,7 +163,8 @@ const collapsed = (
       return [
         id,
         Option.match(known, {
-          onNone: (): Interval => UNKNOWN,
+          onNone: (): Interval =>
+            Arr.contains(prior.primary, id) ? [1, prior.minimum - 1] : UNKNOWN,
           onSome: (value): Interval => [value, value],
         }),
       ] as const;
@@ -221,7 +253,7 @@ const coefficient = (relation: Relation, id: string): number => {
  * The suppressed cells that are a linear combination of the published ones over the `sum` relations: a row of the
  * reduced system with one unknown in it says that unknown's value.
  */
-const eliminated = (
+export const recoverableByElimination = (
   released: Output,
   relations: readonly Relation[]
 ): readonly string[] => {
@@ -252,12 +284,13 @@ const eliminated = (
 /** The suppressed cells of `released` that a reader can recover from the published ones. Sorted by id. */
 export const recoverable = (
   released: Output,
-  relations: readonly Relation[]
+  relations: readonly Relation[],
+  prior: Prior
 ): readonly string[] =>
   Arr.sort(
     Arr.dedupe([
-      ...collapsed(released, relations),
-      ...eliminated(released, relations),
+      ...recoverableByNarrowing(released, relations, prior),
+      ...recoverableByElimination(released, relations),
     ]),
     Order.String
   );
@@ -308,10 +341,10 @@ const neighbour = (
 const complemented = (
   released: Output,
   relations: readonly Relation[],
-  minimum: number,
+  prior: Prior,
   passes: number
 ): Output => {
-  const [first] = recoverable(released, relations);
+  const [first] = recoverable(released, relations, prior);
 
   if (first === undefined || passes === 0) {
     return released;
@@ -321,9 +354,9 @@ const complemented = (
     onNone: () => released,
     onSome: (other) =>
       complemented(
-        suppress(released, other, minimum),
+        suppress(released, other, prior.minimum),
         relations,
-        minimum,
+        prior,
         passes - 1
       ),
   });
@@ -356,9 +389,12 @@ export const release = (
           id,
           Answer.match(answer, {
             Available: ({ coverage, value }): Released =>
-              value > 0 && value < minimum
-                ? Released.cases.Suppressed.make({ coverage, minimum })
-                : Released.cases.Published.make({ coverage, value }),
+              Option.match(releasedCount(value, minimum), {
+                onNone: () =>
+                  Released.cases.Suppressed.make({ coverage, minimum }),
+                onSome: (count) =>
+                  Released.cases.Published.make({ coverage, value: count }),
+              }),
             Unavailable: ({ reason }): Released =>
               Released.cases.Unavailable.make({ reason }),
           }),
@@ -366,7 +402,12 @@ export const release = (
     )
   );
 
-  return complemented(first, usable, minimum, cells.length);
+  return complemented(
+    first,
+    usable,
+    { minimum, primary: primaryOf(cells, minimum) },
+    cells.length
+  );
 };
 
 /** The output without the complementary pass: what the control of the differencing falsifier releases. */

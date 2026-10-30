@@ -54,6 +54,27 @@ const snapshotOf = (stored: typeof StoredSnapshot.Type): Snapshot => ({
   value: stored.value,
 });
 
+/** The row that a closed cell is stored as. */
+const rowOf = (snapshot: Snapshot) => ({
+  closedAt: DateTime.toDateUtc(snapshot.closedAt),
+  coverage: Coverage.match(snapshot.coverage, {
+    Complete: () => "complete" as const,
+    Incomplete: () => "incomplete" as const,
+  }),
+  coverageReason: Coverage.match(snapshot.coverage, {
+    Complete: () => null,
+    Incomplete: ({ reason }) => reason,
+  }),
+  definitionHash: snapshot.definitionHash,
+  departmentId: Option.getOrNull(snapshot.department),
+  measure: snapshot.measure,
+  semesterTerm: snapshot.semester.term,
+  semesterYear: snapshot.semester.year,
+  source: snapshot.source,
+  sourceRef: Option.getOrNull(snapshot.sourceRef),
+  value: snapshot.value,
+});
+
 export const ImpactSnapshotsLive = Layer.effect(
   ImpactSnapshots,
   Effect.gen(function* ImpactSnapshotsLive() {
@@ -77,36 +98,26 @@ export const ImpactSnapshotsLive = Layer.effect(
       return Arr.map(yield* decodeAll(rows), snapshotOf);
     });
 
-    /** One statement: a cell that is closed already conflicts and is left as it is. */
+    /**
+     * One statement for the whole lattice, so that its cells are all closed or none is: a cell that is closed already
+     * conflicts and is left as it is. The rows go in the order they are given, which is the same for every closer, so two
+     * closers of one lattice do not wait on each other in a cycle.
+     */
     const close = Effect.fn("ImpactSnapshots.close")(function* close(
-      snapshot: Snapshot
+      snapshots: readonly Snapshot[]
     ) {
+      if (snapshots.length === 0) {
+        return 0;
+      }
+
       const rows = yield* db
         .insert(impactSnapshot)
-        .values({
-          closedAt: DateTime.toDateUtc(snapshot.closedAt),
-          coverage: Coverage.match(snapshot.coverage, {
-            Complete: () => "complete",
-            Incomplete: () => "incomplete",
-          }),
-          coverageReason: Coverage.match(snapshot.coverage, {
-            Complete: () => null,
-            Incomplete: ({ reason }) => reason,
-          }),
-          definitionHash: snapshot.definitionHash,
-          departmentId: Option.getOrNull(snapshot.department),
-          measure: snapshot.measure,
-          semesterTerm: snapshot.semester.term,
-          semesterYear: snapshot.semester.year,
-          source: snapshot.source,
-          sourceRef: Option.getOrNull(snapshot.sourceRef),
-          value: snapshot.value,
-        })
+        .values(Arr.map(snapshots, rowOf))
         .onConflictDoNothing()
         .returning({ id: impactSnapshot.id })
         .pipe(Effect.orDie);
 
-      return rows.length > 0;
+      return rows.length;
     });
 
     return ImpactSnapshots.of({ close, read });
@@ -117,9 +128,11 @@ export const ImpactSnapshotsLive = Layer.effect(
 export const ImpactSourceLive = Layer.succeed(
   ImpactSource,
   ImpactSource.of({
-    answer: () =>
+    answers: (slots) =>
       Effect.succeed(
-        Answer.cases.Unavailable.make({ reason: NO_SOURCE_REASON })
+        Arr.map(slots, () =>
+          Answer.cases.Unavailable.make({ reason: NO_SOURCE_REASON })
+        )
       ),
     schools: () => Effect.succeed([]),
   })

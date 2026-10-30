@@ -10,7 +10,7 @@ The page is generated from `packages/domain/src/impact/measures.ts` (the measure
 
 ## How to read it
 
-- **A count below the minimum is never output.** It reads `< 5` (the minimum is a proposal). A total can be published beside a suppressed part only when the part cannot be recovered from it, so a neighbouring cell is suppressed too when it must be.
+- **A count below the minimum is never output.** The cell reads `hidden` (the minimum is a proposal), and so does a neighbouring cell when the small count could otherwise be calculated from the published ones: a total can be published beside a hidden part only when the part cannot be recovered from it. A hidden cell therefore says nothing about its size; it may be small or large. The reader of the release is assumed to know which hidden cells hold a small count, and the release holds back what that reader could still calculate exactly; a reader may still narrow a small count to a shorter range than "below the minimum".
 - **Coverage is part of every cell:** complete, incomplete (a number that says "at least", with the reason) or unavailable (with the reason).
 - **The standard audience sees departments and the total of all departments.** A school's cell is a grain of its own for a restricted audience, and no output of the standard audience holds one.
 - **Who reads:** administrators today. Who else is an open item of the spec.
@@ -34,6 +34,7 @@ The page is generated from `packages/domain/src/impact/measures.ts` (the measure
 | Rule | Value |
 | --- | --- |
 | Minimum: a count from 1 to the minimum less one is suppressed | 5 (proposed: awaiting operator approval) |
+| What a hidden cell says | hidden: A count below 5 is hidden, and so is a neighbouring cell when it would otherwise give that count away: a hidden cell may be small or large. |
 | The reason of a cell that no source answers | `placement is not built (spec 0011)` |
 
 <!-- docgen:end rules -->

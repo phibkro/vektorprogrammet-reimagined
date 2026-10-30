@@ -60,6 +60,10 @@ const rulesBlock = (declared: ImpactDeclarations): string =>
         `${declared.minimum.value} (${declared.minimum.approval}: awaiting operator approval)`,
       ],
       [
+        "What a hidden cell says",
+        `${ImpactMeasures.HIDDEN.en}: ${ImpactMeasures.hiddenNote(declared.minimum.value).en}`,
+      ],
+      [
         "The reason of a cell that no source answers",
         `\`${declared.unavailable}\``,
       ],

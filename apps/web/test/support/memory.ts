@@ -624,15 +624,17 @@ export const memoryLayer = (
         transactor,
         Layer.mock(WorkspaceReports, { latest: Effect.succeedNone }),
         Layer.mock(ImpactSnapshots, {
-          close: () => Effect.succeed(true),
+          close: () => Effect.succeed(0),
           read: () => Effect.succeed([]),
         }),
         Layer.mock(ImpactSource, {
-          answer: () =>
+          answers: (slots) =>
             Effect.succeed(
-              ImpactMeasures.Answer.cases.Unavailable.make({
-                reason: ImpactMeasures.NO_SOURCE_REASON,
-              })
+              Arr.map(slots, () =>
+                ImpactMeasures.Answer.cases.Unavailable.make({
+                  reason: ImpactMeasures.NO_SOURCE_REASON,
+                })
+              )
             ),
           schools: () => Effect.succeed([]),
         }),

@@ -34,7 +34,7 @@ const releasedText = (released: ImpactMeasures.Released): string =>
         Complete: () => String(value),
         Incomplete: ({ reason }) => `minst ${value} (${reason})`,
       }),
-    Suppressed: ({ minimum }) => `< ${minimum}`,
+    Suppressed: () => ImpactMeasures.HIDDEN.no,
     Unavailable: ({ reason }) => `Utilgjengelig: ${reason}`,
   });
 
@@ -111,7 +111,7 @@ const ImpactPage = () => {
     <>
       <PageHeader
         title="Effekt"
-        description={`Antall assistenter, skoler og plasseringer for avsluttede semestre, per avdeling. Tall under ${report.minimum} vises ikke, og en celle uten kilde er utilgjengelig: ingenting er anslått.`}
+        description="Antall assistenter, skoler og plasseringer for avsluttede semestre, per avdeling. En celle uten kilde er utilgjengelig: ingenting er anslått."
         actions={
           <Button
             size="sm"
@@ -123,6 +123,9 @@ const ImpactPage = () => {
           </Button>
         }
       />
+      <p className="text-muted-foreground text-sm">
+        {ImpactMeasures.hiddenNote(report.minimum).no}
+      </p>
       {report.semesters.length === 0 && (
         <Alert>
           <AlertTitle>Ingen avsluttede semestre ennå</AlertTitle>

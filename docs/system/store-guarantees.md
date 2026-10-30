@@ -62,12 +62,13 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | CW2 | A replace never rewrites another owner's record, and replaces the owner's own. | port-enforced | no | `CodeRepository.issue`, `ConsentRepository.record` | replaces by a key that leaves the owner out: it rewrites another owner's record |
 | RT1 | A retention run at one instant is idempotent: a second run at the same instant changes nothing. A record expires when its period, counted in Oslo calendar time from its trigger, has passed `now`. The mode (`Apply` or `ReportOnly`) is fixed by the layer: a program cannot choose it. | port-enforced | no | `RetentionRun.run` | edits a record that a run keeps, between two runs: the second run applies the same rule to it |
 | ER1 | An erasure of one person applies each table's declared expiry and keeps the rows of a table that is `Kept`; a second call changes nothing. A merge moves every row of one person to another by the catalog's rules and makes the first a tombstone, or fails with `Conflict` and changes nothing. | port-enforced | no | `PersonalDataStore.erase`, `PersonalDataStore.merge`, `LegalHolds.of` | writes a row about the erased person after the erasure: the row stays, nothing erases it again until a rule says so |
+| IM1 | A closed cell of the impact snapshots is never changed: `close` writes the cells of a lattice together, leaves a cell that is already closed as it was and says how many it closed, and the port has no way to change or remove a closed cell. The number published for a closed semester therefore does not change silently. | port-enforced | no | `ImpactSnapshots.close` | changes or removes a closed row (the table's owner, a migration, anyone with the application's credentials): the row changes and nothing in the store refuses it. The application's role could be denied the right to change or remove rows of the table; it is not, because one role migrates and runs the application in local and test, and the roles are one infrastructure follow-up. The recovery is the audit row of the job that closed the cell and the source it names. |
 
 ### Claims
 
 | Id | Property | Strength | Invariant | Carriers | A raw writer |
 | --- | --- | --- | --- | --- | --- |
-| CL1 | At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key. | store-enforced | yes | `WelcomeLedger.claim`, `DigestLedger.claim`, `AlumniRequests.claim`, `JobRuns.claim`, `WorkspaceAssignments.assign`, `CapturedMessageStore.record` | inserts a second claim with the same key: refused |
+| CL1 | At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key; a closed impact snapshot per measure, semester and department. | store-enforced | yes | `WelcomeLedger.claim`, `DigestLedger.claim`, `AlumniRequests.claim`, `JobRuns.claim`, `WorkspaceAssignments.assign`, `CapturedMessageStore.record`, `ImpactSnapshots.close` | inserts a second claim with the same key: refused |
 | CL2 | Of concurrent callers of one key, exactly one is told it made the claim; the others are told it was taken. | port-enforced | no | `WelcomeLedger.claim`, `DigestLedger.claim`, `AlumniRequests.claim`, `JobRuns.claim` | inserts the claim first: every port caller is told it was taken |
 | CL3 | A claim commits with the writes it guards: the claim, the message queued for it and its audit row become visible together or not at all. A claim that commits alone is a message never sent. | port-enforced | no | `WelcomeLedger.claim` (in a transaction), `DigestLedger.claim` (in a transaction), `AlumniRequests.claim` (in a transaction), `Outbox.enqueue` (in a transaction), `AuditLog.record` (in a transaction) | commits a claim without its message: the key is taken and the message is never sent, so the port methods require the transaction |
 
@@ -138,7 +139,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `FieldOfStudyRepository` |  | `create`, `rename` |  | `findById`, `listByDepartment` |  |  |
 | `FileStore` |  |  |  |  | `get`, `put` |  |
 | `ImpactSnapshots` |  | `close` |  | `read` |  |  |
-| `ImpactSource` |  |  |  | `answer`, `schools` |  |  |
+| `ImpactSource` |  |  |  | `answers`, `schools` |  |  |
 | `ImportTarget` |  |  |  |  |  | `replaceAll` |
 | `IsolationProbe` |  |  |  |  |  | `report` |
 | `JobRuns` | `advance`, `finish`, `request` | `claim`, `fail`, `release` |  | `resumable` |  |  |

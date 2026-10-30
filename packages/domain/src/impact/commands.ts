@@ -3,7 +3,14 @@
  * semesters that the job `impactClose` runs. Both read the same ports; nothing here reads a raw count out of a snapshot
  * except through `release`.
  */
-import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Predicate,
+  Record as Rec,
+} from "effect";
 
 import * as Commands from "../kernel/commands.ts";
 import { semesterWindow, sortNewestFirst } from "../organisation/semester.ts";
@@ -32,7 +39,12 @@ import {
 } from "./measures.ts";
 import type { Audience, MeasureDeclaration, Slot } from "./measures.ts";
 import { ImpactSnapshots } from "./services.ts";
-import type { ImpactReport, ReportCell, Snapshot } from "./services.ts";
+import type {
+  CloseOutcome,
+  ImpactReport,
+  ReportCell,
+  Snapshot,
+} from "./services.ts";
 import { ImpactSource } from "./source.ts";
 
 /** The semesters that have ended at `now`, newest first. */
@@ -68,30 +80,55 @@ const snapshotOf = (
           })
       );
 
+/** The answer that a snapshot gives for its cell: the closed value under the present definition, else why not. */
+const closedAnswer = (
+  measure: MeasureDeclaration,
+  snapshot: Snapshot
+): Answer =>
+  snapshot.definitionHash === definitionHash(measure)
+    ? Answer.cases.Available.make({
+        coverage: snapshot.coverage,
+        value: snapshot.value,
+      })
+    : Answer.cases.Unavailable.make({
+        reason: "closed under another definition of the measure",
+      });
+
 /**
- * One cell's answer: the closed value when a snapshot holds one under the measure's present definition, "closed under
- * another definition" when it holds one under a different definition, and the live source's answer otherwise.
+ * The answers for the cells of one lattice, with each cell's id: a closed cell from its snapshot, and every other cell
+ * from the live source in one call, so that the cells it answers come from one read of the records.
  */
-const answerFor = (
+const answersFor = Effect.fnUntraced(function* answersFor(
   measure: MeasureDeclaration,
   snapshots: readonly Snapshot[],
   source: ImpactSource["Service"],
-  slot: Slot
-): Effect.Effect<Answer> =>
-  Option.match(snapshotOf(snapshots, slot), {
-    onNone: () => source.answer(slot),
-    onSome: (snapshot) =>
-      Effect.succeed(
-        snapshot.definitionHash === definitionHash(measure)
-          ? Answer.cases.Available.make({
-              coverage: snapshot.coverage,
-              value: snapshot.value,
-            })
-          : Answer.cases.Unavailable.make({
-              reason: "closed under another definition of the measure",
-            })
-      ),
+  slots: readonly Slot[]
+) {
+  const open = Arr.filter(slots, (slot) =>
+    Option.isNone(snapshotOf(snapshots, slot))
+  );
+
+  const live = Rec.fromEntries(
+    Arr.map(
+      Arr.zip(open, yield* source.answers(open)),
+      ([slot, answer]) => [slotId(slot), answer] as const
+    )
+  );
+
+  return Arr.map(slots, (slot) => {
+    const id = slotId(slot);
+
+    return [
+      id,
+      Option.match(snapshotOf(snapshots, slot), {
+        onNone: () =>
+          live[id] ??
+          Answer.cases.Unavailable.make({ reason: "the cell was not asked" }),
+        onSome: (snapshot) => closedAnswer(measure, snapshot),
+      }),
+    ] as const;
   });
+});
 
 /** The schools of every department in the semester: only the restricted audience asks, and only for a measure that has the grain. */
 const schoolsFor = Effect.fnUntraced(function* schoolsFor(
@@ -147,11 +184,11 @@ export const impactReport = Effect.fn("impactReport")(function* impactReport(
             semester,
           };
 
-          const answers = yield* Effect.forEach(slotsOf(input), (slot) =>
-            Effect.map(
-              answerFor(measure, closed, source, slot),
-              (answer) => [slotId(slot), answer] as const
-            )
+          const answers = yield* answersFor(
+            measure,
+            closed,
+            source,
+            slotsOf(input)
           );
 
           return Arr.map(
@@ -192,57 +229,90 @@ export const impactReport = Effect.fn("impactReport")(function* impactReport(
   } satisfies ImpactReport;
 });
 
-type CloseResult = "alreadyClosed" | "closed" | "unavailable";
-
 interface CloseInput {
   readonly closed: readonly Snapshot[];
   readonly measure: MeasureDeclaration;
   readonly now: DateTime.Utc;
   readonly semester: Semester;
-  readonly slot: Slot;
+  readonly slots: readonly Slot[];
   readonly snapshots: ImpactSnapshots["Service"];
   readonly source: ImpactSource["Service"];
 }
 
-/** One cell: left alone when closed, asked of the source otherwise, and written only when the source answered. */
-const closeCell = (input: CloseInput): Effect.Effect<CloseResult> => {
-  const { closed, measure, now, semester, slot, snapshots, source } = input;
+const NOTHING: CloseOutcome = { alreadyClosed: 0, closed: 0, unavailable: 0 };
 
-  if (Option.isSome(snapshotOf(closed, slot))) {
-    return Effect.succeed("alreadyClosed");
-  }
-
-  return Effect.flatMap(source.answer(slot), (answer) =>
-    Answer.match(answer, {
-      Available: ({ coverage, value }): Effect.Effect<CloseResult> =>
-        Effect.map(
-          snapshots.close({
-            closedAt: now,
-            coverage,
-            definitionHash: definitionHash(measure),
-            department: Scope.match(slot.scope, {
-              All: () => Option.none(),
-              Department: ({ department }) => Option.some(department),
-              School: () => Option.none(),
-            }),
-            measure: measure.id,
-            semester,
-            source: "reimagined",
-            sourceRef: Option.none(),
-            value,
-          }),
-          (written) => (written ? "closed" : "alreadyClosed")
-        ),
-      Unavailable: (): Effect.Effect<CloseResult> =>
-        Effect.succeed("unavailable"),
-    })
-  );
-};
+const draftOf = (
+  input: CloseInput,
+  slot: Slot,
+  answer: Answer
+): readonly Snapshot[] =>
+  Answer.match(answer, {
+    Available: ({ coverage, value }): readonly Snapshot[] => [
+      {
+        closedAt: input.now,
+        coverage,
+        definitionHash: definitionHash(input.measure),
+        department: Scope.match(slot.scope, {
+          All: () => Option.none(),
+          Department: ({ department }) => Option.some(department),
+          School: () => Option.none(),
+        }),
+        measure: input.measure.id,
+        semester: input.semester,
+        source: "reimagined",
+        sourceRef: Option.none(),
+        value,
+      },
+    ],
+    Unavailable: (): readonly Snapshot[] => [],
+  });
 
 /**
- * Closes every cell of the standard grain of every ended semester that has no snapshot and that the source answers
- * (spec 0027 D8). A cell that the source cannot answer is counted and not written: an Unavailable is not frozen, or the
- * semester could never be filled in later. Run twice, the second run closes nothing.
+ * One lattice (a measure in a semester): closed whole or not at all. The source answers all its cells from one read, and
+ * the snapshots are written in one statement, so the closed cells relate as the cells of the report do. A lattice that
+ * has a closed cell already is left as it is (a department that came after the semester closed would otherwise be closed
+ * from a later state), and one that the source cannot answer in full is not closed: an Unavailable is not frozen, or the
+ * semester could never be filled in later.
+ */
+const closeLattice = Effect.fnUntraced(function* closeLattice(
+  input: CloseInput
+) {
+  const { closed, slots, snapshots, source } = input;
+
+  const present = Arr.filter(slots, (slot) =>
+    Option.isSome(snapshotOf(closed, slot))
+  );
+
+  if (present.length === slots.length) {
+    return { ...NOTHING, alreadyClosed: slots.length };
+  }
+
+  if (present.length > 0) {
+    return {
+      ...NOTHING,
+      alreadyClosed: present.length,
+      unavailable: slots.length - present.length,
+    };
+  }
+
+  const answers = yield* source.answers(slots);
+
+  const drafts = Arr.flatten(
+    Arr.zipWith(slots, answers, (slot, answer) => draftOf(input, slot, answer))
+  );
+
+  if (drafts.length < slots.length) {
+    return { ...NOTHING, unavailable: slots.length };
+  }
+
+  const written = yield* snapshots.close(drafts);
+
+  return { ...NOTHING, alreadyClosed: slots.length - written, closed: written };
+});
+
+/**
+ * Closes every lattice of the standard grain of every ended semester that the source answers in full (spec 0027 D8). A
+ * cell is counted `unavailable` when its lattice was not closed. Run twice, the second run closes nothing.
  */
 export const closeEndedSemesters = Effect.fn("closeEndedSemesters")(
   function* closeEndedSemesters() {
@@ -259,39 +329,34 @@ export const closeEndedSemesters = Effect.fn("closeEndedSemesters")(
         const closed = yield* snapshots.read(semester);
 
         return yield* Effect.forEach(Measures, (measure) =>
-          Effect.forEach(
-            slotsOf({
+          closeLattice({
+            closed,
+            measure,
+            now,
+            semester,
+            slots: slotsOf({
               audience: "standard",
               departments: ids,
               measure,
               schools: [],
               semester,
             }),
-            (slot) =>
-              closeCell({
-                closed,
-                measure,
-                now,
-                semester,
-                slot,
-                snapshots,
-                source,
-              })
-          )
+            snapshots,
+            source,
+          })
         );
       })
     );
 
-    const all = Arr.flatten(Arr.flatten(outcomes));
-
-    const count = (which: "alreadyClosed" | "closed" | "unavailable") =>
-      Arr.filter(all, (outcome) => outcome === which).length;
-
-    return {
-      alreadyClosed: count("alreadyClosed"),
-      closed: count("closed"),
-      unavailable: count("unavailable"),
-    };
+    return Arr.reduce(
+      Arr.flatten(outcomes),
+      NOTHING,
+      (sum, outcome): CloseOutcome => ({
+        alreadyClosed: sum.alreadyClosed + outcome.alreadyClosed,
+        closed: sum.closed + outcome.closed,
+        unavailable: sum.unavailable + outcome.unavailable,
+      })
+    );
   }
 );
 

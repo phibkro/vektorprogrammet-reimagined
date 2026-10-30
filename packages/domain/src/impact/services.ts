@@ -43,8 +43,11 @@ export class ImpactSnapshots extends Context.Service<
   {
     /** Every closed cell of a semester. */
     readonly read: (semester: Semester) => Effect.Effect<readonly Snapshot[]>;
-    /** Closes a cell. `false` when the cell was closed already: the first value stays. */
-    readonly close: (snapshot: Snapshot) => Effect.Effect<boolean>;
+    /**
+     * Closes the cells of one lattice in one statement, so that they are all closed or none is. A cell that is closed
+     * already conflicts and is left as it is: the first value stays. Says how many cells it closed.
+     */
+    readonly close: (snapshots: readonly Snapshot[]) => Effect.Effect<number>;
   }
 >()("@vektorprogrammet/domain/impact/ImpactSnapshots") {}
 

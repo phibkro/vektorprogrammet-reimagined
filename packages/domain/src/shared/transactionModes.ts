@@ -176,7 +176,7 @@ export const TransactionModes = {
   },
   FileStore: { get: "Outside", put: "Outside" },
   ImpactSnapshots: { close: "Standalone", read: "Read" },
-  ImpactSource: { answer: "Read", schools: "Read" },
+  ImpactSource: { answers: "Read", schools: "Read" },
   ImportTarget: { replaceAll: "Opens" },
   IsolationProbe: { report: "Opens" },
   JobRuns: {

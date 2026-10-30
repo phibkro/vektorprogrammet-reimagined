@@ -12,6 +12,7 @@ import {
   Coverage,
   Released,
   Scope,
+  hiddenNote,
   mayRead,
   measureOf,
   slotId,
@@ -193,7 +194,7 @@ const reasonText = (released: Released): string =>
     Suppressed: ({ coverage, minimum }) =>
       Arr.join(
         Arr.filter(
-          [`less than ${minimum}`, coverageReason(coverage)],
+          [hiddenNote(minimum).en, coverageReason(coverage)],
           (text) => text !== ""
         ),
         "; "

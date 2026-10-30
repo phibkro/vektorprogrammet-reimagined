@@ -33,6 +33,17 @@ const { definitionHash } = ImpactMeasures;
 
 const complete = Coverage.cases.Complete.make({});
 
+/** A published cell as the report makes it: the count must be publishable under the declared minimum. */
+const published = (value: number) =>
+  Option.match(
+    ImpactMeasures.releasedCount(value, ImpactMeasures.Minimum.value),
+    {
+      onNone: () => assert.fail(`${value} is not publishable`),
+      onSome: (count) =>
+        Released.cases.Published.make({ coverage: complete, value: count }),
+    }
+  );
+
 const FIRST_ENDED: Semester = { term: "VAR", year: 2019 };
 const SECOND_ENDED: Semester = { term: "HOST", year: 2019 };
 const ENDED = [FIRST_ENDED, SECOND_ENDED] as const;
@@ -80,14 +91,21 @@ const sourceAnswering = (
   value: (slot: ImpactMeasures.Slot) => number | undefined
 ) =>
   ImpactSource.of({
-    answer: (slot) =>
+    answers: (slots) =>
       Effect.succeed(
-        Option.match(Option.fromNullishOr(value(slot)), {
-          onNone: () =>
-            Answer.cases.Unavailable.make({ reason: "no rows for this cell" }),
-          onSome: (found) =>
-            Answer.cases.Available.make({ coverage: complete, value: found }),
-        })
+        Arr.map(slots, (slot) =>
+          Option.match(Option.fromNullishOr(value(slot)), {
+            onNone: () =>
+              Answer.cases.Unavailable.make({
+                reason: "no rows for this cell",
+              }),
+            onSome: (found) =>
+              Answer.cases.Available.make({
+                coverage: complete,
+                value: found,
+              }),
+          })
+        )
       ),
     schools: () => Effect.succeed([]),
   });
@@ -127,14 +145,19 @@ const closing = (
     readonly value: number;
   }
 ) =>
-  snapshots.close({
-    closedAt: NOW,
-    coverage: complete,
-    measure: "placements",
-    source: "reimagined",
-    sourceRef: Option.none(),
-    ...fields,
-  });
+  Effect.map(
+    snapshots.close([
+      {
+        closedAt: NOW,
+        coverage: complete,
+        measure: "placements",
+        source: "reimagined",
+        sourceRef: Option.none(),
+        ...fields,
+      },
+    ]),
+    (written) => written === 1
+  );
 
 layer(postgresDatabase(), { excludeTestServices: true })(
   "spec 0027: evidence of operations on PostgreSQL",
@@ -223,6 +246,76 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           }>`select count(distinct measure)::int as measures from impact_snapshot`;
 
           assert.strictEqual(row?.measures, 1);
+        })
+    );
+
+    it.effect(
+      "F8: a lattice that the source answers in part is not closed at all (its cells relate, so they close from one read or not at all)",
+      () =>
+        Effect.gen(function* oneMissing() {
+          const [first] = yield* world();
+          yield* clearSnapshots();
+
+          // Every cell of the placements lattice has a count except one department's: the lattice is left open.
+          const outcome = yield* runWith(
+            sourceAnswering((slot) =>
+              slot.measure === "placements" &&
+              !(
+                Predicate.isTagged(slot.scope, "Department") &&
+                slot.scope.department === first
+              )
+                ? 12
+                : undefined
+            )
+          );
+
+          assert.strictEqual(outcome.closed, 0);
+          assert.strictEqual(outcome.alreadyClosed, 0);
+          assert.strictEqual(yield* countSnapshots(), 0);
+          assert.isAbove(outcome.unavailable, 0);
+        })
+    );
+
+    it.effect(
+      "F8: a lattice with a closed cell is left as it is, and the others are closed whole",
+      () =>
+        Effect.gen(function* partlyClosed() {
+          const departments = yield* world();
+          yield* clearSnapshots();
+          const snapshots = yield* ImpactSnapshots;
+
+          // One cell of the later semester's placements lattice is closed already (a lattice before this rule, or one that a department joined after it closed).
+          assert.isTrue(
+            yield* closing(snapshots, {
+              definitionHash: definitionHash(
+                ImpactMeasures.measureOf("placements")
+              ),
+              department: Option.none(),
+              semester: SECOND_ENDED,
+              value: 40,
+            })
+          );
+
+          const lattice = 1 + departments.length;
+          const outcome = yield* runWith(sourceAnswering(() => 7));
+
+          // Five lattices close whole; the sixth keeps its one cell and its first value, and its other cells stay open.
+          assert.strictEqual(outcome.closed, 5 * lattice);
+          assert.strictEqual(outcome.alreadyClosed, 1);
+          assert.strictEqual(outcome.unavailable, lattice - 1);
+          assert.strictEqual(yield* countSnapshots(), 5 * lattice + 1);
+
+          const stored = yield* snapshots.read(SECOND_ENDED);
+
+          const placements = Arr.filter(
+            stored,
+            (snapshot) => snapshot.measure === "placements"
+          );
+
+          assert.deepStrictEqual(
+            Arr.map(placements, ({ value }) => value),
+            [40]
+          );
         })
     );
 
@@ -318,7 +411,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               FIRST_ENDED,
               first ?? null
             ),
-            Released.cases.Published.make({ coverage: complete, value: 45 })
+            published(45)
           );
         })
     );
@@ -362,7 +455,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           assert.deepStrictEqual(
             placementsAt(report, SECOND_ENDED, null),
-            Released.cases.Published.make({ coverage: complete, value: 60 })
+            published(60)
           );
 
           for (const department of [a, b]) {

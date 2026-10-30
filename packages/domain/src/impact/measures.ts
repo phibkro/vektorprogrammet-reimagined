@@ -6,7 +6,7 @@
  * The raw count of a cell is a `Cell` and lives only inside `release` and the snapshot port. What leaves the domain is
  * `Released`, whose `Published` case holds a value that is not below the minimum.
  */
-import { Array as Arr, Hash, Schema } from "effect";
+import { Array as Arr, Hash, Option, Schema } from "effect";
 
 import { Semester } from "../organisation/semester.ts";
 import { DepartmentId } from "../shared/ids.ts";
@@ -106,9 +106,9 @@ export const measureOf = (id: MeasureId): MeasureDeclaration =>
 
 /**
  * The digest of a measure's declaration: what a snapshot records, so that a cell closed under one definition is not shown
- * as the measure of another (spec 0027 D7). The name, the definitions in both languages, the rule for the parts and the
- * grains are what a definition is made of. Two salted hashes of Effect's `Hash.string` make it 64 bits; it detects a change
- * and is not a security digest.
+ * as the measure of another (spec 0027 D7). The id, the definitions in both languages, the rule for the parts and the
+ * grains are what a definition is made of; a display name is not (renaming a measure does not make it another measure).
+ * Two salted hashes of Effect's `Hash.string` make it 64 bits; it detects a change and is not a security digest.
  */
 export const definitionHash = (measure: MeasureDeclaration): string => {
   const text = Arr.join(
@@ -129,12 +129,24 @@ const Approval = Schema.Literals(["decided", "proposed"]);
 
 /**
  * The smallest count that is output. Below it a count is suppressed (spec 0027 D4). The value is a proposal until the
- * operator approves it; at least three, because below that "less than the minimum" says the exact value.
+ * operator approves it; at least three, because the release assumes a reader who knows which hidden cells are small, and
+ * with two a small cell is exactly one.
  */
 export const Minimum = {
   approval: Approval.make("proposed"),
   value: 5,
 } as const;
+
+/**
+ * What a hidden cell says (spec 0027 R4). It names no bound: a count below the minimum is hidden, and so is a neighbouring
+ * cell when it would otherwise give that count away, so a hidden cell may be small or large.
+ */
+export const HIDDEN: Words = { en: "hidden", no: "skjult" };
+
+export const hiddenNote = (minimum: number): Words => ({
+  en: `A count below ${minimum} is hidden, and so is a neighbouring cell when it would otherwise give that count away: a hidden cell may be small or large.`,
+  no: `Et tall under ${minimum} skjules, og det samme gjør et nabotall som ellers ville røpet det: et skjult tall kan være lite eller stort.`,
+});
 
 /** Why every cell is unavailable today (spec 0027 D3): the tables that placement would fill do not exist. */
 export const NO_SOURCE_REASON = "placement is not built (spec 0011)";
@@ -150,6 +162,28 @@ export type Coverage = typeof Coverage.Type;
 
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
+/** A count that the minimum hides on its own: from 1 to `minimum − 1`. Zero is published as zero. */
+export const isSmall = (value: number, minimum: number): boolean =>
+  value > 0 && value < minimum;
+
+const ReleasedCountSchema = Count.pipe(Schema.brand("ReleasedCount"));
+
+/**
+ * A count that an output may hold: zero, or at least the minimum it was made under. The brand is what the `Published`
+ * cell of `Released` carries, so `Released.cases.Published.make({ value: 3 })` does not type-check (a plain number is not
+ * assignable to it; `release.types.test.ts`). The one maker is `releasedCount`, which says no for a small count, and the
+ * files that may name it are listed by a quality test (`impactRawCounts.test.ts`): `release` alone.
+ */
+export type ReleasedCount = typeof ReleasedCountSchema.Type;
+
+export const releasedCount = (
+  value: number,
+  minimum: number
+): Option.Option<ReleasedCount> =>
+  isSmall(value, minimum)
+    ? Option.none()
+    : Option.some(ReleasedCountSchema.make(value));
+
 /** What a source or a snapshot answers for one cell: a number with its coverage, or why there is none. */
 export const Answer = Schema.TaggedUnion({
   Available: { coverage: Coverage, value: Count },
@@ -158,9 +192,13 @@ export const Answer = Schema.TaggedUnion({
 
 export type Answer = typeof Answer.Type;
 
-/** What an output may hold for a cell: never a count below the minimum. */
+/**
+ * What an output may hold for a cell: never a count below the minimum, because a published value is a `ReleasedCount`,
+ * which `releasedCount` alone makes (spec 0027 D5; a quality test lists the files that name it). A suppressed cell carries no
+ * bound: it is hidden, and says nothing about its size (spec 0027 R4).
+ */
 export const Released = Schema.TaggedUnion({
-  Published: { coverage: Coverage, value: Count },
+  Published: { coverage: Coverage, value: ReleasedCountSchema },
   Suppressed: { coverage: Coverage, minimum: Schema.Int },
   Unavailable: { reason: Schema.String },
 });

@@ -12,8 +12,14 @@ import type { Answer, Slot } from "./measures.ts";
 export class ImpactSource extends Context.Service<
   ImpactSource,
   {
-    /** The answer for one cell, from the live records. */
-    readonly answer: (slot: Slot) => Effect.Effect<Answer>;
+    /**
+     * The answers for the cells asked, in the order asked, from **one read** of the records: the cells of one lattice
+     * relate (a total is the sum of its parts, or lies between the largest part and the sum), and answers taken from
+     * different states need not. An adapter reads a lattice in one statement or one snapshot, never cell by cell.
+     */
+    readonly answers: (
+      slots: readonly Slot[]
+    ) => Effect.Effect<readonly Answer[]>;
     /** The schools of a department with a placement in the semester: the cells of the restricted grain. */
     readonly schools: (
       semester: Semester,
