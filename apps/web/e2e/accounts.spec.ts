@@ -81,6 +81,7 @@ test("a leader invites, a member activates and manages their profile and session
   await expect(sidebarOf(person).getByRole("link")).toHaveText([
     "Oversikt",
     "Semestre",
+    "Opptak",
     "Team",
     "Arrangementer",
   ]);
