@@ -14,6 +14,7 @@ import { renderToString } from "react-dom/server";
 import { PostForm } from "../src/components/form/postForm";
 import { Input } from "../src/components/ui/input";
 import { ContactForm } from "../src/forms/contact";
+import { typeInto } from "./support/typeInto";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -100,19 +101,6 @@ const mount = (tree: ReactNode) => {
   };
 };
 
-/** Types `text` into `input` the way a user does: React reads the value from an input event, past its own tracker. */
-const type = (input: HTMLInputElement, text: string) => {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value"
-  );
-
-  act(() => {
-    descriptor?.set?.call(input, text);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-};
-
 /** What a post of `form` would carry, as `name=value` pairs. */
 const carried = (form: HTMLFormElement): string =>
   Arr.join(
@@ -190,7 +178,7 @@ describe("a form in the browser", () => {
     assert.isNotNull(name);
 
     if (name !== null) {
-      type(name, "Kari");
+      typeInto(name, "Kari");
       assert.strictEqual(name.value, "Kari");
     }
 

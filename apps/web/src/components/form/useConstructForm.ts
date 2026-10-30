@@ -19,10 +19,13 @@ export const useConstructForm = <
   S extends Schema.ConstraintDecoder<unknown> & { readonly Encoded: FormText },
 >({
   defaults,
+  onRefused,
   onValid,
   schema,
 }: {
   defaults: S["Encoded"];
+  /** Runs when the schema refuses the values, before any message shows: what an earlier answer said no longer holds. */
+  onRefused?: () => void;
   onValid: (values: FormText, reset: () => void) => Promise<void> | void;
   schema: S;
 }) => {
@@ -34,6 +37,9 @@ export const useConstructForm = <
       onValid(value, () => {
         formApi.reset();
       }),
+    onSubmitInvalid: () => {
+      onRefused?.();
+    },
     validators: { onSubmit: clientValidator(schema) },
   });
 

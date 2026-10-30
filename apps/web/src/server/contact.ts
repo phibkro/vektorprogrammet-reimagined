@@ -9,24 +9,16 @@
  * A rejected captcha never reaches `submitContact`, so nothing is enqueued.
  */
 import { ContactEndpoints } from "@vektorprogrammet/domain";
-import { Effect, Option, Schema } from "effect";
+import { Array as Arr, Effect, Record as Rec } from "effect";
 
-import { ContactForm } from "../forms/contact";
+import { CONTACT_FIELDS, ContactForm } from "../forms/contact";
+import { textOf } from "../forms/formSchema";
+import type { FormText } from "../forms/formSchema";
 import { ContactRateLimiter } from "./rateLimit";
 import { TURNSTILE_RESPONSE_FIELD, TurnstileVerifier } from "./turnstile";
 
-/** The text fields of the form, as typed; echoed back when the form is shown again. */
-export const CONTACT_FIELDS = [
-  "name",
-  "email",
-  "subject",
-  "message",
-  "departmentId",
-] as const;
-
-export type ContactField = (typeof CONTACT_FIELDS)[number];
-
-export type ContactValues = Readonly<Record<ContactField, string>>;
+/** The posted values of the form's own fields, as typed; echoed back when the form is shown again. */
+export type ContactValues = FormText;
 
 export interface ContactSubmission {
   readonly values: ContactValues;
@@ -39,24 +31,13 @@ export const readContactSubmission = (
   form: FormData,
   headers: Headers
 ): ContactSubmission => {
-  const text = (name: string): string =>
-    Option.getOrElse(
-      Schema.decodeUnknownOption(Schema.String)(form.get(name)),
-      () => ""
-    );
-
-  const token = text(TURNSTILE_RESPONSE_FIELD);
+  const text = textOf(form);
+  const token = text[TURNSTILE_RESPONSE_FIELD] ?? "";
 
   return {
     captchaToken: token === "" ? null : token,
     remoteIp: headers.get("CF-Connecting-IP"),
-    values: {
-      departmentId: text("departmentId"),
-      email: text("email"),
-      message: text("message"),
-      name: text("name"),
-      subject: text("subject"),
-    },
+    values: Rec.filter(text, (_, name) => Arr.contains(CONTACT_FIELDS, name)),
   };
 };
 

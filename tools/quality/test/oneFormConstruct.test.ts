@@ -5,7 +5,7 @@
  * second construct: a `<form` element, a read of a field by name from a `FormData` (`.get("…")`), and an import of
  * `@tanstack/react-form`. A file that has one and is not listed fails, and so does a listing that no file needs, so the
  * list can only shrink. The allowed `<form` is a form that has no input but a button (the export of one's own data posts
- * to `/api/eksport`), and the allowed reads are those that echo the posted values back to the contact page.
+ * to `/api/eksport`), and the allowed reads are `textOf` itself and the Turnstile token of an account post.
  *
  * What it does not see: a form built by `React.createElement("form")`, or a field read through a variable. It is the
  * early signal at review time, as the other scans of this directory are.
@@ -41,8 +41,6 @@ const SIGNS = {
         "`textOf` is the one reader of a posted FormData",
       "apps/web/src/server/accountPost.ts":
         "the Turnstile token of an account post, which is the widget's field and no value of a form",
-      "apps/web/src/server/contact.ts":
-        "the contact post echoes the visitor's values back to the page",
     },
     pattern: /\b(?:form|data)\.get\(/u,
   },
