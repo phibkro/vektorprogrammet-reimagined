@@ -125,7 +125,8 @@ const modules: readonly Module[] = [
       "shared/integrationGuard.ts",
       "shared/transactor.ts",
       "shared/aggregate.ts",
-      "shared/isolationProbe.ts"
+      "shared/isolationProbe.ts",
+      "shared/platformProbe.ts"
     ),
     layer: "library",
     name: "transactions",
@@ -311,6 +312,7 @@ const modules: readonly Module[] = [
       "index.ts",
       "localPeople.ts",
       "shared/guarantees.ts",
+      "shared/platformRequirements.ts",
       "shared/transactionModes.ts"
     ),
     layer: "assembly",
@@ -335,7 +337,7 @@ const units: readonly Unit[] = [
   },
   { root: "apps/cms", uses: [] },
   { root: "tools/quality", uses: ["packages/domain"] },
-  { root: "tools/docgen", uses: ["packages/domain"] },
+  { root: "tools/docgen", uses: ["packages/domain", "packages/db"] },
   { root: "tools/effx-conformance", uses: ["packages/domain"] },
   { root: "tools/oxlint", uses: [] },
   {

@@ -17,10 +17,10 @@
  */
 import { IsolationProbe } from "@vektorprogrammet/domain";
 import type { IsolationReport } from "@vektorprogrammet/domain";
-import { Effect, Option, Predicate } from "effect";
+import type { Option } from "effect";
 
 import type { Outcome } from "../lib/outcome";
-import { decodeDeployment } from "./deployment";
+import { diagnosticReport, diagnosticResponse } from "./diagnosticResponse";
 import type { WorkerEnv } from "./env";
 
 const EXPECTED = {
@@ -58,41 +58,14 @@ export const isolationProblems = (
 
 /** The store's report, or `None` on a production deployment (which asks the store nothing). */
 export const isolationReport = (setting: WorkerEnv["DEPLOYMENT"]) =>
-  Effect.gen(function* reportOfTheStore() {
-    const deployment = yield* decodeDeployment(setting);
-
-    if (deployment === "production") {
-      return Option.none<IsolationReport>();
-    }
-
-    return Option.some(yield* IsolationProbe.use((probe) => probe.report));
-  });
-
-const HEADERS = {
-  "Cache-Control": "no-store",
-  "Content-Type": "application/json; charset=utf-8",
-} satisfies Readonly<Record<string, string>>;
+  diagnosticReport(setting, () => IsolationProbe.use((probe) => probe.report));
 
 /** The report as JSON with its problems: 200 when there are none, 500 otherwise; 404 on production; the failure's own status otherwise. */
 export const isolationResponse = (
   outcome: Outcome<Option.Option<IsolationReport>>
-) => {
-  if (Predicate.isTagged(outcome, "Failure")) {
-    return new Response(outcome.message, {
-      headers: { ...HEADERS, "Content-Type": "text/plain; charset=utf-8" },
-      status: outcome.status,
-    });
-  }
+) =>
+  diagnosticResponse(outcome, (report) => {
+    const problems = isolationProblems(report);
 
-  return Option.match(outcome.value, {
-    onNone: () => new Response(null, { headers: HEADERS, status: 404 }),
-    onSome: (report) => {
-      const problems = isolationProblems(report);
-
-      return Response.json(
-        { ...report, problems },
-        { headers: HEADERS, status: problems.length === 0 ? 200 : 500 }
-      );
-    },
+    return { body: { ...report, problems }, problems };
   });
-};

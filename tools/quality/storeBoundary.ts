@@ -91,6 +91,7 @@ export const allowances: readonly Allowance[] = [
     files: [
       "apps/web/test/support/commandOutcome.ts",
       "apps/web/test/support/deliveryLive.ts",
+      "apps/web/test/support/diagnosticRoute.ts",
       "apps/web/test/support/outboxQueue.worker.ts",
       "apps/web/test/support/workspaceDatabase.ts",
     ],
@@ -139,6 +140,12 @@ export const allowances: readonly Allowance[] = [
     files: ["tools/import/src/pipeline.ts"],
     reason:
       "Composition root of the importer: builds `ImportDatabaseLive`, the one place that names the adapter.",
+  },
+  {
+    allows: ["db"],
+    files: ["tools/docgen/src/databasePlatforms.ts"],
+    reason:
+      "The generated platform page reads the adapter's declaration of its platforms (`@vektorprogrammet/db/platform/*`: plain data, no client and no connection; spec 0025).",
   },
 ];
 

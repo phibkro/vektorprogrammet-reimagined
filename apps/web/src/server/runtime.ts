@@ -43,6 +43,7 @@ import type {
   InTransaction,
   IntegrationPort,
   IsolationProbe,
+  PlatformProbe,
   NotAnIntegration,
   JobRun,
   LegalHolds,
@@ -117,9 +118,6 @@ import {
   workspaceWriterLayer,
 } from "./workspace";
 
-/** Hyperdrive pools connections itself; one request needs very few. */
-const MAX_CONNECTIONS_PER_REQUEST = 2;
-
 /** Everything about the request a program may depend on, read before entering Effect. */
 export interface RequestScope {
   readonly env: WorkerEnv;
@@ -139,6 +137,7 @@ export type DatabaseServices =
   | DepartmentRepository
   | SemesterRepository
   | IsolationProbe
+  | PlatformProbe
   | FieldOfStudyRepository
   | SocialEventRepository
   | PublicFileRepository
@@ -197,7 +196,6 @@ const databaseLayer = (
   env: Pick<TickEnv, "HYPERDRIVE">
 ): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
-    maxConnections: MAX_CONNECTIONS_PER_REQUEST,
     url: Redacted.make(env.HYPERDRIVE.connectionString),
   }).pipe(Layer.orDie);
 
@@ -485,7 +483,6 @@ const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
       JobDatabaseLive({
-        maxConnections: MAX_CONNECTIONS_PER_REQUEST,
         retention: retentionModeFor(deployment),
         url: Redacted.make(env.HYPERDRIVE.connectionString),
       }).pipe(Layer.orDie)

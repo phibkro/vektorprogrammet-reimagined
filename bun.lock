@@ -185,6 +185,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-node": "catalog:",
+        "@vektorprogrammet/db": "workspace:*",
         "@vektorprogrammet/domain": "workspace:*",
         "effect": "catalog:",
       },
