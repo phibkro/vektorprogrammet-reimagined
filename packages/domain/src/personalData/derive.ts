@@ -9,6 +9,7 @@ import type { CatalogOf } from "./catalog.ts";
 import { MergeRule, OnExpiry, Trigger } from "./declaration.ts";
 import type {
   Anonymised,
+  Keeps,
   PersonKey,
   PersonalData,
   Retention,
@@ -53,6 +54,8 @@ export interface RetentionRule {
   /** For `Anonymise`: what each column holds afterwards. */
   readonly anonymised: Readonly<Record<string, Anonymised>>;
   readonly marker: string | undefined;
+  /** For `Delete`: the date that is kept on the person before the rows go (spec 0026). */
+  readonly keeps: Keeps | undefined;
   readonly key: PersonKey | null;
 }
 
@@ -84,6 +87,9 @@ const rulesOfTable = (
         Order.String
       ),
       expiry: first.onExpiry._tag,
+      keeps: Predicate.isTagged(first.onExpiry, "Delete")
+        ? declaration.keeps
+        : undefined,
       key: declaration.person?.key ?? null,
       marker: declaration.anonymisedMarker,
       retention: first.retention,
@@ -99,6 +105,14 @@ export const retentionRules = (catalog: CatalogOf): readonly RetentionRule[] =>
       rulesOfTable(table, declaration)
     ),
     Order.mapInput(Order.String, ruleId)
+  );
+
+/** What retention keeps on the person when it deletes rows of a table, for every table that declares it (spec 0026). */
+export const keptDates = (
+  catalog: CatalogOf
+): readonly (Keeps & { readonly table: string })[] =>
+  Arr.flatMap(Rec.toEntries(catalog), ([table, declaration]) =>
+    declaration.keeps === undefined ? [] : [{ ...declaration.keeps, table }]
   );
 
 // ------------------------------------------------------------------ words

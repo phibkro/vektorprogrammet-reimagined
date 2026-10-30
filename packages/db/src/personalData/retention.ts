@@ -416,6 +416,46 @@ export const personalDataRetention = (
     order
   );
 
+  /**
+   * Spec 0026: what the rule's table keeps on the person (`keeps`) is written before the rows go, in the same transaction
+   * and through the person's token. The greater of the date they hold and the latest `from` of the rows that `where`
+   * selects goes to the person's row; a person who is anonymised already gets nothing (a rule that runs after the
+   * person's own has nothing left to keep, and the anonymised record holds no data).
+   */
+  const keepBeforeDelete = Effect.fnUntraced(function* keepBeforeDelete(
+    rule: RetentionRule,
+    where: SQL,
+    tokens: Tokens
+  ) {
+    const { keeps, key } = rule;
+
+    if (keeps === undefined || key === null) {
+      return;
+    }
+
+    const person = yield* tableOf("person");
+    const owner = personOf(rule.table, key);
+
+    const set = Rec.fromEntries([
+      [
+        propertyOf(person, keeps.into),
+        sql`(select greatest(${col("person", keeps.into)}, max(${col(rule.table, keeps.from)})) from ${identifier(rule.table)} where ${owner} = ${col("person", "id")} and ${where})`,
+      ] as const,
+    ]);
+
+    yield* aggregates
+      .updateRoot(
+        tokens,
+        personRoot,
+        set,
+        allOf(
+          sql`${col("person", "anonymised_at")} is null`,
+          sql`${col("person", "id")} in (select ${owner} from ${identifier(rule.table)} where ${where})`
+        )
+      )
+      .pipe(Effect.orDie);
+  });
+
   const remove = Effect.fnUntraced(function* remove(
     rule: RetentionRule,
     where: SQL,
@@ -424,6 +464,8 @@ export const personalDataRetention = (
     const owned = ownedBy(rule.table);
 
     if (Option.isSome(owned)) {
+      yield* keepBeforeDelete(rule, where, tokens);
+
       const rows = yield* aggregates
         .remove(tokens, owned.value, where)
         .pipe(Effect.orDie);
