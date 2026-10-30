@@ -6,7 +6,7 @@
 
 A place on the admin list (`admin_grant`) is deleted three years after its `until` (`Periods.adminPlaceAfterEnd`, `onExpiry: Delete`, **proposed**). A person's last activity is the later of their last membership's end, their last place's `until` and their creation, and their core is anonymised one year after it (`Periods.personCore`, decided), or five years after it while a `keepDetails` consent is current (`Periods.personCoreWithKeepDetails`, decided).
 
-For a person with a current `keepDetails` consent the five years are longer than the three that keep the place. On the first night after `until` plus three years the place row is gone, the last activity falls back to the last membership's end (or the person's creation), and the person is anonymised although `until` plus five years has not come. The view that spec 0021 replaced did the same (it read `admin_grant`), so this is not a regression of 0021: it is a decided period (five years) that a proposed one (three years) silently undercuts. The operator chose to keep the three years and to keep the one fact that the place was needed for.
+For a person with a current `keepDetails` consent the five years are longer than the three that keep the place. On the first night after `until` plus three years the place row is gone, the last activity falls back to the last membership's end (or the person's creation), and on the next night the person is anonymised although `until` plus five years has not come. The view that spec 0021 replaced did the same (it read `admin_grant`), so this is not a regression of 0021: it is a decided period (five years) that a proposed one (three years) silently undercuts. The operator chose to keep the three years and to keep the one fact that the place was needed for.
 
 ## Journey
 
@@ -61,7 +61,7 @@ Each has a negative control; the controls and the mutations that were run are in
 
 | # | Falsifier | Negative control | Where |
 | --- | --- | --- | --- |
-| F1 | **Consecutive nightly runs.** A `keepDetails` person with a place until `U`: at `U+3y−1d` the place is there; at `U+3y+1d` it is gone, `last_admin_place_end = U`, the person intact; a second run at `U+3y+2d` changes nothing; at `U+5y−1d` intact; at `U+5y+1d` anonymised and the date null | the same run with `keeps` removed from the rules anonymises the person at `U+3y+1d` (the finding, reproduced) | `packages/db/test/adminPlaceEnd.postgres.test.ts` |
+| F1 | **Consecutive nightly runs.** A `keepDetails` person with a place until `U` and a membership that ended long before: at `U+3y−1d` the place is there; at `U+3y+1d` it is gone, `last_admin_place_end = U`, the person intact; a run at `U+3y+2d` changes nothing; at `U+5y−1d` intact; at `U+5y+1d` anonymised and the date null. A person without the consent is anonymised at `U+1y+1d`, her place row goes at `U+3y+1d` and no date is written to her | the same person under a store whose rules have no `keeps` is anonymised on the second night after the place went (`U+3y+2d`), two years early (the finding, reproduced) | `packages/db/test/adminPlaceEnd.postgres.test.ts` |
 | F2 | **Consent withdrawal.** The consent is withdrawn after the place went: the person is anonymised on the next night, the date null | the consent kept: intact | same |
 | F3 | **Several places and memberships.** Places that end on different nights and memberships that end before and after the kept date: the person's period follows the greatest of all, at every night | `lastActivityEnd` over generated facts equals the greatest of its parts; the old-view oracle equals it when `keptPlaceEnd` is `None` | same; `packages/domain/test/personalData/retentionEnd.test.ts`; `retentionOracle.postgres.test.ts` |
 | F4 | **Merge.** Survivor with the later date keeps it, survivor with the earlier or no date takes the merged person's; the tombstone's is null | a merge that did not fold leaves the survivor's date lower (the mutation M2 below) | `packages/db/test/adminPlaceEnd.postgres.test.ts` |
@@ -83,3 +83,31 @@ Each has a negative control; the controls and the mutations that were run are in
 ### R1 (2026-10-29): first plan
 
 Written before any code, after reading `retention.ts`, `activity.ts`, `merge.ts`, the teams declarations, spec 0021 R-1 and the `STATE.md` item. The plan changes under this heading as the build teaches.
+
+### R2 (2026-10-29): the build
+
+What the build taught, in the order of the plan:
+
+1. **The person goes one night later than the plan said.** The person's facts are read once, before the night's rules run, so on the night the place is deleted the person still has the place in their facts; the fall-back to the last membership's end is seen on the next night. The Problem and F1's control are read that way: place gone on night one, person anonymised on night two. (Spec 0021's note says "that night"; its Revisions now say it was one night early.)
+2. **The control needs a membership.** A person with no membership falls back to their _creation_, which in a test is recent and five years from it is later than the place's three, so the finding does not show. F1 and its control give the person a membership that ended with Høst 2020, as `retentionPeople.postgres.test.ts` does; then the unprotected store anonymises her on the second night (the control) and the real run does not (F1).
+3. **`keeps` lives on the table, and the merge reads it too.** `TableDeclaration.keeps` (`from`, `into`) is one declaration for both: the retention run folds the due rows' greatest `from` into the owner's `into`, and the merge folds the merged person's `into` into the survivor's. `RetentionRule.keeps` carries it for `Delete` rules (`derive.ts`); `keptDates(catalog)` lists them for the merge.
+4. **The record of processing prints the new column on its own row** ("Keep the record of who held a place on the admin list … `person`: last_admin_place_end … anonymised"), with the person core's retention and the legal basis marked proposed like the admin place's. `bun run docs` regenerated `docs/system/administration.md`; nothing in the notice of a form changed.
+5. **The table-driven rule test has a new rule id**: the person rule's columns now include `last_admin_place_end` (`retentionBuilders.ts`). The rule is the same rule: the column is anonymised with the rest of the core.
+6. **`STATE.md`'s open item is removed** and spec 0021's Revisions say that this spec resolves it.
+
+### R3 (2026-10-29): the controls that were run, and the claims that this revision narrows
+
+Mutations, each on the real source and restored by hand, two runs each of `adminPlaceEnd.postgres.test.ts` (10 tests):
+
+| Mutation | What failed |
+| --- | --- |
+| M1: `keepBeforeDelete` is not called | F1, F2, F3 (3 of 10), 2 of 2 runs |
+| M2: `foldKeptDates` is not called in the merge | F4 (1 of 10), 2 of 2 runs |
+| M3: the `anonymised_at is null` guard is `true` | F1 and F6 for the place periods of 5 and 6 years (3 of 10), 2 of 2 runs |
+
+F6 with a place period of one year does not discriminate M1 or M3 (the person is created recently and her creation is the fall-back); it shows that the fold works when the place goes long before the person does. The narrowed claims, so that the table above does not say more than the tests do:
+
+- **F3's control** is the unit cases of `lastActivityEnd` with `keptPlaceEnd` (`retentionEnd.test.ts`: alone, after a membership, before a membership, beside a place that is still there) and the old-view oracle property test, which still holds with `keptPlaceEnd = None` (`retentionOracle.postgres.test.ts`); there is no property over generated `Some` dates.
+- **F5's control** is that the export is read before the erasure, so the clear is observed and not assumed; no mutation was run on the erasure, whose clear is the person core's `Anonymise.null` for the column.
+- **F8** is two checks: `catalogProblems` finds a `keeps` whose `from` is not a personal column that the rule deletes, or whose `into` is not a personal column of `person` (`catalog.test.ts`, three planted names); the closure over the migrated schema (`personalDataClosure.postgres.test.ts`) fails when the column is not declared or not in the schema, which is the existing check.
+- **The failure case "the run dies after the fold"** rests on the run being one transaction (`runRetention` is `transactional`); no test injects a failure between the two statements.
