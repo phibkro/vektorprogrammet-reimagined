@@ -137,6 +137,8 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `DigestLedger` | `claim` |  |  |  |  |  |
 | `FieldOfStudyRepository` |  | `create`, `rename` |  | `findById`, `listByDepartment` |  |  |
 | `FileStore` |  |  |  |  | `get`, `put` |  |
+| `ImpactSnapshots` |  | `close` |  | `read` |  |  |
+| `ImpactSource` |  |  |  | `answer`, `schools` |  |  |
 | `ImportTarget` |  |  |  |  |  | `replaceAll` |
 | `IsolationProbe` |  |  |  |  |  | `report` |
 | `JobRuns` | `advance`, `finish`, `request` | `claim`, `fail`, `release` |  | `resumable` |  |  |

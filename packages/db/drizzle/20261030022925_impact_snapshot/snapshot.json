@@ -1,0 +1,376 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "a048ef35-82aa-42c6-a8ae-518873155da8",
+  "prevIds": ["483821bc-ede1-4316-9711-44585c1b60a5"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "impact_snapshot"],
+      "writes": [
+        "s|tbl|public.impact_snapshot",
+        "n|tbl|public.impact_snapshot",
+        "e|tbl|public.impact_snapshot",
+        "n|rel|public.impact_snapshot",
+        "n|type|public.impact_snapshot",
+        "n|rel|public.impact_snapshot_pkey",
+        "n|rel|public.impact_snapshot_cell_unique"
+      ],
+      "reads": ["n|sch|public", "n|enum|public.semester_term"]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "impact_snapshot"],
+      "writes": [
+        "s|fk|public.impact_snapshot.impact_snapshot_department_id_department_id_fkey",
+        "n|fk|public.impact_snapshot.impact_snapshot_department_id_department_id_fkey",
+        "e|fk|public.impact_snapshot.impact_snapshot_department_id_department_id_fkey",
+        "n|con|public.impact_snapshot.impact_snapshot_department_id_department_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.impact_snapshot",
+        "n|sch|public",
+        "n|tbl|public.department",
+        "n|sch|public",
+        "n|col|public.impact_snapshot.department_id",
+        "n|col|public.department.id",
+        "e|uniqueness|public.department.id"
+      ]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_system_job"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.system_job",
+        "e|col|public.audit_log.system_job"
+      ],
+      "sqlHash": "7d8ea9e438497d56"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "job_run"],
+      "writes": ["s|ck|public.job_run.job_run_job"],
+      "reads": [
+        "n|tbl|public.job_run",
+        "n|sch|public",
+        "n|col|public.job_run.job",
+        "e|col|public.job_run.job"
+      ],
+      "sqlHash": "7d7010990665c1cc"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "impact_snapshot",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "closed_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "coverage",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "coverage_reason",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "definition_hash",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "department_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": {
+          "type": "byDefault",
+          "name": "impact_snapshot_id_seq",
+          "increment": "1",
+          "startWith": "1",
+          "minValue": "1",
+          "maxValue": "2147483647",
+          "cache": 1,
+          "cycle": false
+        },
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "measure",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "semester_term",
+        "type": "semester_term",
+        "typeSchema": "public",
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "semester_year",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "source",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "source_ref",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "value",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_department_id_department_id_fkey",
+        "nameExplicit": false,
+        "columns": ["department_id"],
+        "schemaTo": "public",
+        "tableTo": "department",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_pkey",
+        "columns": ["id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_cell_unique",
+        "nameExplicit": true,
+        "columns": [
+          "measure",
+          "semester_term",
+          "semester_year",
+          "department_id"
+        ],
+        "nullsNotDistinct": true,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_measure",
+        "value": "\"measure\" in ('assistantsPlaced', 'placements', 'schoolsServed')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_coverage",
+        "value": "(\"coverage\" = 'complete' and \"coverage_reason\" is null) or (\"coverage\" = 'incomplete' and \"coverage_reason\" is not null)",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_source",
+        "value": "\"source\" in ('legacy-import', 'reimagined')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "impact_snapshot",
+        "name": "impact_snapshot_value",
+        "value": "\"value\" >= 0",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_system_job\"]",
+      "set": {
+        "value": "\"system_job\" in ('semesters', 'outboxSweep', 'endingSoon', 'retention', 'alumniConsent', 'workspaceSync', 'impactClose')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"job_run\",\"job_run_job\"]",
+      "set": {
+        "value": "\"job\" in ('semesters', 'outboxSweep', 'endingSoon', 'retention', 'alumniConsent', 'workspaceSync', 'impactClose')"
+      }
+    }
+  ]
+}

@@ -27,6 +27,7 @@ export const SystemJob = Schema.Literals([
   "retention",
   "alumniConsent",
   "workspaceSync",
+  "impactClose",
 ]);
 
 export type SystemJob = typeof SystemJob.Type;

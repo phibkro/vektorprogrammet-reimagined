@@ -26,6 +26,10 @@ import { AccountRepositoryLive } from "./repositories/accounts.ts";
 import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
+import {
+  ImpactSnapshotsLive,
+  ImpactSourceLive,
+} from "./repositories/impact.ts";
 import { JobRunsLive } from "./repositories/jobRuns.ts";
 import { ImportTargetLive } from "./repositories/legacyImport.ts";
 import {
@@ -114,6 +118,8 @@ const Repositories = Layer.mergeAll(
   WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
   WorkspaceReportsLive,
+  ImpactSnapshotsLive,
+  ImpactSourceLive,
   TransactorLive,
   IsolationProbeLive.pipe(Layer.provide(TransactorLive)),
   PlatformProbeLive(hyperdrive)

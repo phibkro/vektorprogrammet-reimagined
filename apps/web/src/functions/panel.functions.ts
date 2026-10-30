@@ -67,6 +67,10 @@ export const getFieldsOfStudy = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getFieldsOfStudy)
 );
 
+export const getImpact = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), panelReads.getImpact)
+);
+
 export const getIntegrations = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getIntegrations)
 );

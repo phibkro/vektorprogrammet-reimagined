@@ -11,6 +11,8 @@ import type {
   DepartmentRepository,
   DigestLedger,
   FieldOfStudyRepository,
+  ImpactSnapshots,
+  ImpactSource,
   InTransaction,
   MembershipRepository,
   Outbox,
@@ -57,7 +59,9 @@ export type ViewServices =
   | AuditLog
   | WelcomeLedger
   | OutboxReports
-  | WorkspaceReports;
+  | WorkspaceReports
+  | ImpactSnapshots
+  | ImpactSource;
 
 /** Runs a command as `principal` exactly as a server function does: in a transaction, through the error table. */
 export const runAs = <

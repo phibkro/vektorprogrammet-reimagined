@@ -18,6 +18,7 @@ import {
 } from "effect";
 
 import {
+  impactCsv,
   releaseLattice,
   relationsOf,
   slotsOf,
@@ -551,6 +552,76 @@ describe("spec 0027 D6: audiences", () => {
     });
 
     assert.isFalse(Arr.some(slots, isSchool));
+  });
+});
+
+const csvRow = (measure: MeasureId, place: string, released: Released) => ({
+  department: place,
+  measure,
+  released,
+  school: "",
+  semester: SEMESTER,
+});
+
+describe("spec 0027 F3 and F5: the CSV is made from released cells", () => {
+  const rows = [
+    csvRow(
+      "placements",
+      "Alle avdelinger",
+      Released.cases.Published.make({ coverage: complete, value: 60 })
+    ),
+    csvRow(
+      "placements",
+      "Bergen",
+      Released.cases.Suppressed.make({ coverage: complete, minimum: MIN })
+    ),
+    csvRow(
+      "assistantsPlaced",
+      "Alle avdelinger",
+      Released.cases.Unavailable.make({
+        reason: "placement is not built (spec 0011)",
+      })
+    ),
+    csvRow(
+      "schoolsServed",
+      "Oslo, sentrum",
+      Released.cases.Published.make({
+        coverage: Coverage.cases.Incomplete.make({
+          reason: "legacy rows are partial",
+        }),
+        value: 12,
+      })
+    ),
+  ];
+
+  it("a published cell has its value, a suppressed one has none, an unavailable one has its reason, and the definition follows each", () => {
+    const csv = impactCsv(rows).split("\n");
+
+    assert.strictEqual(
+      csv[0],
+      "measure,semester,department,school,status,value,coverage,reason,definition"
+    );
+    assert.include(
+      csv[1],
+      "placements,Vår 2026,Alle avdelinger,,published,60,complete,,"
+    );
+    assert.include(
+      csv[2],
+      "placements,Vår 2026,Bergen,,suppressed,,complete,less than 5,"
+    );
+    assert.include(
+      csv[3],
+      "assistantsPlaced,Vår 2026,Alle avdelinger,,unavailable,,unavailable,placement is not built (spec 0011),"
+    );
+    // A comma in a field is quoted; an incomplete number is published with its reason.
+    assert.include(
+      csv[4],
+      '"Oslo, sentrum",,published,12,incomplete,legacy rows are partial,'
+    );
+
+    for (const [index, cell] of rows.entries()) {
+      assert.include(csv[index + 1], measureOf(cell.measure).definition.en);
+    }
   });
 });
 

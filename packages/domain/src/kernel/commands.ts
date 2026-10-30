@@ -24,6 +24,8 @@ import type { SystemJob } from "./principal.ts";
  */
 export const NonEntityResources = [
   "AuditEntry",
+  "Impact",
+  "ImpactSnapshot",
   "OutboxMessage",
   "SupportTicket",
 ] as const;

@@ -140,6 +140,29 @@ export * from "./workspace/report.ts";
 
 export * from "./workspace/services.ts";
 
+// impact: evidence of operations (spec 0027)
+export {
+  ImpactHandlers,
+  closeEndedSemesters,
+  impactCloseJob,
+  impactReport,
+  impactView,
+} from "./impact/commands.ts";
+
+export * as Impact from "./impact/declaration.ts";
+
+export * as ImpactJob from "./impact/job.ts";
+
+export { impactCsv } from "./impact/lattice.ts";
+
+export * from "./impact/source.ts";
+
+export type { CsvCell } from "./impact/lattice.ts";
+
+export * as ImpactMeasures from "./impact/measures.ts";
+
+export * from "./impact/services.ts";
+
 // organisation (C1, C2)
 export * from "./organisation/admission.ts";
 

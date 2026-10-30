@@ -26,6 +26,7 @@ import {
   EntityName,
   FileExtension,
   JobRun,
+  ImpactMeasures,
   OutboxMessage,
   ReportStatus,
   StoredContentType,
@@ -615,6 +616,48 @@ export const endingSoonDigest = pgTable(
       columns: [t.personId, t.term, t.year],
       name: "ending_soon_digest_pk",
     }),
+  ]
+);
+
+/**
+ * Spec 0027 D7: the closed cells of a semester, written once. A row is a count with its provenance and names no person;
+ * `department_id` is null for "all departments". `impact_snapshot_cell_unique` makes a second close of a cell a conflict
+ * that the adapter answers with `false` (the first value stays). The application's port has an insert and a read and no
+ * update or delete; a writer with the table's own privileges could still change a row (port-enforced).
+ */
+export const impactSnapshot = pgTable(
+  "impact_snapshot",
+  {
+    closedAt: instant("closed_at").notNull(),
+    coverage: text("coverage").notNull(),
+    coverageReason: text("coverage_reason"),
+    definitionHash: text("definition_hash").notNull(),
+    departmentId: integer("department_id").references(() => department.id),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    measure: text("measure").notNull(),
+    semesterTerm: semesterTerm("semester_term").notNull(),
+    semesterYear: integer("semester_year").notNull(),
+    source: text("source").notNull(),
+    sourceRef: text("source_ref"),
+    value: integer("value").notNull(),
+  },
+  (t) => [
+    unique("impact_snapshot_cell_unique")
+      .on(t.measure, t.semesterTerm, t.semesterYear, t.departmentId)
+      .nullsNotDistinct(),
+    check(
+      "impact_snapshot_measure",
+      oneOf(sql`${t.measure}`, ImpactMeasures.MeasureId.literals)
+    ),
+    check(
+      "impact_snapshot_coverage",
+      sql`(${t.coverage} = 'complete' and ${t.coverageReason} is null) or (${t.coverage} = 'incomplete' and ${t.coverageReason} is not null)`
+    ),
+    check(
+      "impact_snapshot_source",
+      oneOf(sql`${t.source}`, ["legacy-import", "reimagined"])
+    ),
+    check("impact_snapshot_value", sql`${t.value} >= 0`),
   ]
 );
 

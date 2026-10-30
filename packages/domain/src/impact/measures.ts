@@ -6,7 +6,7 @@
  * The raw count of a cell is a `Cell` and lives only inside `release` and the snapshot port. What leaves the domain is
  * `Released`, whose `Published` case holds a value that is not below the minimum.
  */
-import { Array as Arr, Schema } from "effect";
+import { Array as Arr, Hash, Schema } from "effect";
 
 import { Semester } from "../organisation/semester.ts";
 import { DepartmentId } from "../shared/ids.ts";
@@ -103,6 +103,27 @@ export const Measures: readonly MeasureDeclaration[] = Arr.map(
 /** The declaration of a measure. */
 export const measureOf = (id: MeasureId): MeasureDeclaration =>
   MeasureTable[id];
+
+/**
+ * The digest of a measure's declaration: what a snapshot records, so that a cell closed under one definition is not shown
+ * as the measure of another (spec 0027 D7). The name, the definitions in both languages, the rule for the parts and the
+ * grains are what a definition is made of. Two salted hashes of Effect's `Hash.string` make it 64 bits; it detects a change
+ * and is not a security digest.
+ */
+export const definitionHash = (measure: MeasureDeclaration): string => {
+  const text = Arr.join(
+    [
+      measure.id,
+      measure.definition.en,
+      measure.definition.no,
+      measure.parts,
+      ...measure.grains,
+    ],
+    "\u0000"
+  );
+
+  return `${Hash.string(`a${text}`).toString(16)}${Hash.string(`b${text}`).toString(16)}`;
+};
 
 const Approval = Schema.Literals(["decided", "proposed"]);
 

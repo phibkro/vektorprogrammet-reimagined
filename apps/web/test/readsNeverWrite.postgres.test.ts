@@ -264,6 +264,9 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("panel.functions getIntegrations", panelReads.getIntegrations, {
     refusedTo: NOT_ADMIN,
   }),
+  readPath("panel.functions getImpact", panelReads.getImpact, {
+    refusedTo: NOT_ADMIN,
+  }),
   readPath("WorkspaceFacts projection inputs", workspaceInputs),
   readPath("account.functions getSignInDestination", signInDestination),
   readPath(
@@ -308,7 +311,7 @@ const READ_PATHS: readonly ReadPath[] = [
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
   "functions/account.functions.ts": 2,
-  "functions/panel.functions.ts": 11,
+  "functions/panel.functions.ts": 12,
   "functions/public.functions.ts": 11,
   "routes/api/isolation.ts": 1,
   "routes/filer/$key.ts": 1,

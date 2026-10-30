@@ -56,6 +56,12 @@ export const PANEL_SECTIONS = [
     to: "/kontrollpanel/integrasjoner",
   },
   {
+    group: "Administrasjon",
+    key: "impact",
+    label: "Effekt",
+    to: "/kontrollpanel/effekt",
+  },
+  {
     group: "Innhold",
     key: "socialEvents",
     label: "Arrangementer",

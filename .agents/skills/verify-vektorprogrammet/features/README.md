@@ -12,8 +12,8 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 | Person (cookie value) | What they are | What they may open in the control panel |
 | --- | --- | --- |
-| `Ada Admin` | holds an admin place, no membership | everything, including Administratorer and Integrasjoner |
-| `Lise Leder` | leads the recruitment team of Avdeling Alfa | everything but Administratorer and Integrasjoner |
+| `Ada Admin` | holds an admin place, no membership | everything, including Administratorer, Integrasjoner and Effekt |
+| `Lise Leder` | leads the recruitment team of Avdeling Alfa | everything but Administratorer, Integrasjoner and Effekt |
 | `Mats Medlem` | member of the recruitment team | Oversikt, Semestre, Team, Arrangementer |
 | `Sofie Styre` | member of the department's board team | Oversikt, Semestre, Team, Personer, Arrangementer |
 | `Nora Nybegynner` | registered, no team | nothing: `403 Ingen tilgang` |
@@ -49,3 +49,4 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Personal data](./personal-data.md) covers spec 0007b: the two consent questions on Min side, the JSON export and the erasure of a person's own data, the alumni e-mail link, the administrator's merge and erasure, the nightly retention cron, and the privacy notice on the contact form.
 - [Isolation check](./isolation-check.md) covers spec 0018 R10: `GET /api/isolation` and the three levels of the store's transactions, the `500` that names a role whose default is not READ COMMITTED, the methods that do not reach it, and what only the Preview can show.
 - [Platform check](./platform-check.md) covers spec 0025: `GET /api/platform` and the checks that the domain asks of a platform (two transactions on two connections, a rolled-back write, a nested scope, the client's statements), the `500` that names a check (a held admin list included), why it is not a read, and what only the Preview can show.
+- [Evidence of operations](./impact.md) covers spec 0027: the control panel page `Effekt` (three measures by ended semester and department, definitions in words, `< 5` for a small count, every cell unavailable today because no source exists), its CSV, the `403` for anyone but an administrator, and what the close job does not do without a source.

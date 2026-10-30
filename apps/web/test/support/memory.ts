@@ -16,6 +16,9 @@ import {
   FieldOfStudyRepository,
   FileKey,
   FileStore,
+  ImpactMeasures,
+  ImpactSnapshots,
+  ImpactSource,
   InTransaction,
   NotFound,
   Outbox,
@@ -620,6 +623,19 @@ export const memoryLayer = (
         repositories,
         transactor,
         Layer.mock(WorkspaceReports, { latest: Effect.succeedNone }),
+        Layer.mock(ImpactSnapshots, {
+          close: () => Effect.succeed(true),
+          read: () => Effect.succeed([]),
+        }),
+        Layer.mock(ImpactSource, {
+          answer: () =>
+            Effect.succeed(
+              ImpactMeasures.Answer.cases.Unavailable.make({
+                reason: ImpactMeasures.NO_SOURCE_REASON,
+              })
+            ),
+          schools: () => Effect.succeed([]),
+        }),
         Layer.succeed(CurrentPrincipal, principal),
         Layer.succeed(SiteOrigin, SITE_ORIGIN)
       ).pipe(Layer.provideMerge(Layer.succeed(Memory, tables)))

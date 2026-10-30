@@ -10,6 +10,7 @@ import { AuditDomain } from "./audit/declaration.ts";
 import { ContactDomain } from "./contact/declaration.ts";
 import { ContentDomain } from "./content/declaration.ts";
 import { FilesDomain } from "./files/declaration.ts";
+import { ImpactDomain } from "./impact/declaration.ts";
 import { authorizeWith, canAnywhereWith } from "./kernel/authorize.ts";
 import type { NamesOf } from "./kernel/domain.ts";
 import * as Grant from "./kernel/grant.ts";
@@ -32,6 +33,7 @@ export const Declarations = [
   OutboxDomain,
   PersonalDataDomain,
   WorkspaceDomain,
+  ImpactDomain,
 ] as const;
 
 /** Every command and read that any domain declares. */

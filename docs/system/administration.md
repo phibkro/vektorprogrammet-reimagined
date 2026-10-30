@@ -219,6 +219,7 @@ Every job is declared once and listed in `packages/domain/src/jobs/registry.ts` 
 | `endingSoon` | In the last 4 weeks of the semester, e-mails each team leader the memberships that end. | every tick in the last 4 weeks of the semester | `*/10 * * * *` | approved |
 | `alumniConsent` | When a person's last engagement ends, queues the e-mail that asks them the two alumni questions, once for each end. | every tick | `*/10 * * * *` | approved |
 | `workspaceSync` | Compares the Google Workspace groups and accounts with the active memberships and records the changes it would make. | once a day from 02:00 (Europe/Oslo) | `*/10 * * * *` | proposed \* |
+| `impactClose` | Closes the cells of the ended semesters that a source answers: a closed cell never changes. | once per semester | `*/10 * * * *` | proposed \* |
 | `outboxSweep` | Puts the ids of outbox rows that no queue message covers any more (a crash between commit and enqueue, a lost message) back on the queue. | every tick | `*/10 * * * *` | approved |
 | `retention` | Deletes or anonymises the data that has reached the end of its declared retention period. In production it only counts until every period that it applies is approved. | every tick | `17 2 * * *` | approved |
 

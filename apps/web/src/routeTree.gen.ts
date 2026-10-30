@@ -33,6 +33,7 @@ import { Route as KontrollpanelIndexRouteImport } from './routes/kontrollpanel/i
 import { Route as KontrollpanelAdministratorerRouteImport } from './routes/kontrollpanel/administratorer'
 import { Route as KontrollpanelArrangementerRouteImport } from './routes/kontrollpanel/arrangementer'
 import { Route as KontrollpanelAvdelingerRouteImport } from './routes/kontrollpanel/avdelinger'
+import { Route as KontrollpanelEffektRouteImport } from './routes/kontrollpanel/effekt'
 import { Route as KontrollpanelIntegrasjonerRouteImport } from './routes/kontrollpanel/integrasjoner'
 import { Route as KontrollpanelLinjerRouteImport } from './routes/kontrollpanel/linjer'
 import { Route as KontrollpanelPersonerRouteImport } from './routes/kontrollpanel/personer'
@@ -167,6 +168,11 @@ const KontrollpanelAvdelingerRoute = KontrollpanelAvdelingerRouteImport.update({
   path: '/avdelinger',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
+const KontrollpanelEffektRoute = KontrollpanelEffektRouteImport.update({
+  id: '/effekt',
+  path: '/effekt',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
 const KontrollpanelIntegrasjonerRoute =
   KontrollpanelIntegrasjonerRouteImport.update({
     id: '/integrasjoner',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/effekt': typeof KontrollpanelEffektRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
@@ -283,6 +290,7 @@ export interface FileRoutesByTo {
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/effekt': typeof KontrollpanelEffektRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
@@ -321,6 +329,7 @@ export interface FileRoutesById {
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/effekt': typeof KontrollpanelEffektRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
@@ -360,6 +369,7 @@ export interface FileRouteTypes {
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/effekt'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/personer'
@@ -396,6 +406,7 @@ export interface FileRouteTypes {
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/effekt'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/personer'
@@ -433,6 +444,7 @@ export interface FileRouteTypes {
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/effekt'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/personer'
@@ -646,6 +658,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KontrollpanelAvdelingerRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
+    '/kontrollpanel/effekt': {
+      id: '/kontrollpanel/effekt'
+      path: '/effekt'
+      fullPath: '/kontrollpanel/effekt'
+      preLoaderRoute: typeof KontrollpanelEffektRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
     '/kontrollpanel/integrasjoner': {
       id: '/kontrollpanel/integrasjoner'
       path: '/integrasjoner'
@@ -730,6 +749,7 @@ interface KontrollpanelRouteRouteChildren {
   KontrollpanelAdministratorerRoute: typeof KontrollpanelAdministratorerRoute
   KontrollpanelArrangementerRoute: typeof KontrollpanelArrangementerRoute
   KontrollpanelAvdelingerRoute: typeof KontrollpanelAvdelingerRoute
+  KontrollpanelEffektRoute: typeof KontrollpanelEffektRoute
   KontrollpanelIntegrasjonerRoute: typeof KontrollpanelIntegrasjonerRoute
   KontrollpanelLinjerRoute: typeof KontrollpanelLinjerRoute
   KontrollpanelPersonerRoute: typeof KontrollpanelPersonerRoute
@@ -743,6 +763,7 @@ const KontrollpanelRouteRouteChildren: KontrollpanelRouteRouteChildren = {
   KontrollpanelAdministratorerRoute: KontrollpanelAdministratorerRoute,
   KontrollpanelArrangementerRoute: KontrollpanelArrangementerRoute,
   KontrollpanelAvdelingerRoute: KontrollpanelAvdelingerRoute,
+  KontrollpanelEffektRoute: KontrollpanelEffektRoute,
   KontrollpanelIntegrasjonerRoute: KontrollpanelIntegrasjonerRoute,
   KontrollpanelLinjerRoute: KontrollpanelLinjerRoute,
   KontrollpanelPersonerRoute: KontrollpanelPersonerRoute,
