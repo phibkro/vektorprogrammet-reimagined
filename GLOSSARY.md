@@ -84,6 +84,10 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Application** (søknad): A request from a person to become an assistant in one admission period. _Avoid_: signup, registration
 
+**Applicant** (søker): The person that an application belongs to. A public submit makes a new applicant whose e-mail address is not verified; the link in the mail verifies it. _Avoid_: candidate, user
+
+**Verified address** (bekreftet e-postadresse): An address that its holder proved by spending the single-use code of the link in a mail (`person.email_verified`). Only a verified address is unique, and only after verification can an application be joined to a person the system already knows by it (RULE-306). _Avoid_: confirmed e-mail
+
 **Admission alert** (opptaksvarsel): An e-mail to people who asked to be told when a department opens an admission period. _Avoid_: newsletter, interest list, subscription (in prose)
 
 **Interview** (intervju): The conversation in which the recruitment team assesses an application, recorded as answers to an interview form. _Avoid_: screening, assessment
