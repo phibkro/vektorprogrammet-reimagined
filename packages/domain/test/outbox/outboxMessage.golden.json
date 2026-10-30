@@ -232,6 +232,14 @@
                       "type": "string",
                       "value": "resetPassword"
                     }
+                  },
+                  {
+                    "_tag": "Literal",
+                    "checks": [],
+                    "literal": {
+                      "type": "string",
+                      "value": "verifyApplication"
+                    }
                   }
                 ]
               },

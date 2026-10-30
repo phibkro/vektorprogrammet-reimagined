@@ -34,6 +34,18 @@ export const TeamId = PositiveInt.pipe(Schema.brand("TeamId"));
 
 export type TeamId = typeof TeamId.Type;
 
+/** A period in which a department takes applications (spec 0009). */
+export const AdmissionPeriodId = PositiveInt.pipe(
+  Schema.brand("AdmissionPeriodId")
+);
+
+export type AdmissionPeriodId = typeof AdmissionPeriodId.Type;
+
+/** One person's application in one admission period (spec 0009). */
+export const ApplicationId = PositiveInt.pipe(Schema.brand("ApplicationId"));
+
+export type ApplicationId = typeof ApplicationId.Type;
+
 export const MembershipId = PositiveInt.pipe(Schema.brand("MembershipId"));
 
 export type MembershipId = typeof MembershipId.Type;
@@ -93,6 +105,8 @@ export const EntityName = Schema.Literals([
   "Consent",
   "Retention",
   "WorkspaceReport",
+  "AdmissionPeriod",
+  "Application",
 ]);
 
 export type EntityName = typeof EntityName.Type;

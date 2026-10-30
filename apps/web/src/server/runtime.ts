@@ -32,6 +32,7 @@ import type {
   AggregateLocks,
   AdmissionPeriodRepository,
   AlumniRequests,
+  ApplicationRepository,
   AuditLog,
   CapturedMessageStore,
   CodeRepository,
@@ -136,6 +137,7 @@ export type DatabaseServices =
   | AggregateLocks
   | CodeRepository
   | AdmissionPeriodRepository
+  | ApplicationRepository
   | DepartmentRepository
   | SemesterRepository
   | ImpactSnapshots

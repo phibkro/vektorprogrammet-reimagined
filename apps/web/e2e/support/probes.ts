@@ -201,6 +201,13 @@ export const deactivateResetFixture = Effect.flatMap(
     sql`update account set state = 'Deactivated' where person_id = (select id from person where email = 'privacy-active@example.org')`
 );
 
+/** Ends every admission period that is open now (spec 0009's spec leaves none open for the specs that follow it). */
+export const closeAdmissionPeriods = Effect.flatMap(
+  SqlClient,
+  (sql) =>
+    sql`update admission_period set starts_at = now() - interval '2 days', ends_at = now() - interval '1 day' where starts_at <= now() and ends_at > now()`
+);
+
 /** Install only the hash of a fresh code for a real HTTP state-precondition probe. */
 export const codeFor = (email: string, purpose: CodePurpose) =>
   Effect.gen(function* seedCode() {

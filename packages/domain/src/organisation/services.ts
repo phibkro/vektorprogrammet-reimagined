@@ -4,11 +4,19 @@
  * (infrastructure failures are defects).
  */
 import { Context } from "effect";
-import type { Effect, Option } from "effect";
+import type { DateTime, Effect, Option } from "effect";
 
-import type { AlreadyExists, NotFound } from "../shared/errors.ts";
-import type { DepartmentId, FieldOfStudyId } from "../shared/ids.ts";
-import type { AdmissionPeriod } from "./admission.ts";
+import type { AlreadyExists, Conflict, NotFound } from "../shared/errors.ts";
+import type {
+  AdmissionPeriodId,
+  DepartmentId,
+  FieldOfStudyId,
+} from "../shared/ids.ts";
+import type {
+  AdmissionPeriod,
+  AdmissionPeriodDraft,
+  StoredAdmissionPeriod,
+} from "./admission.ts";
 import type { Department, DepartmentDraft } from "./department.ts";
 import type { FieldOfStudy, FieldOfStudyDraft } from "./fieldOfStudy.ts";
 import type { Semester, StoredSemester } from "./semester.ts";
@@ -65,13 +73,35 @@ export class FieldOfStudyRepository extends Context.Service<
 >()("@vektorprogrammet/domain/organisation/FieldOfStudyRepository") {}
 
 /**
- * The admission periods of every department. Read-only: Phase 1 imports them and the public site reads
- * whether admission is open (`hasOpenAdmission`); the editor and the writes are Phase 3.
+ * The admission periods of every department: the public site reads whether admission is open (`hasOpenAdmission`) and
+ * recruitment staff schedule, extend and cancel them (spec 0009). The state of a period is never stored: callers derive
+ * it with `admissionState`. A write is one statement that names the state the caller read, so a period that changed
+ * since (a second extension, a cancellation, an application) loses with a `Conflict` and nothing is written.
  */
 export class AdmissionPeriodRepository extends Context.Service<
   AdmissionPeriodRepository,
   {
     /** Unordered; the caller groups them by department. */
     readonly list: Effect.Effect<readonly AdmissionPeriod[]>;
+    /** The same periods with their ids, newest start first. */
+    readonly listStored: Effect.Effect<readonly StoredAdmissionPeriod[]>;
+    readonly findById: (
+      id: AdmissionPeriodId
+    ) => Effect.Effect<StoredAdmissionPeriod, NotFound>;
+    /** Fails with `AlreadyExists` on the unique `(department, semester)` (UK1). */
+    readonly create: (
+      draft: AdmissionPeriodDraft
+    ) => Effect.Effect<StoredAdmissionPeriod, AlreadyExists>;
+    /** Moves the end later, only while the period has not ended at `now` and the new end is later (CW1). */
+    readonly extend: (
+      id: AdmissionPeriodId,
+      end: DateTime.Utc,
+      now: DateTime.Utc
+    ) => Effect.Effect<StoredAdmissionPeriod, NotFound | Conflict>;
+    /** Removes a period that has not started at `now` and that no application refers to (CW1). */
+    readonly remove: (
+      id: AdmissionPeriodId,
+      now: DateTime.Utc
+    ) => Effect.Effect<void, NotFound | Conflict>;
   }
 >()("@vektorprogrammet/domain/organisation/AdmissionPeriodRepository") {}

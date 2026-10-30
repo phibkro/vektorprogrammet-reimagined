@@ -245,7 +245,7 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           assert.strictEqual(report.fileSource, "none");
           // [rows in, rows out, quarantined]
           assert.deepStrictEqual(counts(report), {
-            admission_period: [2, 1, 1],
+            admission_period: [3, 1, 2],
             department: [3, 2, 1],
             field_of_study: [5, 2, 3],
             public_file: [1, 0, 0],
@@ -272,6 +272,8 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           // References to collapsed semesters are remapped to the kept row.
           const [period] = yield* rowsOf("admission_period");
           assert.strictEqual(period?.semester_id, 1);
+          // Spec 0009 F12: of the two periods of one department and semester the lower id (1) is the one admitted.
+          assert.strictEqual(period?.id, 1);
           const [event] = yield* rowsOf("social_event");
           assert.strictEqual(event?.semester_id, 2);
 
@@ -293,6 +295,10 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           ]);
           assert.deepStrictEqual(reasonsOf(report, "admission_period", "2"), [
             "end_date is not after start_date",
+          ]);
+          // Spec 0009 UK1, F12: a later period of an admitted (department, semester) is quarantined with its reason; the first stands.
+          assert.deepStrictEqual(reasonsOf(report, "admission_period", "3"), [
+            "the department already has an admitted admission period for this semester (UK1, spec 0009)",
           ]);
           assert.isTrue(
             Arr.some(

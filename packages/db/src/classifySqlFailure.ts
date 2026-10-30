@@ -37,6 +37,15 @@ interface UniqueOutcome {
 }
 
 const uniqueOutcomes: Record<UniqueConstraint, UniqueOutcome> = {
+  [UniqueConstraint.admissionPeriodDepartmentSemester]: {
+    entity: "AdmissionPeriod",
+    message: () => "Avdelingen har allerede et opptak dette semesteret.",
+  },
+  [UniqueConstraint.applicationPersonPeriod]: {
+    entity: "Application",
+    message: () =>
+      "Det finnes allerede en søknad fra denne personen i dette opptaket.",
+  },
   [UniqueConstraint.departmentCity]: {
     entity: "Department",
     message: (key) => `Det finnes allerede en avdeling i ${key}.`,

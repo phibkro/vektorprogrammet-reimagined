@@ -5,9 +5,12 @@
  * delivery to be exercised. Every value is a fake same-shape value.
  */
 import {
+  AdmissionPeriodId,
   AdmissionPeriodRepository,
   AlreadyExists,
+  ApplicationRepository,
   AuditLog,
+  Conflict,
   CurrentPrincipal,
   DepartmentId,
   DepartmentRepository,
@@ -40,7 +43,7 @@ import {
   isListed,
 } from "@vektorprogrammet/domain";
 import type {
-  AdmissionPeriod,
+  ApplicationView,
   AuditEntry,
   ClaimedOutboxMessage,
   Department,
@@ -50,6 +53,7 @@ import type {
   Principal,
   PublicFile,
   SocialEvent,
+  StoredAdmissionPeriod,
   StoredSemester,
 } from "@vektorprogrammet/domain";
 import {
@@ -83,7 +87,8 @@ interface OutboxRow {
 /** The fake tables; tests seed and inspect them directly. */
 export interface MemoryTables {
   departments: Department[];
-  admissionPeriods: AdmissionPeriod[];
+  admissionPeriods: StoredAdmissionPeriod[];
+  applications: ApplicationView[];
   publicFiles: PublicFile[];
   objects: Map<string, Uint8Array>;
   outbox: OutboxRow[];
@@ -106,6 +111,7 @@ export class Memory extends Context.Service<Memory, MemoryTables>()(
 /** Fresh tables; tests keep the reference to inspect what was (not) written. */
 export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   admissionPeriods: [],
+  applications: [],
   audit: [],
   commits: 0,
   departments: [],
@@ -119,6 +125,13 @@ export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   teams: makeTeamTables(),
   ...seed,
 });
+
+const periodChanged = (id: AdmissionPeriodId) =>
+  new Conflict({
+    entity: "AdmissionPeriod",
+    key: String(id),
+    message: "Opptaket ble endret av en annen, eller kan ikke endres lenger.",
+  });
 
 const findById =
   <A extends { readonly id: number }>(rows: readonly A[], entity: EntityName) =>
@@ -538,12 +551,145 @@ const repositories = Layer.effectContext(
       })),
     });
 
+    const periodIn = (id: AdmissionPeriodId) =>
+      Effect.suspend(() =>
+        Effect.mapError(
+          Effect.fromOption(
+            Arr.findFirst(db.admissionPeriods, (row) => row.id === id)
+          ),
+          () => new NotFound({ entity: "AdmissionPeriod", key: String(id) })
+        )
+      );
+
     const admissionPeriods = AdmissionPeriodRepository.of({
-      list: Effect.sync(() => db.admissionPeriods),
+      create: (draft) =>
+        Effect.gen(function* create() {
+          const semester = Arr.findFirst(
+            db.semesters,
+            (row) => row.id === draft.semesterId
+          );
+
+          if (Option.isNone(semester)) {
+            return yield* Effect.die("the semester of a period is stored");
+          }
+
+          if (
+            Arr.some(
+              db.admissionPeriods,
+              (row) =>
+                row.departmentId === draft.departmentId &&
+                row.semesterId === draft.semesterId
+            )
+          ) {
+            return yield* new AlreadyExists({
+              entity: "AdmissionPeriod",
+              key: String(draft.departmentId),
+              message: "Avdelingen har allerede et opptak dette semesteret.",
+            });
+          }
+
+          const created: StoredAdmissionPeriod = {
+            departmentId: draft.departmentId,
+            end: draft.end,
+            id: AdmissionPeriodId.make(takeId()),
+            semester: {
+              term: semester.value.term,
+              year: semester.value.year,
+            },
+            semesterId: draft.semesterId,
+            start: draft.start,
+          };
+
+          db.admissionPeriods.push(created);
+
+          return created;
+        }),
+      extend: (id, end, now) =>
+        Effect.gen(function* extend() {
+          const current = yield* periodIn(id);
+
+          if (
+            !DateTime.isGreaterThan(current.end, now) ||
+            !DateTime.isGreaterThan(end, current.end)
+          ) {
+            return yield* periodChanged(id);
+          }
+
+          const extended = { ...current, end };
+
+          db.admissionPeriods.splice(
+            db.admissionPeriods.indexOf(current),
+            1,
+            extended
+          );
+
+          return extended;
+        }),
+      findById: periodIn,
+      list: Effect.sync(() =>
+        Arr.map(
+          db.admissionPeriods,
+          ({ departmentId, end, semester, start }) => ({
+            departmentId,
+            end,
+            semester,
+            start,
+          })
+        )
+      ),
+      listStored: Effect.sync(() => db.admissionPeriods),
+      remove: (id, now) =>
+        Effect.gen(function* remove() {
+          const current = yield* periodIn(id);
+
+          if (!DateTime.isGreaterThan(current.start, now)) {
+            return yield* periodChanged(id);
+          }
+
+          db.admissionPeriods.splice(db.admissionPeriods.indexOf(current), 1);
+
+          return yield* Effect.void;
+        }),
+    });
+
+    /** The applications' reads over the table. Their writes need the person aggregate, which PostgreSQL's tests cover (`packages/db/test/admission*.postgres.test.ts`). */
+    const applications = ApplicationRepository.of({
+      existsForAddress: (periodId, email) =>
+        Effect.sync(() =>
+          Arr.some(
+            db.applications,
+            (row) => row.periodId === periodId && row.personEmail === email
+          )
+        ),
+      find: (id) =>
+        Effect.suspend(() =>
+          Effect.mapError(
+            Effect.fromOption(
+              Arr.findFirst(db.applications, (row) => row.id === id)
+            ),
+            () => new NotFound({ entity: "Application", key: String(id) })
+          )
+        ),
+      findLocked: () =>
+        Effect.die("the in-memory tables hold no locked applications"),
+      insert: () =>
+        Effect.die("the in-memory tables hold no locked applications"),
+      list: (departmentIds) =>
+        Effect.sync(() =>
+          Arr.filter(
+            db.applications,
+            (row) =>
+              departmentIds === null ||
+              Arr.contains(departmentIds, row.departmentId)
+          )
+        ),
+      transition: () =>
+        Effect.die("the in-memory tables hold no locked applications"),
     });
 
     return Context.make(DepartmentRepository, departments).pipe(
       Context.add(AdmissionPeriodRepository, admissionPeriods),
+      Context.add(ApplicationRepository, applications),
       Context.add(SemesterRepository, semesters),
       Context.add(FieldOfStudyRepository, fieldsOfStudy),
       Context.add(SocialEventRepository, socialEvents),
@@ -574,6 +720,7 @@ const transactor = Layer.effect(
 
           const before: Omit<MemoryTables, "commits" | "nextId" | "teams"> = {
             admissionPeriods: [...db.admissionPeriods],
+            applications: [...db.applications],
             audit: [...db.audit],
             departments: [...db.departments],
             fieldsOfStudy: [...db.fieldsOfStudy],

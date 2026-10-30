@@ -4,8 +4,10 @@
  */
 import type {
   AccountRepository,
+  AdmissionPeriodRepository,
   AdminGrantRepository,
   AggregateLocks,
+  ApplicationRepository,
   AuditLog,
   CurrentPrincipal,
   DepartmentRepository,
@@ -40,7 +42,9 @@ const { signal } = new AbortController();
 
 export type ViewServices =
   | AccountRepository
+  | AdmissionPeriodRepository
   | AggregateLocks
+  | ApplicationRepository
   | CurrentPrincipal
   | SiteOrigin
   | DepartmentRepository

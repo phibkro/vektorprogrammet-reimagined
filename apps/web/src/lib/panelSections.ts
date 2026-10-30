@@ -33,6 +33,12 @@ export const PANEL_SECTIONS = [
   },
   {
     group: "Organisasjon",
+    key: "admission",
+    label: "Opptak",
+    to: "/kontrollpanel/opptak",
+  },
+  {
+    group: "Organisasjon",
     key: "teams",
     label: "Team",
     to: "/kontrollpanel/team",

@@ -342,6 +342,7 @@ const keyProblems = (
 const mergeColumns = (rule: MergeRule): readonly string[] =>
   MergeRule.match(rule, {
     Drop: () => [],
+    Earliest: ({ by, madeAt }) => [by, madeAt],
     Follow: () => [],
     Inherit: () => [],
     Move: ({ collisions }) => collisions,

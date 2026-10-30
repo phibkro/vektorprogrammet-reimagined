@@ -14,6 +14,9 @@ import {
 } from "effect";
 import type { Rpc } from "effect/rpc";
 
+import { hashCode } from "../accounts/code.ts";
+import type { CodeToken } from "../accounts/code.ts";
+import { CodeRepository } from "../accounts/codeRepository.ts";
 import { IssueCodeMessage } from "../accounts/messages.ts";
 import { codeResource, personOf, runWithCode } from "../accounts/principal.ts";
 import { AccountRepository } from "../accounts/services.ts";
@@ -50,6 +53,7 @@ import {
   sendAlumniConsent,
   setAlumniConsent,
   setPhoto,
+  verifyApplicantEmail,
 } from "./rpc.ts";
 import {
   AlumniRequests,
@@ -71,6 +75,9 @@ const SAME_PERSON = "Velg to forskjellige personer.";
 
 const GONE =
   "En av personene finnes ikke, eller er allerede slått sammen med en annen.";
+
+const LINK_UNUSABLE =
+  "Lenken kan ikke brukes. Den er brukt, utløpt eller ikke gyldig. Ta kontakt med avdelingen.";
 
 /**
  * How the audit log names a retention run, by what it did. A run that only counted never says that it ran: its counts
@@ -220,6 +227,128 @@ const setThePhoto = Effect.fn("PersonalData.setPhoto")(function* setThePhoto(
 
   return yield* Effect.void;
 });
+
+/** The applicant's own token, and the other person's when someone already holds the address verified. */
+const lockApplicant = Effect.fn("PersonalData.lockApplicant")(
+  function* lockApplicant(personId: PersonId, unusable: Conflict) {
+    const me = yield* (yield* PersonRepository)
+      .findById(personId)
+      .pipe(Effect.catchTag("NotFound", () => Effect.fail(unusable)));
+
+    // Who holds the address verified now is found before the locks, which need to name them, and rechecked under
+    // them. The admin list comes first because a merge moves accounts and places.
+    const holder = Option.filter(
+      yield* (yield* AccountRepository).verifiedHolderOf(me.email),
+      (id) => id !== personId
+    );
+
+    yield* lockAdminList;
+
+    const tokens = yield* (yield* AggregateLocks)
+      .lockAll(
+        "Person",
+        Option.match(holder, {
+          onNone: () => [personId],
+          onSome: (id) => [personId, id],
+        })
+      )
+      .pipe(Effect.catchTag("NotFound", () => Effect.fail(unusable)));
+
+    const mine = Arr.findFirst(tokens, (token) => token.id === personId);
+
+    if (Option.isNone(mine)) {
+      return yield* Effect.die("lockAll returned no token for the person");
+    }
+
+    return { holder, mine: mine.value, tokens };
+  }
+);
+
+/**
+ * What the spent code means for the address: verified when no one else holds it, merged into the holder when someone
+ * does (RULE-306, spec 0009). The holder is rechecked under the locks: a change since the first read makes the link
+ * unusable, and nothing is written.
+ */
+const settleAddress = Effect.fn("PersonalData.settleAddress")(
+  function* settleAddress(
+    principal: Principal,
+    held: Effect.Success<ReturnType<typeof lockApplicant>>,
+    unusable: Conflict
+  ) {
+    const accounts = yield* AccountRepository;
+    const { holder, mine, tokens } = held;
+    const address = yield* accounts.emailOf(mine);
+
+    if (!address.verified) {
+      const holderNow = Option.filter(
+        yield* accounts.verifiedHolderOf(address.email),
+        (id) => id !== mine.id
+      );
+
+      if (Option.getOrNull(holder) !== Option.getOrNull(holderNow)) {
+        return yield* unusable;
+      }
+
+      if (Option.isNone(holderNow)) {
+        yield* accounts
+          .verifyEmail(mine)
+          .pipe(Effect.catchTag("AlreadyExists", () => Effect.fail(unusable)));
+      } else {
+        const into = Arr.findFirst(
+          tokens,
+          (token) => token.id === holderNow.value
+        );
+
+        if (Option.isNone(into)) {
+          return yield* Effect.die("lockAll returned no token for the holder");
+        }
+
+        yield* (yield* PersonalDataStore).merge(into.value, mine);
+        yield* recordAudit(principal, "person.merged", "Person", into.value.id);
+      }
+    }
+
+    return yield* recordAudit(
+      principal,
+      "applicant.verified",
+      "Person",
+      mine.id
+    );
+  }
+);
+
+const verifyTheAddress = Effect.fn("PersonalData.verifyApplicantEmail")(
+  function* verifyTheAddress(principal: Principal, code: CodeToken) {
+    yield* InTransaction;
+    const personId = personOf(principal);
+
+    if (personId === null) {
+      return yield* Effect.die("verification needs a code principal");
+    }
+
+    const unusable = new Conflict({
+      entity: "Person",
+      key: String(personId),
+      message: LINK_UNUSABLE,
+    });
+
+    const held = yield* lockApplicant(personId, unusable);
+    const now = yield* DateTime.now;
+    const hash = yield* Effect.orDie(hashCode(code));
+
+    const spent = yield* (yield* CodeRepository).consume(held.mine, {
+      hash,
+      now,
+      purpose: "verifyApplication",
+    });
+
+    if (!spent) {
+      return yield* unusable;
+    }
+
+    return yield* settleAddress(principal, held, unusable);
+  }
+);
 
 export const PersonalDataHandlers = PersonalDataRpc.toLayer({
   answerAlumniConsent: PersonalDataDomain.handle(answerAlumniConsent, {
@@ -448,6 +577,10 @@ export const PersonalDataHandlers = PersonalDataRpc.toLayer({
       personResource(PersonalDataDomain.authorize, "setPhoto", personId),
     run: (request, principal) => setThePhoto(principal, request),
   }),
+  verifyApplicantEmail: PersonalDataDomain.handle(verifyApplicantEmail, {
+    resource: () => codeResource,
+    run: ({ code }, principal) => verifyTheAddress(principal, code),
+  }),
 });
 
 export const withPersonalData = Commands.inProcess(
@@ -482,6 +615,14 @@ export const PersonalDataEndpoints = {
   ),
   setPhoto: Commands.endpoint(setPhoto, (payload) =>
     withPersonalData((client) => client.setPhoto(payload))
+  ),
+  verifyApplicantEmail: Commands.endpoint(verifyApplicantEmail, (payload) =>
+    runWithCode(
+      PersonalDataDomain,
+      "verifyApplication",
+      payload.code,
+      withPersonalData((client) => client.verifyApplicantEmail(payload))
+    )
   ),
 };
 

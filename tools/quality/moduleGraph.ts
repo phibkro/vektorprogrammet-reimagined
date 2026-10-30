@@ -264,6 +264,22 @@ const modules: readonly Module[] = [
     uses: ["annotations", "kernel", "organisation", "triggers", "vocabulary"],
   },
   {
+    files: src("admission/*.ts"),
+    layer: "service",
+    name: "admission",
+    uses: [
+      "annotations",
+      "audit",
+      "iam",
+      "kernel",
+      "membership",
+      "organisation",
+      "outbox",
+      "transactions",
+      "vocabulary",
+    ],
+  },
+  {
     files: src(
       "personalData/catalog.ts",
       "jobs/registry.ts",
@@ -273,6 +289,7 @@ const modules: readonly Module[] = [
     layer: "catalog",
     name: "catalog",
     uses: [
+      "admission",
       "annotations",
       "audit",
       "contact",

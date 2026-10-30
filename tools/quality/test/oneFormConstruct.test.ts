@@ -11,10 +11,14 @@
  * early signal at review time, as the other scans of this directory are.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Order, Record as Rec } from "effect";
+import { Array as Arr, Order } from "effect";
 
-import { assertCleanScan, repositoryRoot } from "./support/sources.ts";
-import type { Source } from "./support/sources.ts";
+import {
+  assertCleanScan,
+  repositoryRoot,
+  signFindings,
+} from "./support/sources.ts";
+import type { Sign, Source } from "./support/sources.ts";
 
 /** What each sign is, the pattern that finds it, and the files that may have it, each with why. */
 const SIGNS = {
@@ -47,49 +51,13 @@ const SIGNS = {
     },
     pattern: /from "@tanstack\/react-form"/u,
   },
-} satisfies Readonly<
-  Record<
-    string,
-    {
-      readonly allowed: Readonly<Record<string, string>>;
-      readonly pattern: RegExp;
-    }
-  >
->;
-
-const signs = Rec.keys(SIGNS);
+} satisfies Readonly<Record<string, Sign>>;
 
 /** The source that the scan reads: the `src` of the web app. */
 const isSource = (path: string): boolean =>
   /^apps\/web\/src\/.*\.tsx?$/u.test(path);
 
-const allowedFor = (
-  sign: keyof typeof SIGNS
-): Readonly<Record<string, string>> => SIGNS[sign].allowed;
-
-/** `file has Sign` for each file that has a sign and is not allowed to. */
-const unlisted = (sources: readonly Source[]): readonly string[] =>
-  Arr.flatMap(sources, ({ path, text }) =>
-    Arr.flatMap(signs, (sign) =>
-      SIGNS[sign].pattern.test(text) && allowedFor(sign)[path] === undefined
-        ? [`${path} has ${sign}`]
-        : []
-    )
-  );
-
-/** `file is allowed Sign` for each allowance whose file does not have the sign. */
-const stale = (sources: readonly Source[]): readonly string[] =>
-  Arr.flatMap(signs, (sign) =>
-    Arr.flatMap(Rec.keys(allowedFor(sign)), (path) =>
-      Arr.some(
-        sources,
-        (source) =>
-          source.path === path && SIGNS[sign].pattern.test(source.text)
-      )
-        ? []
-        : [`${path} is allowed ${sign} and does not have it`]
-    )
-  );
+const { stale, unlisted } = signFindings(SIGNS);
 
 describe("spec 0010a F1: one form construct", () => {
   it("control: a hand-made form, a hand-read field and a second import of TanStack Form are reported, the construct itself is not", () => {

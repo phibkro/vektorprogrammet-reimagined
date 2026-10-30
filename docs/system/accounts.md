@@ -55,11 +55,12 @@ stateDiagram-v2
 
 <!-- docgen:begin code-policy -->
 
-| Purpose       | Command             | Hours | Account | Single use |
-| ------------- | ------------------- | ----- | ------- | ---------- |
-| activation    | activateAccount     | 336   | Invited | yes        |
-| alumniConsent | answerAlumniConsent | 1440  | none    | no         |
-| resetPassword | resetPassword       | 24    | Active  | yes        |
+| Purpose           | Command              | Hours | Account | Single use |
+| ----------------- | -------------------- | ----- | ------- | ---------- |
+| activation        | activateAccount      | 336   | Invited | yes        |
+| alumniConsent     | answerAlumniConsent  | 1440  | none    | no         |
+| resetPassword     | resetPassword        | 24    | Active  | yes        |
+| verifyApplication | verifyApplicantEmail | 720   | none    | yes        |
 
 <!-- docgen:end code-policy -->
 
@@ -75,6 +76,7 @@ stateDiagram-v2
   Unsent --> Usable : acknowledgeCode
   Usable --> Used : activateAccount
   Usable --> Used : resetPassword
+  Usable --> Used : verifyApplicantEmail
 ```
 
 <!-- docgen:end code-lifecycle -->

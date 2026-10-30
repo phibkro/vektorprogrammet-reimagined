@@ -58,6 +58,21 @@ export class AccountRepository extends Context.Service<
     readonly verifyEmail: (
       locked: Locked<"Person">
     ) => Effect.Effect<void, AlreadyExists, InTransaction>;
+    /** The locked person's address and whether it is verified: a decision read, which runs after the lock. */
+    readonly emailOf: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<
+      { readonly email: EmailAddress; readonly verified: boolean },
+      never,
+      InTransaction
+    >;
+    /**
+     * Whom to lock when an address is verified: the person who holds `email` verified, if one does (the unique index
+     * allows one). The caller rechecks through the locks.
+     */
+    readonly verifiedHolderOf: (
+      email: EmailAddress
+    ) => Effect.Effect<Option.Option<PersonId>>;
     readonly updateProfile: (
       locked: Locked<"Person">,
       profile: PersonDraft

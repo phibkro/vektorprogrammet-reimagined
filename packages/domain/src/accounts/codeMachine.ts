@@ -37,16 +37,31 @@ const acknowledgeCode = Rpc.make("acknowledgeCode", {
   success: Schema.Void,
 });
 
-/** The commands that move a code: the two steps of the delivery, and the two commands that spend a single-use code. */
+/**
+ * Spend the code of an applicant's e-mail address (spec 0009). The command runs in `personalData` (it merges two
+ * people when the address is already verified, and this module cannot import that one), and `codePolicy` names it; this
+ * is its step in the table, as `issueCode` and `acknowledgeCode` are the steps of the delivery.
+ */
+const verifyApplicantEmail = Rpc.make("verifyApplicantEmail", {
+  payload: { personId: PersonId },
+  success: Schema.Void,
+});
+
+/** The commands that move a code: the two steps of the delivery, and the commands that spend a single-use code. */
 const CodeRpc = RpcGroup.make(
   issueCode,
   acknowledgeCode,
   activateAccount,
-  resetPassword
+  resetPassword,
+  verifyApplicantEmail
 );
 
 /** The commands whose transition a repository applies to a stored code. */
-export type CodeStep = "acknowledgeCode" | "activateAccount" | "resetPassword";
+export type CodeStep =
+  | "acknowledgeCode"
+  | "activateAccount"
+  | "resetPassword"
+  | "verifyApplicantEmail";
 
 type CodeTransition = Machine.Transition<
   CodeState["_tag"],
@@ -63,6 +78,11 @@ const steps = {
   },
   activateAccount: { command: "activateAccount", from: ["Usable"], to: "Used" },
   resetPassword: { command: "resetPassword", from: ["Usable"], to: "Used" },
+  verifyApplicantEmail: {
+    command: "verifyApplicantEmail",
+    from: ["Usable"],
+    to: "Used",
+  },
 } as const satisfies Record<CodeStep, CodeTransition>;
 
 export const CodeMachine = Machine.make({
@@ -76,6 +96,7 @@ export const CodeMachine = Machine.make({
     steps.acknowledgeCode,
     steps.activateAccount,
     steps.resetPassword,
+    steps.verifyApplicantEmail,
   ],
 });
 

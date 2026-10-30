@@ -10,6 +10,7 @@
 import { impactView } from "@vektorprogrammet/domain";
 import { Effect } from "effect";
 
+import { admissionView } from "./admission";
 import { integrationsView } from "./integrations";
 import {
   dashboardView,
@@ -27,6 +28,7 @@ const guarded = <A, E, R>(read: PanelRead, view: Effect.Effect<A, E, R>) =>
 
 export const panelReads = {
   getAdmins: guarded("getAdmins", adminsView),
+  getAdmission: guarded("getAdmission", admissionView),
   getDashboard: guarded("getDashboard", dashboardView),
   getDepartments: guarded("getDepartments", departmentsView),
   getFieldsOfStudy: guarded("getFieldsOfStudy", fieldsOfStudyView),

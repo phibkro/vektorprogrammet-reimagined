@@ -8,12 +8,14 @@ import { isNotFound } from "@tanstack/react-router";
 import { CmsClient, PortableText } from "@vektorprogrammet/cms-client";
 import type { NewsData } from "@vektorprogrammet/cms-client";
 import {
+  AdmissionPeriodId,
   Catalog,
   ContactForm,
   DepartmentId,
+  SemesterId,
   privacyNotice,
 } from "@vektorprogrammet/domain";
-import type { AdmissionPeriod } from "@vektorprogrammet/domain";
+import type { StoredAdmissionPeriod } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -63,10 +65,12 @@ const period = (
   departmentId: number,
   startDay: number,
   endDay: number
-): AdmissionPeriod => ({
+): StoredAdmissionPeriod => ({
   departmentId: DepartmentId.make(departmentId),
   end: day(endDay),
+  id: AdmissionPeriodId.make(departmentId),
   semester: { term: "VAR", year: 2026 },
+  semesterId: SemesterId.make(1),
   start: day(startDay),
 });
 

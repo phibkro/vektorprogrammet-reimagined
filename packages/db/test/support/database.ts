@@ -13,6 +13,7 @@ import { PgClient } from "@effect/sql-pg";
 import { PgliteClient } from "@effect/sql-pglite";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import type { RetentionMode } from "@vektorprogrammet/domain";
+import { WebCryptoTest } from "@vektorprogrammet/domain/testing/crypto";
 import * as PgliteDrizzle from "drizzle-orm/effect-pglite";
 import { migrate as migratePglite } from "drizzle-orm/effect-pglite/migrator";
 import { Effect, Layer } from "effect";
@@ -52,14 +53,15 @@ export const pgliteDatabase = Layer.mergeAll(
   Layer.provide(PgliteClient.layer({ extensions: { btree_gist } }))
 );
 
-/** `database` on a migrated disposable database, plus `TestDatabaseUrl` and a separate `Drizzle` handle (its own small pool). */
+/** `database` on a migrated disposable database, plus `TestDatabaseUrl`, `Crypto` and a separate `Drizzle` handle (its own small pool). */
 const onDisposableDatabase = <ROut, E, RIn>(
   database: (url: Redacted.Redacted) => Layer.Layer<ROut, E, RIn>
 ) =>
   Layer.unwrap(
     Effect.map(Effect.service(TestDatabaseUrl), (url) =>
-      Layer.merge(
+      Layer.mergeAll(
         database(url),
+        WebCryptoTest,
         Drizzle.layerPg.pipe(
           Layer.provide(
             PgClient.layer({ maxConnections: 2, prepare: false, url })

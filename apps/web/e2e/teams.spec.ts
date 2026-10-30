@@ -109,6 +109,7 @@ test("falsifier 10: an admin and leader create a team and members, switch princi
   await expect(sidebarOf(page).getByRole("link")).toHaveText([
     "Oversikt",
     "Semestre",
+    "Opptak",
     "Team",
     "Arrangementer",
   ]);

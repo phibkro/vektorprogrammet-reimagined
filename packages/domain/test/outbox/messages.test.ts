@@ -3,7 +3,8 @@
  * rows that `packages/db` persists decode with it, the `outbox.kind` check lists its tags, and the queue consumer
  * matches on them, so its tags, their order and the encoded shape of each are pinned to main `c0ab784`, where
  * `shared/outbox.ts` declared them in one `Schema.TaggedUnion`. `outboxMessage.golden.json` is that union's tags and
- * its `SchemaRepresentation` as JSON, written by a script run on that commit.
+ * its `SchemaRepresentation` as JSON, written by a script run on that commit. Spec 0009 adds one literal to it, the code
+ * purpose `verifyApplication` of `IssueCode`, at the end of the list: nothing else changed.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Record as Rec, Schema, SchemaRepresentation } from "effect";

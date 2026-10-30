@@ -72,6 +72,7 @@ import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
 import { myPage, signInDestination } from "../src/server/accounts";
+import { applicationPage, applyIndexPage } from "../src/server/admission";
 import { Auth } from "../src/server/auth";
 import { isolationReport } from "../src/server/isolation";
 import { panelReads } from "../src/server/panelReads";
@@ -232,7 +233,23 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getDepartmentSlug", departmentSlugById(1), {
     empty: "NotFound",
   }),
+  readPath("public.functions getApplyIndex", applyIndexPage),
+  readPath(
+    "public.functions getApplicationPage",
+    applicationPage("alfaby", false),
+    {
+      empty: "NotFound",
+    }
+  ),
+  readPath(
+    "public.functions getApplicationPage (receipt)",
+    applicationPage("alfaby", true),
+    { empty: "NotFound" }
+  ),
   readPath("panel.functions getShell", shellView("local")),
+  readPath("panel.functions getAdmission", panelReads.getAdmission, {
+    refusedTo: NO_PANEL,
+  }),
   readPath("panel.functions getDashboard", panelReads.getDashboard, {
     refusedTo: NO_PANEL,
   }),
@@ -311,8 +328,8 @@ const READ_PATHS: readonly ReadPath[] = [
 /** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
 const RUN_QUERY_CALL_SITES = {
   "functions/account.functions.ts": 2,
-  "functions/panel.functions.ts": 12,
-  "functions/public.functions.ts": 11,
+  "functions/panel.functions.ts": 13,
+  "functions/public.functions.ts": 13,
   "routes/api/isolation.ts": 1,
   "routes/filer/$key.ts": 1,
   "server.ts": 1,

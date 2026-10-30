@@ -46,6 +46,7 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "departments",
   "semesters",
   "fieldsOfStudy",
+  "admission",
   "teams",
   "people",
   "admins",
@@ -54,10 +55,11 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "socialEvents",
 ];
 
-/** What a team member may use: the overview, the semesters, the teams and the events of their department. */
+/** What a team member of the recruitment team may use: the overview, the semesters, the admission, the teams and the events of their department. */
 const MEMBER_SECTIONS: readonly SectionKey[] = [
   "overview",
   "semesters",
+  "admission",
   "teams",
   "socialEvents",
 ];
@@ -77,6 +79,7 @@ const LEADER_SECTIONS: readonly SectionKey[] = [
   "departments",
   "semesters",
   "fieldsOfStudy",
+  "admission",
   "teams",
   "people",
   "socialEvents",

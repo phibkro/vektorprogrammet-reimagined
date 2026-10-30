@@ -1,7 +1,7 @@
 /** What a failed command says: its typed error, if it failed with one (a defect or an interruption has none). */
 import { assert } from "@effect/vitest";
 import { Conflict } from "@vektorprogrammet/domain";
-import { Cause, Exit, Option, Schema } from "effect";
+import { Array as Arr, Cause, Exit, Option, Schema } from "effect";
 
 import { describeExit } from "./race.ts";
 
@@ -23,6 +23,21 @@ export const assertFailedWith = (
   label: string
 ): void => {
   assert.isTrue(failedWith(exit, error), `${label}: ${describeExit(exit)}`);
+};
+
+/** A race of equal commands has exactly one winner, and every loser failed with this typed error (not a defect or a deadlock). */
+export const assertOneWinner = (
+  exits: readonly Exit.Exit<unknown, unknown>[],
+  error: Schema.Top,
+  report: string
+): void => {
+  assert.strictEqual(Arr.filter(exits, Exit.isSuccess).length, 1, report);
+  assert.isTrue(
+    Arr.every(Arr.filter(exits, Exit.isFailure), (loser) =>
+      failedWith(loser, error)
+    ),
+    report
+  );
 };
 
 /** The text of the typed `Conflict` that refused a command, or nothing when it failed otherwise. */

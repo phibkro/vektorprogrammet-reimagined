@@ -86,15 +86,16 @@ const collidesWith = (
 const survivorHasRow = (table: string, column: string, survivor: number): SQL =>
   sql`exists (select 1 from ${identifier(table)} as ${identifier("other")} where ${col("other", column)} = ${survivor})`;
 
-/** A row of `table` for which `other` has a row of the same `by` that was decided after it. */
+/** A row of `table` for which `other` has a row of the same `by` that is `later` or `earlier` than it by `at`. */
 const supersededBy = (
   table: string,
   column: string,
   by: string,
-  decidedAt: string,
-  other: number
+  at: string,
+  other: number,
+  order: "earlier" | "later"
 ): SQL =>
-  sql`exists (select 1 from ${identifier(table)} as ${identifier("other")} where ${col("other", column)} = ${other} and ${col("other", by)} = ${col(table, by)} and ${col("other", decidedAt)} > ${col(table, decidedAt)})`;
+  sql`exists (select 1 from ${identifier(table)} as ${identifier("other")} where ${col("other", column)} = ${other} and ${col("other", by)} = ${col(table, by)} and ${col("other", at)} ${order === "later" ? sql`>` : sql`<`} ${col(table, at)})`;
 
 const conflict = (into: Person, from: Person, message: string) =>
   new Conflict({
@@ -217,6 +218,41 @@ export const personalDataMerge = (services: {
         Effect.orDie
       );
 
+  /**
+   * One row per `by` is left: the survivor's row goes when the merged person has one for the same `by` that is `later`
+   * or `earlier` by `at`, and the merged person's goes when the survivor has one that is not (a tie keeps the
+   * survivor's); what is left of the merged person's moves.
+   */
+  const keepOnePer = Effect.fnUntraced(function* keepOnePer(
+    table: string,
+    column: string,
+    into: Person,
+    from: Person,
+    by: string,
+    at: string,
+    order: "earlier" | "later"
+  ) {
+    const replaced = yield* deleteRows(
+      table,
+      column,
+      into,
+      supersededBy(table, column, by, at, from.id, order)
+    );
+
+    const covered = yield* deleteRows(
+      table,
+      column,
+      from,
+      collidesWith(table, column, [by], into.id)
+    );
+
+    return (
+      replaced +
+      covered +
+      (yield* moveRows(table, column, into, from, MERGE_REFUSED))
+    );
+  });
+
   const mergeRows = (
     rule: Rule,
     table: string,
@@ -226,6 +262,8 @@ export const personalDataMerge = (services: {
   ): Effect.Effect<number, Conflict> =>
     MergeRule.match(rule, {
       Drop: () => deleteRows(table, column, from),
+      Earliest: ({ by, madeAt }) =>
+        keepOnePer(table, column, into, from, by, madeAt, "earlier"),
       Follow: () => moveRows(table, column, into, from, MERGE_REFUSED),
       Inherit: () =>
         Effect.gen(function* inheritOnce() {
@@ -258,29 +296,7 @@ export const personalDataMerge = (services: {
           );
         }),
       Newest: ({ by, decidedAt }) =>
-        Effect.gen(function* keepNewest() {
-          // The survivor's row goes when the merged person's was decided later, and the merged person's goes when
-          // the survivor has one that was decided at the same time or later: one row per `by` is left.
-          const replaced = yield* deleteRows(
-            table,
-            column,
-            into,
-            supersededBy(table, column, by, decidedAt, from.id)
-          );
-
-          const covered = yield* deleteRows(
-            table,
-            column,
-            from,
-            collidesWith(table, column, [by], into.id)
-          );
-
-          return (
-            replaced +
-            covered +
-            (yield* moveRows(table, column, into, from, MERGE_REFUSED))
-          );
-        }),
+        keepOnePer(table, column, into, from, by, decidedAt, "later"),
       Single: ({ message }) =>
         Effect.gen(function* atMostOne() {
           if (yield* hasRowsOfBoth(table, column, into, from)) {
@@ -354,8 +370,12 @@ export const personalDataMerge = (services: {
     // history that refers to it (who granted a place) still has a person to name.
     const now = yield* DateTime.now;
     yield* anonymisePerson(from, now);
+    // What the person chose on a form (a field of study) is not kept on the tombstone, which names its survivor.
     yield* aggregates
-      .updateRoot(from, personRoot, { mergedInto: into.id })
+      .updateRoot(from, personRoot, {
+        fieldOfStudyId: null,
+        mergedInto: into.id,
+      })
       .pipe(Effect.orDie);
 
     return tally(noCounts, written);

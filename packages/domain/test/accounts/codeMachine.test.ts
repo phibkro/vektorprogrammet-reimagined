@@ -12,7 +12,11 @@ import {
 import type { CodeStep } from "../../src/index.ts";
 
 /** The commands that spend a code: those that a single-use purpose names in `codePolicy`. */
-const spending = ["activateAccount", "resetPassword"] as const;
+const spending = [
+  "activateAccount",
+  "resetPassword",
+  "verifyApplicantEmail",
+] as const;
 
 type Table = Pick<typeof CodeMachine, "states" | "transitions">;
 

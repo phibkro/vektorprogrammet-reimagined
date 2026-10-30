@@ -64,7 +64,7 @@ const person = table({
       retention: withThePersonCore,
     }),
     field_of_study_id: notPersonal(
-      "A course of study from a list that hundreds of people share. It identifies no one without the name, and it gives a historical membership its department"
+      "A course of study from a list that hundreds of people share. It identifies no one without the name, and it gives a historical membership its department. A merge tombstone does not keep it (null), because the tombstone names its survivor"
     ),
     id: notPersonal(
       "A surrogate key; the history rows keep naming it, and it names no one once the core fields are anonymised"

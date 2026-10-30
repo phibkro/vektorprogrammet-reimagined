@@ -112,6 +112,22 @@ export const answerAlumniConsent = Rpc.make("answerAlumniConsent", {
   })
 );
 
+export const verifyApplicantEmail = Rpc.make("verifyApplicantEmail", {
+  error: DomainErrorSchema,
+  payload: { code: CodeToken },
+  success: Schema.Void,
+}).annotate(
+  Info,
+  info({
+    credential: "verifyApplication",
+    method: ":verify",
+    note: "One use. It answers the same whether the address was known or not; when a verified person holds the address, the new person is merged into that one (an anonymised tombstone stays), so an application is joined to a known person only after the address is verified (RULE-306, spec 0009).",
+    resource: "Person",
+    summary:
+      "Verify the address of an applicant with the code from the confirmation e-mail.",
+  })
+);
+
 export const exportMyData = Rpc.make("exportMyData", {
   error: DomainErrorSchema,
   payload: { personId: PersonId },
@@ -192,6 +208,7 @@ export const PersonalDataRpc = RpcGroup.make(
   setPhoto,
   setAlumniConsent,
   answerAlumniConsent,
+  verifyApplicantEmail,
   exportMyData,
   erasePerson,
   mergePersons,
@@ -209,6 +226,7 @@ export const PersonalDataDomain = declareDomain({
     ),
     grant([leader], ["setPhoto"], "department"),
     grant([codeHolder("alumniConsent")], ["answerAlumniConsent"], "own"),
+    grant([codeHolder("verifyApplication")], ["verifyApplicantEmail"], "own"),
     grant([system("retention")], ["runRetention"], "all"),
     grant([system("alumniConsent")], ["sendAlumniConsent"], "all"),
   ],

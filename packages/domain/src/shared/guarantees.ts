@@ -22,11 +22,13 @@ import type { Context } from "effect";
 
 import { CodeRepository } from "../accounts/codeRepository.ts";
 import { AccountRepository } from "../accounts/services.ts";
+import { ApplicationRepository } from "../admission/services.ts";
 import { AuditLog } from "../audit/auditLog.ts";
 import { FileStore, PublicFileRepository } from "../files/services.ts";
 import { ImpactSnapshots } from "../impact/services.ts";
 import { JobRuns } from "../jobs/runs.ts";
 import {
+  AdmissionPeriodRepository,
   DepartmentRepository,
   SemesterRepository,
 } from "../organisation/services.ts";
@@ -331,12 +333,14 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(PublicFileRepository, "register"),
       carrier(WorkspaceAssignments, "assign"),
       carrier(CodeRepository, "issue"),
+      carrier(AdmissionPeriodRepository, "create"),
+      carrier(ApplicationRepository, "insert"),
       carrier(CapturedMessageStore, "record"),
     ],
     id: "UK1",
     invariant: true,
     property:
-      "At most one record per natural key: department city; person e-mail and company e-mail; team name within its department and team group e-mail; semester (term, year); public file key and legacy path; position name; one-time code hash; company address; captured delivery key.",
+      "At most one record per natural key: department city; person e-mail and company e-mail; team name within its department and team group e-mail; semester (term, year); admission period per department and semester; application per person and period; public file key and legacy path; position name; one-time code hash; company address; captured delivery key.",
     rawWriter: "inserts a second record with the same key: refused",
     strength: "store-enforced",
   },

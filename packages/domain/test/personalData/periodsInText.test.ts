@@ -223,7 +223,7 @@ const EXPECTED_COUNTS = {
   catalog: 4,
   consentTexts: 2,
   domains: 3,
-  purposes: 2,
+  purposes: 4,
 };
 
 describe("spec 0007b R3 item 28: a period that a declared text states is built from its declaration", () => {
