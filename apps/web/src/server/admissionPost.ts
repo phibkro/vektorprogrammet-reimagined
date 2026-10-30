@@ -39,6 +39,25 @@ export interface VerifyState {
 const seeOther = (location: string): Response =>
   new Response(null, { headers: { Location: location }, status: 303 });
 
+/**
+ * The two steps of a posted application, before they run: who is asking (the rate limit and Turnstile, outside the
+ * transaction), the command (inside it), and the values as typed, for the page that is shown again after a refusal.
+ */
+export const submissionOf = (form: FormData, headers: Headers) => {
+  const values = textOf(form);
+  const token = values[TURNSTILE_RESPONSE_FIELD] ?? "";
+
+  return {
+    command: () =>
+      AdmissionEndpoints.submitApplication(ApplicationForm.read(form)),
+    prepare: prepareHuman({
+      captchaToken: token === "" ? null : token,
+      remoteIp: headers.get("CF-Connecting-IP"),
+    }),
+    values,
+  };
+};
+
 export const handleApplicationPost = <Next>(options: {
   readonly request: Request;
   readonly context: RequestContext;
@@ -47,16 +66,15 @@ export const handleApplicationPost = <Next>(options: {
   }) => Next;
 }): Promise<Response | Next> =>
   options.request.formData().then((form) => {
-    const values = textOf(form);
-    const token = values[TURNSTILE_RESPONSE_FIELD] ?? "";
+    const { command, prepare, values } = submissionOf(
+      form,
+      options.request.headers
+    );
 
     return runPreparedCommand(
       requestScope(options.context),
-      prepareHuman({
-        captchaToken: token === "" ? null : token,
-        remoteIp: options.request.headers.get("CF-Connecting-IP"),
-      }),
-      () => AdmissionEndpoints.submitApplication(ApplicationForm.read(form))
+      prepare,
+      command
     ).then((outcome) => {
       if (Predicate.isTagged(outcome, "Success")) {
         return seeOther(`${new URL(options.request.url).pathname}?sendt=1`);

@@ -318,6 +318,7 @@
       ],
       "scope": {
         "files": [
+          "apps/web/test/admission.postgres.test.ts",
           "apps/web/test/deliveryBoundary.postgres.test.ts",
           "apps/web/test/deliveryScope.postgres.test.ts",
           "apps/web/test/outboxQueue.postgres.test.ts",

@@ -559,6 +559,7 @@ export default defineConfig({
           "apps/web/src/server/password.ts",
           "apps/web/test/auth.postgres.test.ts",
           "apps/web/test/isolation.postgres.test.ts",
+          "apps/web/test/admission.postgres.test.ts",
           "apps/web/test/platform.postgres.test.ts",
           "apps/web/test/password.test.ts",
           "apps/web/test/password.worker.test.ts",
@@ -641,6 +642,7 @@ export default defineConfig({
           "apps/web/test/deliveryBoundary.postgres.test.ts",
           // EX-0028 (spec 0017): the scope test calls the Promise-based runners, and its stand-in rate-limit binding answers a Promise.
           "apps/web/test/deliveryScope.postgres.test.ts",
+          "apps/web/test/admission.postgres.test.ts",
           "apps/web/test/support/workerEnv.ts",
           "apps/web/test/outboxQueue.postgres.test.ts",
           "apps/web/test/support/commandOutcome.ts",

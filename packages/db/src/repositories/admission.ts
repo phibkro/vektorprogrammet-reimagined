@@ -35,6 +35,7 @@ import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots as aggregateRoots } from "../aggregate/declaration.ts";
 import { classifySqlFailure } from "../classifySqlFailure.ts";
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { admissionPeriod, application, person } from "../schema.ts";
 
 const { owned } = aggregateRoots.Person;
@@ -269,13 +270,16 @@ export const ApplicationRepositoryLive = Layer.effect(
       }));
     });
 
-    return ApplicationRepository.of({
-      existsForAddress,
-      find,
-      findLocked,
-      insert,
-      list,
-      transition,
-    });
+    return yield* verified(
+      "ApplicationRepository",
+      ApplicationRepository.of({
+        existsForAddress,
+        find,
+        findLocked,
+        insert,
+        list,
+        transition,
+      })
+    );
   })
 );
