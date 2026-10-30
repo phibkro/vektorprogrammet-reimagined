@@ -9,6 +9,7 @@ import {
   osloLocalToIso,
   wholeNumber,
 } from "./formSchema";
+import { profileOf } from "./people";
 import { optionalSemesterOfChoice, semesterOfChoice } from "./semester";
 
 /** The fields that a team is made and changed with; a blank `id` makes a new team (in `departmentId`), an `id` changes one. */
@@ -61,12 +62,7 @@ export const RegisterPersonForm = formSchema(
     name: Text,
   }),
   Teams.createPerson.payloadSchema,
-  (text) => ({
-    companyEmail: blankToNull(text.companyEmail),
-    email: text.email ?? "",
-    fieldOfStudyId: wholeNumber(text.fieldOfStudyId),
-    name: text.name ?? "",
-  })
+  profileOf
 );
 
 /** A person who is added to a team; a blank `end` takes the team's default term. */

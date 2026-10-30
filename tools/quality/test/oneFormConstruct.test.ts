@@ -11,12 +11,10 @@
  * early signal at review time, as the other scans of this directory are.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Order, Record as Rec } from "effect";
+import { Array as Arr, Order, Record as Rec } from "effect";
 
+import { assertCleanScan, repositoryRoot } from "./support/sources.ts";
 import type { Source } from "./support/sources.ts";
-import { workingTreeSources } from "./support/sources.ts";
-
-const root = new URL("../../../", import.meta.url).pathname.replace(/\/$/u, "");
 
 /** What each sign is, the pattern that finds it, and the files that may have it, each with why. */
 const SIGNS = {
@@ -137,13 +135,6 @@ describe("spec 0010a F1: one form construct", () => {
 
   it.effect(
     "the real tree: every sign is in a listed file, and every listing is used",
-    () =>
-      Effect.gen(function* realSigns() {
-        const sources = yield* workingTreeSources(root, isSource);
-
-        assert.isAbove(sources.length, 100);
-        assert.deepStrictEqual(unlisted(sources), []);
-        assert.deepStrictEqual(stale(sources), []);
-      })
+    () => assertCleanScan(repositoryRoot, isSource, { stale, unlisted })
   );
 });

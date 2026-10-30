@@ -278,19 +278,18 @@ const fillForm = async (page: Page) => {
 
 const CAPTCHA_MESSAGE = "Bekreft at du ikke er en robot, og prøv igjen.";
 
-test("falsifier 3 (RULE-167): a post without a Turnstile answer is refused with 422 and queues nothing", async ({
-  page,
-}) => {
-  // Without Cloudflare's widget script there is no answer to send, whatever the visitor does.
+/**
+ * Without Cloudflare's widget script there is no Turnstile answer to send, whatever the visitor does: the page gets no
+ * widget, the form is sent, and the refusal is the server's.
+ */
+const withoutTurnstile = async (page: Page) => {
   await page.route("https://challenges.cloudflare.com/**", async (route) => {
     await route.abort();
   });
-  const outboxBefore = await runDatabase(outboxRows);
-  const auditBefore = await runDatabase(auditEntryCount);
+};
 
-  await openPage(page, "/kontakt");
-  await fillForm(page);
-
+/** Sends the filled form, and checks the refusal that a post with no answer gets: 422, its message, the visitor's text. */
+const sendAndExpectRefusal = async (page: Page) => {
   const answered = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -300,12 +299,28 @@ test("falsifier 3 (RULE-167): a post without a Turnstile answer is refused with 
   await page.getByRole("button", { name: "Send melding" }).click();
 
   const refusal = await answered;
+
   expect(refusal.status()).toBe(422);
   await expect(page.getByRole("alert")).toContainText(CAPTCHA_MESSAGE);
+
   // The visitor's text is still in the form.
-  await expect(
-    page.getByRole("textbox", { exact: true, name: "Melding" })
-  ).toHaveValue(FORM.Melding);
+  for (const [label, value] of Rec.toEntries(FORM)) {
+    await expect(
+      page.getByRole("textbox", { exact: true, name: label })
+    ).toHaveValue(value);
+  }
+};
+
+test("falsifier 3 (RULE-167): a post without a Turnstile answer is refused with 422 and queues nothing", async ({
+  page,
+}) => {
+  await withoutTurnstile(page);
+  const outboxBefore = await runDatabase(outboxRows);
+  const auditBefore = await runDatabase(auditEntryCount);
+
+  await openPage(page, "/kontakt");
+  await fillForm(page);
+  await sendAndExpectRefusal(page);
 
   expect(await runDatabase(outboxRows)).toEqual(outboxBefore);
   expect(await runDatabase(auditEntryCount)).toBe(auditBefore);
@@ -317,10 +332,7 @@ test("falsifier 4 (spec 0010a): the contact form posts without JavaScript, and t
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
 
-  // Without Cloudflare's widget script there is no answer to send, whatever the visitor does.
-  await page.route("https://challenges.cloudflare.com/**", async (route) => {
-    await route.abort();
-  });
+  await withoutTurnstile(page);
   const outboxBefore = await runDatabase(outboxRows);
 
   await page.goto("/kontakt");
@@ -331,25 +343,7 @@ test("falsifier 4 (spec 0010a): the contact form posts without JavaScript, and t
     )
   ).toBe(false);
   await fillForm(page);
-
-  const answered = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname.startsWith("/kontakt")
-  );
-
-  await page.getByRole("button", { name: "Send melding" }).click();
-
-  const refusal = await answered;
-
-  expect(refusal.status()).toBe(422);
-  await expect(page.getByRole("alert")).toContainText(CAPTCHA_MESSAGE);
-
-  for (const [label, value] of Rec.toEntries(FORM)) {
-    await expect(
-      page.getByRole("textbox", { exact: true, name: label })
-    ).toHaveValue(value);
-  }
+  await sendAndExpectRefusal(page);
 
   expect(await runDatabase(outboxRows)).toEqual(outboxBefore);
   await context.close();

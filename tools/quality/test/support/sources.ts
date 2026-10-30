@@ -1,4 +1,5 @@
 import { NodeServices } from "@effect/platform-node";
+import { assert } from "@effect/vitest";
 import { Array as Arr, Effect, FileSystem } from "effect";
 
 import { isProbe } from "../../probes.ts";
@@ -47,6 +48,30 @@ export const workingTreeSources = (
       }))
     );
   }).pipe(Effect.provide(NodeServices.layer));
+
+/** The root of the repository, without a trailing slash: where the scans of the real tree start. */
+export const repositoryRoot = new URL(
+  "../../../../",
+  import.meta.url
+).pathname.replace(/\/$/u, "");
+
+/**
+ * The assertion of a source scan over the real tree: it reads more than a hundred files, and no file is reported as
+ * naming a guarded thing without being listed (`unlisted`), and no listing is left that no file needs (`stale`).
+ */
+export const assertCleanScan = (
+  root: string,
+  keep: (path: string) => boolean,
+  findings: {
+    readonly stale: (sources: readonly Source[]) => readonly string[];
+    readonly unlisted: (sources: readonly Source[]) => readonly string[];
+  }
+) =>
+  Effect.map(workingTreeSources(root, keep), (sources) => {
+    assert.isAbove(sources.length, 100);
+    assert.deepStrictEqual(findings.unlisted(sources), []);
+    assert.deepStrictEqual(findings.stale(sources), []);
+  });
 
 /**
  * The TypeScript of `packages/domain/src`. `storeBoundary.test.ts` writes a probe file there for a moment, and the scans

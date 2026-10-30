@@ -2,9 +2,18 @@ import { Accounts } from "@vektorprogrammet/domain";
 import { Schema } from "effect";
 
 import { Text, blankToNull, formSchema, wholeNumber } from "./formSchema";
+import type { FormText } from "./formSchema";
 
-const personOf = (text: Readonly<Record<string, string | undefined>>) => ({
+const personOf = (text: FormText) => ({
   personId: wholeNumber(text.personId),
+});
+
+/** The four values of a profile, as the commands that register a person and that change a profile take them. */
+export const profileOf = (text: FormText) => ({
+  companyEmail: blankToNull(text.companyEmail),
+  email: text.email ?? "",
+  fieldOfStudyId: wholeNumber(text.fieldOfStudyId),
+  name: text.name ?? "",
 });
 
 /** A person who is invited to make an account. */
@@ -38,11 +47,5 @@ export const UpdateProfileForm = formSchema(
     personId: Text,
   }),
   Accounts.updatePerson.payloadSchema,
-  (text) => ({
-    companyEmail: blankToNull(text.companyEmail),
-    email: text.email ?? "",
-    fieldOfStudyId: wholeNumber(text.fieldOfStudyId),
-    name: text.name ?? "",
-    personId: wholeNumber(text.personId),
-  })
+  (text) => ({ ...profileOf(text), personId: wholeNumber(text.personId) })
 );
