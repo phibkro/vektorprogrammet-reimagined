@@ -73,6 +73,18 @@ const stateOf = Effect.fnUntraced(function* stateOf(id: number) {
   };
 });
 
+/** The state of a person is `expected`: anonymised or not, the kept date, and how many places remain. */
+const expectState = Effect.fnUntraced(function* expectState(
+  id: number,
+  expected: {
+    readonly anonymised: boolean;
+    readonly kept: string | null;
+    readonly places: number;
+  }
+) {
+  assert.deepStrictEqual(yield* stateOf(id), expected);
+});
+
 const addPlace = Effect.fnUntraced(function* addPlace(
   personId: number,
   until: DateTime.Utc
@@ -167,13 +179,12 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
             // One year minus a day: both places are there, nobody has a date, nobody is anonymised.
             yield* night(afterPlace(U, 1, -1));
 
-            assert.deepStrictEqual(yield* stateOf(berit), {
+            yield* expectState(berit, {
               anonymised: false,
               kept: null,
               places: 1,
             });
-
-            assert.deepStrictEqual(yield* stateOf(cato), {
+            yield* expectState(cato, {
               anonymised: false,
               kept: null,
               places: 1,
@@ -193,13 +204,12 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
             // Three years minus a day: still there, and still nobody has a date.
             yield* night(afterPlace(U, 3, -1));
 
-            assert.deepStrictEqual(yield* stateOf(berit), {
+            yield* expectState(berit, {
               anonymised: false,
               kept: null,
               places: 1,
             });
-
-            assert.deepStrictEqual(yield* stateOf(cato), {
+            yield* expectState(cato, {
               anonymised: true,
               kept: null,
               places: 1,
