@@ -1,0 +1,55 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "430ae868-aa43-4e9a-9a10-c2f7ab285d05",
+  "prevIds": ["0ab7e375-69f0-43cc-b405-65ca859509a8"],
+  "footprints": [
+    {
+      "statementType": "alter_column",
+      "statementTarget": ["column", "public", "person", "field_of_study_id"],
+      "writes": ["s|colprop|public.person.field_of_study_id.notNull"],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.person.field_of_study_id"
+      ],
+      "sqlHash": "eeae3107d1ba8155"
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "person"],
+      "writes": [
+        "s|ck|public.person.person_field_of_study_or_tombstone",
+        "n|ck|public.person.person_field_of_study_or_tombstone",
+        "e|ck|public.person.person_field_of_study_or_tombstone",
+        "n|con|public.person.person_field_of_study_or_tombstone"
+      ],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.person.field_of_study_id",
+        "n|col|public.person.merged_into"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "person_field_of_study_or_tombstone",
+        "value": "\"field_of_study_id\" is not null or \"merged_into\" is not null",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"person\",\"field_of_study_id\"]",
+      "set": {
+        "notNull": false
+      }
+    }
+  ]
+}

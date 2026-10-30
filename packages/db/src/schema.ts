@@ -239,6 +239,10 @@ export const person = pgTable(
       "person_merged_anonymised",
       sql`${t.mergedInto} is null or ${t.anonymisedAt} is not null`
     ),
+    check(
+      "person_field_of_study_or_tombstone",
+      sql`${t.fieldOfStudyId} is not null or ${t.mergedInto} is not null`
+    ),
   ]
 );
 

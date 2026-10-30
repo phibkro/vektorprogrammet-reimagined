@@ -16,7 +16,7 @@ import {
   anonymous,
   mintCode,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect } from "effect";
+import { Array as Arr, DateTime, Effect, Exit } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
@@ -345,6 +345,24 @@ layer(postgresDatabase({ maxConnections: 20 }), {
       it.effect(
         "review round 1: the later link used first changes nothing: the earlier application still stands",
         () => twoApplications("id5", true)
+      );
+
+      it.effect(
+        "review round 2: a live person with no field of study is refused; a tombstone may have none",
+        () =>
+          Effect.gen(function* liveWithoutField() {
+            const sql = yield* SqlClient;
+            const fixture = yield* openDepartment("id6");
+
+            const live = yield* Effect.exit(
+              sql`update person set field_of_study_id = null where id = ${fixture.person.id}`
+            );
+
+            assert.isTrue(Exit.isFailure(live));
+
+            // The control: the same update with a field of study is accepted (the tombstone's own null is in the first test).
+            yield* sql`update person set field_of_study_id = ${fixture.fieldOfStudy.id} where id = ${fixture.person.id}`;
+          })
       );
     });
   }
