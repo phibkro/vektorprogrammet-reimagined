@@ -17,14 +17,18 @@ import {
   ADMIN_LIST_ID,
   AccountState,
   ActualState,
+  ApplicationState,
   AuditAction,
   AuditClient,
+  Bolk,
   COMPANY_EMAIL_PATTERN,
   CodePurpose,
   CodeState,
   ConsentKind,
   EntityName,
   FileExtension,
+  Gender,
+  HeardAbout,
   JobRun,
   ImpactMeasures,
   OutboxMessage,
@@ -33,6 +37,7 @@ import {
   SystemJob,
   TeamFunction,
   Term,
+  Weekday,
   WorkspaceMode,
 } from "@vektorprogrammet/domain";
 import { sql } from "drizzle-orm";
@@ -83,6 +88,9 @@ export const teamFunction = pgEnum("team_function", TeamFunction.literals);
  * constraint of the memberships.
  */
 export const UniqueConstraint = {
+  admissionPeriodDepartmentSemester:
+    "admission_period_department_semester_unique",
+  applicationPersonPeriod: "application_person_period_unique",
   departmentCity: "department_city_unique",
   membershipOverlap: "membership_no_overlap",
   personCompanyEmail: "person_company_email_unique",
@@ -664,7 +672,7 @@ export const impactSnapshot = pgTable(
   ]
 );
 
-/** C2 admission periods. Phase 1 imports them; Phase 3 adds the repository and the editor. */
+/** C2 admission periods (spec 0009): one per department and semester (RULE-015, UK1), created and extended by staff. */
 export const admissionPeriod = pgTable(
   "admission_period",
   {
@@ -679,8 +687,71 @@ export const admissionPeriod = pgTable(
     startsAt: instant("starts_at").notNull(),
   },
   (t) => [
-    index("admission_period_department_idx").on(t.departmentId, t.semesterId),
+    unique(UniqueConstraint.admissionPeriodDepartmentSemester).on(
+      t.departmentId,
+      t.semesterId
+    ),
     check("admission_period_window", sql`${t.endsAt} > ${t.startsAt}`),
+  ]
+);
+
+/**
+ * C3 applications (spec 0009): owned by the person who applied (spec 0006b), so every write takes that person's lock. The
+ * weekdays, the bolk and the sources are closed sets from the domain; the teams are ids that the command checks against the
+ * department (an array cannot carry a foreign key). The special needs text, the version of the consent it rests on and
+ * the time are all present or all null.
+ */
+export const application = pgTable(
+  "application",
+  {
+    availableWeekdays: text("available_weekdays").array().notNull(),
+    bolk: text("bolk").notNull(),
+    createdAt: instant("created_at").notNull(),
+    doublePosition: boolean("double_position").notNull(),
+    fieldOfStudyId: integer("field_of_study_id")
+      .notNull()
+      .references(() => fieldOfStudy.id),
+    gender: text("gender"),
+    heardAboutUs: text("heard_about_us").array().notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    periodId: integer("period_id")
+      .notNull()
+      .references(() => admissionPeriod.id),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    specialNeeds: text("special_needs"),
+    specialNeedsConsentVersion: integer("special_needs_consent_version"),
+    specialNeedsConsentedAt: instant("special_needs_consented_at"),
+    state: text("state").notNull(),
+    teamInterest: integer("team_interest").array().notNull(),
+    yearOfStudy: integer("year_of_study").notNull(),
+  },
+  (t) => [
+    unique(UniqueConstraint.applicationPersonPeriod).on(t.personId, t.periodId),
+    index("application_period_idx").on(t.periodId),
+    check(
+      "application_state",
+      oneOf(sql`${t.state}`, Rec.keys(ApplicationState.cases))
+    ),
+    check("application_bolk", oneOf(sql`${t.bolk}`, Bolk.literals)),
+    check(
+      "application_gender",
+      sql`${t.gender} is null or ${oneOf(sql`${t.gender}`, Gender.literals)}`
+    ),
+    check("application_year_of_study", sql`${t.yearOfStudy} between 1 and 5`),
+    check(
+      "application_weekdays",
+      sql`cardinality(${t.availableWeekdays}) > 0 and ${t.availableWeekdays} <@ array[${sql.raw(Arr.join(Arr.map(Weekday.literals, literal), ", "))}]::text[]`
+    ),
+    check(
+      "application_heard_about",
+      sql`${t.heardAboutUs} <@ array[${sql.raw(Arr.join(Arr.map(HeardAbout.literals, literal), ", "))}]::text[]`
+    ),
+    check(
+      "application_special_needs",
+      sql`(${t.specialNeeds} is null and ${t.specialNeedsConsentVersion} is null and ${t.specialNeedsConsentedAt} is null) or (${t.specialNeeds} is not null and length(${t.specialNeeds}) between 1 and 1000 and ${t.specialNeedsConsentVersion} is not null and ${t.specialNeedsConsentedAt} is not null)`
+    ),
   ]
 );
 

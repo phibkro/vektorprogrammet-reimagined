@@ -11,6 +11,7 @@ export const CodePurpose = Schema.Literals([
   "activation",
   "alumniConsent",
   "resetPassword",
+  "verifyApplication",
 ]);
 
 export type CodePurpose = typeof CodePurpose.Type;
@@ -40,6 +41,13 @@ export const codePolicy = {
     account: "Active",
     command: "resetPassword",
     lifetimeSeconds: 24 * 60 * 60,
+    singleUse: true,
+  },
+  /** An applicant's e-mail address (spec 0009): no account, one use. The command is declared where the merge is. */
+  verifyApplication: {
+    account: null,
+    command: "verifyApplicantEmail",
+    lifetimeSeconds: 30 * 24 * 60 * 60,
     singleUse: true,
   },
 } as const satisfies Record<

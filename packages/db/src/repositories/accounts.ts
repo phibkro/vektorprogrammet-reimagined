@@ -7,16 +7,12 @@ import {
   AccountRepository,
   AccountState,
   AlreadyExists,
+  EmailAddress,
   InTransaction,
   Person,
   PersonId,
 } from "@vektorprogrammet/domain";
-import type {
-  Account,
-  EmailAddress,
-  Locked,
-  PersonDraft,
-} from "@vektorprogrammet/domain";
+import type { Account, Locked, PersonDraft } from "@vektorprogrammet/domain";
 import { and, eq } from "drizzle-orm";
 import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
 import type { DateTime } from "effect";
@@ -37,6 +33,12 @@ const StoredAccount = Schema.Struct({
   personId: PersonId,
   state: Schema.Literals(["Active", "Deactivated", "Invited"]),
 });
+
+const decodeAddress = decodeWith(
+  Schema.Struct({ email: EmailAddress, verified: Schema.Boolean })
+);
+
+const decodeHolder = decodeWith(Schema.Struct({ id: PersonId }));
 
 const decodeAccount = decodeWith(StoredAccount);
 const decodePerson = decodeWith(Person);
@@ -194,6 +196,35 @@ export const AccountRepositoryLive = Layer.effect(
       }
     );
 
+    const emailOf = Effect.fn("AccountRepository.emailOf")(function* emailOf(
+      locked: Locked<"Person">
+    ) {
+      yield* aggregates.assertHeld(aggregateRoots.Person, locked);
+
+      const rows = yield* db
+        .select({ email: person.email, verified: person.emailVerified })
+        .from(person)
+        .where(eq(person.id, locked.id))
+        .pipe(Effect.orDie);
+
+      return yield* decodeAddress(rows[0]);
+    });
+
+    const verifiedHolderOf = Effect.fn("AccountRepository.verifiedHolderOf")(
+      function* verifiedHolderOf(email: EmailAddress) {
+        const rows = yield* db
+          .select({ id: person.id })
+          .from(person)
+          .where(and(eq(person.email, email), eq(person.emailVerified, true)))
+          .pipe(Effect.orDie);
+
+        return Option.map(
+          yield* decodeFirstOption(decodeHolder)(rows),
+          ({ id }) => id
+        );
+      }
+    );
+
     const updateProfile = Effect.fn("AccountRepository.updateProfile")(
       function* updateProfile(locked: Locked<"Person">, profile: PersonDraft) {
         yield* InTransaction;
@@ -261,6 +292,7 @@ export const AccountRepositoryLive = Layer.effect(
     return yield* verified(
       "AccountRepository",
       AccountRepository.of({
+        emailOf,
         find,
         findActiveByPrivateEmail,
         findLocked,
@@ -269,6 +301,7 @@ export const AccountRepositoryLive = Layer.effect(
         list,
         transition,
         updateProfile,
+        verifiedHolderOf,
         verifyEmail,
       })
     );

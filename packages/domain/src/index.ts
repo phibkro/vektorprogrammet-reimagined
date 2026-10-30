@@ -140,6 +140,22 @@ export * from "./workspace/report.ts";
 
 export * from "./workspace/services.ts";
 
+// admission: periods and applications (spec 0009)
+export {
+  AdmissionEndpoints,
+  AdmissionHandlers,
+  NOT_OPEN,
+  withAdmission,
+} from "./admission/commands.ts";
+
+export * as Admission from "./admission/declaration.ts";
+
+export type { ApplicationMachineTransition } from "./admission/declaration.ts";
+
+export * from "./admission/entities.ts";
+
+export * from "./admission/services.ts";
+
 // impact: evidence of operations (spec 0027)
 export {
   ImpactHandlers,

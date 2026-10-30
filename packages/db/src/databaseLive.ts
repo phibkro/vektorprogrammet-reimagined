@@ -23,6 +23,7 @@ import { IsolationProbeLive } from "./isolationProbe.ts";
 import { PlatformProbeLive } from "./platform/probe.ts";
 import { direct, hyperdrive } from "./platform/profiles.ts";
 import { AccountRepositoryLive } from "./repositories/accounts.ts";
+import { ApplicationRepositoryLive } from "./repositories/admission.ts";
 import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
@@ -89,6 +90,7 @@ const AggregatesLayer = Layer.mergeAll(
 const Repositories = Layer.mergeAll(
   DepartmentRepositoryLive,
   AdmissionPeriodRepositoryLive,
+  ApplicationRepositoryLive,
   SemesterRepositoryLive,
   FieldOfStudyRepositoryLive,
   SocialEventRepositoryLive,

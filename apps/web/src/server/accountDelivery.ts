@@ -60,6 +60,12 @@ const codeMail = {
     subject: "Tilbakestill passordet ditt",
     text: (link: string) => `Velg et nytt passord: ${link}`,
   },
+  verifyApplication: {
+    path: "/soknad/bekreft",
+    subject: "Bekreft e-postadressen din",
+    text: (link: string, lifetime: string) =>
+      `Vi har mottatt søknaden din til Vektorprogrammet. Bekreft at e-postadressen er din ved å åpne lenken og trykke på knappen: ${link}\n\nLenken virker i ${lifetime}. Har du ikke søkt, kan du se bort fra denne e-posten.`,
+  },
 } as const;
 
 /** The account that a purpose needs, if it needs one: `null` needs none (an alumnus may have no account). */

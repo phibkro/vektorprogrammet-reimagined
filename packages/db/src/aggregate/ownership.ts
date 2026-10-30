@@ -49,6 +49,7 @@ export const Ownership = [
       account: { owner: "personId", state: "state" },
       adminGrant: { owner: "personId" },
       alumniRequest: { owner: "personId" },
+      application: { owner: "personId", state: "state" },
       code: { owner: "subject", state: "state" },
       consent: { owner: "personId" },
       membership: { owner: "personId" },

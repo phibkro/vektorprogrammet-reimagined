@@ -29,6 +29,7 @@ export type LegalBasis = typeof LegalBasis.Type;
 /** Why a field is processed: a closed set, each with its wording in both languages (`texts.ts`). */
 export const Purpose = Schema.Literals([
   "accountability",
+  "admission",
   "alumni",
   "consents",
   "contact",

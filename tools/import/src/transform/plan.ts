@@ -624,6 +624,19 @@ export const planImport = (
   // admission_period
   const admissionPeriods: AdmissionPeriodRow[] = [];
 
+  /** One period per department and semester (spec 0009 UK1): a later one for the same pair is quarantined. */
+  const repeatsAdmitted = (
+    departmentId: AdmissionPeriodRow["departmentId"] | undefined,
+    semesterId: AdmissionPeriodRow["semesterId"] | undefined
+  ) =>
+    departmentId !== undefined &&
+    semesterId !== undefined &&
+    Arr.some(
+      admissionPeriods,
+      (period) =>
+        period.departmentId === departmentId && period.semesterId === semesterId
+    );
+
   const addAdmissionPeriod = (
     row: LegacySnapshot["admissionPeriods"][number]
   ) => {
@@ -669,6 +682,12 @@ export const planImport = (
       !DateTime.isLessThan(startsAt, endsAt)
     ) {
       reasons.push("end_date is not after start_date");
+    }
+
+    if (repeatsAdmitted(departmentId, semesterId)) {
+      reasons.push(
+        "the department already has an admitted admission period for this semester (UK1, spec 0009)"
+      );
     }
 
     if (

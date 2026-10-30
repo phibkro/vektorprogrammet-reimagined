@@ -8,7 +8,7 @@ import type { DateTime } from "effect";
 import { Array as Arr, Data, Option, pipe, Predicate, Schema } from "effect";
 
 import { isBefore } from "../shared/clock.ts";
-import { DepartmentId } from "../shared/ids.ts";
+import { AdmissionPeriodId, DepartmentId, SemesterId } from "../shared/ids.ts";
 import { Semester, windowContains } from "./semester.ts";
 import type { Window } from "./semester.ts";
 
@@ -32,6 +32,41 @@ export const isAdmissionOpen = (
   period: Window,
   now: DateTime.DateTime
 ): boolean => windowContains(period, now);
+
+/** Where a period is in its life; never stored: it is a function of the dates and the clock (spec 0009). */
+export type AdmissionState = "Closed" | "Open" | "Scheduled";
+
+/**
+ * The state of a period at `now`, from the one window rule: Open exactly when `isAdmissionOpen`, Scheduled before the
+ * start, Closed from the end on (the end instant is closed).
+ */
+export const admissionState = (
+  period: Window,
+  now: DateTime.DateTime
+): AdmissionState => {
+  if (isAdmissionOpen(period, now)) {
+    return "Open";
+  }
+
+  return isBefore(now, period.start) ? "Scheduled" : "Closed";
+};
+
+/** A stored period: the one that `AdmissionPeriod` describes, with the ids that the panel and the commands name. */
+export const StoredAdmissionPeriod = Schema.Struct({
+  ...AdmissionPeriod.fields,
+  id: AdmissionPeriodId,
+  semesterId: SemesterId,
+});
+
+export type StoredAdmissionPeriod = typeof StoredAdmissionPeriod.Type;
+
+/** What a new period is stored with. */
+export interface AdmissionPeriodDraft {
+  readonly departmentId: DepartmentId;
+  readonly end: DateTime.Utc;
+  readonly semesterId: SemesterId;
+  readonly start: DateTime.Utc;
+}
 
 export type AdmissionSelection<P extends Window> = Data.TaggedEnum<{
   Current: { readonly period: P };
@@ -88,14 +123,19 @@ export const currentOrLatestAdmissionPeriod = <P extends Window>(
   );
 };
 
+/** The period that is open now, with whatever else it carries; none when no window contains `now` (RULE-119). */
+export const openAdmissionPeriod = <P extends Window>(
+  periods: Iterable<P>,
+  now: DateTime.DateTime
+): Option.Option<P> =>
+  Option.flatMap(currentOrLatestAdmissionPeriod(periods, now), (selection) =>
+    Predicate.isTagged(selection, "Current")
+      ? Option.some(selection.period)
+      : Option.none()
+  );
+
 /** "Is admission open for this department now": true iff a current period exists. */
 export const hasOpenAdmission = (
   periods: Iterable<Window>,
   now: DateTime.DateTime
-): boolean =>
-  Option.isSome(
-    Option.filter(
-      currentOrLatestAdmissionPeriod(periods, now),
-      Predicate.isTagged("Current")
-    )
-  );
+): boolean => Option.isSome(openAdmissionPeriod(periods, now));

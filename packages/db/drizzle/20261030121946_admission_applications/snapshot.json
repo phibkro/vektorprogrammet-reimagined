@@ -1,0 +1,653 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0ab7e375-69f0-43cc-b405-65ca859509a8",
+  "prevIds": ["2cf94b0a-fded-4ebf-91b0-dc0208f88b7e"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "application"],
+      "writes": [
+        "s|tbl|public.application",
+        "n|tbl|public.application",
+        "e|tbl|public.application",
+        "n|rel|public.application",
+        "n|type|public.application",
+        "n|rel|public.application_pkey",
+        "n|rel|public.application_person_period_unique"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "drop_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "admission_period",
+        "admission_period_department_idx"
+      ],
+      "writes": [
+        "s|idx|public.admission_period_department_idx",
+        "n|idx|public.admission_period_department_idx",
+        "e|idx|public.admission_period_department_idx",
+        "n|rel|public.admission_period_department_idx"
+      ],
+      "reads": [
+        "e|tbl|public.admission_period",
+        "n|sch|public",
+        "e|col|public.admission_period.department_id",
+        "e|col|public.admission_period.semester_id"
+      ],
+      "sharedWrites": []
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": ["table", "public", "admission_period"],
+      "writes": [
+        "s|uq|public.admission_period.admission_period_department_semester_unique",
+        "n|uq|public.admission_period.admission_period_department_semester_unique",
+        "e|uq|public.admission_period.admission_period_department_semester_unique",
+        "n|con|public.admission_period.admission_period_department_semester_unique",
+        "n|rel|public.admission_period_department_semester_unique"
+      ],
+      "reads": [
+        "n|tbl|public.admission_period",
+        "n|sch|public",
+        "n|col|public.admission_period.department_id",
+        "n|col|public.admission_period.semester_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "application",
+        "application_period_idx"
+      ],
+      "writes": [
+        "s|idx|public.application_period_idx",
+        "n|idx|public.application_period_idx",
+        "e|idx|public.application_period_idx",
+        "n|rel|public.application_period_idx"
+      ],
+      "reads": [
+        "n|tbl|public.application",
+        "n|sch|public",
+        "n|col|public.application.period_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "application"],
+      "writes": [
+        "s|fk|public.application.application_field_of_study_id_field_of_study_id_fkey",
+        "n|fk|public.application.application_field_of_study_id_field_of_study_id_fkey",
+        "e|fk|public.application.application_field_of_study_id_field_of_study_id_fkey",
+        "n|con|public.application.application_field_of_study_id_field_of_study_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.application",
+        "n|sch|public",
+        "n|tbl|public.field_of_study",
+        "n|sch|public",
+        "n|col|public.application.field_of_study_id",
+        "n|col|public.field_of_study.id",
+        "e|uniqueness|public.field_of_study.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "application"],
+      "writes": [
+        "s|fk|public.application.application_period_id_admission_period_id_fkey",
+        "n|fk|public.application.application_period_id_admission_period_id_fkey",
+        "e|fk|public.application.application_period_id_admission_period_id_fkey",
+        "n|con|public.application.application_period_id_admission_period_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.application",
+        "n|sch|public",
+        "n|tbl|public.admission_period",
+        "n|sch|public",
+        "n|col|public.application.period_id",
+        "n|col|public.admission_period.id",
+        "e|uniqueness|public.admission_period.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": ["table", "public", "application"],
+      "writes": [
+        "s|fk|public.application.application_person_id_person_id_fkey",
+        "n|fk|public.application.application_person_id_person_id_fkey",
+        "e|fk|public.application.application_person_id_person_id_fkey",
+        "n|con|public.application.application_person_id_person_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.application",
+        "n|sch|public",
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.application.person_id",
+        "n|col|public.person.id",
+        "e|uniqueness|public.person.id"
+      ]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_action"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.action",
+        "e|col|public.audit_log.action"
+      ],
+      "sqlHash": "b6dd60182317ef20"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|ck|public.audit_log.audit_log_entity"],
+      "reads": [
+        "n|tbl|public.audit_log",
+        "n|sch|public",
+        "n|col|public.audit_log.entity",
+        "e|col|public.audit_log.entity"
+      ],
+      "sqlHash": "9550f77cd966348f"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "code"],
+      "writes": ["s|ck|public.code.code_purpose"],
+      "reads": [
+        "n|tbl|public.code",
+        "n|sch|public",
+        "n|col|public.code.purpose",
+        "e|col|public.code.purpose"
+      ],
+      "sqlHash": "ca31250efb0b98b8"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "application",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "available_weekdays",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "bolk",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "double_position",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "field_of_study_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "gender",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "heard_about_us",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": {
+          "type": "byDefault",
+          "name": "application_id_seq",
+          "increment": "1",
+          "startWith": "1",
+          "minValue": "1",
+          "maxValue": "2147483647",
+          "cache": 1,
+          "cycle": false
+        },
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "period_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "person_id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "special_needs",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "special_needs_consented_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "special_needs_consent_version",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "state",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "team_interest",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "year_of_study",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_period_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "period_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_field_of_study_id_field_of_study_id_fkey",
+        "nameExplicit": false,
+        "columns": ["field_of_study_id"],
+        "schemaTo": "public",
+        "tableTo": "field_of_study",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_period_id_admission_period_id_fkey",
+        "nameExplicit": false,
+        "columns": ["period_id"],
+        "schemaTo": "public",
+        "tableTo": "admission_period",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_person_id_person_id_fkey",
+        "nameExplicit": false,
+        "columns": ["person_id"],
+        "schemaTo": "public",
+        "tableTo": "person",
+        "columnsTo": ["id"],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_pkey",
+        "columns": ["id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admission_period",
+        "name": "admission_period_department_semester_unique",
+        "nameExplicit": true,
+        "columns": ["department_id", "semester_id"],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_person_period_unique",
+        "nameExplicit": true,
+        "columns": ["person_id", "period_id"],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_state",
+        "value": "\"state\" in ('Submitted', 'Withdrawn')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_bolk",
+        "value": "\"bolk\" in ('Bolk1', 'Bolk2', 'Both')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_gender",
+        "value": "\"gender\" is null or \"gender\" in ('Female', 'Male', 'Other')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_year_of_study",
+        "value": "\"year_of_study\" between 1 and 5",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_weekdays",
+        "value": "cardinality(\"available_weekdays\") > 0 and \"available_weekdays\" <@ array['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']::text[]",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_heard_about",
+        "value": "\"heard_about_us\" <@ array['Blesting', 'Stand', 'Web', 'Acquaintances', 'Board', 'Posters', 'StudentUnion']::text[]",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "application",
+        "name": "application_special_needs",
+        "value": "(\"special_needs\" is null and \"special_needs_consent_version\" is null and \"special_needs_consented_at\" is null) or (\"special_needs\" is not null and length(\"special_needs\") between 1 and 1000 and \"special_needs_consent_version\" is not null and \"special_needs_consented_at\" is not null)",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"admission_period_department_idx\"]"
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_action\"]",
+      "set": {
+        "value": "\"action\" in ('department.created', 'department.updated', 'fieldOfStudy.created', 'fieldOfStudy.updated', 'socialEvent.created', 'publicFile.registered', 'person.registered', 'person.profileUpdated', 'account.invited', 'account.activated', 'account.deactivated', 'account.reactivated', 'account.passwordReset', 'team.created', 'team.updated', 'team.deactivated', 'membership.added', 'membership.extended', 'membership.changed', 'membership.endedEarly', 'membership.cancelled', 'adminGrant.granted', 'adminGrant.revoked', 'endingSoon.sent', 'consent.given', 'consent.withdrawn', 'person.exported', 'person.erased', 'person.merged', 'person.photoSet', 'person.photoRemoved', 'alumni.requested', 'retention.ran', 'retention.reported', 'workspaceReport.requested', 'admissionPeriod.created', 'admissionPeriod.extended', 'admissionPeriod.deleted', 'application.registered', 'application.withdrawn', 'applicant.verified')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"audit_log\",\"audit_log_entity\"]",
+      "set": {
+        "value": "\"entity\" in ('Department', 'Semester', 'FieldOfStudy', 'Article', 'SocialEvent', 'PublicFile', 'Person', 'Account', 'Team', 'Position', 'Membership', 'AdminGrant', 'AdminList', 'Consent', 'Retention', 'WorkspaceReport', 'AdmissionPeriod', 'Application')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"code\",\"code_purpose\"]",
+      "set": {
+        "value": "\"purpose\" in ('activation', 'alumniConsent', 'resetPassword', 'verifyApplication')"
+      }
+    }
+  ]
+}

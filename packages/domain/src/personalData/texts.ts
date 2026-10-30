@@ -26,6 +26,10 @@ export const purposes: Readonly<Record<Purpose, Words>> = {
     en: "Show who did what and when, so that the organisation can account for its own use of the data (Art. 5(2) and 24)",
     no: "Vise hvem som gjorde hva og når, slik at organisasjonen kan gjøre rede for sin egen bruk av opplysningene",
   },
+  admission: {
+    en: `Assess an application to become an assistant, and make adjustments for the applicant; it is deleted ${durationWords(Periods.applicationAfterPeriodEnd.duration, "en")} after the admission period ends`,
+    no: `Vurdere en søknad om å bli assistent og tilpasse opplegget for søkeren; den slettes ${durationWords(Periods.applicationAfterPeriodEnd.duration, "no")} etter at opptaksperioden er slutt`,
+  },
   alumni: {
     en: `Ask a person who leaves whether their details may be kept for ${durationWords(Periods.personCoreWithKeepDetails.duration, "en")} and whether to send alumni news`,
     no: `Spørre den som slutter om vi kan beholde opplysningene i ${durationWords(Periods.personCoreWithKeepDetails.duration, "no")} og sende nyheter til tidligere medlemmer`,

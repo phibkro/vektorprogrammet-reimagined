@@ -2,6 +2,7 @@ import type { CodeRepository } from "../accounts/codeRepository.ts";
 import type { AccountRepository } from "../accounts/services.ts";
 import type { SessionDirectory } from "../accounts/sessionDirectory.ts";
 import type { SignInDirectory } from "../accounts/signInDirectory.ts";
+import type { ApplicationRepository } from "../admission/services.ts";
 /**
  * What every store port asks of a transaction, method by method (spec 0018). A method is in exactly one mode:
  *
@@ -81,6 +82,7 @@ export interface StorePorts {
   readonly AccountRepository: AccountRepository;
   readonly AdminGrantRepository: AdminGrantRepository;
   readonly AdmissionPeriodRepository: AdmissionPeriodRepository;
+  readonly ApplicationRepository: ApplicationRepository;
   readonly AggregateLocks: AggregateLocks;
   readonly AlumniRequests: AlumniRequests;
   readonly AuditLog: AuditLog;
@@ -133,6 +135,7 @@ export type ModesOf<
 
 export const TransactionModes = {
   AccountRepository: {
+    emailOf: "Requires",
     find: "Read",
     findActiveByPrivateEmail: "Read",
     findLocked: "Requires",
@@ -141,6 +144,7 @@ export const TransactionModes = {
     list: "Read",
     transition: "Requires",
     updateProfile: "Requires",
+    verifiedHolderOf: "Read",
     verifyEmail: "Requires",
   },
   AdminGrantRepository: {
@@ -149,9 +153,24 @@ export const TransactionModes = {
     list: "Read",
     revoke: "Requires",
   },
-  AdmissionPeriodRepository: { list: "Read" },
+  AdmissionPeriodRepository: {
+    create: "Standalone",
+    extend: "Standalone",
+    findById: "Read",
+    list: "Read",
+    listStored: "Read",
+    remove: "Standalone",
+  },
   AggregateLocks: { lock: "Requires", lockAll: "Requires" },
   AlumniRequests: { candidates: "Read", claim: "Requires" },
+  ApplicationRepository: {
+    existsForAddress: "Read",
+    find: "Read",
+    findLocked: "Requires",
+    insert: "Requires",
+    list: "Read",
+    transition: "Requires",
+  },
   AuditLog: { latest: "Read", record: "Requires" },
   CapturedMessageStore: { record: "Standalone" },
   CodeRepository: {
