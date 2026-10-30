@@ -28,7 +28,14 @@ import {
 import type { AtTheBoundary } from "@vektorprogrammet/domain/testing/retention";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { Arbitrary, Array as Arr, DateTime, Effect, Schema } from "effect";
+import {
+  Arbitrary,
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Schema,
+} from "effect";
 
 import {
   alumniCandidates,
@@ -213,6 +220,7 @@ const scratchRule = (
   anonymised: {},
   columns: ["at"],
   expiry: "Delete",
+  keeps: undefined,
   key: null,
   marker: undefined,
   retention: Retention.make({ period: period(duration, "decided"), trigger }),
@@ -626,6 +634,7 @@ const writePeople = Effect.fnUntraced(function* writePeople(
 
 const activityOf = (made: Generated) => ({
   createdAt: made.createdAt,
+  keptPlaceEnd: Option.none<DateTime.Utc>(),
   memberships: made.memberships,
   placeUntils: made.untils,
 });
@@ -668,6 +677,7 @@ const personCore: RetentionRule = {
   anonymised: {},
   columns: ["name"],
   expiry: "Delete",
+  keeps: undefined,
   key: keyed.direct("id"),
   marker: undefined,
   retention: Retention.make({

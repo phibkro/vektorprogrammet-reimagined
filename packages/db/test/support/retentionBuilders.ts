@@ -407,16 +407,17 @@ export const builders = {
         start: WINTER,
       };
     }),
-  "person(company_email,email,email_verified,name,photo_key)": fromActivity(
-    () => Effect.void,
-    (sql, { personId }) =>
-      Effect.map(
-        sql<{
-          present: boolean;
-        }>`select exists (select 1 from person where id = ${personId} and anonymised_at is null) as present`,
-        flag
-      )
-  ),
+  "person(company_email,email,email_verified,last_admin_place_end,name,photo_key)":
+    fromActivity(
+      () => Effect.void,
+      (sql, { personId }) =>
+        Effect.map(
+          sql<{
+            present: boolean;
+          }>`select exists (select 1 from person where id = ${personId} and anonymised_at is null) as present`,
+          flag
+        )
+    ),
   "public_file(uploaded_by)": fromActivity(
     (sql, { personId, tag }) =>
       sql`insert into public_file (content_type, key, name, sha256, size, uploaded_at, uploaded_by)

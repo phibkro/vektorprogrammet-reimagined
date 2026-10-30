@@ -9,6 +9,7 @@ import {
   Catalog,
   Conflict,
   PersonalDataDeclaration,
+  keptDates,
   personReferences,
 } from "@vektorprogrammet/domain";
 import type {
@@ -18,7 +19,14 @@ import type {
 } from "@vektorprogrammet/domain";
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
+import {
+  Array as Arr,
+  DateTime,
+  Effect,
+  Option,
+  Order,
+  Record as Rec,
+} from "effect";
 
 import type { Aggregates, QueryFailure } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
@@ -296,6 +304,34 @@ export const personalDataMerge = (services: {
         Effect.orDie
       );
 
+  /**
+   * The date that a table's retention keeps on the person (spec 0026) goes to the survivor as the later of the two, before
+   * the merged person is anonymised and the tombstone's copy is cleared.
+   */
+  const foldKeptDates = Effect.fnUntraced(function* foldKeptDates(
+    into: Person,
+    from: Person
+  ) {
+    const person = yield* tableOf("person");
+
+    yield* Effect.forEach(
+      Arr.dedupe(Arr.map(keptDates(catalog), ({ into: column }) => column)),
+      (column) =>
+        aggregates
+          .updateRoot(
+            into,
+            personRoot,
+            Rec.fromEntries([
+              [
+                propertyOf(person, column),
+                sql`greatest(${col("person", column)}, (select ${col("merged", column)} from person as merged where ${col("merged", "id")} = ${from.id}))`,
+              ] as const,
+            ])
+          )
+          .pipe(Effect.orDie)
+    );
+  });
+
   const merge = Effect.fn("PersonalDataStore.merge")(function* merge(
     into: Person,
     from: Person
@@ -313,6 +349,7 @@ export const personalDataMerge = (services: {
         )
     );
 
+    yield* foldKeptDates(into, from);
     // The merged person becomes a tombstone: no data, and a pointer to the survivor. The row stays, so that the
     // history that refers to it (who granted a place) still has a person to name.
     const now = yield* DateTime.now;

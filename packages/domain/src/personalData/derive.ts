@@ -3,12 +3,13 @@
  * that the notice and the record of processing print, and the checks of the catalog's own consistency. Nothing here
  * reads a database; `packages/db` interprets the rules, and a test closes the catalog over the migrated schema.
  */
-import { Array as Arr, Order, Predicate, Record as Rec } from "effect";
+import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
 
 import type { CatalogOf } from "./catalog.ts";
 import { MergeRule, OnExpiry, Trigger } from "./declaration.ts";
 import type {
   Anonymised,
+  Keeps,
   PersonKey,
   PersonalData,
   Retention,
@@ -53,6 +54,8 @@ export interface RetentionRule {
   /** For `Anonymise`: what each column holds afterwards. */
   readonly anonymised: Readonly<Record<string, Anonymised>>;
   readonly marker: string | undefined;
+  /** For `Delete`: the date that is kept on the person before the rows go (spec 0026). */
+  readonly keeps: Keeps | undefined;
   readonly key: PersonKey | null;
 }
 
@@ -84,6 +87,9 @@ const rulesOfTable = (
         Order.String
       ),
       expiry: first.onExpiry._tag,
+      keeps: Predicate.isTagged(first.onExpiry, "Delete")
+        ? declaration.keeps
+        : undefined,
       key: declaration.person?.key ?? null,
       marker: declaration.anonymisedMarker,
       retention: first.retention,
@@ -99,6 +105,14 @@ export const retentionRules = (catalog: CatalogOf): readonly RetentionRule[] =>
       rulesOfTable(table, declaration)
     ),
     Order.mapInput(Order.String, ruleId)
+  );
+
+/** What retention keeps on the person when it deletes rows of a table, for every table that declares it (spec 0026). */
+export const keptDates = (
+  catalog: CatalogOf
+): readonly (Keeps & { readonly table: string })[] =>
+  Arr.flatMap(Rec.toEntries(catalog), ([table, declaration]) =>
+    declaration.keeps === undefined ? [] : [{ ...declaration.keeps, table }]
   );
 
 // ------------------------------------------------------------------ words
@@ -441,6 +455,45 @@ const formProblems = (
   ];
 };
 
+/**
+ * `keeps` (spec 0026) names a personal column of the table whose rows retention deletes, and a personal column of the
+ * person's own table: a name that is missing fails here and not when a night's run writes to a column that is not there.
+ */
+const keepsProblems = (
+  table: string,
+  declaration: TableDeclaration,
+  catalog: CatalogOf
+): readonly string[] => {
+  const { keeps } = declaration;
+
+  if (keeps === undefined) {
+    return [];
+  }
+
+  const deleted = Arr.some(
+    personalColumns(declaration),
+    ([name, data]) =>
+      name === keeps.from && Predicate.isTagged(data.onExpiry, "Delete")
+  );
+
+  const kept = Option.exists(Rec.get(catalog, "person"), (owner) =>
+    Arr.some(personalColumns(owner), ([name]) => name === keeps.into)
+  );
+
+  return [
+    ...(deleted
+      ? []
+      : [
+          `${table} keeps \`${keeps.from}\`, which is not a personal column that its rule deletes`,
+        ]),
+    ...(kept
+      ? []
+      : [
+          `${table} keeps into \`${keeps.into}\`, which is not a personal column of person`,
+        ]),
+  ];
+};
+
 /** Everything inconsistent in a catalog and its forms, apart from the schema it is closed over. Empty means consistent. */
 export const catalogProblems = (
   catalog: CatalogOf,
@@ -457,6 +510,7 @@ export const catalogProblems = (
           `${table}'s marker ${declaration.anonymisedMarker} is not a declared column`,
         ]),
     ...classificationProblems(table, declaration),
+    ...keepsProblems(table, declaration, catalog),
     ...relationProblems(table, declaration, catalog),
   ]),
   ...Arr.flatMap(forms, (form) => formProblems(form, catalog)),

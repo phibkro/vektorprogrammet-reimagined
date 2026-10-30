@@ -5,7 +5,7 @@
  * the arithmetic says of its end, near the end of the period, which is where an off-by-one or a wrong zone changes the answer.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Arbitrary, Array as Arr, DateTime, Effect } from "effect";
+import { Arbitrary, Array as Arr, DateTime, Effect, Option } from "effect";
 
 import {
   afterDuration,
@@ -123,6 +123,7 @@ describe("spec 0021 R2: what each trigger starts a period at", () => {
 
   const facts = (partial: Partial<ActivityFacts>): ActivityFacts => ({
     createdAt: created,
+    keptPlaceEnd: Option.none(),
     memberships: [],
     placeUntils: [],
     ...partial,
@@ -170,6 +171,55 @@ describe("spec 0021 R2: what each trigger starts a period at", () => {
     );
   });
 
+  it("spec 0026 F3: a place that retention deleted still counts: its kept end is one of the ends, whether it is the latest or not", () => {
+    const kept = at("2024-03-01T00:00:00Z");
+
+    // Alone: it is the end (the creation is not).
+    assert.strictEqual(
+      iso(lastActivityEnd(facts({ keptPlaceEnd: Option.some(kept) }))),
+      iso(kept)
+    );
+
+    // After the last membership's end: the kept end is the later.
+    assert.strictEqual(
+      iso(
+        lastActivityEnd(
+          facts({
+            keptPlaceEnd: Option.some(kept),
+            memberships: [{ term: "VAR", year: 2022 }],
+          })
+        )
+      ),
+      iso(kept)
+    );
+
+    // Before it: the membership's end is.
+    assert.strictEqual(
+      iso(
+        lastActivityEnd(
+          facts({
+            keptPlaceEnd: Option.some(kept),
+            memberships: [{ term: "HOST", year: 2025 }],
+          })
+        )
+      ),
+      iso(osloMidnight(2026, 1, 1))
+    );
+
+    // Beside a place that is still there: the later of the two.
+    assert.strictEqual(
+      iso(
+        lastActivityEnd(
+          facts({
+            keptPlaceEnd: Option.some(kept),
+            placeUntils: [at("2027-01-01T00:00:00Z")],
+          })
+        )
+      ),
+      "2027-01-01T00:00:00.000Z"
+    );
+  });
+
   it("the longer period applies while the consent is current, and only then", () => {
     const retention = {
       longerWhile: {
@@ -213,6 +263,7 @@ describe("spec 0021 R5: who the alumni mail asks", () => {
 
   const facts: ActivityFacts = {
     createdAt: at("2020-01-01T00:00:00Z"),
+    keptPlaceEnd: Option.none(),
     memberships,
     placeUntils: [],
   };
