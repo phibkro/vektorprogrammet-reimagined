@@ -91,6 +91,16 @@ const giveKeepDetails = Effect.fnUntraced(function* giveKeepDetails(
     values (${DateTime.toDateUtc(T0)}, 'keepDetails', ${personId}, 1)`;
 });
 
+/** The kept date of a person, written as a fixture (`null` clears it). */
+const setKept = Effect.fnUntraced(function* setKept(
+  personId: number,
+  kept: string | null
+) {
+  const sql = yield* SqlClient;
+
+  yield* sql`update person set last_admin_place_end = ${kept === null ? null : DateTime.toDateUtc(DateTime.makeUnsafe(kept))} where id = ${personId}`;
+});
+
 /** A membership that ended with Høst 2020: without the place, the person's last activity is long past. */
 const oldMembership = Effect.fnUntraced(function* oldMembership(
   fixture: Effect.Success<ReturnType<typeof world>>
@@ -154,7 +164,7 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
 
             const kept = DateTime.toDateUtc(U).toISOString();
 
-            // Three years minus a day: both places are there, nobody has a date.
+            // One year minus a day: both places are there, nobody has a date, nobody is anonymised.
             yield* night(afterPlace(U, 1, -1));
 
             assert.deepStrictEqual(yield* stateOf(berit), {
@@ -179,6 +189,21 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
             });
 
             assert.isFalse((yield* stateOf(berit)).anonymised);
+
+            // Three years minus a day: still there, and still nobody has a date.
+            yield* night(afterPlace(U, 3, -1));
+
+            assert.deepStrictEqual(yield* stateOf(berit), {
+              anonymised: false,
+              kept: null,
+              places: 1,
+            });
+
+            assert.deepStrictEqual(yield* stateOf(cato), {
+              anonymised: true,
+              kept: null,
+              places: 1,
+            });
 
             // Three years and a day: Berit's place is gone and its end is on her; Cato's row goes and nothing is written to him.
             yield* night(afterPlace(U, 3));
@@ -218,6 +243,78 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
             assert.deepStrictEqual(yield* stateOf(berit), {
               anonymised: true,
               kept: null,
+              places: 0,
+            });
+          })
+      );
+
+      it.effect(
+        "F3b: places that fall due on the same night keep the latest end, and the date a person already holds is never lowered by an earlier place",
+        () =>
+          Effect.gen(function* sameNight() {
+            yield* at(T0);
+            const xenia = (yield* world("pe8")).person.id;
+            const yngve = (yield* world("pe9")).person.id;
+            const first = DateTime.makeUnsafe("2027-03-01T00:00:00Z");
+            const second = DateTime.makeUnsafe("2027-09-01T00:00:00Z");
+            const held = DateTime.makeUnsafe("2029-01-01T00:00:00Z");
+
+            for (const id of [xenia, yngve]) {
+              yield* giveKeepDetails(id);
+              yield* addPlace(id, first);
+            }
+
+            // Xenia's second place ends later; both are due when the first run after them comes (the first night after
+            // approval deletes every old place at once). Yngve already holds a later date than either place.
+            yield* addPlace(xenia, second);
+            yield* setKept(yngve, iso(held));
+
+            yield* night(afterPlace(second, 3));
+
+            assert.deepStrictEqual(yield* stateOf(xenia), {
+              anonymised: false,
+              kept: iso(second),
+              places: 0,
+            });
+
+            assert.deepStrictEqual(yield* stateOf(yngve), {
+              anonymised: false,
+              kept: iso(held),
+              places: 0,
+            });
+          })
+      );
+
+      it.effect(
+        "F4b: a survivor who got a later date from a merge keeps it when her own older place is deleted afterwards",
+        () =>
+          Effect.gen(function* mergedThenDeleted() {
+            yield* at(T0);
+
+            const admin = yield* seedPerson(
+              "pm0",
+              { ...nothing, account: true, grant: true },
+              T0
+            );
+
+            const survivor = (yield* world("pm1")).person.id;
+            const merged = (yield* world("pm2")).person.id;
+            const later = DateTime.makeUnsafe("2028-09-01T00:00:00Z");
+
+            yield* giveKeepDetails(survivor);
+            yield* addPlace(survivor, U);
+            yield* setKept(merged, iso(later));
+
+            yield* mergeAs(admin.personId, survivor, merged);
+
+            assert.strictEqual((yield* stateOf(survivor)).kept, iso(later));
+
+            // Her place (earlier than the date she was given) is due and goes: the date stays the later one.
+            yield* night(afterPlace(U, 3));
+
+            assert.deepStrictEqual(yield* stateOf(survivor), {
+              anonymised: false,
+              kept: iso(later),
               places: 0,
             });
           })
@@ -474,15 +571,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
   "spec 0026 F4 and F5: merge, export and erasure",
   (it) => {
     const FAR_AGO = DateTime.makeUnsafe("2026-10-26T12:00:00Z");
-
-    const setKept = Effect.fnUntraced(function* setKept(
-      personId: number,
-      kept: string | null
-    ) {
-      const sql = yield* SqlClient;
-
-      yield* sql`update person set last_admin_place_end = ${kept === null ? null : DateTime.toDateUtc(DateTime.makeUnsafe(kept))} where id = ${personId}`;
-    });
 
     const keptOf = Effect.fnUntraced(function* keptOf(personId: number) {
       const state = yield* stateOf(personId);
