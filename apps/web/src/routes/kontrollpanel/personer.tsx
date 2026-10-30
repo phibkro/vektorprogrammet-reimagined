@@ -4,7 +4,7 @@ import { Array as Arr } from "effect";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
 import { EraseSheet, MergeSheet } from "@/components/panel/personalDataSheets";
-import { ProfileFields } from "@/components/profileFields";
+import { ProfileFields, profileDefaults } from "@/components/profileFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -15,6 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DeactivateAccountForm,
+  InviteAccountForm,
+  ReactivateAccountForm,
+  UpdateProfileForm,
+} from "@/forms/people";
+import { RegisterPersonForm } from "@/forms/teams";
 import {
   deactivateAccount,
   inviteAccount,
@@ -30,6 +37,11 @@ const PeoplePage = () => {
   const { canMerge, canRegister, fieldsOfStudy, people } =
     routeApi.useLoaderData();
 
+  const fieldChoices = Arr.map(fieldsOfStudy, (field) => ({
+    label: field.label,
+    value: String(field.id),
+  }));
+
   return (
     <>
       <PageHeader
@@ -44,12 +56,17 @@ const PeoplePage = () => {
                 title="Registrer person"
                 description="Linjen bestemmer hvilken avdeling personen hører til."
                 action={registerPerson}
+                schema={RegisterPersonForm.schema}
+                defaults={profileDefaults(fieldChoices)}
                 submitLabel="Registrer"
               >
-                <ProfileFields
-                  emailLabel="E-post"
-                  fieldsOfStudy={fieldsOfStudy}
-                />
+                {(Field) => (
+                  <ProfileFields
+                    Field={Field}
+                    emailLabel="E-post"
+                    fieldsOfStudy={fieldChoices}
+                  />
+                )}
               </CommandSheet>
             )}
             {canMerge && <MergeSheet people={people} />}
@@ -98,17 +115,19 @@ const PeoplePage = () => {
                         triggerLabel="Rediger"
                         title={`Rediger ${person.name}`}
                         action={updateProfile}
+                        schema={UpdateProfileForm.schema}
+                        defaults={{
+                          ...profileDefaults(fieldChoices, person),
+                          personId: String(person.id),
+                        }}
                         submitLabel="Lagre profil"
                       >
-                        <input
-                          name="personId"
-                          type="hidden"
-                          value={person.id}
-                        />
-                        <ProfileFields
-                          fieldsOfStudy={fieldsOfStudy}
-                          profile={person}
-                        />
+                        {(Field) => (
+                          <ProfileFields
+                            Field={Field}
+                            fieldsOfStudy={fieldChoices}
+                          />
+                        )}
                       </CommandSheet>
                     )}
                     {person.canInvite && (
@@ -123,14 +142,10 @@ const PeoplePage = () => {
                         triggerLabel="Inviter"
                         title={`Inviter ${person.name}`}
                         action={inviteAccount}
+                        schema={InviteAccountForm.schema}
+                        defaults={{ personId: String(person.id) }}
                         submitLabel="Send invitasjon"
-                      >
-                        <input
-                          name="personId"
-                          type="hidden"
-                          value={person.id}
-                        />
-                      </CommandSheet>
+                      />
                     )}
                     {person.canDeactivate && (
                       <CommandSheet
@@ -144,14 +159,10 @@ const PeoplePage = () => {
                         triggerLabel="Deaktiver"
                         title={`Deaktiver ${person.name}`}
                         action={deactivateAccount}
+                        schema={DeactivateAccountForm.schema}
+                        defaults={{ personId: String(person.id) }}
                         submitLabel="Deaktiver konto"
-                      >
-                        <input
-                          name="personId"
-                          type="hidden"
-                          value={person.id}
-                        />
-                      </CommandSheet>
+                      />
                     )}
                     {person.canReactivate && (
                       <CommandSheet
@@ -165,14 +176,10 @@ const PeoplePage = () => {
                         triggerLabel="Reaktiver"
                         title={`Reaktiver ${person.name}`}
                         action={reactivateAccount}
+                        schema={ReactivateAccountForm.schema}
+                        defaults={{ personId: String(person.id) }}
                         submitLabel="Reaktiver konto"
-                      >
-                        <input
-                          name="personId"
-                          type="hidden"
-                          value={person.id}
-                        />
-                      </CommandSheet>
+                      />
                     )}
                     {person.canErase && <EraseSheet person={person} />}
                   </TableCell>

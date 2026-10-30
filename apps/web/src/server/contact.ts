@@ -11,6 +11,7 @@
 import { ContactEndpoints } from "@vektorprogrammet/domain";
 import { Effect, Option, Schema } from "effect";
 
+import { ContactForm } from "../forms/contact";
 import { ContactRateLimiter } from "./rateLimit";
 import { TURNSTILE_RESPONSE_FIELD, TurnstileVerifier } from "./turnstile";
 
@@ -73,14 +74,6 @@ export const prepareHuman = (
     });
   });
 
-/** Step 2, inside the transaction: the domain command decodes and validates (RULE-156). */
-export const contactCommand = (submission: ContactSubmission) => {
-  const { departmentId, ...rest } = submission.values;
-
-  return ContactEndpoints.submitContact({
-    ...rest,
-    departmentId: /^\d+$/u.test(departmentId)
-      ? Number(departmentId)
-      : departmentId,
-  });
-};
+/** Step 2, inside the transaction: the domain command decodes and validates (RULE-156), the form's payload. */
+export const contactCommand = (submission: ContactSubmission) =>
+  ContactEndpoints.submitContact(ContactForm.payloadOf(submission.values));

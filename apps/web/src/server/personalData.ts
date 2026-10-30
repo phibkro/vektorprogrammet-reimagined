@@ -9,60 +9,40 @@ import {
   PersonExport,
   personOf,
 } from "@vektorprogrammet/domain";
-import {
-  Array as Arr,
-  DateTime,
-  Effect,
-  Option,
-  Predicate,
-  Schema,
-} from "effect";
+import { Array as Arr, DateTime, Effect, Predicate, Schema } from "effect";
 
-import { text } from "../lib/formText";
+import { textOf } from "../forms/formSchema";
+import {
+  AnswerConsentByCodeForm,
+  AnswerOwnConsentForm,
+  ErasePersonForm,
+  MergePersonsForm,
+  answersOf,
+} from "../forms/personalData";
 import type { Outcome } from "../lib/outcome";
-import { integer } from "./panel";
 
 /** What every answer to a consent question says: the same words whichever way the person answered. */
 const ANSWERED = "Svaret ditt er lagret.";
-
-/** One click on one question: `kind` names the box and `answer` is `yes` or `no`. Anything else answers nothing. */
-const ClickedAnswer = Schema.Struct({
-  answer: Schema.Literals(["yes", "no"]),
-  kind: Schema.Literals(["keepDetails", "news"]),
-});
-
-const decodeClick = Schema.decodeUnknownOption(ClickedAnswer);
 
 /**
  * The answers of one click, as the command's payload takes them: only the box that was clicked, so the other stays as
  * it was. A form that names no box or no answer gives none, and the domain says that one question must be answered.
  */
-export const consentAnswers = (form: FormData) =>
-  Option.match(
-    decodeClick({ answer: text(form, "answer"), kind: text(form, "kind") }),
-    {
-      onNone: () => ({}),
-      onSome: ({ answer, kind }) => ({ [kind]: answer === "yes" }),
-    }
-  );
+export const consentAnswers = (form: FormData) => answersOf(textOf(form));
 
 /** Min side: the signed-in person answers a box. */
 export const answerOwnConsentProgram = (form: FormData) =>
   Effect.as(
-    PersonalDataEndpoints.setAlumniConsent({
-      ...consentAnswers(form),
-      personId: integer(text(form, "personId")),
-    }),
+    PersonalDataEndpoints.setAlumniConsent(AnswerOwnConsentForm.read(form)),
     ANSWERED
   );
 
 /** The answer page of the e-mail: the code is the credential, and nobody signs in. */
 export const answerConsentByCodeProgram = (form: FormData) =>
   Effect.as(
-    PersonalDataEndpoints.answerAlumniConsent({
-      ...consentAnswers(form),
-      code: text(form, "code"),
-    }),
+    PersonalDataEndpoints.answerAlumniConsent(
+      AnswerConsentByCodeForm.read(form)
+    ),
     ANSWERED
   );
 
@@ -90,19 +70,14 @@ export const erasureMessage = ({
 
 export const erasePersonProgram = (form: FormData) =>
   Effect.map(
-    PersonalDataEndpoints.erasePerson({
-      personId: integer(text(form, "personId")),
-    }),
+    PersonalDataEndpoints.erasePerson(ErasePersonForm.read(form)),
     erasureMessage
   );
 
 /** The control panel: an administrator merges two records of one person. */
 export const mergePersonsProgram = (form: FormData) =>
   Effect.as(
-    PersonalDataEndpoints.mergePersons({
-      from: integer(text(form, "from")),
-      into: integer(text(form, "into")),
-    }),
+    PersonalDataEndpoints.mergePersons(MergePersonsForm.read(form)),
     "Personene er slått sammen."
   );
 

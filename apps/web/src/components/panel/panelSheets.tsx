@@ -1,7 +1,9 @@
+import type { Schema } from "effect";
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 
-import { CommandForm } from "@/components/forms";
+import { CommandForm } from "@/components/form/commandForm";
+import type { FieldComponent } from "@/components/form/field";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -12,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import type { FormText } from "@/forms/formSchema";
 import type { Outcome } from "@/lib/outcome";
 
 interface SheetFrame {
@@ -57,18 +60,26 @@ const PanelSheet = ({
  * A control-panel form in a Sheet. It closes when the command succeeded and the page data was reloaded, so the
  * table behind it already shows the change; a refusal stays in the Sheet, with its message, and nothing is saved.
  */
-export const CommandSheet = ({
+export const CommandSheet = <
+  S extends Schema.ConstraintDecoder<unknown> & { readonly Encoded: FormText },
+>({
   action,
-  submitLabel,
   children,
   defaultOpen = false,
+  defaults,
+  schema,
+  submitLabel,
   ...frame
 }: SheetFrame & {
   action: (options: { data: FormData }) => Promise<Outcome<string>>;
-  submitLabel: string;
-  children: ReactNode;
+  children?: (Field: FieldComponent<S["Encoded"]>) => ReactNode;
   /** Open on first render: the extend link of the "ending soon" e-mail opens the form it names. */
   defaultOpen?: boolean;
+  /** What the form's inputs hold when the Sheet opens. */
+  defaults: S["Encoded"];
+  /** The form's schema (`XForm.schema`): what the browser validates the values with before it posts. */
+  schema: S;
+  submitLabel: string;
 }) => {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -76,6 +87,8 @@ export const CommandSheet = ({
     <PanelSheet {...frame} open={open} onOpenChange={setOpen}>
       <CommandForm
         action={action}
+        defaults={defaults}
+        schema={schema}
         submitLabel={submitLabel}
         className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto px-4 pb-4"
         onSuccess={() => {

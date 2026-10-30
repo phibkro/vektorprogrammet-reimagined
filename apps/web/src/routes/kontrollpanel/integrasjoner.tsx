@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NoFieldsForm } from "@/forms/organisation";
 import {
   getIntegrations,
   requestWorkspaceReport,
@@ -106,9 +107,11 @@ const IntegrationsPage = () => {
             title="Bestill prøverapport"
             description="En prøverapport endrer ikke Google Workspace, selv om skrivemodus er aktiv. Jobben tar bestillingen ved neste planlagte kjøring."
             action={requestWorkspaceReport}
+            schema={NoFieldsForm.schema}
+            defaults={{}}
             submitLabel="Bestill rapport"
           >
-            <p>Rapporten viser forskjellene uten å gjøre endringer.</p>
+            {() => <p>Rapporten viser forskjellene uten å gjøre endringer.</p>}
           </CommandSheet>
         }
       />

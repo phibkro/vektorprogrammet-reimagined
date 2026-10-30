@@ -100,19 +100,31 @@ export const fillSheet = async (
 };
 
 /**
- * Rewrites a hidden field of the open Sheet's form before it is submitted, as a person with the browser's
- * developer tools would: the page offers no way to send this request, the server must refuse it anyway.
+ * Rewrites a field of the next server function call before it leaves the browser, as a person with the browser's
+ * developer tools would: the page offers no way to send this request, the server must refuse it anyway. A form holds its
+ * hidden values in its state and not in the page, so the call itself is what is changed: the multipart part named
+ * `field` gets `forgedValue`.
  */
 export const tamperWith = async (
   page: Page,
   field: string,
   forgedValue: string
 ) => {
-  await sheetOf(page)
-    .locator(`input[name="${field}"]`)
-    .evaluate((input: HTMLInputElement, forged: string) => {
-      input.value = forged;
-    }, forgedValue);
+  const part = new RegExp(`(name="${field}"\\r\\n\\r\\n)[^\\r]*`, "u");
+
+  await page.route(
+    "**/_serverFn/**",
+    async (route) => {
+      const body = route.request().postData();
+
+      await route.continue(
+        body === null
+          ? {}
+          : { postData: body.replace(part, `$1${forgedValue}`) }
+      );
+    },
+    { times: 1 }
+  );
 };
 
 const isServerFunctionPost = (response: Response): boolean =>

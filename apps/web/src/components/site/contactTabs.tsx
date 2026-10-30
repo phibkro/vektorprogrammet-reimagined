@@ -13,12 +13,13 @@ import { Link } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 import { Mail, MapPin } from "lucide-react";
 
-import { Field, FieldErrorsProvider } from "@/components/forms";
+import { PostForm } from "@/components/form/postForm";
 import { ContactPrivacy } from "@/components/site/contactPrivacy";
 import { PortableTextView } from "@/components/site/portableTextView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ContactForm } from "@/forms/contact";
 import { fieldErrors } from "@/lib/outcome";
 import { cn } from "@/lib/utils";
 import type { ContactFormState } from "@/server/contactPost";
@@ -115,70 +116,80 @@ export const ContactTabs = ({
                 {formState.failure.message}
               </p>
             )}
-            <form className="mt-5 grid gap-5" id="kontaktskjema" method="post">
-              <input name="departmentId" type="hidden" value={selected.id} />
-              <FieldErrorsProvider errors={fieldErrors(formState?.failure)}>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Ditt navn" name="name">
+            <PostForm
+              className="mt-5 grid gap-5"
+              defaults={{
+                departmentId: String(selected.id),
+                email: values?.email ?? "",
+                message: values?.message ?? "",
+                name: values?.name ?? "",
+                subject: values?.subject ?? "",
+              }}
+              id="kontaktskjema"
+              schema={ContactForm.schema}
+              serverIssues={fieldErrors(formState?.failure)}
+            >
+              {(Field) => (
+                <>
+                  <input
+                    name="departmentId"
+                    type="hidden"
+                    value={selected.id}
+                  />
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field label="Ditt navn" name="name">
+                      <Input
+                        autoComplete="name"
+                        className={FIELD_CLASS}
+                        id="name"
+                        maxLength={255}
+                        required
+                      />
+                    </Field>
+                    <Field label="Din e-post" name="email">
+                      <Input
+                        autoComplete="email"
+                        className={FIELD_CLASS}
+                        id="email"
+                        required
+                        type="email"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Emne" name="subject">
                     <Input
-                      autoComplete="name"
                       className={FIELD_CLASS}
-                      defaultValue={values?.name}
-                      id="name"
+                      id="subject"
                       maxLength={255}
-                      name="name"
                       required
                     />
                   </Field>
-                  <Field label="Din e-post" name="email">
-                    <Input
-                      autoComplete="email"
-                      className={FIELD_CLASS}
-                      defaultValue={values?.email}
-                      id="email"
-                      name="email"
+                  <Field label="Melding" name="message">
+                    <Textarea
+                      className="min-h-36"
+                      id="message"
                       required
-                      type="email"
+                      rows={6}
                     />
                   </Field>
-                </div>
-                <Field label="Emne" name="subject">
-                  <Input
-                    className={FIELD_CLASS}
-                    defaultValue={values?.subject}
-                    id="subject"
-                    maxLength={255}
-                    name="subject"
-                    required
-                  />
-                </Field>
-                <Field label="Melding" name="message">
-                  <Textarea
-                    className="min-h-36"
-                    defaultValue={values?.message}
-                    id="message"
-                    name="message"
-                    required
-                    rows={6}
-                  />
-                </Field>
-                <Field label="Bekreft at du ikke er en robot" name="captcha">
-                  {view.turnstileSiteKey === "" ? (
-                    <p className="text-sm">
-                      Spambeskyttelse er ikke konfigurert.
-                    </p>
-                  ) : (
-                    <div data-turnstile>
-                      <Turnstile siteKey={view.turnstileSiteKey} />
-                    </div>
-                  )}
-                </Field>
-              </FieldErrorsProvider>
-              <ContactPrivacy notice={view.privacy} />
-              <Button className="w-fit" size="lg" type="submit">
-                Send melding
-              </Button>
-            </form>
+                  <Field label="Bekreft at du ikke er en robot" name="captcha">
+                    {view.turnstileSiteKey === "" ? (
+                      <p className="text-sm">
+                        Spambeskyttelse er ikke konfigurert.
+                      </p>
+                    ) : (
+                      <div data-turnstile>
+                        <Turnstile siteKey={view.turnstileSiteKey} />
+                      </div>
+                    )}
+                  </Field>
+                  <ContactPrivacy notice={view.privacy} />
+                  <Button className="w-fit" size="lg" type="submit">
+                    Send melding
+                  </Button>
+                </>
+              )}
+            </PostForm>
           </div>
         </section>
       </div>

@@ -311,6 +311,50 @@ test("falsifier 3 (RULE-167): a post without a Turnstile answer is refused with 
   expect(await runDatabase(auditEntryCount)).toBe(auditBefore);
 });
 
+test("falsifier 4 (spec 0010a): the contact form posts without JavaScript, and the page that answers still holds the visitor's text", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+
+  // Without Cloudflare's widget script there is no answer to send, whatever the visitor does.
+  await page.route("https://challenges.cloudflare.com/**", async (route) => {
+    await route.abort();
+  });
+  const outboxBefore = await runDatabase(outboxRows);
+
+  await page.goto("/kontakt");
+  // The control: nothing of React ran in this page, so the form that posts is the markup the server rendered.
+  expect(
+    await page.evaluate(
+      "Object.keys(document.querySelector('form#kontaktskjema') ?? {}).some((key) => key.startsWith('__reactFiber$'))"
+    )
+  ).toBe(false);
+  await fillForm(page);
+
+  const answered = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.startsWith("/kontakt")
+  );
+
+  await page.getByRole("button", { name: "Send melding" }).click();
+
+  const refusal = await answered;
+
+  expect(refusal.status()).toBe(422);
+  await expect(page.getByRole("alert")).toContainText(CAPTCHA_MESSAGE);
+
+  for (const [label, value] of Rec.toEntries(FORM)) {
+    await expect(
+      page.getByRole("textbox", { exact: true, name: label })
+    ).toHaveValue(value);
+  }
+
+  expect(await runDatabase(outboxRows)).toEqual(outboxBefore);
+  await context.close();
+});
+
 test("falsifier 3 (RULE-156, RULE-249): a valid post queues the notifications of one transaction, and no ticket or audit entry", async ({
   page,
 }) => {

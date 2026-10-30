@@ -7,7 +7,11 @@ import { consentTexts } from "@vektorprogrammet/domain";
 import type { ConsentSummary } from "@vektorprogrammet/domain";
 import { Array as Arr } from "effect";
 
-import { CommandForm } from "@/components/forms";
+import { CommandForm } from "@/components/form/commandForm";
+import {
+  AnswerConsentByCodeForm,
+  AnswerOwnConsentForm,
+} from "@/forms/personalData";
 import type { Outcome } from "@/lib/outcome";
 
 const QUESTIONS = [
@@ -21,6 +25,43 @@ const ANSWERS = [
 ] as const;
 
 const STATUS = { no: "Nei", yes: "Ja" } as const;
+
+interface Credential {
+  readonly name: "code" | "personId";
+  readonly value: string;
+}
+
+/** One answer to one question: a form with no inputs, of which the values say who answers, which box and how. */
+const ConsentButton = ({
+  action,
+  answer,
+  credential,
+  kind,
+  label,
+}: {
+  readonly action: (options: { data: FormData }) => Promise<Outcome<string>>;
+  readonly answer: string;
+  readonly credential: Credential;
+  readonly kind: string;
+  readonly label: string;
+}) =>
+  credential.name === "code" ? (
+    <CommandForm
+      action={action}
+      className="flex items-center gap-3"
+      defaults={{ answer, code: credential.value, kind }}
+      schema={AnswerConsentByCodeForm.schema}
+      submitLabel={label}
+    />
+  ) : (
+    <CommandForm
+      action={action}
+      className="flex items-center gap-3"
+      defaults={{ answer, kind, personId: credential.value }}
+      schema={AnswerOwnConsentForm.schema}
+      submitLabel={label}
+    />
+  );
 
 export const ConsentQuestions = ({
   action,
@@ -54,20 +95,14 @@ export const ConsentQuestions = ({
           )}
           <div className="flex flex-wrap gap-3">
             {Arr.map(ANSWERS, ({ label, value }) => (
-              <CommandForm
+              <ConsentButton
                 action={action}
-                className="flex items-center gap-3"
+                answer={value}
+                credential={credential}
                 key={value}
-                submitLabel={label}
-              >
-                <input
-                  name={credential.name}
-                  type="hidden"
-                  value={credential.value}
-                />
-                <input name="kind" type="hidden" value={kind} />
-                <input name="answer" type="hidden" value={value} />
-              </CommandForm>
+                kind={kind}
+                label={label}
+              />
             ))}
           </div>
         </fieldset>

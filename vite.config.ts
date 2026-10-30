@@ -185,7 +185,10 @@ const effectConfig: EffectConfigInput = {
     },
     {
       // Renders React into a happy-dom document (`// @vitest-environment happy-dom`).
-      files: ["apps/web/test/outcomeMessages.test.tsx"],
+      files: [
+        "apps/web/test/formMessages.test.tsx",
+        "apps/web/test/formRender.test.tsx",
+      ],
       platform: "browser",
       role: "test",
       strictness: "strict",
@@ -387,7 +390,8 @@ export default defineConfig({
         // These framework entry callbacks return the Effect runtime's Promise; requiring async wrappers conflicts with the Effect async-function rule.
         files: [
           "apps/web/src/functions/public.functions.ts",
-          "apps/web/src/components/forms.tsx",
+          "apps/web/src/components/form/commandForm.tsx",
+          "apps/web/src/components/form/useConstructForm.ts",
           "apps/web/src/routes/filer/$key.ts",
           "apps/web/src/routes/kontakt/*.tsx",
           "apps/web/src/functions/panel.functions.ts",
@@ -558,6 +562,9 @@ export default defineConfig({
           "apps/web/test/outboxQueue.worker.test.ts",
           "apps/web/test/support/outboxQueue.worker.ts",
           "apps/web/test/personalData.test.ts",
+          "apps/web/test/formMessages.test.tsx",
+          "apps/web/test/formRender.test.tsx",
+          "apps/web/test/formAgreement.test.ts",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
           "apps/web/src/server/fileStore.ts",
           "apps/web/src/server/rateLimit.ts",
@@ -578,7 +585,8 @@ export default defineConfig({
           "apps/web/src/routes/nyhet/$slug.tsx",
           "apps/web/src/routes/kontrollpanel/**",
           "apps/web/src/routes/kontakt/*.tsx",
-          "apps/web/src/components/forms.tsx",
+          "apps/web/src/components/form/commandForm.tsx",
+          "apps/web/src/components/form/useConstructForm.ts",
           "apps/web/src/components/panel/testActorSwitch.tsx",
           "apps/web/src/server/outcomeStatus.ts",
           "tools/db-path-spike/src/worker.ts",
@@ -641,6 +649,9 @@ export default defineConfig({
           "apps/web/test/redirects.test.ts",
           "apps/web/test/sandbox.test.ts",
           "apps/web/test/integrationGuard.test.ts",
+          "apps/web/test/formMessages.test.tsx",
+          "apps/web/test/formRender.test.tsx",
+          "apps/web/test/formAgreement.test.ts",
           "tools/db-path-spike/test/support/localWorker.ts",
           "tools/db-path-spike/test/worker.postgres.test.ts",
           "tools/db-path-spike/test/pure.test.ts",

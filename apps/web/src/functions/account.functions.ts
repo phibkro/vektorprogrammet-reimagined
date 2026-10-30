@@ -2,9 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { AccountEndpoints } from "@vektorprogrammet/domain";
 import { Effect, Schema } from "effect";
 
-import { text } from "../lib/formText";
+import {
+  DeactivateAccountForm,
+  InviteAccountForm,
+  ReactivateAccountForm,
+  UpdateProfileForm,
+} from "../forms/people";
 import { myPage, signInDestination } from "../server/accounts";
-import { SAVED, integer, optionalText } from "../server/panel";
+import { SAVED } from "../server/panel";
 import { runCommand, runQuery } from "../server/runtime";
 import { requestScope } from "../server/scope";
 
@@ -29,9 +34,7 @@ export const inviteAccount = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.createAccount({
-          personId: integer(text(data, "personId")),
-        }),
+        AccountEndpoints.createAccount(InviteAccountForm.read(data)),
         "Invitasjonen er lagt til for sending."
       )
     )
@@ -43,9 +46,7 @@ export const deactivateAccount = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.deactivateAccount({
-          personId: integer(text(data, "personId")),
-        }),
+        AccountEndpoints.deactivateAccount(DeactivateAccountForm.read(data)),
         SAVED
       )
     )
@@ -57,9 +58,7 @@ export const reactivateAccount = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.reactivateAccount({
-          personId: integer(text(data, "personId")),
-        }),
+        AccountEndpoints.reactivateAccount(ReactivateAccountForm.read(data)),
         SAVED
       )
     )
@@ -71,13 +70,7 @@ export const updateProfile = createServerFn({ method: "POST" })
     runCommand(
       requestScope(context),
       Effect.as(
-        AccountEndpoints.updatePerson({
-          companyEmail: optionalText(data, "companyEmail"),
-          email: text(data, "email"),
-          fieldOfStudyId: integer(text(data, "fieldOfStudyId")),
-          name: text(data, "name"),
-          personId: integer(text(data, "personId")),
-        }),
+        AccountEndpoints.updatePerson(UpdateProfileForm.read(data)),
         SAVED
       )
     )
