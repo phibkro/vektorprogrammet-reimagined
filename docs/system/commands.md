@@ -117,6 +117,18 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | --- | --- | --- | --- | --- |
 | `listAuditEntries` | `list` | audit | Read the newest entries of the audit log. | Admin |
 
+### Impact
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `listImpact` | `list` | impact | Read the evidence of operations: assistants placed, schools served and placements, by closed semester and department. The cells are released: a count below the minimum is suppressed, and a cell that no source answers is unavailable (spec 0027). | Admin |
+
+### ImpactSnapshot
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `closeImpact` | `:close` | impact | Close the cells of every ended semester that a source answers, once: a closed cell never changes. | System(impactClose) |
+
 ### OutboxMessage
 
 | Command | Method | Domain | What it does | Granted to |

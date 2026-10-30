@@ -24,6 +24,7 @@ import { CodeRepository } from "../accounts/codeRepository.ts";
 import { AccountRepository } from "../accounts/services.ts";
 import { AuditLog } from "../audit/auditLog.ts";
 import { FileStore, PublicFileRepository } from "../files/services.ts";
+import { ImpactSnapshots } from "../impact/services.ts";
 import { JobRuns } from "../jobs/runs.ts";
 import {
   DepartmentRepository,
@@ -475,11 +476,12 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(JobRuns, "claim"),
       carrier(WorkspaceAssignments, "assign"),
       carrier(CapturedMessageStore, "record"),
+      carrier(ImpactSnapshots, "close"),
     ],
     id: "CL1",
     invariant: true,
     property:
-      "At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key.",
+      "At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key; a closed impact snapshot per measure, semester and department.",
     rawWriter: "inserts a second claim with the same key: refused",
     strength: "store-enforced",
   },
@@ -522,6 +524,17 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(Outbox, "enqueue"),
       carrier(AuditLog, "record"),
     ],
+  },
+  {
+    capability: "ConditionalWrites",
+    carriers: [carrier(ImpactSnapshots, "close")],
+    id: "IM1",
+    invariant: false,
+    property:
+      "A closed cell of the impact snapshots is never changed: `close` writes the cells of a lattice together, leaves a cell that is already closed as it was and says how many it closed, and the port has no way to change or remove a closed cell. The number published for a closed semester therefore does not change silently.",
+    rawWriter:
+      "changes or removes a closed row (the table's owner, a migration, anyone with the application's credentials): the row changes and nothing in the store refuses it. The application's role could be denied the right to change or remove rows of the table; it is not, because one role migrates and runs the application in local and test, and the roles are one infrastructure follow-up. The recovery is the audit row of the job that closed the cell and the source it names.",
+    strength: "port-enforced",
   },
   {
     capability: "WorkQueue",

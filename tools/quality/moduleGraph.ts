@@ -258,6 +258,12 @@ const modules: readonly Module[] = [
     ],
   },
   {
+    files: src("impact/*.ts"),
+    layer: "service",
+    name: "impact",
+    uses: ["annotations", "kernel", "organisation", "triggers", "vocabulary"],
+  },
+  {
     files: src(
       "personalData/catalog.ts",
       "jobs/registry.ts",
@@ -273,6 +279,7 @@ const modules: readonly Module[] = [
       "content",
       "files",
       "iam",
+      "impact",
       "membership",
       "organisation",
       "outbox",

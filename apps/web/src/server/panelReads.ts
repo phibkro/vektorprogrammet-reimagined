@@ -7,6 +7,7 @@
  * A server function runs `panelReads.<its own name>`, never a view directly: `test/panelReads.test.ts` fails on a
  * GET function that does not.
  */
+import { impactView } from "@vektorprogrammet/domain";
 import { Effect } from "effect";
 
 import { integrationsView } from "./integrations";
@@ -29,6 +30,7 @@ export const panelReads = {
   getDashboard: guarded("getDashboard", dashboardView),
   getDepartments: guarded("getDepartments", departmentsView),
   getFieldsOfStudy: guarded("getFieldsOfStudy", fieldsOfStudyView),
+  getImpact: guarded("getImpact", impactView),
   getIntegrations: guarded("getIntegrations", integrationsView),
   getPeople: guarded("getPeople", peopleView),
   getSemesters: guarded("getSemesters", semestersView),

@@ -3,6 +3,7 @@ import { Array as Arr } from "effect";
 import {
   BuildingIcon,
   CalendarDaysIcon,
+  ChartColumnIcon,
   ExternalLinkIcon,
   GraduationCapIcon,
   LayoutDashboardIcon,
@@ -51,6 +52,7 @@ const SECTION_ICONS: Readonly<Record<SectionKey, LucideIcon>> = {
   admins: ShieldCheckIcon,
   departments: BuildingIcon,
   fieldsOfStudy: GraduationCapIcon,
+  impact: ChartColumnIcon,
   integrations: PlugIcon,
   overview: LayoutDashboardIcon,
   people: UserRoundIcon,

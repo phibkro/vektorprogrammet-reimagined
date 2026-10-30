@@ -71,6 +71,7 @@ const BUILT_ON_TABLES = [
   schema.jobRun,
   schema.workspaceReport,
   schema.endingSoonDigest,
+  schema.impactSnapshot,
   schema.adminGrant,
   schema.membership,
   schema.companyAddress,

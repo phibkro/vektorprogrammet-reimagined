@@ -1,3 +1,4 @@
+import { impactClose } from "../impact/job.ts";
 /**
  * Every scheduled job, declared once (spec 0008). The registry is closed over `SystemJob`: a job that is a principal
  * has a declaration here, a runner in `apps/web/src/server/jobRunners.ts` and a row in the generated table of
@@ -104,6 +105,7 @@ export const Jobs = [
   endingSoon,
   alumniConsent,
   workspaceSync,
+  impactClose,
   outboxSweep,
   retention,
 ] as const;

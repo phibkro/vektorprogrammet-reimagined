@@ -8,6 +8,7 @@ import { AuditTables } from "../audit/personalData.ts";
 import { ContactForm } from "../contact/personalData.ts";
 import { ContentTables } from "../content/personalData.ts";
 import { FilesTables } from "../files/personalData.ts";
+import { ImpactTables } from "../impact/personalData.ts";
 import { JobTables } from "../jobs/personalData.ts";
 import { OrganisationTables } from "../organisation/personalData.ts";
 import { OutboxTables } from "../outbox/personalData.ts";
@@ -24,6 +25,7 @@ export const Catalog = {
   ...ConsentTables,
   ...ContentTables,
   ...FilesTables,
+  ...ImpactTables,
   ...JobTables,
   ...OrganisationTables,
   ...OutboxTables,

@@ -25,6 +25,8 @@ import type { SignInDirectory } from "../accounts/signInDirectory.ts";
 import type { AuditLog } from "../audit/auditLog.ts";
 import type { SocialEventRepository } from "../content/services.ts";
 import type { FileStore, PublicFileRepository } from "../files/services.ts";
+import type { ImpactSnapshots } from "../impact/services.ts";
+import type { ImpactSource } from "../impact/source.ts";
 import type { JobRuns } from "../jobs/runs.ts";
 import type { ImportTarget } from "../organisation/legacyImport.ts";
 import type {
@@ -89,6 +91,8 @@ export interface StorePorts {
   readonly DigestLedger: DigestLedger;
   readonly FieldOfStudyRepository: FieldOfStudyRepository;
   readonly FileStore: FileStore;
+  readonly ImpactSnapshots: ImpactSnapshots;
+  readonly ImpactSource: ImpactSource;
   readonly ImportTarget: ImportTarget;
   readonly IsolationProbe: IsolationProbe;
   readonly JobRuns: JobRuns;
@@ -171,6 +175,8 @@ export const TransactionModes = {
     rename: "Standalone",
   },
   FileStore: { get: "Outside", put: "Outside" },
+  ImpactSnapshots: { close: "Standalone", read: "Read" },
+  ImpactSource: { answers: "Read", schools: "Read" },
   ImportTarget: { replaceAll: "Opens" },
   IsolationProbe: { report: "Opens" },
   JobRuns: {

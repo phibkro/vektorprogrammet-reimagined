@@ -8,6 +8,7 @@ import {
   JobRegistry,
   alumniConsentJob,
   endingSoonJob,
+  impactCloseJob,
   prepareSync,
   retentionJob,
   semesterJob,
@@ -177,6 +178,24 @@ export const runners: Runners = {
       )
     ),
     ({ sent }) => ({ sent })
+  ),
+  /**
+   * Closes the cells of the ended semesters that a source answers (spec 0027 D8). With the source that ships (every
+   * cell Unavailable) it writes nothing and says how many cells it could not answer.
+   */
+  impactClose: oneShot(
+    impactCloseJob.pipe(
+      Effect.tap((outcome) =>
+        Effect.logInfo("impact close finished").pipe(
+          Effect.annotateLogs(outcome)
+        )
+      )
+    ),
+    ({ alreadyClosed, closed, unavailable }) => ({
+      alreadyClosed,
+      closed,
+      unavailable,
+    })
   ),
   outboxSweep: {
     prepare: () =>

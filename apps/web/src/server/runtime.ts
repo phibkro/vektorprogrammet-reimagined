@@ -42,6 +42,8 @@ import type {
   FileStore,
   InTransaction,
   IntegrationPort,
+  ImpactSnapshots,
+  ImpactSource,
   IsolationProbe,
   PlatformProbe,
   NotAnIntegration,
@@ -136,6 +138,8 @@ export type DatabaseServices =
   | AdmissionPeriodRepository
   | DepartmentRepository
   | SemesterRepository
+  | ImpactSnapshots
+  | ImpactSource
   | IsolationProbe
   | PlatformProbe
   | FieldOfStudyRepository
