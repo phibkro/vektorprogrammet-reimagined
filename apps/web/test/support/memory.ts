@@ -8,6 +8,7 @@ import {
   AdmissionPeriodId,
   AdmissionPeriodRepository,
   AlreadyExists,
+  ApplicationRepository,
   AuditLog,
   Conflict,
   CurrentPrincipal,
@@ -42,6 +43,7 @@ import {
   isListed,
 } from "@vektorprogrammet/domain";
 import type {
+  ApplicationView,
   AuditEntry,
   ClaimedOutboxMessage,
   Department,
@@ -86,6 +88,7 @@ interface OutboxRow {
 export interface MemoryTables {
   departments: Department[];
   admissionPeriods: StoredAdmissionPeriod[];
+  applications: ApplicationView[];
   publicFiles: PublicFile[];
   objects: Map<string, Uint8Array>;
   outbox: OutboxRow[];
@@ -108,6 +111,7 @@ export class Memory extends Context.Service<Memory, MemoryTables>()(
 /** Fresh tables; tests keep the reference to inspect what was (not) written. */
 export const makeTables = (seed: Partial<MemoryTables> = {}): MemoryTables => ({
   admissionPeriods: [],
+  applications: [],
   audit: [],
   commits: 0,
   departments: [],
@@ -648,8 +652,44 @@ const repositories = Layer.effectContext(
         }),
     });
 
+    /** The applications' reads over the table. Their writes need the person aggregate, which PostgreSQL's tests cover (`packages/db/test/admission*.postgres.test.ts`). */
+    const applications = ApplicationRepository.of({
+      existsForAddress: (periodId, email) =>
+        Effect.sync(() =>
+          Arr.some(
+            db.applications,
+            (row) => row.periodId === periodId && row.personEmail === email
+          )
+        ),
+      find: (id) =>
+        Effect.suspend(() =>
+          Effect.mapError(
+            Effect.fromOption(
+              Arr.findFirst(db.applications, (row) => row.id === id)
+            ),
+            () => new NotFound({ entity: "Application", key: String(id) })
+          )
+        ),
+      findLocked: () =>
+        Effect.die("the in-memory tables hold no locked applications"),
+      insert: () =>
+        Effect.die("the in-memory tables hold no locked applications"),
+      list: (departmentIds) =>
+        Effect.sync(() =>
+          Arr.filter(
+            db.applications,
+            (row) =>
+              departmentIds === null ||
+              Arr.contains(departmentIds, row.departmentId)
+          )
+        ),
+      transition: () =>
+        Effect.die("the in-memory tables hold no locked applications"),
+    });
+
     return Context.make(DepartmentRepository, departments).pipe(
       Context.add(AdmissionPeriodRepository, admissionPeriods),
+      Context.add(ApplicationRepository, applications),
       Context.add(SemesterRepository, semesters),
       Context.add(FieldOfStudyRepository, fieldsOfStudy),
       Context.add(SocialEventRepository, socialEvents),
@@ -680,6 +720,7 @@ const transactor = Layer.effect(
 
           const before: Omit<MemoryTables, "commits" | "nextId" | "teams"> = {
             admissionPeriods: [...db.admissionPeriods],
+            applications: [...db.applications],
             audit: [...db.audit],
             departments: [...db.departments],
             fieldsOfStudy: [...db.fieldsOfStudy],

@@ -15,6 +15,7 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 
+import type { ApplicationFormState, VerifyState } from "./admissionPost";
 import type { ContactFormState } from "./contactPost";
 
 export interface WorkerEnv {
@@ -57,7 +58,9 @@ export interface WorkerEnv {
 export interface RequestContext {
   readonly env: WorkerEnv;
   readonly ctx: ExecutionContext;
+  readonly applicationForm?: ApplicationFormState;
   readonly contactForm?: ContactFormState;
+  readonly verify?: VerifyState;
 }
 
 declare module "@tanstack/react-router" {

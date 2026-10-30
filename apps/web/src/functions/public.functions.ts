@@ -7,6 +7,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { Effect, Schema } from "effect";
 
+import { applicationPage, applyIndexPage } from "../server/admission";
 import { runQuery } from "../server/runtime";
 import { requestScope } from "../server/scope";
 import {
@@ -40,6 +41,10 @@ const OptionalSlugInput = Schema.toStandardSchemaV1(
 
 const ContactInput = Schema.toStandardSchemaV1(
   Schema.Struct({ sent: Schema.Boolean, slug: Schema.NullOr(Schema.String) })
+);
+
+const ApplicationInput = Schema.toStandardSchemaV1(
+  Schema.Struct({ sent: Schema.Boolean, slug: Schema.String })
 );
 
 const DepartmentIdInput = Schema.toStandardSchemaV1(
@@ -95,6 +100,24 @@ export const getContactPage = createServerFn({ method: "GET" })
     runQuery(
       requestScope(context),
       Effect.map(contactPage(data.slug, data.sent), (page) => ({
+        ...page,
+        turnstileSiteKey: context.env.TURNSTILE_SITE_KEY,
+      }))
+    )
+  );
+
+/** `/soknad`: the departments and whether their admission is open. */
+export const getApplyIndex = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), applyIndexPage)
+);
+
+/** `/soknad/{department}`: the application form, the privacy notice and the Turnstile site key. */
+export const getApplicationPage = createServerFn({ method: "GET" })
+  .validator(ApplicationInput)
+  .handler(({ context, data }) =>
+    runQuery(
+      requestScope(context),
+      Effect.map(applicationPage(data.slug, data.sent), (page) => ({
         ...page,
         turnstileSiteKey: context.env.TURNSTILE_SITE_KEY,
       }))

@@ -21,6 +21,8 @@ import { Switch } from "@/components/ui/switch";
 import { formLevelMessage } from "@/lib/outcome";
 import type { FieldErrors, Outcome } from "@/lib/outcome";
 
+import { CheckGroup } from "./choice";
+
 /** A `Field` tells the form it is rendered, and gets back the call that tells it the `Field` is gone. */
 export type RegisterField = (name: string) => () => void;
 
@@ -75,6 +77,9 @@ interface FieldState {
   };
 }
 
+const isGroup = (control: ReactNode): boolean =>
+  isValidElement(control) && control.type === CheckGroup;
+
 const isToggle = (control: ReactNode): boolean =>
   isValidElement(control) &&
   (control.type === Switch || control.type === Checkbox);
@@ -108,7 +113,11 @@ const bound = (
   field: FieldState,
   messagesId: string | null
 ): ReactNode => {
-  if (!isValidElement<ControlProps>(control) || !isControl(control)) {
+  if (
+    !isValidElement<ControlProps>(control) ||
+    !isControl(control) ||
+    isGroup(control)
+  ) {
     return control;
   }
 
@@ -131,6 +140,46 @@ const bound = (
     },
     value: field.state.value ?? "",
   });
+};
+
+/**
+ * The control under its label. A `Switch` or a `Checkbox` reads its label beside it; a `CheckGroup` is a set of
+ * controls of their own (each its own `Field`) under one legend, and the messages of the group's path describe the set;
+ * any other control is wrapped by its label.
+ */
+const labelled = (
+  control: ReactNode,
+  field: FieldState,
+  label: string,
+  described: string | null
+): ReactNode => {
+  if (isGroup(control)) {
+    return (
+      <fieldset
+        aria-describedby={described ?? undefined}
+        className="grid gap-1.5"
+      >
+        <legend className="mb-1.5 text-sm font-medium">{label}</legend>
+        {control}
+      </fieldset>
+    );
+  }
+
+  if (isToggle(control)) {
+    return (
+      <label className="flex items-center gap-2 text-sm font-medium">
+        {bound(control, field, described)}
+        {label}
+      </label>
+    );
+  }
+
+  return (
+    <Label className="grid">
+      <span className="mb-1.5">{label}</span>
+      {bound(control, field, described)}
+    </Label>
+  );
 };
 
 const FieldBody = ({
@@ -157,21 +206,10 @@ const FieldBody = ({
   useLayoutEffect(() => register?.(field.name), [register, field.name]);
 
   const described = messages.length === 0 ? null : messagesId;
-  const toggle = isToggle(children);
 
   return (
     <div className="grid gap-1.5">
-      {toggle ? (
-        <label className="flex items-center gap-2 text-sm font-medium">
-          {bound(children, field, described)}
-          {label}
-        </label>
-      ) : (
-        <Label className="grid">
-          <span className="mb-1.5">{label}</span>
-          {bound(children, field, described)}
-        </Label>
-      )}
+      {labelled(children, field, label, described)}
       {messages.length > 0 && (
         <div className="grid gap-1.5" id={messagesId}>
           {Arr.map(messages, (message) => (

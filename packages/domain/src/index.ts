@@ -154,6 +154,8 @@ export type { ApplicationMachineTransition } from "./admission/declaration.ts";
 
 export * from "./admission/entities.ts";
 
+export { ApplicationForm } from "./admission/personalData.ts";
+
 export * from "./admission/services.ts";
 
 // impact: evidence of operations (spec 0027)

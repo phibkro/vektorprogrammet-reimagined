@@ -1,5 +1,5 @@
 import { Array as Arr } from "effect";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 /** One entry of a choice: what the form holds and what the person reads. */
 export interface Option {
@@ -40,4 +40,13 @@ export const Choice = ({
       </option>
     ))}
   </select>
+);
+
+/**
+ * A set of checkboxes under one legend, as one `Field` renders it: each box is a `Field` of its own (a name of its own,
+ * so a post without script carries it), and the `Field` around the set is where the messages about the whole set
+ * (none chosen, one chosen twice) are shown (spec 0009).
+ */
+export const CheckGroup = ({ children }: { readonly children: ReactNode }) => (
+  <div className="grid gap-1.5">{children}</div>
 );
