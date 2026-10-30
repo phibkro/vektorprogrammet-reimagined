@@ -3,7 +3,7 @@ import { Record as Rec, Schema } from "effect";
 
 import { Text, formSchema, wholeNumber } from "./formSchema";
 
-/** The names of the contact form's inputs: the one list that the page, the post and its echo read. `captcha` is the Turnstile widget's place for a message. */
+/** The names of the contact form's inputs: the one list that the post and its echo read (the page's four fields are named by the page). `captcha` is the Turnstile widget's place for a message. */
 const ContactText = Schema.Struct({
   captcha: Text,
   departmentId: Text,

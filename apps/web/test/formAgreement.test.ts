@@ -309,19 +309,17 @@ const isForm = (value: unknown): value is Form =>
   Predicate.hasProperty(value, "read") &&
   Predicate.hasProperty(value, "schema");
 
-/** Every form that the app builds with `formSchema`: the exports of `src/forms` that carry the construct's members. */
-const EVERY_FORM: readonly Form[] = Arr.filter(
-  [
-    ...Rec.values(AccountForms),
-    ...Rec.values(ContactForms),
-    ...Rec.values(DepartmentForms),
-    ...Rec.values(OrganisationForms),
-    ...Rec.values(PeopleForms),
-    ...Rec.values(PersonalDataForms),
-    ...Rec.values(TeamForms),
-  ],
-  isForm
-);
+/** Every module of `src/forms`, read from the directory (a module that is added is here without a line to say so). */
+const FORM_MODULES = import.meta.glob("../src/forms/*.ts", { eager: true });
+
+/** Every form that the modules export: the exports that carry the construct's members (`payloadOf`, `read`, `schema`). */
+const formsIn = (modules: typeof FORM_MODULES): readonly Form[] =>
+  Arr.filter(
+    Arr.flatMap(Rec.values(modules), (module) =>
+      Predicate.isObject(module) ? Rec.values(module) : []
+    ),
+    isForm
+  );
 
 /** The forms that are neither compared in `cases` nor excused: nothing else keeps a new form in agreement with its command. */
 const uncovered = (
@@ -375,19 +373,38 @@ describe("spec 0010a F2: the browser and the server agree", () => {
   );
 
   it("issue 74: every form of src/forms is compared above or excused, so a new form cannot join unchecked", () => {
-    assert.isAbove(EVERY_FORM.length, 20);
-    assert.strictEqual(
-      uncovered(EVERY_FORM, CASES, WITHOUT_A_COMMAND).length,
-      0
+    // The directory is read, not listed: a module that is added to it is in `FORM_MODULES` without a line here.
+    assert.isAbove(Rec.keys(FORM_MODULES).length, 7);
+    assert.isAbove(formsIn(FORM_MODULES).length, 20);
+    assert.deepStrictEqual(
+      uncovered(formsIn(FORM_MODULES), CASES, WITHOUT_A_COMMAND),
+      []
     );
   });
 
-  it("issue 74 control: a form with no row and no excuse is reported", () => {
-    const [lonely] = EVERY_FORM;
+  it("issue 74 control: a form with no row and no excuse is reported, and so is one in a module that is new to the directory", () => {
+    const [lonely] = formsIn(FORM_MODULES);
     assert.isDefined(lonely);
 
     const rows = Arr.filter(CASES, (row) => row.form !== lonely);
 
     assert.deepStrictEqual(uncovered([lonely], rows, []), [lonely]);
+
+    // A module that a developer adds to src/forms, as it would appear in the glob.
+    const added = formSchema(
+      Schema.Struct({ name: Text }),
+      Schema.Struct({ name: Schema.String }),
+      (values) => ({ name: values.name ?? "" })
+    );
+
+    const withNewModule = {
+      ...FORM_MODULES,
+      "../src/forms/zzNew.ts": { added },
+    };
+
+    assert.deepStrictEqual(
+      uncovered(formsIn(withNewModule), CASES, WITHOUT_A_COMMAND),
+      [added]
+    );
   });
 });
