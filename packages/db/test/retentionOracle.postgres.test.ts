@@ -879,12 +879,27 @@ const periodEndAgrees =
       yield* run(sql`delete from retention_scratch`);
       yield* run(sql`delete from admission_period`);
 
+      // One period per department and semester (spec 0009): the first end keeps the anchor's semester, each of the others has one of its own.
+      const ends = around(boundary.start);
+
+      const otherSemesters = yield* idsOf(
+        sql`insert into semester (term, year) values ${sql.join(
+          Arr.map(
+            Arr.drop(ends, 1),
+            (_, index) => sql`('VAR', ${4000 + index})`
+          ),
+          sql`, `
+        )} on conflict (term, year) do update set year = excluded.year returning id`
+      );
+
+      const semesterIds = [semesterId, ...otherSemesters];
+
       const periodIds = yield* idsOf(
         sql`insert into admission_period (department_id, semester_id, starts_at, ends_at) values ${sql.join(
           Arr.map(
-            around(boundary.start),
-            (end) =>
-              sql`(${anchor.departmentId}, ${semesterId}, ${at(DateTime.subtract(end, { days: 1 }))}, ${at(end)})`
+            ends,
+            (end, index) =>
+              sql`(${anchor.departmentId}, ${semesterIds[index] ?? semesterId}, ${at(DateTime.subtract(end, { days: 1 }))}, ${at(end)})`
           ),
           sql`, `
         )} returning id`
