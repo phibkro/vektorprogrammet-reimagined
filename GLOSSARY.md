@@ -52,15 +52,17 @@ Vektorprogrammet is a volunteer organisation. It sends university students into 
 
 **Principal** (aktør): The accountable party that holds grants: `Anonymous`, a Person, a named system principal, a `Link(purpose)` holder, or `Emergency`. A person principal is an actor in business language and an ArchiMate Business Actor. _Avoid_: user, role, actor (in code)
 
-**System principal**: A principal that is a job of Vektorprogrammet's own system, for example the semester job or the retention job. It acts only through its own grants. In ArchiMate, an Application Process of an Application Component, not a Business Actor. _Avoid_: root, service account, bot
+**System principal**: A principal that is a part of Vektorprogrammet's own system, for example the semester job, the retention job or, for the posts it makes on its own account, the Slack bot (ADR 0013, 2026-10-30). It acts only through its own grants. In ArchiMate, an Application Process of an Application Component, not a Business Actor. _Avoid_: root, service account, bot (alone; see **Slack bot**)
 
 **Credential** (innloggingsmiddel): What proves a principal: a password, a passkey, a single-use code, or the platform's trigger for a scheduled job. _Avoid_: login, auth
 
 **Session** (økt): A period in which one credential holds one principal on one client. A person can see and end their sessions. _Avoid_: login, token
 
-**Client** (klient): The software that acts on behalf of a principal: a browser on a desktop or a phone, the server that runs a request, the scheduler, the import tool, or the Slack bot. A client never has more permissions than its principal and never has grants of its own. In business language, an agent. _Avoid_: device, agent (in code), app
+**Client** (klient): The software that acts on behalf of a principal: a browser on a desktop or a phone, the server that runs a request, the scheduler, the import tool, or the Slack bot when it relays a person's command. A client never has more permissions than its principal and never has grants of its own. In business language, an agent. _Avoid_: device, agent (in code), app
 
-**Slack link**: An explicit, recorded link between one Person and one Slack user id. It records its source (`auto: verified e-mail` or `manual: Sign in with Slack`) and, for an automatic link, the matched address. The person can remove it on Min side.
+**Slack bot**: The organisation's Slack app. It has two roles that are never mixed (ADR 0013, revised 2026-10-30): a **client** of a person's principal when it relays that person's click or command, and a **system principal** of its own, `System(slackBot)` (a proposed name), for the scheduled and system posts that no person's command caused. A person's command never runs as the bot's principal. _Avoid_: Slack principal (for a person's click), Slack user (the person)
+
+**Slack link**: An explicit, recorded link between one Person and one Slack user id. It records its source (`auto: verified e-mail` or `manual: Sign in with Slack`) and, for an automatic link, the matched address. The person can remove it on Min side. It is how a click of a human becomes that person's command; the bot's own principal needs none.
 
 ## Activities
 
