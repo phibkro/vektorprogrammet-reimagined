@@ -1,6 +1,9 @@
+import { PostForm } from "@/components/form/postForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ChoosePasswordForm } from "@/forms/account";
+import { fieldErrors } from "@/lib/outcome";
 
 export const CodeForm = ({
   code,
@@ -23,31 +26,35 @@ export const CodeForm = ({
           {code === undefined || code === "" ? (
             <p>Lenken mangler en kode.</p>
           ) : (
-            <form
+            <PostForm
               action={
                 activation
                   ? "/api/account/activate"
                   : "/api/account/reset-password"
               }
               className="grid gap-4"
-              method="post"
+              defaults={{ code, password: "" }}
+              schema={ChoosePasswordForm.schema}
+              serverIssues={fieldErrors(null)}
             >
-              <input name="code" type="hidden" value={code} />
-              <label className="grid gap-1" htmlFor="password">
-                Nytt passord
-                <Input
-                  autoComplete="new-password"
-                  id="password"
-                  name="password"
-                  required
-                  type="password"
-                />
-              </label>
-              <p>Bruk 8–64 tegn og høyst 72 UTF-8-byte.</p>
-              <Button type="submit">
-                {activation ? "Aktiver og logg inn" : "Lagre passord"}
-              </Button>
-            </form>
+              {(Field) => (
+                <>
+                  <input name="code" type="hidden" value={code} />
+                  <Field label="Nytt passord" name="password">
+                    <Input
+                      autoComplete="new-password"
+                      id="password"
+                      required
+                      type="password"
+                    />
+                  </Field>
+                  <p>Bruk 8–64 tegn og høyst 72 UTF-8-byte.</p>
+                  <Button type="submit">
+                    {activation ? "Aktiver og logg inn" : "Lagre passord"}
+                  </Button>
+                </>
+              )}
+            </PostForm>
           )}
         </CardContent>
       </Card>

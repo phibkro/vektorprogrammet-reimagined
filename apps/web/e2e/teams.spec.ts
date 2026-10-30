@@ -131,11 +131,7 @@ test("falsifier 10: an admin and leader create a team and members, switch princi
     page.getByText(`${TEST_LEADER}, teamleder`, { exact: true })
   ).toBeVisible();
   await openPage(page, teamPath);
-  await memberRow(page, EXTEND)
-    .getByRole("button", { name: `Forleng ${EXTEND}` })
-    .click();
-  const id = await sheetOf(page).locator('input[name="id"]').inputValue();
-  await sheetOf(page).getByRole("button", { name: "Avbryt" }).click();
+  const id = beforeExtend[0]?.id;
   await openPage(page, `${teamPath}?forleng=${id}`);
   await expect(
     sheetOf(page).getByRole("heading", { name: `Forleng ${EXTEND}` })

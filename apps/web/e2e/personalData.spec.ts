@@ -33,6 +33,7 @@ import {
   signInAs,
   statusOfClick,
   submitSheet,
+  tamperWith,
 } from "./support/panel.ts";
 import {
   auditEntryCount,
@@ -187,14 +188,9 @@ test("an administrator's Min side answers only for themself: a person id forged 
   const keep = question(page, KEEP);
   const yes = keep.getByRole("button", { exact: true, name: "Ja" });
 
-  // As a person with the browser's developer tools would: the form is the administrator's own, and the person id in it
-  // is another person's. The grant table admits an administrator for every person, so only the command can refuse it.
-  await yes
-    .locator("xpath=ancestor::form")
-    .locator('input[name="personId"]')
-    .evaluate((input: HTMLInputElement, forged: string) => {
-      input.value = forged;
-    }, String(other));
+  // As a person with the browser's developer tools would: the call carries the administrator's own form, and the person id
+  // in it is another person's. The grant table admits an administrator for every person, so only the command can refuse it.
+  await tamperWith(page, "personId", String(other));
 
   expect(await statusOfClick(page, yes)).toBe(403);
   await expect(keep.getByRole("alert")).toContainText(

@@ -21,95 +21,24 @@ import {
   findCurrentSemester,
   listFieldsOfStudy,
   listSemestersNewestFirst,
-  osloWallClock,
   semesterLabel,
 } from "@vektorprogrammet/domain";
 import type { Department, Principal, Semester } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
 
-import { text } from "../lib/formText";
+import { DepartmentForm } from "../forms/department";
+import { hasValue } from "../forms/formSchema";
+import {
+  CreateFieldOfStudyForm,
+  RenameFieldOfStudyForm,
+  SocialEventForm,
+} from "../forms/organisation";
 import { actorSummary, nameOfActor } from "./shell";
-
-// ---------------------------------------------------------------- form text
-
-/** Blank → null. */
-export const optionalText = (form: FormData, name: string): string | null => {
-  const value = text(form, name).trim();
-
-  return value === "" ? null : value;
-};
-
-/** A checkbox: present → true. */
-export const checkbox = (form: FormData, name: string): boolean =>
-  form.has(name);
-
-/** Digits → number; anything else passes through so the domain reports it. */
-export const integer = (raw: string): number | string =>
-  /^-?\d+$/u.test(raw.trim()) ? Number(raw) : raw;
-
-/** Optional decimal (latitude/longitude): blank → null. */
-const optionalNumber = (
-  form: FormData,
-  name: string
-): number | string | null => {
-  const raw = optionalText(form, name);
-
-  if (raw === null) {
-    return null;
-  }
-
-  const parsed = Number(raw.replace(",", "."));
-
-  return Number.isFinite(parsed) ? parsed : raw;
-};
-
-/**
- * `<input type="datetime-local">` is Oslo wall-clock time; the domain wants a
- * UTC ISO instant. Unparseable input passes through so the domain reports it.
- */
-export const osloLocalToIso = (raw: string): string => {
-  const match =
-    /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2})$/u.exec(
-      raw
-    );
-
-  if (match === null) {
-    return raw;
-  }
-
-  const [, year, month, day, hour, minute] = Arr.map(match, Number);
-
-  return DateTime.formatIso(osloWallClock({ day, hour, minute, month, year }));
-};
 
 // ---------------------------------------------------------------- C1 / C2
 
 /** What every successful panel command answers with. */
 export const SAVED = "Lagret.";
-
-export const departmentInput = (form: FormData) => ({
-  active: checkbox(form, "active"),
-  address: optionalText(form, "address"),
-  city: text(form, "city"),
-  email: text(form, "email"),
-  latitude: optionalNumber(form, "latitude"),
-  logoKey: optionalText(form, "logoKey"),
-  longitude: optionalNumber(form, "longitude"),
-  name: text(form, "name"),
-  shortName: text(form, "shortName"),
-  slackChannel: optionalText(form, "slackChannel"),
-});
-
-export const fieldOfStudyInput = (form: FormData) => ({
-  departmentId: integer(text(form, "departmentId")),
-  name: text(form, "name"),
-  shortName: text(form, "shortName"),
-});
-
-export const fieldOfStudyRename = (form: FormData) => ({
-  name: text(form, "name"),
-  shortName: text(form, "shortName"),
-});
 
 /**
  * C1: a blank `id` creates a department, an `id` updates it. The commands authorize inside their
@@ -117,13 +46,12 @@ export const fieldOfStudyRename = (form: FormData) => ({
  * city is refused by the unique constraint.
  */
 export const saveDepartmentProgram = (form: FormData) => {
-  const id = text(form, "id");
-  const input = departmentInput(form);
+  const { id, ...input } = DepartmentForm.read(form);
 
   return Effect.as(
-    id === ""
+    id === null
       ? OrganisationEndpoints.createDepartment(input)
-      : OrganisationEndpoints.updateDepartment({ id: integer(id), ...input }),
+      : OrganisationEndpoints.updateDepartment({ id, ...input }),
     SAVED
   );
 };
@@ -132,19 +60,17 @@ export const saveDepartmentProgram = (form: FormData) => {
  * C1, RULE-139: a blank `id` creates a field of study (in the named department), an `id` renames one. A team
  * leader is refused outside their own department.
  */
-export const saveFieldOfStudyProgram = (form: FormData) => {
-  const id = text(form, "id");
-
-  return Effect.as(
-    id === ""
-      ? OrganisationEndpoints.createFieldOfStudy(fieldOfStudyInput(form))
-      : OrganisationEndpoints.updateFieldOfStudy({
-          id: integer(id),
-          ...fieldOfStudyRename(form),
-        }),
+export const saveFieldOfStudyProgram = (form: FormData) =>
+  Effect.as(
+    hasValue(form, "id")
+      ? OrganisationEndpoints.updateFieldOfStudy(
+          RenameFieldOfStudyForm.read(form)
+        )
+      : OrganisationEndpoints.createFieldOfStudy(
+          CreateFieldOfStudyForm.read(form)
+        ),
     SAVED
   );
-};
 
 export interface DepartmentRow {
   readonly id: number;
@@ -297,19 +223,12 @@ export const fieldsOfStudyView = Effect.gen(function* fieldsOfStudyView() {
 
 // ---------------------------------------------------------------- C8
 
-export const socialEventInput = (form: FormData) => ({
-  departmentId: integer(text(form, "departmentId")),
-  description: text(form, "description"),
-  endsAt: osloLocalToIso(text(form, "endsAt")),
-  link: optionalText(form, "link"),
-  semesterId: integer(text(form, "semesterId")),
-  startsAt: osloLocalToIso(text(form, "startsAt")),
-  title: text(form, "title"),
-});
-
 /** C8: one social event. */
 export const saveSocialEventProgram = (form: FormData) =>
-  Effect.as(ContentEndpoints.createSocialEvent(socialEventInput(form)), SAVED);
+  Effect.as(
+    ContentEndpoints.createSocialEvent(SocialEventForm.read(form)),
+    SAVED
+  );
 
 /**
  * The events this semester of the first department the principal may create them in, with the RULE-085 badge.

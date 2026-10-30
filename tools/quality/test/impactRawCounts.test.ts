@@ -11,10 +11,10 @@
  * the early signal at review time, not a guarantee, as `inTransactionProviders.test.ts` is for its own name.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Effect, Order, Record as Rec } from "effect";
+import { Array as Arr, Order, Record as Rec } from "effect";
 
+import { assertCleanScan } from "./support/sources.ts";
 import type { Source } from "./support/sources.ts";
-import { workingTreeSources } from "./support/sources.ts";
 
 const root = new URL("../../../", import.meta.url).pathname.replace(/\/$/u, "");
 
@@ -130,13 +130,6 @@ describe("spec 0027 D5: only release lets a raw count out", () => {
 
   it.effect(
     "the real tree: every file that names a raw-count exit is listed, and every allowance is used",
-    () =>
-      Effect.gen(function* realTree() {
-        const sources = yield* workingTreeSources(root, isSource);
-
-        assert.isAbove(sources.length, 100);
-        assert.deepStrictEqual(unlisted(sources), []);
-        assert.deepStrictEqual(stale(sources), []);
-      })
+    () => assertCleanScan(root, isSource, { stale, unlisted })
   );
 });

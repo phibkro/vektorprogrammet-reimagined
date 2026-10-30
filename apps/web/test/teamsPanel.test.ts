@@ -8,11 +8,12 @@
  * would go through for the principal, for the membership's calculated state.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { anonymous, authorize } from "@vektorprogrammet/domain";
+import { Semester, anonymous, authorize } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
 import { MEMBER_POSITION } from "@vektorprogrammet/domain/testing";
-import { Array as Arr, Effect, Option, Ref } from "effect";
+import { Array as Arr, Effect, Option, Ref, Schema } from "effect";
 
+import { semesterOfChoice } from "../src/forms/semester";
 import type { Outcome } from "../src/lib/outcome";
 import { SAVED } from "../src/server/panel";
 import { panelReads } from "../src/server/panelReads";
@@ -29,7 +30,6 @@ import {
   registerPersonProgram,
   revokeAdminProgram,
   saveTeamProgram,
-  semesterOfChoice,
   teamView,
   teamsView,
 } from "../src/server/teams";
@@ -95,7 +95,7 @@ const controlsOf = (member: MemberRow) =>
   );
 
 describe("spec 0006: the Team page", () => {
-  it("a semester choice posts as TERM-YEAR and reads back as the semester; anything else passes through for the domain to refuse", () => {
+  it("a semester choice posts as TERM-YEAR and reads back as the semester; anything else is a semester with no year, which the domain refuses", () => {
     assert.deepStrictEqual(semesterOfChoice("HOST-2026"), {
       term: "HOST",
       year: 2026,
@@ -104,8 +104,12 @@ describe("spec 0006: the Team page", () => {
       term: "VAR",
       year: 2027,
     });
-    assert.strictEqual(semesterOfChoice("Høst 2026"), "Høst 2026");
-    assert.strictEqual(semesterOfChoice(""), "");
+    assert.isTrue(Schema.is(Semester)(semesterOfChoice("VAR-2027")));
+
+    for (const altered of ["Høst 2026", ""]) {
+      assert.isTrue(Number.isNaN(semesterOfChoice(altered).year));
+      assert.isFalse(Schema.is(Semester)(semesterOfChoice(altered)));
+    }
   });
 
   it.effect(

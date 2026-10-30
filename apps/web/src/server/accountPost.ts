@@ -4,6 +4,7 @@ import { AccountEndpoints } from "@vektorprogrammet/domain";
 import type { PersonId } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Option, Predicate, Schema } from "effect";
 
+import { ChoosePasswordForm, RequestResetForm } from "../forms/account";
 import type { Failure } from "../lib/outcome";
 import { wrongPasswordResponse } from "./auth";
 import { prepareHuman } from "./contact";
@@ -54,10 +55,7 @@ const codeFailure = (outcome: Failure): Response =>
 
 const codeCommand = (
   purpose: "activation" | "resetPassword",
-  input: {
-    readonly code: FormDataEntryValue | null;
-    readonly password: FormDataEntryValue | null;
-  }
+  input: ReturnType<typeof ChoosePasswordForm.read>
 ) => {
   const noPerson: CodeUseResult = { personId: null };
 
@@ -90,7 +88,7 @@ const requestReset = (
             remoteIp: request.headers.get("CF-Connecting-IP"),
           }),
           () =>
-            AccountEndpoints.requestPasswordReset({ email: form.get("email") })
+            AccountEndpoints.requestPasswordReset(RequestResetForm.read(form))
         )
       );
 
@@ -113,8 +111,8 @@ const useCode = (
     Effect.gen(function* useCodeRequest() {
       const form = yield* Effect.promise(() => request.formData());
       const scope = scopeFor(request, env, ctx);
-      const password = form.get("password");
-      const input = { code: form.get("code"), password };
+      const input = ChoosePasswordForm.read(form);
+      const { password } = input;
 
       const command = codeCommand(purpose, input);
 

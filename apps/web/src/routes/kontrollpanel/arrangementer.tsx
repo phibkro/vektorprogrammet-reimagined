@@ -1,7 +1,7 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { Field, nativeSelectClass } from "@/components/forms";
+import { Choice, firstValue, optionsOf } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { SocialEventForm } from "@/forms/organisation";
 import { getSocialEvents, saveSocialEvent } from "@/functions/panel.functions";
 import { pageData } from "@/lib/outcome";
 
@@ -34,6 +35,13 @@ const SocialEventsPage = () => {
     currentSemesterLabel,
   } = routeApi.useLoaderData();
 
+  const departmentChoices = optionsOf(departments);
+
+  const semesterChoices = Arr.map(semesters, (semester) => ({
+    label: semester.label,
+    value: String(semester.id),
+  }));
+
   return (
     <>
       <PageHeader
@@ -46,51 +54,47 @@ const SocialEventsPage = () => {
               triggerLabel="Nytt arrangement"
               title="Nytt arrangement"
               action={saveSocialEvent}
+              schema={SocialEventForm.schema}
+              defaults={{
+                departmentId: String(
+                  departmentId ?? firstValue(departmentChoices)
+                ),
+                description: "",
+                endsAt: "",
+                link: "",
+                semesterId: String(
+                  currentSemesterId ?? firstValue(semesterChoices)
+                ),
+                startsAt: "",
+                title: "",
+              }}
               submitLabel="Opprett"
             >
-              <Field name="title" label="Tittel">
-                <Input name="title" />
-              </Field>
-              <Field name="description" label="Beskrivelse">
-                <Textarea name="description" rows={4} />
-              </Field>
-              <Field name="startsAt" label="Start (norsk tid)">
-                <Input name="startsAt" type="datetime-local" required />
-              </Field>
-              <Field name="endsAt" label="Slutt (norsk tid)">
-                <Input name="endsAt" type="datetime-local" required />
-              </Field>
-              <Field name="link" label="Lenke">
-                <Input name="link" maxLength={250} />
-              </Field>
-              <Field name="departmentId" label="Avdeling">
-                <select
-                  id="departmentId"
-                  name="departmentId"
-                  className={nativeSelectClass}
-                  defaultValue={departmentId ?? undefined}
-                >
-                  {Arr.map(departments, (department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field name="semesterId" label="Semester">
-                <select
-                  id="semesterId"
-                  name="semesterId"
-                  className={nativeSelectClass}
-                  defaultValue={currentSemesterId ?? undefined}
-                >
-                  {Arr.map(semesters, (semester) => (
-                    <option key={semester.id} value={semester.id}>
-                      {semester.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              {(Field) => (
+                <>
+                  <Field name="title" label="Tittel">
+                    <Input />
+                  </Field>
+                  <Field name="description" label="Beskrivelse">
+                    <Textarea rows={4} />
+                  </Field>
+                  <Field name="startsAt" label="Start (norsk tid)">
+                    <Input type="datetime-local" required />
+                  </Field>
+                  <Field name="endsAt" label="Slutt (norsk tid)">
+                    <Input type="datetime-local" required />
+                  </Field>
+                  <Field name="link" label="Lenke">
+                    <Input maxLength={250} />
+                  </Field>
+                  <Field name="departmentId" label="Avdeling">
+                    <Choice id="departmentId" options={departmentChoices} />
+                  </Field>
+                  <Field name="semesterId" label="Semester">
+                    <Choice id="semesterId" options={semesterChoices} />
+                  </Field>
+                </>
+              )}
             </CommandSheet>
           )
         }

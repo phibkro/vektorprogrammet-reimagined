@@ -1,7 +1,7 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { Field } from "@/components/forms";
+import type { FieldComponent } from "@/components/form/field";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet, InspectSheet } from "@/components/panel/panelSheets";
 import { Badge } from "@/components/ui/badge";
@@ -17,63 +17,82 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DepartmentForm } from "@/forms/department";
 import { getDepartments, saveDepartment } from "@/functions/panel.functions";
 import { pageData } from "@/lib/outcome";
 import type { DepartmentRow } from "@/server/panel";
 
+type DepartmentFieldComponent = FieldComponent<
+  typeof DepartmentForm.schema.Encoded
+>;
+
+/** What the department form holds when it opens for a new department: active, and nothing else. */
+const NEW_DEPARTMENT: typeof DepartmentForm.schema.Encoded = {
+  active: "on",
+  address: "",
+  city: "",
+  email: "",
+  id: "",
+  latitude: "",
+  logoKey: "",
+  longitude: "",
+  name: "",
+  shortName: "",
+  slackChannel: "",
+};
+
+/** What the department form holds when it opens on a stored department: every stored value. */
+const departmentValues = (
+  department: DepartmentRow
+): typeof DepartmentForm.schema.Encoded => ({
+  active: department.active ? "on" : undefined,
+  address: department.address ?? "",
+  city: department.city,
+  email: department.email,
+  id: String(department.id),
+  latitude: String(department.latitude ?? ""),
+  logoKey: department.logoKey ?? "",
+  longitude: String(department.longitude ?? ""),
+  name: department.name,
+  shortName: department.shortName,
+  slackChannel: department.slackChannel ?? "",
+});
+
 /**
  * The department form, for create and for edit. An edit carries every stored field (the id, the
- * coordinates, the logo key), so saving never blanks one the form does not show.
+ * coordinates, the logo key) as values of the form, so saving never blanks one the form does not show.
  */
-const DepartmentFields = ({ department }: { department?: DepartmentRow }) => (
+const DepartmentFields = ({ Field }: { Field: DepartmentFieldComponent }) => (
   <>
-    {department !== undefined && (
-      <>
-        <input type="hidden" name="id" value={department.id} />
-        <input type="hidden" name="logoKey" value={department.logoKey ?? ""} />
-      </>
-    )}
     <Field name="name" label="Navn">
-      <Input name="name" defaultValue={department?.name} />
+      <Input />
     </Field>
     <Field name="shortName" label="Kortnavn">
-      <Input name="shortName" defaultValue={department?.shortName} />
+      <Input />
     </Field>
     <Field name="email" label="E-post">
-      <Input name="email" type="email" defaultValue={department?.email} />
+      <Input type="email" />
     </Field>
     <Field name="city" label="By">
-      <Input name="city" defaultValue={department?.city} />
+      <Input />
     </Field>
     <Field name="address" label="Adresse">
-      <Input name="address" defaultValue={department?.address ?? ""} />
+      <Input />
     </Field>
     <Field name="slackChannel" label="Slack-kanal (#kanal)">
-      <Input
-        name="slackChannel"
-        defaultValue={department?.slackChannel ?? ""}
-      />
+      <Input />
     </Field>
     <div className="grid grid-cols-2 gap-3">
       <Field name="latitude" label="Breddegrad">
-        <Input
-          name="latitude"
-          inputMode="decimal"
-          defaultValue={department?.latitude ?? ""}
-        />
+        <Input inputMode="decimal" />
       </Field>
       <Field name="longitude" label="Lengdegrad">
-        <Input
-          name="longitude"
-          inputMode="decimal"
-          defaultValue={department?.longitude ?? ""}
-        />
+        <Input inputMode="decimal" />
       </Field>
     </div>
-    <label className="flex items-center gap-2 text-sm font-medium">
-      <Switch name="active" defaultChecked={department?.active ?? true} />
-      Aktiv
-    </label>
+    <Field name="active" label="Aktiv">
+      <Switch />
+    </Field>
   </>
 );
 
@@ -120,9 +139,11 @@ const DepartmentRowAction = ({ department }: { department: DepartmentRow }) =>
       triggerLabel="Rediger"
       title={`Rediger ${department.name}`}
       action={saveDepartment}
+      schema={DepartmentForm.schema}
+      defaults={departmentValues(department)}
       submitLabel="Lagre"
     >
-      <DepartmentFields department={department} />
+      {(Field) => <DepartmentFields Field={Field} />}
     </CommandSheet>
   ) : (
     <InspectSheet
@@ -159,9 +180,11 @@ const DepartmentsPage = () => {
               title="Ny avdeling"
               description="By må være unik."
               action={saveDepartment}
+              schema={DepartmentForm.schema}
+              defaults={NEW_DEPARTMENT}
               submitLabel="Opprett"
             >
-              <DepartmentFields />
+              {(Field) => <DepartmentFields Field={Field} />}
             </CommandSheet>
           )
         }
