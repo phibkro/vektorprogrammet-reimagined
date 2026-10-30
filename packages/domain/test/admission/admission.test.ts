@@ -123,6 +123,7 @@ describe("spec 0009 F5: one input schema for the public form and for staff", () 
     heardAbout: ["Web"],
     name: "Kari",
     specialNeeds: null,
+    specialNeedsConsent: false,
     teamInterest: [],
     weekdays: ["Monday"],
     yearOfStudy: 2,
@@ -143,8 +144,8 @@ describe("spec 0009 F5: one input schema for the public form and for staff", () 
       { weekdays: ["Monday", "Monday"] },
       { heardAbout: ["Web", "Web"] },
       { bolk: "Bolk3" },
-      { specialNeeds: { consent: false, text: "Rullestol" } },
-      { specialNeeds: { consent: true, text: "" } },
+      { specialNeeds: "Rullestol", specialNeedsConsent: false },
+      { specialNeeds: "", specialNeedsConsent: true },
       { email: "nope" },
       { name: "" },
     ];
@@ -166,7 +167,8 @@ describe("spec 0009 F5: one input schema for the public form and for staff", () 
     const result = Schema.decodeUnknownOption(SubmitApplicationInput)({
       ...answers,
       departmentId: 1,
-      specialNeeds: { consent: false, text: "Rullestol" },
+      specialNeeds: "Rullestol",
+      specialNeedsConsent: false,
     });
 
     assert.isTrue(Option.isNone(result));

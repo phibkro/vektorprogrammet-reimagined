@@ -94,12 +94,16 @@ export type ApplicationState = typeof ApplicationState.Type;
 export const SPECIAL_NEEDS_CONSENT_REQUIRED =
   "Spesielle behov lagres bare hvis du samtykker til det.";
 
-export const SpecialNeedsInput = Schema.Struct({
-  consent: Schema.Literal(true).annotate({
-    message: SPECIAL_NEEDS_CONSENT_REQUIRED,
-  }),
-  text: requiredText({ maxLength: 1000 }),
-});
+/** A text without the consent that it rests on is refused at the consent's own field, in the domain's words (Art. 9(2)(a)). */
+const consentNeeded = Schema.makeFilter(
+  (input: {
+    readonly specialNeeds: string | null;
+    readonly specialNeedsConsent: boolean;
+  }) =>
+    input.specialNeeds === null || input.specialNeedsConsent
+      ? true
+      : { issue: SPECIAL_NEEDS_CONSENT_REQUIRED, path: ["specialNeedsConsent"] }
+);
 
 /** The text of the consent that the form shows, and the version that a stored text names (spec 0009, proposed). */
 export const specialNeedsConsentText = {
@@ -134,7 +138,9 @@ export const ApplicantInput = Schema.Struct({
   name: requiredText({ maxLength: 255 }).annotateKey({
     messageMissingKey: REQUIRED_FIELD_MESSAGE,
   }),
-  specialNeeds: Schema.NullOr(SpecialNeedsInput),
+  // The text that the applicant wants stored, or none; the box beside it is a field of its own, so the form's names are the payload's (`consentNeeded`).
+  specialNeeds: Schema.NullOr(requiredText({ maxLength: 1000 })),
+  specialNeedsConsent: Schema.Boolean,
   teamInterest: Schema.Array(TeamId).check(
     Schema.isUnique({ message: "Hvert team kan bare velges én gang." })
   ),
@@ -145,7 +151,7 @@ export const ApplicantInput = Schema.Struct({
   yearOfStudy: Schema.Int.check(
     Schema.isBetween({ maximum: 5, minimum: 1 }, { message: YEAR_OF_STUDY })
   ).annotate({ message: YEAR_OF_STUDY }),
-});
+}).check(consentNeeded);
 
 export type ApplicantInput = typeof ApplicantInput.Type;
 
@@ -154,14 +160,14 @@ export const SubmitApplicationInput = Schema.Struct({
   departmentId: DepartmentId.annotate({
     message: "Velg avdeling.",
   }).annotateKey({ messageMissingKey: "Velg avdeling." }),
-});
+}).check(consentNeeded);
 
 export const RegisterApplicationInput = Schema.Struct({
   ...ApplicantInput.fields,
   periodId: AdmissionPeriodId.annotate({
     message: "Velg opptak.",
   }).annotateKey({ messageMissingKey: "Velg opptak." }),
-});
+}).check(consentNeeded);
 
 /** A stored application. The special needs text is present only with the consent that it was stored under. */
 export const Application = Schema.Struct({

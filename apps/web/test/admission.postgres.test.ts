@@ -102,6 +102,7 @@ layer(live, { excludeTestServices: true })(
               heardAbout: [],
               name: "Kari Søker",
               specialNeeds: null,
+              specialNeedsConsent: false,
               teamInterest: [],
               weekdays: ["Monday"],
               yearOfStudy: 1,

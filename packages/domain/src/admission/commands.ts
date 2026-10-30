@@ -132,7 +132,7 @@ const apply = Effect.fn("Admission.apply")(function* apply(
         : {
             consentVersion: specialNeedsConsentText.version,
             consentedAt: now,
-            text: input.specialNeeds.text,
+            text: input.specialNeeds,
           },
     teamInterest: input.teamInterest,
     weekdays: input.weekdays,

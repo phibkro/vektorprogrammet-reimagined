@@ -459,7 +459,8 @@ layer(postgresDatabase({ maxConnections: 40 }), {
           yield* refused("no weekday", { ...good, weekdays: [] });
           yield* refused("special needs without the consent", {
             ...good,
-            specialNeeds: { consent: false, text: "Rullestol" },
+            specialNeeds: "Rullestol",
+            specialNeedsConsent: false,
           });
 
           yield* sql`update team set active = false where id = ${fixture.team.id}`;
@@ -499,7 +500,8 @@ layer(postgresDatabase({ maxConnections: 40 }), {
               fixture.fieldOfStudy.id,
               "a.ad6@example.org",
               {
-                specialNeeds: { consent: true, text: "Trenger ramme" },
+                specialNeeds: "Trenger ramme",
+                specialNeedsConsent: true,
               }
             )
           );

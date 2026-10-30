@@ -18,22 +18,40 @@ import {
   signInAs,
   submitSheet,
 } from "./support/panel.ts";
-import { capturedMailTo, runDatabase } from "./support/probes.ts";
+import {
+  capturedMailTo,
+  closeAdmissionPeriods,
+  runDatabase,
+} from "./support/probes.ts";
 
 const FIRST = "kari.soknad@example.org";
 const SECOND = "ola.soknad@example.org";
 
 test.describe.configure({ mode: "serial" });
 
+// The period that the first test schedules is open for the rest of the run; the home page's "closed" state is another
+// spec's claim, so the period ends when this file does.
+test.afterAll(async () => {
+  await runDatabase(closeAdmissionPeriods);
+});
+
 /** The visitor's answers, by the labels of the form. */
 const fillApplication = async (page: Page, name: string, email: string) => {
   await page.getByLabel("Navn", { exact: true }).fill(name);
   await page.getByLabel("E-post", { exact: true }).fill(email);
-  await page.getByLabel("Linje", { exact: true }).selectOption({ index: 1 });
-  await page.getByLabel("Årstrinn", { exact: true }).selectOption("2");
-  await page.getByLabel("Bolk", { exact: true }).selectOption("Both");
-  await page.getByLabel("Mandag", { exact: true }).check();
-  await page.getByLabel("Onsdag", { exact: true }).check();
+  await page
+    .getByRole("combobox", { exact: true, name: "Linje" })
+    .selectOption({ index: 1 });
+
+  await page
+    .getByRole("combobox", { exact: true, name: "Årstrinn" })
+    .selectOption("2");
+
+  await page
+    .getByRole("combobox", { exact: true, name: "Bolk" })
+    .selectOption("Both");
+  await page.getByRole("checkbox", { exact: true, name: "Mandag" }).check();
+  await page.getByRole("checkbox", { exact: true, name: "Onsdag" }).check();
 };
 
 test("an administrator schedules a period that is open now", async ({
@@ -87,7 +105,7 @@ test("F3: a visitor applies, the mailed link verifies the address, and staff see
     .fill("Trenger ramme");
   // The consent is its own box, unticked by default: the text alone is refused.
   await expect(
-    apply.getByLabel(/Ja, Vektorprogrammet kan lagre/u)
+    apply.getByRole("checkbox", { name: /Ja, Vektorprogrammet kan lagre/u })
   ).not.toBeChecked();
 
   // Turnstile's always-pass test key fills in an answer once its widget has run.
@@ -100,10 +118,12 @@ test("F3: a visitor applies, the mailed link verifies the address, and staff see
 
   await apply.getByRole("button", { name: "Send søknad" }).click();
   await expect(
-    apply.locator("#soknadsskjema-feil, [role='alert']")
-  ).toContainText("Spesielle behov lagres bare hvis du samtykker til det.");
+    apply.getByText("Spesielle behov lagres bare hvis du samtykker til det.")
+  ).toBeVisible();
 
-  await apply.getByLabel(/Ja, Vektorprogrammet kan lagre/u).check();
+  await apply
+    .getByRole("checkbox", { name: /Ja, Vektorprogrammet kan lagre/u })
+    .check();
   await expect(apply.locator("[name='cf-turnstile-response']")).not.toHaveValue(
     "",
     {

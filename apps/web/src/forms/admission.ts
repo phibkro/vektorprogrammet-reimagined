@@ -24,10 +24,10 @@ export const SOURCE_PREFIX = "source-";
 
 export const TEAM_PREFIX = "team-";
 
-/** The name of the consent to store special needs, and of its text: the paths of the domain's issues on them. */
-export const SPECIAL_NEEDS_CONSENT = "specialNeeds.consent";
+/** The names of the special-needs text and of its consent: the payload's own, so a message lands on its field. */
+export const SPECIAL_NEEDS_CONSENT = "specialNeedsConsent";
 
-export const SPECIAL_NEEDS_TEXT = "specialNeeds.text";
+export const SPECIAL_NEEDS_TEXT = "specialNeeds";
 
 /** Every name is free text or nothing: a checkbox has a name of its own, so the form's names are not a fixed list. */
 const AnyText = Schema.Record(Schema.String, Schema.UndefinedOr(Schema.String));
@@ -54,33 +54,23 @@ const checkedTeams = (text: FormText): readonly number[] =>
 
 /**
  * The applicant's own answers, the same for a public submit and for a staff registration (one input schema, so the two
- * cannot check different things). The special needs are `null` unless the person typed something or ticked the consent;
- * a text without the consent reaches the domain as it is, and the domain's message says that it needs the consent.
+ * cannot check different things). The special needs are the text, or none when it is blank; the box beside it is its own
+ * value, and a text without it reaches the domain as it is, which says that the text needs the consent.
  */
-const applicantOf = (text: FormText) => {
-  const wantsSpecialNeeds =
-    isChecked(text[SPECIAL_NEEDS_CONSENT]) ||
-    blankToNull(text[SPECIAL_NEEDS_TEXT]) !== null;
-
-  return {
-    bolk: text.bolk ?? "",
-    doublePosition: isChecked(text.doublePosition),
-    email: text.email ?? "",
-    fieldOfStudyId: wholeNumber(text.fieldOfStudyId),
-    gender: blankToNull(text.gender),
-    heardAbout: checkedOf(text, SOURCE_PREFIX, HeardAbout.literals),
-    name: text.name ?? "",
-    specialNeeds: wantsSpecialNeeds
-      ? {
-          consent: isChecked(text[SPECIAL_NEEDS_CONSENT]),
-          text: text[SPECIAL_NEEDS_TEXT] ?? "",
-        }
-      : null,
-    teamInterest: checkedTeams(text),
-    weekdays: checkedOf(text, WEEKDAY_PREFIX, Weekday.literals),
-    yearOfStudy: wholeNumber(text.yearOfStudy),
-  };
-};
+const applicantOf = (text: FormText) => ({
+  bolk: text.bolk ?? "",
+  doublePosition: isChecked(text.doublePosition),
+  email: text.email ?? "",
+  fieldOfStudyId: wholeNumber(text.fieldOfStudyId),
+  gender: blankToNull(text.gender),
+  heardAbout: checkedOf(text, SOURCE_PREFIX, HeardAbout.literals),
+  name: text.name ?? "",
+  specialNeeds: blankToNull(text[SPECIAL_NEEDS_TEXT]),
+  specialNeedsConsent: isChecked(text[SPECIAL_NEEDS_CONSENT]),
+  teamInterest: checkedTeams(text),
+  weekdays: checkedOf(text, WEEKDAY_PREFIX, Weekday.literals),
+  yearOfStudy: wholeNumber(text.yearOfStudy),
+});
 
 /** The public application form of one department. */
 export const ApplicationForm = formSchema(

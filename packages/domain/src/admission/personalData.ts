@@ -161,6 +161,15 @@ export const ApplicationForm = form({
       legalBasis: "explicitConsent",
       storedIn: "application.special_needs",
     }),
+    specialNeedsConsent: collected({
+      ...application,
+      label: {
+        en: "Your consent to store the special needs",
+        no: "Ditt samtykke til å lagre spesielle behov",
+      },
+      legalBasis: "explicitConsent",
+      storedIn: "application.special_needs_consented_at",
+    }),
     teamInterest: collected({
       ...application,
       label: {

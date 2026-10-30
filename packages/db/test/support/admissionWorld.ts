@@ -93,10 +93,8 @@ export interface ApplicationAnswers {
   readonly gender: string | null;
   readonly heardAbout: readonly string[];
   readonly name: string;
-  readonly specialNeeds: {
-    readonly consent: boolean;
-    readonly text: string;
-  } | null;
+  readonly specialNeeds: string | null;
+  readonly specialNeedsConsent: boolean;
   readonly teamInterest: readonly number[];
   readonly weekdays: readonly string[];
   readonly yearOfStudy: number;
@@ -118,6 +116,7 @@ export const applicationInput = (
   heardAbout: ["Web"],
   name: `Søker ${email}`,
   specialNeeds: null,
+  specialNeedsConsent: false,
   teamInterest: [],
   weekdays: ["Monday", "Tuesday"],
   yearOfStudy: 2,
