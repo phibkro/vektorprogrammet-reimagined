@@ -100,5 +100,27 @@
     ],
     "domain": "personalData",
     "subject": "Holder(alumniConsent)"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "verifyApplicantEmail"
+    ],
+    "domain": "personalData",
+    "subject": "Holder(verifyApplication)"
+  },
+  {
+    "_tag": "UnexpressibleSubject",
+    "commands": [
+      "submitApplication"
+    ],
+    "domain": "admission",
+    "subject": "Anyone"
+  },
+  {
+    "_tag": "MachineDropped",
+    "domain": "admission",
+    "machine": "Application",
+    "reason": "a transition applies submitApplication, which effx cannot be given"
   }
 ]

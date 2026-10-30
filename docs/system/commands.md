@@ -49,6 +49,7 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | `createPerson` | `create` | teams | Register a person, with the field of study that gives them a department. Granted for the department of the chosen field of study. | Leader(d) ∪ Board; Admin |
 | `updatePerson` | `update` | accounts | Update a person's profile. | Leader(d); Self; Admin |
 | `setPhoto` | `:set` | personalData | Set a person's photo under their consent, or remove it. A photo is stored only under a current photo consent; withdrawing the consent removes it. | Self; Leader(d); Admin |
+| `verifyApplicantEmail` | `:verify` | personalData | Verify the address of an applicant with the code from the confirmation e-mail. One use. It answers the same whether the address was known or not; when a verified person holds the address, the new person is merged into that one (an anonymised tombstone stays), so an application is joined to a known person only after the address is verified (RULE-306, spec 0009). | Holder(verifyApplication) |
 | `exportMyData` | `:export` | personalData | Download everything held about a person as JSON (GDPR Art. 15, 20). Audited. It changes no data. Only the person themself can download it: an administrator's grant does not reach this command, and the handler refuses it. | Self; Admin |
 | `erasePerson` | `:erase` | personalData | Anonymise a person's core fields and delete their account, sessions, consents and subscriptions. The history rows stay (GDPR Art. 17). Refused, with the reason, while a legal hold applies and when it would remove the last Active admin. A second call changes nothing. | Self; Admin |
 | `mergePersons` | `:merge` | personalData | Merge two records of one person: every row of the second follows the first, and the second becomes a tombstone without personal data. Refused with a typed conflict, and nothing changes, when both records have an account or when two memberships in one team would overlap. | Admin |
@@ -110,6 +111,22 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | --- | --- | --- | --- | --- |
 | `createWorkspaceReport` | `create` | workspace | Ask for a Google Workspace dry-run. Writes a request that the next tick takes; it calls no provider. The report appears when the run is done. | Admin |
 | `syncWorkspace` | `:sync` | workspace | Compare the Google Workspace groups and accounts with the active memberships and record the changes. One chunk: records the accounts, or the next teams' groups, and the cursor. In write mode its last chunk queues the changes, unless the removals are over the cap. | System(workspaceSync) |
+
+### AdmissionPeriod
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `createAdmissionPeriod` | `create` | admission | Schedule an admission period for a department and a semester. One period per department and semester, and the end is after the start (UK1). The state is never stored: it is Scheduled, Open or Closed by the dates. | Leader(d) ∪ Fn(recruitment, d); Admin |
+| `deleteAdmissionPeriod` | `delete` | admission | Cancel an admission period. Only a period that has not started and that no application refers to. | Leader(d) ∪ Fn(recruitment, d); Admin |
+| `extendAdmissionPeriod` | `:extend` | admission | Extend an admission period. Moves the end later, never the start, and only while the period has not ended. | Leader(d) ∪ Fn(recruitment, d); Admin |
+
+### Application
+
+| Command | Method | Domain | What it does | Granted to |
+| --- | --- | --- | --- | --- |
+| `submitApplication` | `:submit` | admission | Apply to become an assistant. Anyone, with no account, while the department's period is Open. Turnstile and the rate limit have run before this transaction. It creates a person whose address is not verified, and queues the mail with the link that verifies it: the application is joined to a known person only after that (RULE-306). | Anyone; Admin |
+| `registerApplication` | `:register` | admission | Register an applicant on their behalf. Recruitment staff, at a stand, in a period of the current semester; the period need not be open. The same input and the same checks as a public submit, and one application per address and period. | Leader(d) ∪ Fn(recruitment, d); Admin |
+| `withdrawApplication` | `:withdraw` | admission | Withdraw an application. The applicant, when signed in, or the department's recruitment staff and leaders. A withdrawn application is kept until its period's retention ends; nobody deletes one by hand. | Leader(d) ∪ Fn(recruitment, d); Self; Admin |
 
 ### AuditEntry
 
