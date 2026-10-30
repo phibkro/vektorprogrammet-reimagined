@@ -25,7 +25,7 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { postgresDatabase } from "./support/database.ts";
-import { failedWith, refusalOf } from "./support/failures.ts";
+import { assertOneWinner, failedWith, refusalOf } from "./support/failures.ts";
 import {
   NAMING_TABLES,
   countWhere,
@@ -80,14 +80,7 @@ const checkMergeRound = Effect.fnUntraced(function* checkMergeRound(
   const report = raceReport(round, exits);
   const [first, second] = pair;
 
-  assert.strictEqual(Arr.filter(exits, Exit.isSuccess).length, 1, report);
-
-  assert.isTrue(
-    Arr.every(Arr.filter(exits, Exit.isFailure), (loser) =>
-      failedWith(loser, Conflict)
-    ),
-    report
-  );
+  assertOneWinner(exits, Conflict, report);
 
   assert.strictEqual(
     yield* countWhere(

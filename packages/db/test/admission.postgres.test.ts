@@ -21,6 +21,7 @@ import { TestClock } from "effect/testing";
 import {
   CLOSES,
   OPENS,
+  applicationDraft,
   applicationInput,
   arrange,
   count,
@@ -31,7 +32,11 @@ import {
   schedule,
 } from "./support/admissionWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
-import { assertFailedWith, failedWith } from "./support/failures.ts";
+import {
+  assertFailedWith,
+  assertOneWinner,
+  failedWith,
+} from "./support/failures.ts";
 import { runAs } from "./support/personalDataActors.ts";
 import { race, raceReport } from "./support/race.ts";
 import { at } from "./support/retentionRun.ts";
@@ -247,18 +252,10 @@ layer(postgresDatabase({ maxConnections: 40 }), {
           // An application refers to the period: refused even though it has not started.
           yield* asPerson(fixture.person.id, (locked) =>
             ApplicationRepository.use((applications) =>
-              applications.insert(locked, {
-                bolk: "Both",
-                doublePosition: false,
-                fieldOfStudyId: fixture.fieldOfStudy.id,
-                gender: null,
-                heardAbout: [],
-                periodId: period.id,
-                specialNeeds: null,
-                teamInterest: [],
-                weekdays: ["Monday"],
-                yearOfStudy: 1,
-              })
+              applications.insert(
+                locked,
+                applicationDraft(fixture.fieldOfStudy.id, period.id)
+              )
             )
           );
 
@@ -337,18 +334,7 @@ layer(postgresDatabase({ maxConnections: 40 }), {
             );
 
             const report = raceReport(round, exits);
-            assert.strictEqual(
-              Arr.filter(exits, Exit.isSuccess).length,
-              1,
-              report
-            );
-
-            assert.isTrue(
-              Arr.every(Arr.filter(exits, Exit.isFailure), (loser) =>
-                failedWith(loser, AlreadyExists)
-              ),
-              report
-            );
+            assertOneWinner(exits, AlreadyExists, report);
 
             const rows = yield* sql<{
               n: number;
@@ -542,18 +528,7 @@ layer(postgresDatabase({ maxConnections: 40 }), {
           const sql = yield* SqlClient;
           const { fixture, period } = yield* openDepartment("ad7");
 
-          const draft = {
-            bolk: "Both",
-            doublePosition: false,
-            fieldOfStudyId: fixture.fieldOfStudy.id,
-            gender: null,
-            heardAbout: [],
-            periodId: period.id,
-            specialNeeds: null,
-            teamInterest: [],
-            weekdays: ["Monday"],
-            yearOfStudy: 1,
-          } as const;
+          const draft = applicationDraft(fixture.fieldOfStudy.id, period.id);
 
           const insert = asPerson(fixture.person.id, (locked) =>
             ApplicationRepository.use((applications) =>

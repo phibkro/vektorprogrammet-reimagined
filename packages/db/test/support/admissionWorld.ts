@@ -11,6 +11,8 @@ import {
   TeamId,
 } from "@vektorprogrammet/domain";
 import type {
+  AdmissionPeriodId,
+  ApplicationDraft,
   DepartmentId as DepartmentIdType,
   Semester,
 } from "@vektorprogrammet/domain";
@@ -21,7 +23,7 @@ import { runAs } from "./personalDataActors.ts";
 import { world } from "./teamsWorld.ts";
 
 /** The semester that the world's periods are for. */
-export const SPRING: Semester = { term: "VAR", year: 2027 };
+const SPRING: Semester = { term: "VAR", year: 2027 };
 
 /** The start and the end of a period that is open on 2027-03-01 and over on 2027-04-01. */
 export const OPENS = DateTime.makeUnsafe("2027-02-01T08:00:00Z");
@@ -143,4 +145,22 @@ export const outboxKinds = Effect.fnUntraced(function* outboxKinds() {
   }>`select kind from outbox order by id`;
 
   return Arr.map(rows, (row) => row.kind);
+});
+
+/** An application as a fixture writes it outside a command (one weekday, no gender), with the given stored special needs. */
+export const applicationDraft = (
+  fieldOfStudyId: ApplicationDraft["fieldOfStudyId"],
+  periodId: AdmissionPeriodId,
+  specialNeeds: ApplicationDraft["specialNeeds"] = null
+): ApplicationDraft => ({
+  bolk: "Both",
+  doublePosition: false,
+  fieldOfStudyId,
+  gender: null,
+  heardAbout: [],
+  periodId,
+  specialNeeds,
+  teamInterest: [],
+  weekdays: ["Monday"],
+  yearOfStudy: 1,
 });

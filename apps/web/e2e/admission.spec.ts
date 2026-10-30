@@ -54,6 +54,22 @@ const fillApplication = async (page: Page, name: string, email: string) => {
   await page.getByRole("checkbox", { exact: true, name: "Onsdag" }).check();
 };
 
+/** Turnstile's always-pass test key fills in an answer once its widget has run. */
+const turnstileAnswered = async (page: Page) => {
+  await expect(page.locator("[name='cf-turnstile-response']")).not.toHaveValue(
+    "",
+    {
+      timeout: 30_000,
+    }
+  );
+};
+
+/** Submits the open sheet, which answers 200 and closes. */
+const submitAndClose = async (page: Page, label: string) => {
+  expect(await submitSheet(page, label)).toBe(200);
+  await expect(sheetOf(page)).toBeHidden();
+};
+
 test("an administrator schedules a period that is open now", async ({
   context,
   page,
@@ -68,8 +84,7 @@ test("an administrator schedules a period that is open now", async ({
     "Start (norsk tid)": "2020-01-01T08:00",
   });
 
-  expect(await submitSheet(page, "Opprett")).toBe(200);
-  await expect(sheetOf(page)).toBeHidden();
+  await submitAndClose(page, "Opprett");
   await expect(page.getByRole("row").filter({ hasText: "Åpent" })).toHaveCount(
     1
   );
@@ -108,13 +123,7 @@ test("F3: a visitor applies, the mailed link verifies the address, and staff see
     apply.getByRole("checkbox", { name: /Ja, Vektorprogrammet kan lagre/u })
   ).not.toBeChecked();
 
-  // Turnstile's always-pass test key fills in an answer once its widget has run.
-  await expect(apply.locator("[name='cf-turnstile-response']")).not.toHaveValue(
-    "",
-    {
-      timeout: 30_000,
-    }
-  );
+  await turnstileAnswered(apply);
 
   await apply.getByRole("button", { name: "Send søknad" }).click();
   await expect(
@@ -124,12 +133,6 @@ test("F3: a visitor applies, the mailed link verifies the address, and staff see
   await apply
     .getByRole("checkbox", { name: /Ja, Vektorprogrammet kan lagre/u })
     .check();
-  await expect(apply.locator("[name='cf-turnstile-response']")).not.toHaveValue(
-    "",
-    {
-      timeout: 30_000,
-    }
-  );
   await apply.getByRole("button", { name: "Send søknad" }).click();
 
   await expect(apply).toHaveURL(/\?sendt=1$/u);

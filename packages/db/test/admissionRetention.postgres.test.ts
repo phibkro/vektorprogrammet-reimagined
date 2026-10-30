@@ -20,6 +20,7 @@ import { TestClock } from "effect/testing";
 
 import {
   CLOSES,
+  applicationDraft,
   arrange,
   count,
   leaderOf,
@@ -50,22 +51,14 @@ type Arranged = Effect.Success<ReturnType<typeof arrange>>;
 const apply = (fixture: Arranged, periodId: AdmissionPeriodId) =>
   asPerson(fixture.person.id, (locked) =>
     ApplicationRepository.use((applications) =>
-      applications.insert(locked, {
-        bolk: "Both",
-        doublePosition: false,
-        fieldOfStudyId: fixture.fieldOfStudy.id,
-        gender: null,
-        heardAbout: [],
-        periodId,
-        specialNeeds: {
+      applications.insert(
+        locked,
+        applicationDraft(fixture.fieldOfStudy.id, periodId, {
           consentVersion: 1,
           consentedAt: BEFORE,
           text: `behov ${String(periodId)}`,
-        },
-        teamInterest: [],
-        weekdays: ["Monday"],
-        yearOfStudy: 1,
-      })
+        })
+      )
     )
   );
 

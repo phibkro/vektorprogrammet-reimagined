@@ -13,9 +13,10 @@ import { PgClient } from "@effect/sql-pg";
 import { PgliteClient } from "@effect/sql-pglite";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import type { RetentionMode } from "@vektorprogrammet/domain";
+import { WebCryptoTest } from "@vektorprogrammet/domain/testing/crypto";
 import * as PgliteDrizzle from "drizzle-orm/effect-pglite";
 import { migrate as migratePglite } from "drizzle-orm/effect-pglite/migrator";
-import { Crypto, Effect, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import type { Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
@@ -52,25 +53,6 @@ export const pgliteDatabase = Layer.mergeAll(
   Layer.provide(PgliteClient.layer({ extensions: { btree_gist } }))
 );
 
-/** Web Crypto from the test runtime, for the commands that hash a code (`verifyApplicantEmail` and the account purposes). */
-const webCrypto = Layer.succeed(Crypto.Crypto)(
-  Crypto.make({
-    digest: (algorithm, data) =>
-      Effect.map(
-        Effect.promise(
-          globalThis.crypto.subtle.digest.bind(
-            globalThis.crypto.subtle,
-            algorithm,
-            new Uint8Array(data)
-          )
-        ),
-        (buffer) => new Uint8Array(buffer)
-      ),
-    randomBytes: (size) =>
-      globalThis.crypto.getRandomValues(new Uint8Array(size)),
-  })
-);
-
 /** `database` on a migrated disposable database, plus `TestDatabaseUrl`, `Crypto` and a separate `Drizzle` handle (its own small pool). */
 const onDisposableDatabase = <ROut, E, RIn>(
   database: (url: Redacted.Redacted) => Layer.Layer<ROut, E, RIn>
@@ -79,7 +61,7 @@ const onDisposableDatabase = <ROut, E, RIn>(
     Effect.map(Effect.service(TestDatabaseUrl), (url) =>
       Layer.mergeAll(
         database(url),
-        webCrypto,
+        WebCryptoTest,
         Drizzle.layerPg.pipe(
           Layer.provide(
             PgClient.layer({ maxConnections: 2, prepare: false, url })

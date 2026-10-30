@@ -36,22 +36,25 @@ const window = {
 const A = DepartmentId.make(1);
 const B = DepartmentId.make(2);
 
-const memberOf = (
+const membershipOf = (
   departmentId: DepartmentId,
   options: {
     readonly function: "board" | "recruitment";
     readonly leader: boolean;
   }
+) => ({
+  departmentId,
+  function: options.function,
+  leader: options.leader,
+  teamId: TeamId.make(1),
+});
+
+const memberOf = (
+  departmentId: DepartmentId,
+  options: Parameters<typeof membershipOf>[1]
 ) =>
   Principal.cases.Person.make({
-    memberships: [
-      {
-        departmentId,
-        function: options.function,
-        leader: options.leader,
-        teamId: TeamId.make(1),
-      },
-    ],
+    memberships: [membershipOf(departmentId, options)],
     personId: PersonId.make(10),
   });
 

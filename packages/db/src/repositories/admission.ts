@@ -108,6 +108,15 @@ const applicationOf = (row: typeof StoredApplication.Type): Application => ({
 
 const CHANGED = "Søknaden ble endret eller kan ikke endres lenger.";
 
+/** The one row that an id selects, or the application's `NotFound`. */
+const theOnly = <Row>(rows: readonly Row[], id: ApplicationId) => {
+  const [row] = rows;
+
+  return row === undefined
+    ? Effect.fail(new NotFound({ entity: "Application", key: String(id) }))
+    : Effect.succeed(row);
+};
+
 export const ApplicationRepositoryLive = Layer.effect(
   ApplicationRepository,
   Effect.gen(function* ApplicationRepositoryLive() {
@@ -170,11 +179,9 @@ export const ApplicationRepositoryLive = Layer.effect(
         .where(eq(application.id, id))
         .pipe(Effect.orDie);
 
-      const [row] = rows;
-
-      return row === undefined
-        ? yield* new NotFound({ entity: "Application", key: String(id) })
-        : ((yield* decodeRef(row)) satisfies ApplicationRef);
+      return (yield* decodeRef(
+        yield* theOnly(rows, id)
+      )) satisfies ApplicationRef;
     });
 
     const findLocked = Effect.fn("ApplicationRepository.findLocked")(
@@ -183,11 +190,9 @@ export const ApplicationRepositoryLive = Layer.effect(
           .select(locked, owned.application, eq(application.id, id))
           .pipe(Effect.orDie);
 
-        const [row] = rows;
-
-        return row === undefined
-          ? yield* new NotFound({ entity: "Application", key: String(id) })
-          : applicationOf(yield* decodeApplication(row));
+        return applicationOf(
+          yield* decodeApplication(yield* theOnly(rows, id))
+        );
       }
     );
 

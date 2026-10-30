@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./testing": "./test/support/teamsInMemory.ts",
+    "./testing/crypto": "./test/support/webCrypto.ts",
     "./testing/retention": "./test/support/retentionGenerators.ts"
   },
   "scripts": {

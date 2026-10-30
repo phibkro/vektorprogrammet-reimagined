@@ -182,6 +182,15 @@ const notWithdrawable = (id: ApplicationId) =>
     message: ALREADY_WITHDRAWN,
   });
 
+/** What a command on one period decides from: the repository, the clock and the period as stored now. */
+const periodNow = Effect.fnUntraced(function* periodNow(id: AdmissionPeriodId) {
+  yield* InTransaction;
+  const periods = yield* AdmissionPeriodRepository;
+  const now = yield* DateTime.now;
+
+  return { now, period: yield* periods.findById(id), periods };
+});
+
 export const AdmissionHandlers = AdmissionRpc.toLayer({
   createAdmissionPeriod: AdmissionDomain.handle(createAdmissionPeriod, {
     resource: ({ departmentId }) => Effect.succeed({ departmentId }),
@@ -216,10 +225,7 @@ export const AdmissionHandlers = AdmissionRpc.toLayer({
     resource: ({ id }) => grantResourceOfPeriod(id),
     run: ({ id }, principal) =>
       Effect.gen(function* cancel() {
-        yield* InTransaction;
-        const periods = yield* AdmissionPeriodRepository;
-        const now = yield* DateTime.now;
-        const period = yield* periods.findById(id);
+        const { now, period, periods } = yield* periodNow(id);
 
         if (admissionState(period, now) !== "Scheduled") {
           return yield* new Conflict({
@@ -243,10 +249,7 @@ export const AdmissionHandlers = AdmissionRpc.toLayer({
     resource: ({ id }) => grantResourceOfPeriod(id),
     run: ({ end, id }, principal) =>
       Effect.gen(function* extend() {
-        yield* InTransaction;
-        const periods = yield* AdmissionPeriodRepository;
-        const now = yield* DateTime.now;
-        const period = yield* periods.findById(id);
+        const { now, period, periods } = yield* periodNow(id);
 
         if (admissionState(period, now) === "Closed") {
           return yield* new Conflict({
