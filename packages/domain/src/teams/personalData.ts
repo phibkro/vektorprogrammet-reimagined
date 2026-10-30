@@ -69,6 +69,12 @@ const person = table({
     id: notPersonal(
       "A surrogate key; the history rows keep naming it, and it names no one once the core fields are anonymised"
     ),
+    last_admin_place_end: personal({
+      legalBasis: "legitimateInterest",
+      onExpiry: Rules.Anonymise.null,
+      purpose: "places",
+      retention: withThePersonCore,
+    }),
     merged_into: notPersonal(
       "The surviving record of a merge; nothing reads the pointer except the merge itself"
     ),
@@ -152,9 +158,10 @@ const adminGrant = table({
     ),
     id: notPersonal(SURROGATE),
   },
+  keeps: { from: "until", into: "last_admin_place_end" },
   person: relation({
     erase: erased.kept(
-      `The record of who held a place on the admin list and who gave it, kept ${durationWords(Periods.adminPlaceAfterEnd.duration, "en")} after the place ends`
+      `The record of who held a place on the admin list and who gave it, kept ${durationWords(Periods.adminPlaceAfterEnd.duration, "en")} after the place ends. The end of a deleted place stays on the person's record as one date (last_admin_place_end) until the person's core is anonymised`
     ),
     export: exported.rows(),
     key: keyed.direct("person_id"),

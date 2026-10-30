@@ -1,0 +1,1 @@
+ALTER TABLE "person" ADD COLUMN "last_admin_place_end" timestamp with time zone;

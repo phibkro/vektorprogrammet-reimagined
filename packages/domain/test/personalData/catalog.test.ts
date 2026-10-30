@@ -5,7 +5,7 @@
  * controls). The closure over the migrated schema is `packages/db/test/personalDataClosure.postgres.test.ts`.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Schema } from "effect";
+import { Array as Arr, Record as Rec, Schema } from "effect";
 
 import { Catalog, Forms, catalogProblems } from "../../src/index.ts";
 import type { CatalogOf, FormDeclaration } from "../../src/index.ts";
@@ -272,6 +272,12 @@ const found = (problems: readonly string[], expected: string) => ({
   message: `${expected} in ${Arr.join(problems, "; ")}`,
 });
 
+/** The real catalog with the admin place's `keeps` changed (spec 0026 F8). */
+const withKeeps = (keeps: { from: string; into: string }): CatalogOf =>
+  Rec.map(Catalog, (declaration, name) =>
+    name === "admin_grant" ? { ...declaration, keeps } : declaration
+  );
+
 describe("spec 0007b falsifier 1: the catalog is consistent", () => {
   it("the real catalog and the forms that collect have no problem", () => {
     assert.deepStrictEqual(catalogProblems(Catalog, Forms), []);
@@ -299,4 +305,42 @@ describe("spec 0007b falsifier 1: the catalog is consistent", () => {
       assert.isTrue(result.found, result.message);
     });
   }
+
+  it("spec 0026 F8: the admin place keeps a column that it deletes into a personal column of the person, and a name that is missing on either side is found", () => {
+    assert.deepStrictEqual(
+      catalogProblems(
+        withKeeps({ from: "until", into: "last_admin_place_end" }),
+        Forms
+      ),
+      []
+    );
+
+    const noSource = found(
+      catalogProblems(
+        withKeeps({ from: "ended", into: "last_admin_place_end" }),
+        Forms
+      ),
+      "keeps `ended`"
+    );
+
+    assert.isTrue(noSource.found, noSource.message);
+
+    const noTarget = found(
+      catalogProblems(withKeeps({ from: "until", into: "nowhere" }), Forms),
+      "keeps into `nowhere`"
+    );
+
+    assert.isTrue(noTarget.found, noTarget.message);
+
+    // `id` is declared but is not a personal column: a surrogate key is not a date to keep.
+    const notPersonalSource = found(
+      catalogProblems(
+        withKeeps({ from: "id", into: "last_admin_place_end" }),
+        Forms
+      ),
+      "keeps `id`"
+    );
+
+    assert.isTrue(notPersonalSource.found, notPersonalSource.message);
+  });
 });

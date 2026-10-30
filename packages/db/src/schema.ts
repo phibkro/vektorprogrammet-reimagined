@@ -185,7 +185,9 @@ export const fieldOfStudy = pgTable(
 /**
  * Spec 0006: one human known to Vektorprogrammet. The department is the field of study's (RULE-164). Spec 0007b adds
  * the creation time (the start of the period of a person with no engagement), the photo, `anonymised_at` (set when the
- * core fields were anonymised) and `merged_into` (the tombstone of a merge, which `AggregateLocks` does not lock).
+ * core fields were anonymised), `merged_into` (the tombstone of a merge, which `AggregateLocks` does not lock) and
+ * `last_admin_place_end` (spec 0026: the latest end of an admin place that retention deleted, kept so that the person's
+ * last activity does not move when the row goes).
  */
 export const person = pgTable(
   "person",
@@ -201,6 +203,7 @@ export const person = pgTable(
       .notNull()
       .references(() => fieldOfStudy.id),
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    lastAdminPlaceEnd: instant("last_admin_place_end"),
     mergedInto: integer("merged_into").references((): AnyPgColumn => person.id),
     name: text("name").notNull(),
     photoKey: text("photo_key").references(() => publicFile.key),
