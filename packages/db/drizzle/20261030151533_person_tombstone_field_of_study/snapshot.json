@@ -1,0 +1,29 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "85bf885e-5386-46de-94d5-349fb978f21d",
+  "prevIds": ["0ab7e375-69f0-43cc-b405-65ca859509a8"],
+  "footprints": [
+    {
+      "statementType": "alter_column",
+      "statementTarget": ["column", "public", "person", "field_of_study_id"],
+      "writes": ["s|colprop|public.person.field_of_study_id.notNull"],
+      "reads": [
+        "n|tbl|public.person",
+        "n|sch|public",
+        "n|col|public.person.field_of_study_id"
+      ],
+      "sqlHash": "eeae3107d1ba8155"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"person\",\"field_of_study_id\"]",
+      "set": {
+        "notNull": false
+      }
+    }
+  ]
+}

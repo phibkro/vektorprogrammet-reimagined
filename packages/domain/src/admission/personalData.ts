@@ -74,10 +74,7 @@ export const AdmissionTables = {
     },
     person: ofPerson(
       "person_id",
-      Rules.Move(
-        ["period_id"],
-        "Søknaden kan ikke flyttes til den andre personen."
-      ),
+      Rules.Earliest("period_id", "created_at"),
       exported.rows(),
       erased.expire
     ),

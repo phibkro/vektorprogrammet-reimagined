@@ -208,9 +208,9 @@ export const person = pgTable(
       .default(sql`now()`),
     email: text("email").notNull(),
     emailVerified: boolean("email_verified").notNull().default(false),
-    fieldOfStudyId: integer("field_of_study_id")
-      .notNull()
-      .references(() => fieldOfStudy.id),
+    fieldOfStudyId: integer("field_of_study_id").references(
+      () => fieldOfStudy.id
+    ),
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     lastAdminPlaceEnd: instant("last_admin_place_end"),
     mergedInto: integer("merged_into").references((): AnyPgColumn => person.id),

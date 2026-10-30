@@ -19,9 +19,20 @@ import {
   anonymous,
   codePrincipal,
 } from "@vektorprogrammet/domain";
-import { Cause, Effect, Exit, Layer, Option, Predicate } from "effect";
+import type { Principal } from "@vektorprogrammet/domain";
+import {
+  Array as Arr,
+  Cause,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Order,
+  Predicate,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { admissionView } from "../src/server/admission";
 import { submissionOf } from "../src/server/admissionPost";
 import { contactRateLimiterTestLayer } from "../src/server/rateLimit";
 import { runCommandOutcome } from "../src/server/runtime";
@@ -34,6 +45,7 @@ import { webCryptoLayer } from "../src/server/webCrypto";
 import { deliverPending, live } from "./support/deliveryLive";
 import { form } from "./support/memory";
 import { assertRefused, assertSuccess } from "./support/outcomes";
+import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 import { transacted } from "./support/transacted";
 
 const { signal } = new AbortController();
@@ -81,6 +93,26 @@ const holdings = Effect.gen(function* holdings() {
   return row;
 }).pipe(Effect.orDie);
 
+/** An anonymous submit to `department` in the one transaction of the command. */
+const submitApplicationTo = (department: number, email: string) =>
+  transacted(
+    AdmissionEndpoints.submitApplication({
+      bolk: "Both",
+      departmentId: department,
+      doublePosition: false,
+      email,
+      fieldOfStudyId: department,
+      gender: null,
+      heardAbout: [],
+      name: "Kari Søker",
+      specialNeeds: null,
+      specialNeedsConsent: false,
+      teamInterest: [],
+      weekdays: ["Monday"],
+      yearOfStudy: 1,
+    }).pipe(Effect.provideService(CurrentPrincipal, anonymous))
+  );
+
 layer(live, { excludeTestServices: true })(
   "spec 0009: the application's mail and the public post's guards",
   (it) => {
@@ -91,22 +123,9 @@ layer(live, { excludeTestServices: true })(
           const sql = yield* SqlClient;
           const department = yield* arrange(701);
 
-          const receipt = yield* transacted(
-            AdmissionEndpoints.submitApplication({
-              bolk: "Both",
-              departmentId: department,
-              doublePosition: false,
-              email: "kari.soknad@example.org",
-              fieldOfStudyId: department,
-              gender: null,
-              heardAbout: [],
-              name: "Kari Søker",
-              specialNeeds: null,
-              specialNeedsConsent: false,
-              teamInterest: [],
-              weekdays: ["Monday"],
-              yearOfStudy: 1,
-            }).pipe(Effect.provideService(CurrentPrincipal, anonymous))
+          const receipt = yield* submitApplicationTo(
+            department,
+            "kari.soknad@example.org"
           );
 
           assert.strictEqual(receipt.departmentId, department);
@@ -281,6 +300,70 @@ layer(live, { excludeTestServices: true })(
           );
 
           assert.deepStrictEqual(yield* holdings, after);
+        })
+    );
+
+    it.effect(
+      "F7 (review round 1): the control panel's read holds the departments that the principal may see and no other",
+      () =>
+        Effect.gen(function* readSets() {
+          const a = yield* arrange(704);
+          const b = yield* arrange(705);
+          yield* submitApplicationTo(a, "a.les@example.org");
+          yield* submitApplicationTo(b, "b.les@example.org");
+
+          /** Which of the two departments a principal's read shows, in periods and in applications. */
+          const seenBy = (principal: Principal) =>
+            admissionView.pipe(
+              Effect.provideService(CurrentPrincipal, principal),
+              Effect.map((view) => ({
+                applications: Arr.filter(
+                  Arr.map(view.applications, (row) => row.departmentName),
+                  (name) =>
+                    name === `Søknad ${String(a)}` ||
+                    name === `Søknad ${String(b)}`
+                ),
+                periods: Arr.filter(
+                  Arr.map(view.periods, (row) => row.departmentId),
+                  (id) => id === a || id === b
+                ),
+              }))
+            );
+
+          const nameA = `Søknad ${String(a)}`;
+          const nameB = `Søknad ${String(b)}`;
+
+          assert.deepStrictEqual(yield* seenBy(leaderOf(a)), {
+            applications: [nameA],
+            periods: [a],
+          });
+
+          assert.deepStrictEqual(yield* seenBy(leaderOf(b)), {
+            applications: [nameB],
+            periods: [b],
+          });
+
+          // The recruitment team's members read the same department as its leader does.
+          assert.deepStrictEqual(
+            yield* seenBy(memberOf(a, { function: "recruitment" })),
+            { applications: [nameA], periods: [a] }
+          );
+
+          // A member of another team, and a person with none, read nothing.
+          assert.deepStrictEqual(
+            yield* seenBy(memberOf(a, { function: "board" })),
+            { applications: [], periods: [] }
+          );
+
+          assert.deepStrictEqual(yield* seenBy(WITHOUT_TEAM), {
+            applications: [],
+            periods: [],
+          });
+
+          // The control: an administrator reads both.
+          const both = yield* seenBy(ADMIN);
+          assert.deepStrictEqual(Arr.sort(both.periods, Order.Number), [a, b]);
+          assert.strictEqual(both.applications.length, 2);
         })
     );
   }

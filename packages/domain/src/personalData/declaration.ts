@@ -212,6 +212,11 @@ export type EraseRule = typeof EraseRule.Type;
 export const MergeRule = Schema.TaggedUnion({
   /** The merged person's rows are deleted: they belong to a record that no longer exists (a credential). */
   Drop: {},
+  /**
+   * Per `by`, the row with the earlier `madeAt` is the one that stays, and it moves if it was the merged person's; of two
+   * rows made at the same time the survivor's stays. The later one is dropped (an application: the one made first stands).
+   */
+  Earliest: { by: Schema.String, madeAt: Schema.String },
   /** A reference that carries no lock: the column is rewritten to name the survivor. */
   Follow: {},
   /**
@@ -326,6 +331,8 @@ export const Rules = {
   },
   Delete: OnExpiry.cases.Delete.make({}),
   Drop: MergeRule.cases.Drop.make({}),
+  Earliest: (by: string, madeAt: string): MergeRule =>
+    MergeRule.cases.Earliest.make({ by, madeAt }),
   Follow: MergeRule.cases.Follow.make({}),
   Inherit: MergeRule.cases.Inherit.make({}),
   Move: (

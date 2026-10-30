@@ -128,7 +128,16 @@ layer(postgresJobDatabase("Apply"), { excludeTestServices: true })(
               "a day before: nothing is due"
             );
 
-            yield* at(day(DUE, 1));
+            yield* at(DateTime.subtract(DUE, { milliseconds: 1 }));
+            yield* runRetention;
+            assert.strictEqual(
+              yield* count("application"),
+              3,
+              "a millisecond before the retention ends: nothing is due"
+            );
+
+            // At the instant itself (an instant is read at its millisecond) the two applications of the ended periods are due.
+            yield* at(DUE);
             yield* runRetention;
 
             const left = yield* sql<{

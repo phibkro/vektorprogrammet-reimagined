@@ -1,0 +1,1 @@
+ALTER TABLE "person" ALTER COLUMN "field_of_study_id" DROP NOT NULL;

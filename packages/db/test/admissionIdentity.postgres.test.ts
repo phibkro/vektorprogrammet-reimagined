@@ -100,9 +100,10 @@ const personOf = Effect.fnUntraced(function* personOf(id: number) {
   const [row] = yield* sql<{
     readonly email: string | null;
     readonly email_verified: boolean;
+    readonly field_of_study_id: number | null;
     readonly merged_into: number | null;
     readonly name: string | null;
-  }>`select email, email_verified, merged_into, name from person where id = ${id}`;
+  }>`select email, email_verified, field_of_study_id, merged_into, name from person where id = ${id}`;
 
   assert.isDefined(row);
 
@@ -119,6 +120,44 @@ const applicationsOf = Effect.fnUntraced(function* applicationsOf(
   }>`select id from application where person_id = ${personId} order by id`;
 
   return Arr.map(rows, (row) => row.id);
+});
+
+/**
+ * Two submits of one address in one period, an hour apart, then both links used, the later submission's first when
+ * `laterLinkFirst`: whichever link is used first, the earlier application is the one left, on the person that the
+ * first link verified, and the other person is its tombstone.
+ */
+const twoApplications = Effect.fnUntraced(function* twoApplications(
+  tag: string,
+  laterLinkFirst: boolean
+) {
+  const fixture = yield* openDepartment(tag);
+  const email = `dobbel.${tag}@example.org`;
+
+  const submitOne = () =>
+    submit(
+      applicationInput(fixture.department.id, fixture.fieldOfStudy.id, email)
+    );
+
+  const earlier = yield* submitOne();
+  yield* at(DateTime.add(DURING, { hours: 1 }));
+  const later = yield* submitOne();
+  const ofEarlier = yield* ownerOf(earlier.applicationId);
+  const ofLater = yield* ownerOf(later.applicationId);
+  assert.notStrictEqual(ofEarlier, ofLater);
+
+  const [firstLink, secondLink] = laterLinkFirst
+    ? [ofLater, ofEarlier]
+    : [ofEarlier, ofLater];
+
+  yield* verify(yield* codeFor(firstLink, "usable"));
+  yield* verify(yield* codeFor(secondLink, "usable"));
+
+  assert.deepStrictEqual(yield* applicationsOf(firstLink), [
+    earlier.applicationId,
+  ]);
+  assert.deepStrictEqual(yield* applicationsOf(secondLink), []);
+  assert.strictEqual((yield* personOf(secondLink)).merged_into, firstLink);
 });
 
 layer(postgresDatabase({ maxConnections: 20 }), {
@@ -180,6 +219,8 @@ layer(postgresDatabase({ maxConnections: 20 }), {
             assert.strictEqual(tombstone.merged_into, known.id);
             assert.isFalse(tombstone.email === email);
             assert.isFalse(tombstone.name?.includes("Søker") ?? false);
+            // What the applicant chose on the form is not kept on the tombstone (review round 1); the survivor keeps its own.
+            assert.isNull(tombstone.field_of_study_id);
 
             const survivor = yield* personOf(known.id);
             assert.strictEqual(survivor.name, knownBefore.name);
@@ -297,41 +338,13 @@ layer(postgresDatabase({ maxConnections: 20 }), {
       );
 
       it.effect(
-        "the same address submitted twice in one period: at the second verification the later application is dropped and the earlier stands",
-        () =>
-          Effect.gen(function* twice() {
-            const fixture = yield* openDepartment("id4");
-            const email = "dobbel.id4@example.org";
+        "the same address submitted twice in one period, the earlier link used first: the later application is dropped and the earlier stands",
+        () => twoApplications("id4", false)
+      );
 
-            const earlier = yield* submit(
-              applicationInput(
-                fixture.department.id,
-                fixture.fieldOfStudy.id,
-                email
-              )
-            );
-
-            const later = yield* submit(
-              applicationInput(
-                fixture.department.id,
-                fixture.fieldOfStudy.id,
-                email
-              )
-            );
-
-            const first = yield* ownerOf(earlier.applicationId);
-            const second = yield* ownerOf(later.applicationId);
-            assert.notStrictEqual(first, second);
-
-            yield* verify(yield* codeFor(first, "usable"));
-            yield* verify(yield* codeFor(second, "usable"));
-
-            assert.deepStrictEqual(yield* applicationsOf(first), [
-              earlier.applicationId,
-            ]);
-            assert.deepStrictEqual(yield* applicationsOf(second), []);
-            assert.strictEqual((yield* personOf(second)).merged_into, first);
-          })
+      it.effect(
+        "review round 1: the later link used first changes nothing: the earlier application still stands",
+        () => twoApplications("id5", true)
       );
     });
   }

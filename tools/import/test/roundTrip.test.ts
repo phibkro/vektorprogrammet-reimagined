@@ -272,6 +272,8 @@ layer(Databases, { excludeTestServices: true, timeout: "120 seconds" })(
           // References to collapsed semesters are remapped to the kept row.
           const [period] = yield* rowsOf("admission_period");
           assert.strictEqual(period?.semester_id, 1);
+          // Spec 0009 F12: of the two periods of one department and semester the lower id (1) is the one admitted.
+          assert.strictEqual(period?.id, 1);
           const [event] = yield* rowsOf("social_event");
           assert.strictEqual(event?.semester_id, 2);
 
