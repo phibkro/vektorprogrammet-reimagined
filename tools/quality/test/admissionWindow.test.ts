@@ -17,7 +17,6 @@
  * directory are.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Order } from "effect";
 
 import {
   assertCleanScan,
@@ -83,11 +82,14 @@ describe("spec 0009 F1: one window", () => {
       },
     ];
 
-    assert.deepStrictEqual(Arr.sort(unlisted(sources), Order.String), [
-      "apps/web/src/server/ny.ts has a period's start or end compared with a clock value",
-      "packages/db/src/personalData/ny.ts has a SQL comparison of an admission period's date",
-      "packages/db/src/repositories/ny.ts has a Drizzle comparison of an admission period's date",
-    ]);
+    assert.sameMembers(
+      [...unlisted(sources)],
+      [
+        "apps/web/src/server/ny.ts has a period's start or end compared with a clock value",
+        "packages/db/src/personalData/ny.ts has a SQL comparison of an admission period's date",
+        "packages/db/src/repositories/ny.ts has a Drizzle comparison of an admission period's date",
+      ]
+    );
   });
 
   it("control: an allowance whose file no longer has the sign is reported", () => {
