@@ -1,0 +1,65 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "listImpact"
+    },
+    {
+      "kind": "Command",
+      "name": "closeImpact",
+      "runBy": {
+        "job": "impactClose"
+      }
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "closeImpact"
+      ],
+      "scope": "all",
+      "subject": "System(impactClose)@all"
+    },
+    {
+      "permits": [
+        "listImpact"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "impact",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon",
+        "retention",
+        "alumniConsent",
+        "workspaceSync",
+        "impactClose"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "System",
+        "job": "impactClose"
+      },
+      "name": "System(impactClose)@all"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}
