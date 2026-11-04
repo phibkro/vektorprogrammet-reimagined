@@ -410,7 +410,7 @@ export const baseline: readonly Tolerated[] = [
  * in a second transaction, and every integration port refuses a call made while a transaction is open
  * (`refusingInTransaction`), so a call that the type bound cannot see dies at run time instead of being listed here.
  */
-export const integrationCalls: readonly IntegrationCall[] = [];
+const integrationCalls: readonly IntegrationCall[] = [];
 
 export const declaration: Declaration = {
   acyclic: ["packages/**/*.ts", "packages/**/*.tsx"],

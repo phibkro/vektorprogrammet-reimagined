@@ -39,7 +39,7 @@
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "tools/prototype": {
-      "entry": ["seed.ts"],
+      "entry": ["seed.ts", "provisionRuntime.ts"],
       "project": ["*.ts"]
     },
     "tools/import": {

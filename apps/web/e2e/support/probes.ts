@@ -4,15 +4,11 @@
  * the Playwright runner awaits.
  */
 import { PgClient } from "@effect/sql-pg";
-import { mintCode } from "@vektorprogrammet/domain";
-import type { CodePurpose } from "@vektorprogrammet/domain";
 import type { Redacted } from "effect";
 import { Config, Effect, Layer, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 import * as SqlSchema from "effect/sql/SqlSchema";
-
-import { webCryptoLayer } from "../../src/server/webCrypto";
 
 /** A single-connection adapter for browser fixtures and probes. */
 export const fixtureDatabaseLayer = (url: Redacted.Redacted) =>
@@ -180,18 +176,6 @@ export const closeAdmissionPeriods = Effect.flatMap(
   (sql) =>
     sql`update admission_period set starts_at = now() - interval '2 days', ends_at = now() - interval '1 day' where starts_at <= now() and ends_at > now()`
 );
-
-/** Install only the hash of a fresh code for a real HTTP state-precondition probe. */
-export const codeFor = (email: string, purpose: CodePurpose) =>
-  Effect.gen(function* seedCode() {
-    const sql = yield* SqlClient;
-    const { hash, token } = yield* mintCode().pipe(Effect.orDie);
-    yield* sql`insert into code (purpose, subject, hash, expires_at, state)
-      select ${purpose}, id, ${hash}, now() + interval '1 hour', 'Usable' from person where email = ${email}
-      on conflict (purpose, subject) do update set hash = excluded.hash, expires_at = excluded.expires_at, state = 'Usable'`;
-
-    return token;
-  }).pipe(Effect.provide(webCryptoLayer));
 
 const OutboxRow = Schema.Struct({
   id: Schema.Int,
