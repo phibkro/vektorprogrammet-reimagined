@@ -7,6 +7,16 @@ import {
 import { runtimeDatabaseUrl } from "@vektorprogrammet/db/runtime-url";
 import { Config, Crypto, Effect, FileSystem, Path, Redacted } from "effect";
 
+const outsideWorktree = (path: Path.Path, root: string, location: string) => {
+  const relative = path.relative(root, location);
+
+  return (
+    path.isAbsolute(relative) ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`)
+  );
+};
+
 const program = Effect.gen(function* provisionRuntimeMain() {
   const admin = yield* Config.Redacted("MIGRATION_DATABASE_URL");
   const file = yield* Config.String("RUNTIME_DATABASE_URL_FILE");
@@ -25,7 +35,7 @@ const program = Effect.gen(function* provisionRuntimeMain() {
   const parent = yield* fs.realPath(path.dirname(file));
   const location = path.resolve(parent, path.basename(file));
 
-  if (!path.relative(root, location).startsWith("..")) {
+  if (!outsideWorktree(path, root, location)) {
     return yield* Effect.die(
       "Runtime credentials must be outside the worktree"
     );
