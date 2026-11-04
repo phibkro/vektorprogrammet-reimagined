@@ -21,11 +21,9 @@ export class RuntimeDatabaseUrl extends Context.Service<
   Redacted.Redacted
 >()("test/RuntimeDatabaseUrl") {}
 
-/** Creates a unique role and database; the database closes before the cluster-wide role. */
-export const runtimeTestDatabase = Layer.effectContext(
-  Effect.gen(function* runtimeTestDatabase() {
-    const cluster = yield* Config.Redacted("TEST_DATABASE_ADMIN_URL");
-
+/** Unique, synthetic-only credentials for an independently provisioned test role. */
+export const runtimeRoleCredentials = Effect.gen(
+  function* makeRuntimeRoleCredentials() {
     const words = yield* Effect.forEach(Arr.range(0, 7), () =>
       Random.nextIntBetween(0, 2 ** 31)
     );
@@ -35,7 +33,16 @@ export const runtimeTestDatabase = Layer.effectContext(
       ""
     );
 
-    const role = `vektor_runtime_${password.slice(0, 32)}`;
+    return { password, role: `vektor_runtime_${password.slice(0, 32)}` };
+  }
+);
+
+/** Creates a unique role and database; the database closes before the cluster-wide role. */
+export const runtimeTestDatabase = Layer.effectContext(
+  Effect.gen(function* runtimeTestDatabase() {
+    const cluster = yield* Config.Redacted("TEST_DATABASE_ADMIN_URL");
+
+    const { role, password } = yield* runtimeRoleCredentials;
     yield* Effect.acquireRelease(Effect.void, () =>
       withClient(cluster, (sql) =>
         sql.unsafe(`drop role if exists "${role}"`)

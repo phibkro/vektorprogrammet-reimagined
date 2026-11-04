@@ -1,15 +1,5 @@
 import { assert, it } from "@effect/vitest";
-import {
-  Array as Arr,
-  Cause,
-  Config,
-  Effect,
-  Exit,
-  Option,
-  Random,
-  Redacted,
-  Schema,
-} from "effect";
+import { Cause, Config, Effect, Exit, Option, Redacted, Schema } from "effect";
 
 import { provisionRuntimeAccess } from "../src/runtimeAccess.ts";
 import {
@@ -17,6 +7,7 @@ import {
   TestDatabaseUrl,
   withClient,
 } from "./support/disposableDatabase.ts";
+import { runtimeRoleCredentials } from "./support/runtimeRole.ts";
 
 const hasCode = (code: string) =>
   Schema.is(Schema.Struct({ code: Schema.Literal(code) }));
@@ -27,17 +18,8 @@ it.live(
     Effect.gen(function* runtimeRoleTest() {
       const clusterAdmin = yield* Config.Redacted("TEST_DATABASE_ADMIN_URL");
 
-      const words = yield* Effect.forEach(Arr.range(0, 7), () =>
-        Random.nextIntBetween(0, 2 ** 31)
-      );
-
-      const encoded = Arr.map(words, (word) =>
-        word.toString(16).padStart(8, "0")
-      );
-
-      const role = `vektor_runtime_${Arr.join(encoded, "").slice(0, 32)}`;
-      const password = Arr.join(encoded, "");
-      const browserRole = `vektor_browser_${Arr.join(encoded, "").slice(0, 32)}`;
+      const { role, password } = yield* runtimeRoleCredentials;
+      const browserRole = `vektor_browser_${role.slice("vektor_runtime_".length)}`;
       yield* Effect.acquireRelease(
         withClient(clusterAdmin, (sql) =>
           sql.unsafe(
