@@ -507,6 +507,12 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           );
           assert.deepStrictEqual(yield* codeStates(721), ["Unsent"]);
 
+          // The failed claim is not due until its retry delay has elapsed.
+          assert.strictEqual(yield* deliveryTag(row), "Held");
+          assert.lengthOf(hooks.sent, 1);
+          const sql = yield* SqlClient;
+          yield* sql`update outbox set next_attempt_at = now() - interval '1 second' where id = ${Number(row)}`;
+
           // The redelivery is interrupted after its send: no handler sees it, the claim stays held.
           hooks.after = () => Effect.interrupt;
           const interrupted = yield* Effect.exit(deliverOutbox([row]));
