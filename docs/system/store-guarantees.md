@@ -128,7 +128,6 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | Port | Requires | Standalone | Joins | Read | Outside | Opens |
 | --- | --- | --- | --- | --- | --- | --- |
 | `AccountRepository` | `emailOf`, `findLocked`, `invite`, `isLastActiveAdmin`, `transition`, `updateProfile`, `verifyEmail` |  |  | `find`, `findAuthIdentitiesByPersonId`, `findAuthIdentity`, `list`, `verifiedHolderOf` |  |  |
-| `ContentEditor` |  |  | `create`, `publish`, `save` | `list` |  |  |
 | `AdminGrantRepository` | `create`, `revoke` |  |  | `findById`, `list` |  |  |
 | `AdmissionPeriodRepository` |  | `create`, `extend`, `remove` |  | `findById`, `list`, `listStored` |  |  |
 | `AggregateLocks` | `lock`, `lockAll` |  |  |  |  |  |
@@ -138,6 +137,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `CapturedMessageStore` |  | `record` |  |  |  |  |
 | `CodeRepository` | `acknowledge`, `consume`, `issue` |  |  | `findUsable` |  |  |
 | `ConsentRepository` | `ofLocked`, `record` |  |  | `of` |  |  |
+| `ContentEditor` |  |  | `create`, `publish`, `save` | `list` |  |  |
 | `DepartmentRepository` |  | `create`, `update` |  | `findById`, `list` |  |  |
 | `DigestLedger` | `claim` |  |  |  |  |  |
 | `FieldOfStudyRepository` |  | `create`, `rename` |  | `findById`, `listByDepartment` |  |  |
