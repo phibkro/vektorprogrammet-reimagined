@@ -9,6 +9,7 @@ import { Array as Arr, Order, Record as Rec } from "effect";
 import type { Effect } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
+import type { Collection } from "../../src/cms/client.ts";
 import type { Locked } from "../../src/shared/aggregate.ts";
 import type { InTransaction } from "../../src/shared/transaction.ts";
 import { TransactionModes } from "../../src/shared/transactionModes.ts";
@@ -16,6 +17,7 @@ import type {
   ModesOf,
   StorePorts,
   TransactionMode,
+  CmsCollectionModes,
 } from "../../src/shared/transactionModes.ts";
 
 /** What a method (a function that returns an Effect, or an Effect) requires. */
@@ -83,6 +85,15 @@ interface Fixture {
 }
 
 describe("TransactionModes (spec 0018)", () => {
+  it("CMS collection operation modes agree with their Effect requirements", () => {
+    expectTypeOf<
+      Disagreements<
+        { readonly CmsCollection: typeof CmsCollectionModes },
+        { readonly CmsCollection: { readonly Service: Collection<unknown> } }
+      >
+    >().toEqualTypeOf<never>();
+  });
+
   it("falsifier 2: every method that takes a lock token is Requires", () => {
     expectTypeOf<
       UnguardedTokens<typeof TransactionModes, StorePorts>

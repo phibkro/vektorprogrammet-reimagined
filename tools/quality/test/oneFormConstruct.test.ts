@@ -3,9 +3,9 @@
  * `PostForm`, `LocalForm`, over `useConstructForm`), from a schema of `forms/`; nothing else builds a `<form>` that has
  * inputs, reads one by name, or touches TanStack Form. The scan reads the source of `apps/web` for the three signs of a
  * second construct: a `<form` element, a read of a field by name from a `FormData` (`.get("…")`), and an import of
- * `@tanstack/react-form`. A file that has one and is not listed fails, and so does a listing that no file needs, so the
- * list can only shrink. The allowed `<form` is a form that has no input but a button (the export of one's own data posts
- * to `/api/eksport`), and the allowed reads are `textOf` itself and the Turnstile token of an account post.
+ * `@tanstack/react-form`. A file with an unlisted sign fails, as does a stale listing.
+ * Native Supabase invitation and recovery forms handle credentials outside the domain form construct.
+ * The inventory also names their text reader and the button-only export form.
  *
  * What it does not see: a form built by `React.createElement("form")`, or a field read through a variable. It is the
  * early signal at review time, as the other scans of this directory are.
@@ -32,6 +32,10 @@ const SIGNS = {
         "the form that the browser posts",
       "apps/web/src/components/ownData.tsx":
         "the export of one's own data: a button, posted to /api/eksport, with no input",
+      "apps/web/src/routes/aktiver.tsx":
+        "native POST for a Supabase invitation session; it works without JavaScript",
+      "apps/web/src/routes/tilbakestill-passord.tsx":
+        "Supabase recovery-token password update; the native POST prevents pre-hydration URL leakage",
     },
     pattern: /<form[\s>]/u,
   },
@@ -39,8 +43,8 @@ const SIGNS = {
     allowed: {
       "apps/web/src/forms/formSchema.ts":
         "`textOf` is the one reader of a posted FormData",
-      "apps/web/src/server/accountPost.ts":
-        "the Turnstile token of an account post, which is the widget's field and no value of a form",
+      "apps/web/src/lib/formText.ts":
+        "text reader for the Supabase recovery password form; files and missing values are refused as empty",
     },
     pattern: /\b(?:form|data)\.get\(/u,
   },

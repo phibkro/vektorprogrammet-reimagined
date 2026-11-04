@@ -121,11 +121,14 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 
 ## Transaction mode of every port method
 
+`CmsClient.*` lists the shared operations of each content collection. `CmsClient` groups those collections; it has no direct store methods.
+
 <!-- docgen:begin modes -->
 
 | Port | Requires | Standalone | Joins | Read | Outside | Opens |
 | --- | --- | --- | --- | --- | --- | --- |
 | `AccountRepository` | `emailOf`, `findLocked`, `invite`, `isLastActiveAdmin`, `transition`, `updateProfile`, `verifyEmail` |  |  | `find`, `findAuthIdentitiesByPersonId`, `findAuthIdentity`, `list`, `verifiedHolderOf` |  |  |
+| `ContentEditor` |  |  | `create`, `publish`, `save` | `list` |  |  |
 | `AdminGrantRepository` | `create`, `revoke` |  |  | `findById`, `list` |  |  |
 | `AdmissionPeriodRepository` |  | `create`, `extend`, `remove` |  | `findById`, `list`, `listStored` |  |  |
 | `AggregateLocks` | `lock`, `lockAll` |  |  |  |  |  |
@@ -167,5 +170,6 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `WorkspaceFacts` |  |  |  | `configuredGroupAddresses`, `departmentEngagements`, `departments`, `people`, `storedAddresses`, `teamsAfter` |  |  |
 | `WorkspaceReports` | `append`, `complete`, `open` |  |  | `latest`, `read` |  |  |
 | `WorkspaceWriter` |  |  |  |  | `apply` |  |
+| `CmsClient.*` |  |  | `create`, `publish` | `listings`, `published`, `publishedBySlug` |  |  |
 
 <!-- docgen:end modes -->

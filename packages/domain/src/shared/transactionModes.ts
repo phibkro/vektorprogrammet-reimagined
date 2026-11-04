@@ -23,6 +23,7 @@ import type { ApplicationRepository } from "../admission/services.ts";
  * `tools/quality/test/storePorts.test.ts` finds every service of this package in this table or in `NotStorePorts`.
  */
 import type { AuditLog } from "../audit/auditLog.ts";
+import type { Collection, ContentEditor } from "../cms/client.ts";
 import type { SocialEventRepository } from "../content/services.ts";
 import type { FileStore, PublicFileRepository } from "../files/services.ts";
 import type { ImpactSnapshots } from "../impact/services.ts";
@@ -87,6 +88,7 @@ export interface StorePorts {
   readonly AuditLog: AuditLog;
   readonly CapturedMessageStore: CapturedMessageStore;
   readonly CodeRepository: CodeRepository;
+  readonly ContentEditor: ContentEditor;
   readonly ConsentRepository: ConsentRepository;
   readonly DepartmentRepository: DepartmentRepository;
   readonly DigestLedger: DigestLedger;
@@ -130,6 +132,17 @@ export type ModesOf<
     readonly [Method in keyof Ports[Port]["Service"]]: TransactionMode;
   };
 };
+
+/** All CMS collections expose these same operations through the CmsClient namespace. */
+export const CmsCollectionModes = {
+  create: "Joins",
+  listings: "Read",
+  publish: "Joins",
+  published: "Read",
+  publishedBySlug: "Read",
+} as const satisfies ModesOf<{
+  readonly CmsCollection: { readonly Service: Collection<unknown> };
+}>["CmsCollection"];
 
 export const TransactionModes = {
   AccountRepository: {
@@ -179,6 +192,12 @@ export const TransactionModes = {
     issue: "Requires",
   },
   ConsentRepository: { of: "Read", ofLocked: "Requires", record: "Requires" },
+  ContentEditor: {
+    create: "Joins",
+    list: "Read",
+    publish: "Joins",
+    save: "Joins",
+  },
   DepartmentRepository: {
     create: "Standalone",
     findById: "Read",
@@ -289,8 +308,10 @@ export const TransactionModes = {
   WorkspaceWriter: { apply: "Outside" },
 } as const satisfies ModesOf<StorePorts>;
 
-/** The services of this package that are not store ports, each with the reason. */
+/** Services without direct store operations: each entry explains its role. */
 export const NotStorePorts = {
+  CmsClient:
+    "namespace of collections; their store operations are declared in CmsCollectionModes",
   CurrentPrincipal: "who acts: a value of the request, not a store capability",
   InTransaction: "the proof that `Transactor.run` provides (TX1 to TX5)",
   Info: "the declaration of the command that runs: a value of the request",

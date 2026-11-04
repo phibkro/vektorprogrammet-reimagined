@@ -4,6 +4,7 @@
  * the page comes out, and the check compares it with the committed one.
  */
 import {
+  CmsCollectionModes,
   NonGuarantees,
   StoreGuarantees,
   TransactionModes,
@@ -31,7 +32,7 @@ export interface StoreDeclarations {
 
 export const STORE: StoreDeclarations = {
   guarantees: StoreGuarantees,
-  modes: TransactionModes,
+  modes: { ...TransactionModes, "CmsClient.*": CmsCollectionModes },
   nonGuarantees: NonGuarantees,
 };
 
