@@ -6,6 +6,8 @@ PostgreSQL: the Drizzle schema (single source), the generated migrations, and th
 
 The shared table factory in `src/schema.ts` uses Drizzle's `pgTable.withRLS`. Generated migrations enable RLS on every domain table. No browser-role policies grant access. The Worker remains the authorization boundary for domain operations. [`apps/web/README.md`](../../apps/web/README.md) declares the required server connection role.
 
+The restricted runtime role has SELECT and INSERT, but not UPDATE or DELETE, on `impact_snapshot` (IM1). Re-provisioning revokes stale grants before applying this rule. The migration owner retains administrative authority; hosted role privileges still require independent deployment attestation.
+
 `test/dataApiBoundary.postgres.test.ts` checks the migrated table catalog and actual reads/inserts through a broadly granted non-owner role. Its negative control disables RLS and exposes the same rows. The SELECT-only test role receives SELECT policies in its disposable database, never BYPASSRLS. Native Auth and Storage schemas remain unchanged.
 
 RLS does not secure definer functions or owner-privileged views. Inspect those exposed objects before a hosted deployment. Spec `0024` records the local catalog and native API evidence.

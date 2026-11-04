@@ -87,6 +87,13 @@ it.live(
             sql`do $$ begin execute format('revoke create on database %I from public', current_database()); end $$`
         );
         yield* provisionRuntimeAccess(admin, password, role);
+        // Re-provisioning must remove stale write grants from an existing runtime role.
+        yield* withClient(admin, (sql) =>
+          sql.unsafe(
+            `grant update, delete on public.impact_snapshot to "${role}"`
+          )
+        );
+        yield* provisionRuntimeAccess(admin, password, role);
         const url = new URL(Redacted.value(admin));
         url.username = role;
         url.password = password;
@@ -103,6 +110,11 @@ it.live(
               yield* sql`delete from site_content where slug = 'runtime-role-test'`;
             })
           )
+        );
+        yield* withClient(
+          runtime,
+          (sql) =>
+            sql`insert into impact_snapshot (closed_at, coverage, definition_hash, measure, semester_term, semester_year, source, value) values (now(), 'complete', 'acl-test', 'assistantsPlaced', 'VAR', 2099, 'reimagined', 7)`
         );
 
         const adminRoles = yield* withClient(
@@ -128,6 +140,8 @@ it.live(
           "select * from auth.users",
           "delete from vektor_private.users",
           "create table vektor_private.runtime_forbidden (id int)",
+          "update impact_snapshot set value = 8 where definition_hash = 'acl-test'",
+          "delete from impact_snapshot where definition_hash = 'acl-test'",
         ]) {
           const result = yield* Effect.exit(
             withClient(runtime, (sql) => sql.unsafe(statement))
@@ -143,6 +157,14 @@ it.live(
             )
           );
         }
+
+        const snapshot = yield* withClient(
+          runtime,
+          (sql) =>
+            sql`select value from impact_snapshot where definition_hash = 'acl-test'`
+        );
+
+        assert.deepStrictEqual(snapshot, [{ value: 7 }]);
 
         const secret = yield* Effect.exit(
           withClient(

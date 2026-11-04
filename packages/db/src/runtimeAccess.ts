@@ -47,13 +47,18 @@ const grantTables = (sql: SqlClientType, role: string) =>
   Effect.gen(function* grantTablesEffect() {
     for (const table of tables) {
       const name = `"${table.replaceAll('"', '""')}"`;
+
+      // IM1: closed impact cells are append-only for the runtime role.
+      const privileges =
+        table === getTableName(schema.impactSnapshot)
+          ? "select, insert"
+          : "select, insert, update, delete";
+
       yield* sql.unsafe(`revoke all on public.${name} from ${role}, public`);
       yield* sql.unsafe(
         `do $$ declare r record; begin for r in select rolname from pg_roles where rolname in ('anon', 'authenticated') loop execute format('revoke all on public.%I from %I', '${table.replaceAll("'", "''")}', r.rolname); end loop; end $$`
       );
-      yield* sql.unsafe(
-        `grant select, insert, update, delete on public.${name} to ${role}`
-      );
+      yield* sql.unsafe(`grant ${privileges} on public.${name} to ${role}`);
       yield* sql.unsafe(`alter table public.${name} enable row level security`);
       yield* sql.unsafe(
         `drop policy if exists vektor_runtime_server on public.${name}`
