@@ -30,7 +30,11 @@ interface Person {
 }
 
 const PersonRows = Schema.Array(
-  Schema.Struct({ created_at: Schema.DateTimeUtcFromDate, id: Schema.Int })
+  Schema.Struct({
+    created_at: Schema.DateTimeUtcFromDate,
+    id: Schema.Int,
+    last_admin_place_end: Schema.NullOr(Schema.DateTimeUtcFromDate),
+  })
 );
 
 const MembershipRows = Schema.Array(
@@ -89,7 +93,7 @@ export const readPeople = Effect.fnUntraced(function* readPeople(
   const people = yield* read(
     db,
     PersonRows,
-    sql`select p.id, p.created_at from person as p where ${who} order by p.id`
+    sql`select p.id, p.created_at, p.last_admin_place_end from person as p where ${who} order by p.id`
   );
 
   const memberships = byPerson(
@@ -116,18 +120,22 @@ export const readPeople = Effect.fnUntraced(function* readPeople(
     )
   );
 
-  return Arr.map(people, ({ created_at, id }): Person => ({
-    consents: Arr.map(of(consents, id), ({ kind }) => kind),
-    facts: {
-      createdAt: created_at,
-      memberships: Arr.map(of(memberships, id), (row) => ({
-        term: row.end_term,
-        year: row.end_year,
-      })),
-      placeUntils: Arr.map(of(places, id), ({ until }) => until),
-    },
-    id,
-  }));
+  return Arr.map(
+    people,
+    ({ created_at, id, last_admin_place_end }): Person => ({
+      consents: Arr.map(of(consents, id), ({ kind }) => kind),
+      facts: {
+        createdAt: created_at,
+        keptPlaceEnd: Option.fromNullOr(last_admin_place_end),
+        memberships: Arr.map(of(memberships, id), (row) => ({
+          term: row.end_term,
+          year: row.end_year,
+        })),
+        placeUntils: Arr.map(of(places, id), ({ until }) => until),
+      },
+      id,
+    })
+  );
 });
 
 /** The ids of the people, among those read, whose period under the rule's retention has ended at `now`. */

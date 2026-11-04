@@ -6,6 +6,13 @@ import { createServerFn } from "@tanstack/react-start";
  */
 import { Schema } from "effect";
 
+import {
+  cancelPeriodProgram,
+  extendPeriodProgram,
+  registerApplicationProgram,
+  schedulePeriodProgram,
+  withdrawApplicationProgram,
+} from "../server/admission";
 import { requestWorkspaceReportProgram } from "../server/integrations";
 import {
   saveDepartmentProgram,
@@ -67,6 +74,10 @@ export const getFieldsOfStudy = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getFieldsOfStudy)
 );
 
+export const getImpact = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), panelReads.getImpact)
+);
+
 export const getIntegrations = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getIntegrations)
 );
@@ -84,6 +95,10 @@ export const getTeam = createServerFn({ method: "GET" })
   .handler(({ context, data }) =>
     runQuery(requestScope(context), panelReads.getTeam(data.id))
   );
+
+export const getAdmission = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), panelReads.getAdmission)
+);
 
 export const getPeople = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getPeople)
@@ -127,6 +142,38 @@ export const saveTeam = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(({ context, data }) =>
     runCommand(requestScope(context), saveTeamProgram(data))
+  );
+
+// ---------------------------------------------------------------- admission (spec 0009)
+
+export const schedulePeriod = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), schedulePeriodProgram(data))
+  );
+
+export const extendPeriod = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), extendPeriodProgram(data))
+  );
+
+export const cancelPeriod = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), cancelPeriodProgram(data))
+  );
+
+export const registerApplication = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), registerApplicationProgram(data))
+  );
+
+export const withdrawApplication = createServerFn({ method: "POST" })
+  .validator(formData)
+  .handler(({ context, data }) =>
+    runCommand(requestScope(context), withdrawApplicationProgram(data))
   );
 
 export const deactivateTeam = createServerFn({ method: "POST" })

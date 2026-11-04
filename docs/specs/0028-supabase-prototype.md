@@ -1,4 +1,4 @@
-# 0024 — One Start application and Supabase
+# 0028 — One Start application and Supabase
 
 Status: implemented and exercised locally. Operator request: 2026-11-04.
 

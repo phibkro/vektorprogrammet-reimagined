@@ -11,7 +11,7 @@
 
 ## How to get to it (user POV)
 
-- Open `<origin>/api/isolation` in a browser or run `curl -i <origin>/api/isolation`. On a Worker Preview the pull request's `deploy` job does the same (step "Check the isolation level through Hyperdrive") and fails unless the answer is `200`.
+- Open `<origin>/api/isolation` in a browser or run `curl -i <origin>/api/isolation`. On a Worker Preview the pull request's `deploy` job does the same (step "Check the isolation level and the platform through Hyperdrive", which also asks [`/api/platform`](./platform-check.md)) and fails unless the answer is `200`.
 
 ## Driving it with verify-vektorprogrammet
 

@@ -50,6 +50,7 @@ import {
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { auditLog, outbox } from "../schema.ts";
 
 const encodeMessage = Schema.encodeUnknownEffect(OutboxMessage);
@@ -96,7 +97,7 @@ export const OutboxLive = Layer.effect(
       );
     });
 
-    return Outbox.of({ enqueue });
+    return yield* verified("Outbox", Outbox.of({ enqueue }));
   })
 );
 
@@ -298,12 +299,43 @@ export const OutboxDeliveryLive = Layer.effect(
       );
     });
 
-    return OutboxDelivery.of({
-      claim,
-      due,
-      markDelivered,
-      markFailed,
+    /**
+     * The fence (spec 0024 R9): a row lock that the caller's transaction keeps. `FOR NO KEY UPDATE` is what another
+     * consumer's claim (an `UPDATE` of a non-key column) waits for; under READ COMMITTED a claim that committed first
+     * makes the `WHERE` find no row, so the answer is `claimLost`.
+     */
+    const holdClaim = Effect.fn("OutboxDelivery.holdClaim")(function* holdClaim(
+      id: OutboxMessageId,
+      claimToken: OutboxClaimToken
+    ) {
+      const rows = yield* db
+        .select({ id: outbox.id })
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.id, Number(id)),
+            eq(outbox.claimToken, claimToken),
+            eq(outbox.status, "pending")
+          )
+        )
+        .for("no key update")
+        .pipe(Effect.orDie);
+
+      const ack: OutboxAck = rows.length === 1 ? "recorded" : "claimLost";
+
+      return ack;
     });
+
+    return yield* verified(
+      "OutboxDelivery",
+      OutboxDelivery.of({
+        claim,
+        due,
+        holdClaim,
+        markDelivered,
+        markFailed,
+      })
+    );
   })
 );
 
@@ -459,6 +491,6 @@ export const AuditLogLive = Layer.effect(
       return yield* Effect.forEach(rows, entryOf);
     });
 
-    return AuditLog.of({ latest, record });
+    return yield* verified("AuditLog", AuditLog.of({ latest, record }));
   })
 );

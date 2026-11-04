@@ -46,6 +46,12 @@ export const AuditAction = Schema.Literals([
   "retention.ran",
   "retention.reported",
   "workspaceReport.requested",
+  "admissionPeriod.created",
+  "admissionPeriod.extended",
+  "admissionPeriod.deleted",
+  "application.registered",
+  "application.withdrawn",
+  "applicant.verified",
 ]);
 
 export type AuditAction = typeof AuditAction.Type;

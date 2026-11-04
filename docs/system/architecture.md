@@ -1,6 +1,6 @@
 # Architecture and technology
 
-The runnable prototype is specified in [0024](../specs/0024-supabase-prototype.md): one TanStack Start application on Cloudflare Workers and one Supabase project. Historical infrastructure decisions are superseded for this prototype, not evidence of a production cutover.
+The runnable prototype is specified in [0028](../specs/0028-supabase-prototype.md): one TanStack Start application on Cloudflare Workers and one Supabase project. Historical infrastructure decisions are superseded for this prototype, not evidence of a production cutover.
 
 ```mermaid
 flowchart LR

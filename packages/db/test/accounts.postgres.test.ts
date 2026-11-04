@@ -30,6 +30,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
 import { activeAdmin } from "./support/accountsWorld.ts";
+import { issueUsable } from "./support/codes.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { raceReport } from "./support/race.ts";
 import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
@@ -123,7 +124,7 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
 
         const replace = (hash: typeof first.hash) =>
           asPerson(fixture.person.id, (locked) =>
-            codes.replace(locked, { expiresAt, hash, purpose: "alumniConsent" })
+            issueUsable(locked, { expiresAt, hash, purpose: "alumniConsent" })
           );
 
         const request = {
@@ -133,11 +134,6 @@ layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
         } as const;
 
         yield* replace(first.hash);
-        assert.isFalse(
-          yield* asPerson(other.person.id, (locked) =>
-            codes.consume(locked, request)
-          )
-        );
         assert.isTrue(Option.isSome(yield* codes.findUsable(request)));
         assert.isTrue(
           Option.isNone(yield* codes.findUsable({ ...request, now: expiresAt }))

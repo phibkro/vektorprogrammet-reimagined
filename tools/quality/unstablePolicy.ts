@@ -66,7 +66,14 @@ export const unstablePolicy = {
     override(["apps/web/src/lib/authClient.ts"], ...base, "http"),
     override(["tools/import/src/**"], ...tools, "mysql"),
     override(["tools/import/test/**"], ...testingTools, "mysql"),
-    override(["apps/web/test/sandbox.test.ts"], ...testing, "http"),
+    override(
+      [
+        "apps/web/test/sandbox.test.ts",
+        "apps/web/test/integrationGuard.test.ts",
+      ],
+      ...testing,
+      "http"
+    ),
     override(
       ["packages/db/test/support/disposableDatabase.ts"],
       ...testing,
@@ -100,6 +107,7 @@ export const unstablePolicy = {
         "apps/web/test/publicFiles.test.ts",
         "apps/web/test/redirects.test.ts",
         "apps/web/test/sandbox.test.ts",
+        "apps/web/test/integrationGuard.test.ts",
         "tools/db-path-spike/test/**"
       ),
       options: { diagnosticSeverity: { asyncFunction: "off" } },

@@ -1,0 +1,39 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "76cd9fde-72cc-4523-9898-98683d988b76",
+  "prevIds": ["5e08472a-73eb-4d1d-9db9-6e82f418eda6"],
+  "footprints": [
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "impact_snapshot"],
+      "writes": ["s|rls|public.impact_snapshot"],
+      "reads": ["n|tbl|public.impact_snapshot", "n|sch|public"],
+      "sqlHash": "5f9203c3fb7cf611"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "application"],
+      "writes": ["s|rls|public.application"],
+      "reads": ["n|tbl|public.application", "n|sch|public"],
+      "sqlHash": "326085fa4edcbe38"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"impact_snapshot\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"application\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    }
+  ]
+}

@@ -7,7 +7,10 @@ import { holder } from "../kernel/subject.ts";
 import type { Personal } from "../kernel/subject.ts";
 import { PersonId } from "../shared/ids.ts";
 
-export const CodePurpose = Schema.Literals(["alumniConsent"]);
+export const CodePurpose = Schema.Literals([
+  "alumniConsent",
+  "verifyApplication",
+]);
 
 export type CodePurpose = typeof CodePurpose.Type;
 
@@ -25,6 +28,13 @@ export const codePolicy = {
     command: "answerAlumniConsent",
     lifetimeSeconds: 60 * 24 * 60 * 60,
     singleUse: false,
+  },
+  /** An applicant's e-mail address (spec 0009): no account, one use. */
+  verifyApplication: {
+    account: null,
+    command: "verifyApplicantEmail",
+    lifetimeSeconds: 30 * 24 * 60 * 60,
+    singleUse: true,
   },
 } as const satisfies Record<
   CodePurpose,
@@ -59,12 +69,26 @@ export const CodeToken = Schema.String.check(
 
 export type CodeToken = typeof CodeToken.Type;
 
+/**
+ * Where an issued code is in its life (spec 0024, `CodeMachine`). `Unsent` is stored and refused everywhere: it
+ * authenticates nothing, and it is what a code is until its mail has gone out. `Usable` is a code that the delivery
+ * acknowledged after the send. `Used` is a single-use code that has been used. Expiry is not a state: `expiresAt` is
+ * compared whole when a code is read, as it always was.
+ */
+export const CodeState = Schema.TaggedUnion({
+  Unsent: {},
+  Usable: {},
+  Used: {},
+});
+
+export type CodeState = typeof CodeState.Type;
+
 export const Code = Schema.Struct({
   expiresAt: Schema.DateTimeUtc,
   hash: CodeHash,
   purpose: CodePurpose,
+  state: CodeState,
   subject: PersonId,
-  usedAt: Schema.NullOr(Schema.DateTimeUtc),
 });
 
 export type Code = typeof Code.Type;

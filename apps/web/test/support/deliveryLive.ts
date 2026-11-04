@@ -10,6 +10,7 @@ import { Array as Arr, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { accountDeliveryLayer } from "../../src/server/accountDelivery";
+import { authLayer } from "../../src/server/auth";
 import { deliverOutbox } from "../../src/server/outboxDelivery";
 import { captureSenderLayer } from "../../src/server/senders";
 import type { MessageSender } from "../../src/server/senders";
@@ -20,7 +21,7 @@ import { workspaceWriterLayer } from "../../src/server/workspace";
 export const origin = "https://mail.example";
 
 /** Compose delivery against the request-independent database layer and captured sender. */
-const liveWith = (
+export const liveWith = (
   sender: Layer.Layer<MessageSender, never, CapturedMessageStore>
 ) =>
   Layer.unwrap(
@@ -37,12 +38,16 @@ const liveWith = (
 
       const capture = sender.pipe(Layer.provideMerge(infrastructure));
 
-      return accountDeliveryLayer({
+      const env = {
         SITE_URL: origin,
         SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
         SUPABASE_SECRET_KEY: "test-secret-key",
         SUPABASE_URL: "http://127.0.0.1:54321",
-      }).pipe(Layer.provideMerge(capture));
+      };
+
+      return Layer.merge(accountDeliveryLayer(env), authLayer(env)).pipe(
+        Layer.provideMerge(capture)
+      );
     })
   ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
 

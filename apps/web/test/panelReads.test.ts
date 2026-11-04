@@ -20,6 +20,7 @@ import {
   anonymous,
   authorize,
   currentSemester,
+  impactView,
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
@@ -37,6 +38,7 @@ import {
 import type { Outcome } from "../src/lib/outcome";
 import { PANEL_SECTIONS, sectionOfPath } from "../src/lib/panelSections";
 import type { SectionKey } from "../src/lib/panelSections";
+import { admissionView } from "../src/server/admission";
 import type { RequestError } from "../src/server/errors";
 import { integrationsView } from "../src/server/integrations";
 import {
@@ -92,10 +94,12 @@ const GUARDED: Calls = Rec.map(panelReads, asCall);
 /** The views the guard wraps, bare: what a route without its guard would run. */
 const BARE: Calls = {
   getAdmins: () => adminsView,
+  getAdmission: () => admissionView,
   getContent: () => ContentEditor.use((editor) => editor.list),
   getDashboard: () => dashboardView,
   getDepartments: () => departmentsView,
   getFieldsOfStudy: () => fieldsOfStudyView,
+  getImpact: () => impactView,
   getIntegrations: () => integrationsView,
   getPeople: () => peopleView,
   getSemesters: () => semestersView,
@@ -104,6 +108,8 @@ const BARE: Calls = {
   getTeams: () => teamsView,
 };
 
+/** The reads whose view is a command, which refuses a principal without its grant on its own. */
+const SELF_GUARDED: ReadonlySet<PanelRead> = new Set(["getImpact"]);
 const READS = Rec.keys(READ_SECTIONS);
 
 /** The declaration looked up by the name a route's source gives. */
@@ -321,11 +327,18 @@ describe("issue 15: a principal without the read gets no 2xx", () => {
             [read]: BARE[read],
           });
 
-          assert.isTrue(
-            Arr.some(violations, (violation) =>
-              violation.includes(`: ${read}`)
-            ),
-            `${read} without its guard fails the falsifier`
+          const caught = Arr.some(violations, (violation) =>
+            violation.includes(`: ${read}`)
+          );
+
+          // A read whose view runs a command is refused by the command's own grant even without the section guard
+          // (spec 0027: `listImpact` is held through the admin row alone), so its control is that nothing leaks.
+          assert.strictEqual(
+            caught,
+            !SELF_GUARDED.has(read),
+            SELF_GUARDED.has(read)
+              ? `${read} is refused by its command without the guard`
+              : `${read} without its guard fails the falsifier`
           );
         }
       })

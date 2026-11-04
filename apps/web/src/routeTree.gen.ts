@@ -25,6 +25,7 @@ import { Route as SlettetRouteImport } from './routes/slettet'
 import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-passord'
 import { Route as ApiEksportRouteImport } from './routes/api/eksport'
 import { Route as ApiIsolationRouteImport } from './routes/api/isolation'
+import { Route as ApiPlatformRouteImport } from './routes/api/platform'
 import { Route as AuthConfirmRouteImport } from './routes/auth/confirm'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
@@ -33,13 +34,18 @@ import { Route as KontrollpanelIndexRouteImport } from './routes/kontrollpanel/i
 import { Route as KontrollpanelAdministratorerRouteImport } from './routes/kontrollpanel/administratorer'
 import { Route as KontrollpanelArrangementerRouteImport } from './routes/kontrollpanel/arrangementer'
 import { Route as KontrollpanelAvdelingerRouteImport } from './routes/kontrollpanel/avdelinger'
+import { Route as KontrollpanelEffektRouteImport } from './routes/kontrollpanel/effekt'
 import { Route as KontrollpanelInnholdRouteImport } from './routes/kontrollpanel/innhold'
 import { Route as KontrollpanelIntegrasjonerRouteImport } from './routes/kontrollpanel/integrasjoner'
 import { Route as KontrollpanelLinjerRouteImport } from './routes/kontrollpanel/linjer'
+import { Route as KontrollpanelOpptakRouteImport } from './routes/kontrollpanel/opptak'
 import { Route as KontrollpanelPersonerRouteImport } from './routes/kontrollpanel/personer'
 import { Route as KontrollpanelSemestreRouteImport } from './routes/kontrollpanel/semestre'
 import { Route as NyhetSlugRouteImport } from './routes/nyhet/$slug'
 import { Route as NyheterIndexRouteImport } from './routes/nyheter/index'
+import { Route as SoknadIndexRouteImport } from './routes/soknad/index'
+import { Route as SoknadDepartmentRouteImport } from './routes/soknad/$department'
+import { Route as SoknadBekreftRouteImport } from './routes/soknad/bekreft'
 import { Route as TeamIndexRouteImport } from './routes/team/index'
 import { Route as TeamDepartmentRouteImport } from './routes/team/$department'
 import { Route as KontaktAvdelingIdRouteImport } from './routes/kontakt/avdeling/$id'
@@ -126,6 +132,11 @@ const ApiIsolationRoute = ApiIsolationRouteImport.update({
   path: '/api/isolation',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlatformRoute = ApiPlatformRouteImport.update({
+  id: '/api/platform',
+  path: '/api/platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthConfirmRoute = AuthConfirmRouteImport.update({
   id: '/auth/confirm',
   path: '/auth/confirm',
@@ -168,6 +179,11 @@ const KontrollpanelAvdelingerRoute = KontrollpanelAvdelingerRouteImport.update({
   path: '/avdelinger',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
+const KontrollpanelEffektRoute = KontrollpanelEffektRouteImport.update({
+  id: '/effekt',
+  path: '/effekt',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
 const KontrollpanelInnholdRoute = KontrollpanelInnholdRouteImport.update({
   id: '/innhold',
   path: '/innhold',
@@ -182,6 +198,11 @@ const KontrollpanelIntegrasjonerRoute =
 const KontrollpanelLinjerRoute = KontrollpanelLinjerRouteImport.update({
   id: '/linjer',
   path: '/linjer',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
+const KontrollpanelOpptakRoute = KontrollpanelOpptakRouteImport.update({
+  id: '/opptak',
+  path: '/opptak',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
 const KontrollpanelPersonerRoute = KontrollpanelPersonerRouteImport.update({
@@ -202,6 +223,21 @@ const NyhetSlugRoute = NyhetSlugRouteImport.update({
 const NyheterIndexRoute = NyheterIndexRouteImport.update({
   id: '/nyheter/',
   path: '/nyheter/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoknadIndexRoute = SoknadIndexRouteImport.update({
+  id: '/soknad/',
+  path: '/soknad/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoknadDepartmentRoute = SoknadDepartmentRouteImport.update({
+  id: '/soknad/$department',
+  path: '/soknad/$department',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoknadBekreftRoute = SoknadBekreftRouteImport.update({
+  id: '/soknad/bekreft',
+  path: '/soknad/bekreft',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TeamIndexRoute = TeamIndexRouteImport.update({
@@ -247,22 +283,28 @@ export interface FileRoutesByFullPath {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/api/platform': typeof ApiPlatformRoute
   '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/effekt': typeof KontrollpanelEffektRoute
   '/kontrollpanel/innhold': typeof KontrollpanelInnholdRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
+  '/kontrollpanel/opptak': typeof KontrollpanelOpptakRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
+  '/soknad/$department': typeof SoknadDepartmentRoute
+  '/soknad/bekreft': typeof SoknadBekreftRoute
   '/team/$department': typeof TeamDepartmentRoute
   '/kontakt/': typeof KontaktIndexRoute
   '/kontrollpanel/': typeof KontrollpanelIndexRoute
   '/nyheter/': typeof NyheterIndexRoute
+  '/soknad/': typeof SoknadIndexRoute
   '/team/': typeof TeamIndexRoute
   '/kontakt/avdeling/$id': typeof KontaktAvdelingIdRoute
   '/kontrollpanel/team/$teamId': typeof KontrollpanelTeamTeamIdRoute
@@ -284,22 +326,28 @@ export interface FileRoutesByTo {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/api/platform': typeof ApiPlatformRoute
   '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/effekt': typeof KontrollpanelEffektRoute
   '/kontrollpanel/innhold': typeof KontrollpanelInnholdRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
+  '/kontrollpanel/opptak': typeof KontrollpanelOpptakRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
+  '/soknad/$department': typeof SoknadDepartmentRoute
+  '/soknad/bekreft': typeof SoknadBekreftRoute
   '/team/$department': typeof TeamDepartmentRoute
   '/kontakt': typeof KontaktIndexRoute
   '/kontrollpanel': typeof KontrollpanelIndexRoute
   '/nyheter': typeof NyheterIndexRoute
+  '/soknad': typeof SoknadIndexRoute
   '/team': typeof TeamIndexRoute
   '/kontakt/avdeling/$id': typeof KontaktAvdelingIdRoute
   '/kontrollpanel/team/$teamId': typeof KontrollpanelTeamTeamIdRoute
@@ -323,22 +371,28 @@ export interface FileRoutesById {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/api/platform': typeof ApiPlatformRoute
   '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/effekt': typeof KontrollpanelEffektRoute
   '/kontrollpanel/innhold': typeof KontrollpanelInnholdRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
+  '/kontrollpanel/opptak': typeof KontrollpanelOpptakRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
   '/kontrollpanel/semestre': typeof KontrollpanelSemestreRoute
   '/nyhet/$slug': typeof NyhetSlugRoute
+  '/soknad/$department': typeof SoknadDepartmentRoute
+  '/soknad/bekreft': typeof SoknadBekreftRoute
   '/team/$department': typeof TeamDepartmentRoute
   '/kontakt/': typeof KontaktIndexRoute
   '/kontrollpanel/': typeof KontrollpanelIndexRoute
   '/nyheter/': typeof NyheterIndexRoute
+  '/soknad/': typeof SoknadIndexRoute
   '/team/': typeof TeamIndexRoute
   '/kontakt/avdeling/$id': typeof KontaktAvdelingIdRoute
   '/kontrollpanel/team/$teamId': typeof KontrollpanelTeamTeamIdRoute
@@ -363,22 +417,28 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/api/platform'
     | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/effekt'
     | '/kontrollpanel/innhold'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
+    | '/kontrollpanel/opptak'
     | '/kontrollpanel/personer'
     | '/kontrollpanel/semestre'
     | '/nyhet/$slug'
+    | '/soknad/$department'
+    | '/soknad/bekreft'
     | '/team/$department'
     | '/kontakt/'
     | '/kontrollpanel/'
     | '/nyheter/'
+    | '/soknad/'
     | '/team/'
     | '/kontakt/avdeling/$id'
     | '/kontrollpanel/team/$teamId'
@@ -400,22 +460,28 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/api/platform'
     | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/effekt'
     | '/kontrollpanel/innhold'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
+    | '/kontrollpanel/opptak'
     | '/kontrollpanel/personer'
     | '/kontrollpanel/semestre'
     | '/nyhet/$slug'
+    | '/soknad/$department'
+    | '/soknad/bekreft'
     | '/team/$department'
     | '/kontakt'
     | '/kontrollpanel'
     | '/nyheter'
+    | '/soknad'
     | '/team'
     | '/kontakt/avdeling/$id'
     | '/kontrollpanel/team/$teamId'
@@ -438,22 +504,28 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/api/platform'
     | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/effekt'
     | '/kontrollpanel/innhold'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
+    | '/kontrollpanel/opptak'
     | '/kontrollpanel/personer'
     | '/kontrollpanel/semestre'
     | '/nyhet/$slug'
+    | '/soknad/$department'
+    | '/soknad/bekreft'
     | '/team/$department'
     | '/kontakt/'
     | '/kontrollpanel/'
     | '/nyheter/'
+    | '/soknad/'
     | '/team/'
     | '/kontakt/avdeling/$id'
     | '/kontrollpanel/team/$teamId'
@@ -477,13 +549,17 @@ export interface RootRouteChildren {
   TilbakestillPassordRoute: typeof TilbakestillPassordRoute
   ApiEksportRoute: typeof ApiEksportRoute
   ApiIsolationRoute: typeof ApiIsolationRoute
+  ApiPlatformRoute: typeof ApiPlatformRoute
   AuthConfirmRoute: typeof AuthConfirmRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
   NyhetSlugRoute: typeof NyhetSlugRoute
+  SoknadDepartmentRoute: typeof SoknadDepartmentRoute
+  SoknadBekreftRoute: typeof SoknadBekreftRoute
   TeamDepartmentRoute: typeof TeamDepartmentRoute
   KontaktIndexRoute: typeof KontaktIndexRoute
   NyheterIndexRoute: typeof NyheterIndexRoute
+  SoknadIndexRoute: typeof SoknadIndexRoute
   TeamIndexRoute: typeof TeamIndexRoute
   KontaktAvdelingIdRoute: typeof KontaktAvdelingIdRoute
 }
@@ -602,6 +678,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIsolationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/platform': {
+      id: '/api/platform'
+      path: '/api/platform'
+      fullPath: '/api/platform'
+      preLoaderRoute: typeof ApiPlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/confirm': {
       id: '/auth/confirm'
       path: '/auth/confirm'
@@ -658,6 +741,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KontrollpanelAvdelingerRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
+    '/kontrollpanel/effekt': {
+      id: '/kontrollpanel/effekt'
+      path: '/effekt'
+      fullPath: '/kontrollpanel/effekt'
+      preLoaderRoute: typeof KontrollpanelEffektRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
     '/kontrollpanel/innhold': {
       id: '/kontrollpanel/innhold'
       path: '/innhold'
@@ -677,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/linjer'
       fullPath: '/kontrollpanel/linjer'
       preLoaderRoute: typeof KontrollpanelLinjerRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
+    '/kontrollpanel/opptak': {
+      id: '/kontrollpanel/opptak'
+      path: '/opptak'
+      fullPath: '/kontrollpanel/opptak'
+      preLoaderRoute: typeof KontrollpanelOpptakRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
     '/kontrollpanel/personer': {
@@ -705,6 +802,27 @@ declare module '@tanstack/react-router' {
       path: '/nyheter'
       fullPath: '/nyheter/'
       preLoaderRoute: typeof NyheterIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/soknad/': {
+      id: '/soknad/'
+      path: '/soknad'
+      fullPath: '/soknad/'
+      preLoaderRoute: typeof SoknadIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/soknad/$department': {
+      id: '/soknad/$department'
+      path: '/soknad/$department'
+      fullPath: '/soknad/$department'
+      preLoaderRoute: typeof SoknadDepartmentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/soknad/bekreft': {
+      id: '/soknad/bekreft'
+      path: '/soknad/bekreft'
+      fullPath: '/soknad/bekreft'
+      preLoaderRoute: typeof SoknadBekreftRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/team/': {
@@ -749,9 +867,11 @@ interface KontrollpanelRouteRouteChildren {
   KontrollpanelAdministratorerRoute: typeof KontrollpanelAdministratorerRoute
   KontrollpanelArrangementerRoute: typeof KontrollpanelArrangementerRoute
   KontrollpanelAvdelingerRoute: typeof KontrollpanelAvdelingerRoute
+  KontrollpanelEffektRoute: typeof KontrollpanelEffektRoute
   KontrollpanelInnholdRoute: typeof KontrollpanelInnholdRoute
   KontrollpanelIntegrasjonerRoute: typeof KontrollpanelIntegrasjonerRoute
   KontrollpanelLinjerRoute: typeof KontrollpanelLinjerRoute
+  KontrollpanelOpptakRoute: typeof KontrollpanelOpptakRoute
   KontrollpanelPersonerRoute: typeof KontrollpanelPersonerRoute
   KontrollpanelSemestreRoute: typeof KontrollpanelSemestreRoute
   KontrollpanelIndexRoute: typeof KontrollpanelIndexRoute
@@ -763,9 +883,11 @@ const KontrollpanelRouteRouteChildren: KontrollpanelRouteRouteChildren = {
   KontrollpanelAdministratorerRoute: KontrollpanelAdministratorerRoute,
   KontrollpanelArrangementerRoute: KontrollpanelArrangementerRoute,
   KontrollpanelAvdelingerRoute: KontrollpanelAvdelingerRoute,
+  KontrollpanelEffektRoute: KontrollpanelEffektRoute,
   KontrollpanelInnholdRoute: KontrollpanelInnholdRoute,
   KontrollpanelIntegrasjonerRoute: KontrollpanelIntegrasjonerRoute,
   KontrollpanelLinjerRoute: KontrollpanelLinjerRoute,
+  KontrollpanelOpptakRoute: KontrollpanelOpptakRoute,
   KontrollpanelPersonerRoute: KontrollpanelPersonerRoute,
   KontrollpanelSemestreRoute: KontrollpanelSemestreRoute,
   KontrollpanelIndexRoute: KontrollpanelIndexRoute,
@@ -793,26 +915,20 @@ const rootRouteChildren: RootRouteChildren = {
   TilbakestillPassordRoute: TilbakestillPassordRoute,
   ApiEksportRoute: ApiEksportRoute,
   ApiIsolationRoute: ApiIsolationRoute,
+  ApiPlatformRoute: ApiPlatformRoute,
   AuthConfirmRoute: AuthConfirmRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,
   NyhetSlugRoute: NyhetSlugRoute,
+  SoknadDepartmentRoute: SoknadDepartmentRoute,
+  SoknadBekreftRoute: SoknadBekreftRoute,
   TeamDepartmentRoute: TeamDepartmentRoute,
   KontaktIndexRoute: KontaktIndexRoute,
   NyheterIndexRoute: NyheterIndexRoute,
+  SoknadIndexRoute: SoknadIndexRoute,
   TeamIndexRoute: TeamIndexRoute,
   KontaktAvdelingIdRoute: KontaktAvdelingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

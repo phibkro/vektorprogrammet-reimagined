@@ -6,7 +6,6 @@ import { assert } from "@effect/vitest";
 import {
   Array as Arr,
   Context,
-  Crypto,
   DateTime,
   Effect,
   Exit,
@@ -54,6 +53,7 @@ import type {
   StoredSemester,
 } from "../../src/index.ts";
 import { TeamsInMemory } from "./teamsInMemory.ts";
+import { WebCryptoTest } from "./webCrypto.ts";
 
 export interface StoredBytes {
   readonly bytes: Uint8Array;
@@ -417,25 +417,6 @@ const InTransactionTest = Layer.succeed(InTransaction)({
   kind: "database-transaction",
 });
 
-/** Web Crypto from the Node test runtime (Workers provide the same API). */
-const CryptoTest = Layer.succeed(Crypto.Crypto)(
-  Crypto.make({
-    digest: (algorithm, data) =>
-      Effect.map(
-        Effect.promise(
-          globalThis.crypto.subtle.digest.bind(
-            globalThis.crypto.subtle,
-            algorithm,
-            new Uint8Array(data)
-          )
-        ),
-        (buffer) => new Uint8Array(buffer)
-      ),
-    randomBytes: (size) =>
-      globalThis.crypto.getRandomValues(new Uint8Array(size)),
-  })
-);
-
 /** The origin that links in test messages carry. */
 export const SITE_ORIGIN = "https://vektorprogrammet.test";
 
@@ -455,7 +436,7 @@ const Phase1Services = Layer.mergeAll(
 export const TestServices = TeamsInMemory.pipe(
   Layer.provideMerge(Phase1Services),
   Layer.merge(InTransactionTest),
-  Layer.merge(CryptoTest),
+  Layer.merge(WebCryptoTest),
   Layer.merge(Layer.succeed(SiteOrigin)(SITE_ORIGIN))
 );
 

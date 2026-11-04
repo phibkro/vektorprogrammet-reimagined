@@ -1,12 +1,16 @@
 import type {
   AccountRepository,
+  AdmissionPeriodRepository,
   AdminGrantRepository,
   AggregateLocks,
+  ApplicationRepository,
   AuditLog,
   CurrentPrincipal,
   DepartmentRepository,
   DigestLedger,
   FieldOfStudyRepository,
+  ImpactSnapshots,
+  ImpactSource,
   InTransaction,
   MembershipRepository,
   Outbox,
@@ -40,7 +44,9 @@ const { signal } = new AbortController();
 export type ViewServices =
   | ContentEditor
   | AccountRepository
+  | AdmissionPeriodRepository
   | AggregateLocks
+  | ApplicationRepository
   | CurrentPrincipal
   | SiteOrigin
   | DepartmentRepository
@@ -59,7 +65,9 @@ export type ViewServices =
   | AuditLog
   | WelcomeLedger
   | OutboxReports
-  | WorkspaceReports;
+  | WorkspaceReports
+  | ImpactSnapshots
+  | ImpactSource;
 
 /** Runs a command as `principal` exactly as a server function does: in a transaction, through the error table. */
 export const runAs = <

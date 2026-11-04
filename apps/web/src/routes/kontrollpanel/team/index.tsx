@@ -1,10 +1,10 @@
 import { Link, createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { Field, nativeSelectClass } from "@/components/forms";
+import { Choice, firstValue, optionsOf } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
-import { TeamFields } from "@/components/panel/teamForms";
+import { TeamFields, teamDefaults } from "@/components/panel/teamForms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CreateTeamForm } from "@/forms/teams";
 import { getTeams, saveTeam } from "@/functions/panel.functions";
 import { pageData } from "@/lib/outcome";
 import { TEAM_FUNCTION_LABEL } from "@/lib/teamLabels";
@@ -24,6 +25,7 @@ const routeApi = getRouteApi("/kontrollpanel/team/");
 
 const TeamsPage = () => {
   const { canCreate, departments, teams } = routeApi.useLoaderData();
+  const departmentChoices = optionsOf(departments);
 
   return (
     <>
@@ -37,18 +39,22 @@ const TeamsPage = () => {
               triggerLabel="Nytt team"
               title="Nytt team"
               action={saveTeam}
+              schema={CreateTeamForm.schema}
+              defaults={{
+                ...teamDefaults(),
+                departmentId: firstValue(departmentChoices),
+                id: "",
+              }}
               submitLabel="Opprett"
             >
-              <Field name="departmentId" label="Avdeling">
-                <select name="departmentId" className={nativeSelectClass}>
-                  {Arr.map(departments, (department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <TeamFields />
+              {(Field) => (
+                <>
+                  <Field name="departmentId" label="Avdeling">
+                    <Choice options={departmentChoices} />
+                  </Field>
+                  <TeamFields Field={Field} />
+                </>
+              )}
             </CommandSheet>
           ) : undefined
         }

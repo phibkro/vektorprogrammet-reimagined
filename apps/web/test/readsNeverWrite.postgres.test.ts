@@ -73,6 +73,7 @@ import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
 import { myPage, signInDestination } from "../src/server/accounts";
+import { applicationPage, applyIndexPage } from "../src/server/admission";
 import { Auth } from "../src/server/auth";
 import { isolationReport } from "../src/server/isolation";
 import { panelReads } from "../src/server/panelReads";
@@ -230,7 +231,21 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("panel.functions getContent", panelReads.getContent, {
     refusedTo: NOT_ADMIN,
   }),
+  readPath("public.functions getApplyIndex", applyIndexPage),
+  readPath(
+    "public.functions getApplicationPage",
+    applicationPage("alfaby", false),
+    { empty: "NotFound" }
+  ),
+  readPath(
+    "public.functions getApplicationPage (receipt)",
+    applicationPage("alfaby", true),
+    { empty: "NotFound" }
+  ),
   readPath("panel.functions getShell", shellView),
+  readPath("panel.functions getAdmission", panelReads.getAdmission, {
+    refusedTo: NO_PANEL,
+  }),
   readPath("panel.functions getDashboard", panelReads.getDashboard, {
     refusedTo: NO_PANEL,
   }),
@@ -260,6 +275,9 @@ const READ_PATHS: readonly ReadPath[] = [
     refusedTo: NOT_ADMIN,
   }),
   readPath("panel.functions getIntegrations", panelReads.getIntegrations, {
+    refusedTo: NOT_ADMIN,
+  }),
+  readPath("panel.functions getImpact", panelReads.getImpact, {
     refusedTo: NOT_ADMIN,
   }),
   readPath("WorkspaceFacts projection inputs", workspaceInputs),

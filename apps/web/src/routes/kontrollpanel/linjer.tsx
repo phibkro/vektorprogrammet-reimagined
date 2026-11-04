@@ -1,7 +1,7 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { Field } from "@/components/forms";
+import type { FieldComponent } from "@/components/form/field";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,24 +17,27 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  CreateFieldOfStudyForm,
+  RenameFieldOfStudyForm,
+} from "@/forms/organisation";
+import {
   getFieldsOfStudy,
   saveFieldOfStudy,
 } from "@/functions/panel.functions";
 import { pageData } from "@/lib/outcome";
 
-interface FieldOfStudyRow {
-  readonly id: number;
-  readonly name: string;
-  readonly shortName: string;
-}
-
-const FieldOfStudyFields = ({ field }: { field?: FieldOfStudyRow }) => (
+/** The two names of a field of study, in the form that creates it and in the one that renames it. */
+const FieldOfStudyFields = ({
+  Field,
+}: {
+  Field: FieldComponent<{ name?: string; shortName?: string }>;
+}) => (
   <>
     <Field name="name" label="Navn">
-      <Input name="name" defaultValue={field?.name} />
+      <Input />
     </Field>
     <Field name="shortName" label="Kortnavn">
-      <Input name="shortName" defaultValue={field?.shortName} />
+      <Input />
     </Field>
   </>
 );
@@ -67,10 +70,15 @@ const FieldsOfStudyPage = () => {
             title="Ny linje"
             description={`Linjen opprettes i ${department.name}.`}
             action={saveFieldOfStudy}
+            schema={CreateFieldOfStudyForm.schema}
+            defaults={{
+              departmentId: String(department.id),
+              name: "",
+              shortName: "",
+            }}
             submitLabel="Opprett"
           >
-            <input type="hidden" name="departmentId" value={department.id} />
-            <FieldOfStudyFields />
+            {(Field) => <FieldOfStudyFields Field={Field} />}
           </CommandSheet>
         }
       />
@@ -105,10 +113,15 @@ const FieldsOfStudyPage = () => {
                       triggerLabel="Gi nytt navn"
                       title={`Gi nytt navn til ${field.name}`}
                       action={saveFieldOfStudy}
+                      schema={RenameFieldOfStudyForm.schema}
+                      defaults={{
+                        id: String(field.id),
+                        name: field.name,
+                        shortName: field.shortName,
+                      }}
                       submitLabel="Lagre"
                     >
-                      <input type="hidden" name="id" value={field.id} />
-                      <FieldOfStudyFields field={field} />
+                      {(Field) => <FieldOfStudyFields Field={Field} />}
                     </CommandSheet>
                   </TableCell>
                 </TableRow>

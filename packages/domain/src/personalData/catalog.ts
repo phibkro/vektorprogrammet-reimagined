@@ -4,10 +4,12 @@
  * `tools/docgen` renders the record of processing from it. Nothing else lists a table's columns by hand.
  */
 import { AccountTables } from "../accounts/personalData.ts";
+import { AdmissionTables, ApplicationForm } from "../admission/personalData.ts";
 import { AuditTables } from "../audit/personalData.ts";
 import { ContactForm } from "../contact/personalData.ts";
 import { ContentTables } from "../content/personalData.ts";
 import { FilesTables } from "../files/personalData.ts";
+import { ImpactTables } from "../impact/personalData.ts";
 import { JobTables } from "../jobs/personalData.ts";
 import { OrganisationTables } from "../organisation/personalData.ts";
 import { OutboxTables } from "../outbox/personalData.ts";
@@ -20,10 +22,12 @@ import type { FormDeclaration } from "./forms.ts";
 /** The stored tables, by their SQL names. */
 export const Catalog = {
   ...AccountTables,
+  ...AdmissionTables,
   ...AuditTables,
   ...ConsentTables,
   ...ContentTables,
   ...FilesTables,
+  ...ImpactTables,
   ...JobTables,
   ...OrganisationTables,
   ...OutboxTables,
@@ -36,5 +40,5 @@ export type TableName = keyof typeof Catalog;
 /** Any catalog: the real one, or a smaller one that a test builds. */
 export type CatalogOf = Readonly<Record<string, TableDeclaration>>;
 
-/** Every form that collects personal data. Spec 0009 adds the application and alert forms. */
-export const Forms: readonly FormDeclaration[] = [ContactForm];
+/** Every form that collects personal data. Spec 0009b adds the alert forms. */
+export const Forms: readonly FormDeclaration[] = [ApplicationForm, ContactForm];

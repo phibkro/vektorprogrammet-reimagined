@@ -46,18 +46,21 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "departments",
   "semesters",
   "fieldsOfStudy",
+  "admission",
   "teams",
   "people",
   "admins",
   "integrations",
   "content",
+  "impact",
   "socialEvents",
 ];
 
-/** What a team member may use: the overview, the semesters, the teams and the events of their department. */
+/** What a team member of the recruitment team may use: the overview, the semesters, the admission, the teams and the events of their department. */
 const MEMBER_SECTIONS: readonly SectionKey[] = [
   "overview",
   "semesters",
+  "admission",
   "teams",
   "socialEvents",
 ];
@@ -77,6 +80,7 @@ const LEADER_SECTIONS: readonly SectionKey[] = [
   "departments",
   "semesters",
   "fieldsOfStudy",
+  "admission",
   "teams",
   "people",
   "socialEvents",
@@ -129,7 +133,7 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
     // The admin place is the only difference: only administrators manage admin places, integrations and content.
     assert.deepStrictEqual(
       Arr.difference(sectionsOf(ADMIN), sectionsOf(leaderOf(1))),
-      ["admins", "integrations", "content"]
+      ["admins", "integrations", "content", "impact"]
     );
 
     // The department is the only difference: the facts are the person's own department's, so the sections are the

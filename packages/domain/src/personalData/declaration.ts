@@ -29,6 +29,7 @@ export type LegalBasis = typeof LegalBasis.Type;
 /** Why a field is processed: a closed set, each with its wording in both languages (`texts.ts`). */
 export const Purpose = Schema.Literals([
   "accountability",
+  "admission",
   "alumni",
   "consents",
   "contact",
@@ -94,8 +95,9 @@ export type Words = typeof Words.Type;
  * an adapter reads (spec 0021):
  * - `Column`: an instant column of the same row (`created_at`, `expires_at`, `at`), with the event that it records, in
  *   words, for the notice and the record of processing.
- * - `LastActivityEnd`: the later of the end of the person's last membership and the end of their last admin place, or
- *   their creation when there is neither (`lastActivityEnd`, spec 0021).
+ * - `LastActivityEnd`: the later of the end of the person's last membership, the end of their last admin place and the end
+ *   of one that retention deleted (`person.last_admin_place_end`), or their creation when there is none (`lastActivityEnd`,
+ *   specs 0021 and 0026).
  * - `SemesterEnd`: the end of the semester that two columns of the row hold (a term and a year).
  * - `PeriodEnd`: the end of the admission period that a column of the row refers to.
  * - `FiscalYearEnd`: the end of the calendar year of a date column (the association's fiscal year).
@@ -215,6 +217,11 @@ export type EraseRule = typeof EraseRule.Type;
 export const MergeRule = Schema.TaggedUnion({
   /** The merged person's rows are deleted: they belong to a record that no longer exists (a credential). */
   Drop: {},
+  /**
+   * Per `by`, the row with the earlier `madeAt` is the one that stays, and it moves if it was the merged person's; of two
+   * rows made at the same time the survivor's stays. The later one is dropped (an application: the one made first stands).
+   */
+  Earliest: { by: Schema.String, madeAt: Schema.String },
   /** A reference that carries no lock: the column is rewritten to name the survivor. */
   Follow: {},
   /**
@@ -248,10 +255,24 @@ export const PersonRelation = Schema.Struct({
 
 export type PersonRelation = typeof PersonRelation.Type;
 
+/**
+ * What retention keeps of a row that it deletes (spec 0026): before rows of the table are deleted, the greatest `from`
+ * (an instant column of the row) of the rows about to go is folded into `into` (a column of the owner's row: the person's)
+ * as the greater of that and what it holds. A merge folds the merged person's `into` into the survivor's the same way.
+ */
+export const Keeps = Schema.Struct({
+  from: Schema.String,
+  into: Schema.String,
+});
+
+export type Keeps = typeof Keeps.Type;
+
 export const TableDeclaration = Schema.Struct({
   /** The column that says a row was anonymised; a table whose columns are anonymised names it. */
   anonymisedMarker: Schema.optionalKey(Schema.String),
   columns: Schema.Record(Schema.String, Classification),
+  /** The date that retention keeps on the person when it deletes a row of this table. */
+  keeps: Schema.optionalKey(Keeps),
   /** `null`: the rows are not about a person (a department, a semester). */
   person: Schema.NullOr(PersonRelation),
 });
@@ -261,6 +282,7 @@ export type TableDeclaration = typeof TableDeclaration.Type;
 export const table = (declaration: {
   readonly anonymisedMarker?: string;
   readonly columns: Readonly<Record<string, Classification>>;
+  readonly keeps?: Keeps;
   readonly person: PersonRelation | null;
 }): TableDeclaration => TableDeclaration.make(declaration);
 
@@ -314,6 +336,8 @@ export const Rules = {
   },
   Delete: OnExpiry.cases.Delete.make({}),
   Drop: MergeRule.cases.Drop.make({}),
+  Earliest: (by: string, madeAt: string): MergeRule =>
+    MergeRule.cases.Earliest.make({ by, madeAt }),
   Follow: MergeRule.cases.Follow.make({}),
   Inherit: MergeRule.cases.Inherit.make({}),
   Move: (

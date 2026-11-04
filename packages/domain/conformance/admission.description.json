@@ -1,0 +1,122 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createAdmissionPeriod"
+    },
+    {
+      "kind": "Command",
+      "name": "extendAdmissionPeriod"
+    },
+    {
+      "kind": "Command",
+      "name": "deleteAdmissionPeriod"
+    },
+    {
+      "kind": "Command",
+      "name": "registerApplication"
+    },
+    {
+      "kind": "Command",
+      "name": "withdrawApplication"
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "createAdmissionPeriod",
+        "extendAdmissionPeriod",
+        "deleteAdmissionPeriod",
+        "registerApplication",
+        "withdrawApplication",
+        "viewAdmission"
+      ],
+      "scope": "department",
+      "subject": "Leader(d) + Fn(recruitment, d)@department"
+    },
+    {
+      "permits": [
+        "withdrawApplication"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
+        "createAdmissionPeriod",
+        "extendAdmissionPeriod",
+        "deleteAdmissionPeriod",
+        "registerApplication",
+        "withdrawApplication",
+        "viewAdmission"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "admission",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon",
+        "retention",
+        "alumniConsent",
+        "workspaceSync",
+        "impactClose"
+      ]
+    }
+  },
+  "reads": [
+    {
+      "name": "viewAdmission"
+    }
+  ],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "position": "leader",
+        "term": "active"
+      },
+      "name": "Leader(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "function": "recruitment",
+        "term": "active"
+      },
+      "name": "Fn(recruitment, d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Union",
+        "sets": [
+          "Leader(d)@department",
+          "Fn(recruitment, d)@department"
+        ]
+      },
+      "name": "Leader(d) + Fn(recruitment, d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Self"
+      },
+      "name": "Self@own"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

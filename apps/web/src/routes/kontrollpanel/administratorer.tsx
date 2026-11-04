@@ -1,7 +1,7 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { Field, nativeSelectClass } from "@/components/forms";
+import { Choice, firstValue, optionsOf } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { GrantAdminForm, RevokeAdminForm } from "@/forms/teams";
 import {
   getAdmins,
   grantAdmin,
@@ -27,6 +28,7 @@ const routeApi = getRouteApi("/kontrollpanel/administratorer");
 
 const AdminsPage = () => {
   const { candidates, grants } = routeApi.useLoaderData();
+  const people = optionsOf(candidates);
 
   return (
     <>
@@ -39,20 +41,20 @@ const AdminsPage = () => {
             triggerLabel="Gi administratorplass"
             title="Gi administratorplass"
             action={grantAdmin}
+            schema={GrantAdminForm.schema}
+            defaults={{ personId: firstValue(people), until: "" }}
             submitLabel="Gi plass"
           >
-            <Field name="personId" label="Person">
-              <select name="personId" className={nativeSelectClass}>
-                {Arr.map(candidates, (person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field name="until" label="Til (dato og klokkeslett)">
-              <Input name="until" type="datetime-local" />
-            </Field>
+            {(Field) => (
+              <>
+                <Field name="personId" label="Person">
+                  <Choice options={people} />
+                </Field>
+                <Field name="until" label="Til (dato og klokkeslett)">
+                  <Input type="datetime-local" />
+                </Field>
+              </>
+            )}
           </CommandSheet>
         }
       />
@@ -94,10 +96,10 @@ const AdminsPage = () => {
                         triggerLabel="Fjern plassen"
                         title={`Fjern plassen til ${grant.personName}`}
                         action={revokeAdmin}
+                        schema={RevokeAdminForm.schema}
+                        defaults={{ id: String(grant.id) }}
                         submitLabel="Fjern"
-                      >
-                        <input type="hidden" name="id" value={grant.id} />
-                      </CommandSheet>
+                      />
                     )}
                   </TableCell>
                 </TableRow>

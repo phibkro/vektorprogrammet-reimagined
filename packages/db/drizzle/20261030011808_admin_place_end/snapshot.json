@@ -1,0 +1,37 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "261da06c-615c-4da0-908f-768f8db3c09c",
+  "prevIds": ["483821bc-ede1-4316-9711-44585c1b60a5"],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": ["column", "public", "person", "last_admin_place_end"],
+      "writes": [
+        "s|col|public.person.last_admin_place_end",
+        "n|col|public.person.last_admin_place_end",
+        "e|col|public.person.last_admin_place_end"
+      ],
+      "reads": ["n|tbl|public.person", "n|sch|public"]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "last_admin_place_end",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

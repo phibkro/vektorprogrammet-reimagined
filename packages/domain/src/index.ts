@@ -41,6 +41,10 @@ export * from "./accounts/services.ts";
 
 export * from "./accounts/codeRepository.ts";
 
+export { CodeMachine, codeTransition } from "./accounts/codeMachine.ts";
+
+export type { CodeStep } from "./accounts/codeMachine.ts";
+
 export * from "./accounts/commands.ts";
 
 export * from "./accounts/messages.ts";
@@ -69,6 +73,12 @@ export * from "./shared/ids.ts";
 export * from "./shared/isolationProbe.ts";
 
 export * from "./shared/outbox.ts";
+
+export * from "./shared/platformProbe.ts";
+
+export * from "./shared/platformRequirements.ts";
+
+export * from "./shared/integrationGuard.ts";
 
 export * from "./shared/siteOrigin.ts";
 
@@ -125,6 +135,47 @@ export * as Workspace from "./workspace/declaration.ts";
 export * from "./workspace/report.ts";
 
 export * from "./workspace/services.ts";
+
+// admission: periods and applications (spec 0009)
+export {
+  AdmissionEndpoints,
+  AdmissionHandlers,
+  NOT_OPEN,
+  withAdmission,
+} from "./admission/commands.ts";
+
+export * as Admission from "./admission/declaration.ts";
+
+export type { ApplicationMachineTransition } from "./admission/declaration.ts";
+
+export * from "./admission/entities.ts";
+
+export { ApplicationForm } from "./admission/personalData.ts";
+
+export * from "./admission/services.ts";
+
+// impact: evidence of operations (spec 0027)
+export {
+  ImpactHandlers,
+  closeEndedSemesters,
+  impactCloseJob,
+  impactReport,
+  impactView,
+} from "./impact/commands.ts";
+
+export * as Impact from "./impact/declaration.ts";
+
+export * as ImpactJob from "./impact/job.ts";
+
+export { impactCsv } from "./impact/lattice.ts";
+
+export * from "./impact/source.ts";
+
+export type { CsvCell } from "./impact/lattice.ts";
+
+export * as ImpactMeasures from "./impact/measures.ts";
+
+export * from "./impact/services.ts";
 
 // organisation (C1, C2)
 export * from "./organisation/admission.ts";

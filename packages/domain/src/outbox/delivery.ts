@@ -3,6 +3,7 @@ import { Context, Schema } from "effect";
 import type { DateTime, Effect } from "effect";
 
 import { OutboxMessageId } from "../shared/ids.ts";
+import type { InTransaction } from "../shared/transaction.ts";
 import { OutboxMessage } from "./messages.ts";
 
 /** Proof of a current claim on one outbox row. */
@@ -53,6 +54,17 @@ export class OutboxDelivery extends Context.Service<
       id: OutboxMessageId,
       leaseSeconds: number
     ) => Effect.Effect<OutboxClaim>;
+    /**
+     * The fence of a write that is not the acknowledgement itself (spec 0024 R9): `recorded` while `claimToken` is the
+     * row's current claim and the row is pending, and then a lock on the row that lasts to the end of the caller's
+     * transaction, so another consumer's claim of it waits; `claimLost` otherwise, and the caller writes nothing. It
+     * takes the lock after the caller's aggregate lock (the order of `markDelivered` in the second transaction), never
+     * before it.
+     */
+    readonly holdClaim: (
+      id: OutboxMessageId,
+      claimToken: OutboxClaimToken
+    ) => Effect.Effect<OutboxAck, never, InTransaction>;
     readonly markDelivered: (
       id: OutboxMessageId,
       claimToken: OutboxClaimToken

@@ -33,6 +33,12 @@ export const PANEL_SECTIONS = [
   },
   {
     group: "Organisasjon",
+    key: "admission",
+    label: "Opptak",
+    to: "/kontrollpanel/opptak",
+  },
+  {
+    group: "Organisasjon",
     key: "teams",
     label: "Team",
     to: "/kontrollpanel/team",
@@ -54,6 +60,12 @@ export const PANEL_SECTIONS = [
     key: "integrations",
     label: "Integrasjoner",
     to: "/kontrollpanel/integrasjoner",
+  },
+  {
+    group: "Administrasjon",
+    key: "impact",
+    label: "Effekt",
+    to: "/kontrollpanel/effekt",
   },
   {
     group: "Innhold",

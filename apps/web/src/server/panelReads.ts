@@ -1,3 +1,4 @@
+import { impactView } from "@vektorprogrammet/domain";
 /**
  * The programs of the control panel's read server functions (`functions/panel.functions.ts`), each behind the guard
  * of its section (issue 15): a principal who may not open the section (`panelAccess.ts`, the declaration the sidebar
@@ -10,6 +11,7 @@
 import { ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Effect } from "effect";
 
+import { admissionView } from "./admission";
 import { integrationsView } from "./integrations";
 import {
   dashboardView,
@@ -27,6 +29,7 @@ const guarded = <A, E, R>(read: PanelRead, view: Effect.Effect<A, E, R>) =>
 
 export const panelReads = {
   getAdmins: guarded("getAdmins", adminsView),
+  getAdmission: guarded("getAdmission", admissionView),
   getContent: guarded(
     "getContent",
     ContentEditor.use((editor) => editor.list)
@@ -34,6 +37,7 @@ export const panelReads = {
   getDashboard: guarded("getDashboard", dashboardView),
   getDepartments: guarded("getDepartments", departmentsView),
   getFieldsOfStudy: guarded("getFieldsOfStudy", fieldsOfStudyView),
+  getImpact: guarded("getImpact", impactView),
   getIntegrations: guarded("getIntegrations", integrationsView),
   getPeople: guarded("getPeople", peopleView),
   getSemesters: guarded("getSemesters", semestersView),
