@@ -1,5 +1,10 @@
 /** Supabase Auth owns credentials and sessions; domain account state remains authoritative. */
-import { createClient } from "@supabase/supabase-js";
+import {
+  createClient,
+  isAuthApiError,
+  isAuthSessionMissingError,
+} from "@supabase/supabase-js";
+import type { AuthError } from "@supabase/supabase-js";
 import {
   AccountRepository,
   PersonId,
@@ -20,6 +25,23 @@ import { createRequestClient, createWorkerClient } from "./supabase";
 import type { SupabaseConfig } from "./supabase";
 
 export type AuthEnvironment = SupabaseConfig & { readonly SITE_URL: string };
+
+/** Invalid session credentials are anonymous; provider failures remain observable. */
+export const sessionFailure = (error: AuthError) => {
+  if (
+    isAuthSessionMissingError(error) ||
+    (isAuthApiError(error) &&
+      error.status >= 400 &&
+      error.status < 500 &&
+      (error.code === "refresh_token_not_found" ||
+        error.code === "refresh_token_already_used" ||
+        error.code === "session_expired"))
+  ) {
+    return Effect.succeed(null);
+  }
+
+  return Effect.fail(new AuthBoundaryFailure({ cause: error }));
+};
 
 const decodeMetadata = Schema.decodeUnknownOption(
   Schema.Struct({ personId: PersonId })
@@ -179,20 +201,16 @@ const makeAuth = (
       return { cookiePresent, personId: null };
     }
 
+    // The SSR client removes an expired session after a non-retryable refresh failure
+    // and flushes the resulting SIGNED_OUT cookie update through its configured adapter.
     const result = yield* foreign(() =>
       createRequestClient(env).auth.getUser()
     );
 
     if (result.error) {
-      if (
-        result.error.name === "AuthSessionMissingError" ||
-        result.error.status === 401 ||
-        result.error.status === 403
-      ) {
-        return { cookiePresent, personId: null };
-      }
+      const personId = yield* sessionFailure(result.error);
 
-      return yield* new AuthBoundaryFailure({ cause: result.error });
+      return { cookiePresent, personId };
     }
 
     const personId = Option.getOrNull(
