@@ -23,10 +23,12 @@ else
 fi
 bun -e '
 for (const [name, protocols] of [["API_URL", ["http:"]], ["DB_URL", ["postgres:", "postgresql:"]]]) {
+  if (!URL.canParse(process.env[name])) throw new Error(`${name} is malformed`);
   const u = new URL(process.env[name]);
   if (!protocols.includes(u.protocol) || !["127.0.0.1", "localhost", "[::1]"].includes(u.hostname) || u.search || u.hash) throw new Error(`${name} must be a direct localhost URL`);
 }
 if (process.env.DATABASE_URL) {
+  if (!URL.canParse(process.env.DATABASE_URL)) throw new Error("DATABASE_URL is malformed");
   const u = new URL(process.env.DATABASE_URL), admin = new URL(process.env.DB_URL);
   if (u.username !== "vektor_runtime" || u.hostname !== admin.hostname || u.port !== admin.port || u.pathname !== admin.pathname || u.search || u.hash) throw new Error("Runtime URL does not match target");
 }

@@ -160,6 +160,35 @@ it.live(
         assert.isTrue(
           Option.exists(denial, (error) => hasCode("42501")(error.reason.cause))
         );
+
+        yield* provisionRuntimeAccess(admin, password, role);
+        yield* Effect.gen(function* rejectSchemaCreate() {
+          for (const schema of ["public", "vektor_private"]) {
+            yield* withClient(admin, (sql) =>
+              sql.unsafe(`grant create on schema ${schema} to "${role}"`)
+            );
+
+            const rejected = yield* Effect.exit(
+              provisionRuntimeAccess(admin, password, role)
+            );
+
+            assert.isTrue(Exit.isFailure(rejected));
+            yield* withClient(admin, (sql) =>
+              sql.unsafe(`revoke create on schema ${schema} from "${role}"`)
+            );
+          }
+        });
+        yield* withClient(admin, (sql) =>
+          sql.unsafe(
+            `do $$ begin execute format('grant create on database %I to %I', current_database(), '${role}'); end $$`
+          )
+        );
+
+        const rejectedDatabase = yield* Effect.exit(
+          provisionRuntimeAccess(admin, password, role)
+        );
+
+        assert.isTrue(Exit.isFailure(rejectedDatabase));
       }).pipe(Effect.provide(migratedTestDatabase), Effect.scoped);
     }).pipe(Effect.orDie)
 );

@@ -30,6 +30,10 @@ const program = Effect.gen(function* provisionRuntimeMain() {
     );
   }
 
+  if (!URL.canParse(Redacted.value(admin))) {
+    return yield* Effect.die("MIGRATION_DATABASE_URL is malformed");
+  }
+
   const target = new URL(Redacted.value(admin));
 
   if (
@@ -62,6 +66,12 @@ const program = Effect.gen(function* provisionRuntimeMain() {
       flag: "wx",
       mode: 0o600,
     });
+  }
+
+  if (!URL.canParse(runtime)) {
+    return yield* Effect.die(
+      "RUNTIME_DATABASE_URL_FILE contains a malformed URL"
+    );
   }
 
   const parsed = new URL(runtime);
