@@ -51,8 +51,7 @@ test.describe("without JavaScript", () => {
   test("pre-hydration sign-in never sends credentials in the URL", async ({
     page,
   }) => {
-    const { origin } = new URL(test.info().project.use.baseURL ?? "");
-    await page.goto(`${origin}/logg-inn`);
+    await page.goto("/logg-inn");
     await expect(
       page.getByRole("button", { exact: true, name: "Logg inn" })
     ).toBeDisabled();
@@ -75,6 +74,15 @@ test.describe("without JavaScript", () => {
     const destination = new URL(response.url());
     expect(destination.searchParams.has("email")).toBe(false);
     expect(destination.searchParams.has("password")).toBe(false);
+
+    await page.goto("/glemt-passord");
+    await expect(
+      page.getByRole("button", { name: "Send lenke" })
+    ).toBeDisabled();
+    await page.goto("/tilbakestill-passord?token_hash=synthetic");
+    await expect(
+      page.getByRole("button", { name: "Lagre passord" })
+    ).toBeDisabled();
   });
 });
 

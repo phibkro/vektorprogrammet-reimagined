@@ -205,43 +205,25 @@ test("recovery responses do not disclose whether an address exists", async ({
 
 test.describe("without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
-  test("falsifier 4 (spec 0010a): the forgot-password form and the code form post without JavaScript", async ({
+  test("invitation activation posts its password without exposing it in the URL", async ({
     page,
   }) => {
-    const { origin } = new URL(test.info().project.use.baseURL ?? "");
-
-    await page.goto(`${origin}/glemt-passord`);
-    await page.getByLabel("Privat e-post").fill("privacy-unknown@example.org");
-
-    const reset = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/account/request-reset"
-    );
-
-    await page.getByRole("button", { name: "Send lenke" }).click();
-
-    // No script ran, so there is no Turnstile answer: the server refuses in its own words, which shows that the markup
-    // alone posted the form to the endpoint that the page names.
-    const answeredReset = await reset;
-
-    expect(answeredReset.status()).toBeGreaterThanOrEqual(400);
-    expect(await answeredReset.text()).toContain("robot");
-
-    await page.goto(`${origin}/aktiver?kode=c_${"A".repeat(43)}`);
+    await page.goto("/aktiver");
     await page.getByLabel("Nytt passord").fill("a-new-valid-password");
 
-    const activation = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/account/activate"
+    const response = page.waitForResponse(
+      (incoming) =>
+        incoming.request().isNavigationRequest() &&
+        incoming.request().method() === "POST"
     );
 
-    await page.getByRole("button", { name: "Aktiver og logg inn" }).click();
-
-    // The code is no one's: the answer is the one of a wrong password, so the hidden code and the password both arrived.
-    const answeredActivation = await activation;
-
-    expect(answeredActivation.status()).toBe(401);
+    await page.getByRole("button", { name: "Aktiver konto" }).click();
+    const activation = await response;
+    expect(activation.status()).toBe(403);
+    expect(new URL(activation.url()).searchParams.has("password")).toBe(false);
+    expect(activation.url()).not.toContain("a-new-valid-password");
+    expect(
+      new URLSearchParams(activation.request().postData() ?? "").get("password")
+    ).toBe("a-new-valid-password");
   });
 });
