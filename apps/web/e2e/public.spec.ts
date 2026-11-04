@@ -62,13 +62,20 @@ test.describe("without JavaScript", () => {
 
     // Even a forced native submit must use the body, never the address or its history.
     const [response] = await Promise.all([
-      page.waitForResponse((incoming) =>
-        incoming.request().isNavigationRequest()
+      page.waitForResponse(
+        (incoming) =>
+          incoming.request().isNavigationRequest() &&
+          incoming.request().method() === "POST"
       ),
+      page.waitForEvent("framenavigated", {
+        predicate: (frame) => frame === page.mainFrame(),
+      }),
       page.locator("form").evaluate((form: HTMLFormElement) => {
         form.submit();
       }),
     ]);
+
+    await page.waitForLoadState("load");
 
     expect(response.request().method()).toBe("POST");
     const destination = new URL(response.url());
