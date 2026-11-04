@@ -22,8 +22,8 @@ variable "server_dir" {
 
 variable "database_url" {
   description = "Server-only restricted runtime PostgreSQL URL: non-owner, non-superuser, no RLS bypass or role administration. Never migration credentials."
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
   # Terraform has no native PostgreSQL URL parser; restrict the authority and query to canonical forms.
   validation {
     condition = contains(
