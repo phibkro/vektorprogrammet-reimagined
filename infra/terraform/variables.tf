@@ -24,6 +24,14 @@ variable "database_url" {
   description = "Server-only restricted runtime PostgreSQL URL: non-owner, non-superuser, no RLS bypass or role administration. Never migration credentials."
   type      = string
   sensitive = true
+  # Terraform has no native PostgreSQL URL parser; restrict the authority and query to canonical forms.
+  validation {
+    condition = contains(
+      ["vektor_runtime", "vektor_runtime.${var.supabase_project_ref}"],
+      try(regex("^postgres(?:ql)?://([^:@/?#]+):[^@/?#]+@(?:\\[[0-9A-Fa-f:]+\\]|[A-Za-z0-9.-]+)(?::[0-9]+)?/[^?#]*(?:\\?sslmode=(?:disable|allow|prefer|require|verify-ca|verify-full))?$", var.database_url)[0], "")
+    )
+    error_message = "database_url must use the restricted runtime login and may contain only an sslmode query parameter."
+  }
 }
 
 variable "supabase_url" {

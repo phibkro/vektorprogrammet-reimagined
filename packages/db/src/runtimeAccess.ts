@@ -31,13 +31,13 @@ const ensureRole = (sql: SqlClientType, role: string, password: string) =>
       yield* sql.unsafe(
         `create role ${role} login password '${password}' nosuperuser nocreatedb nocreaterole noreplication nobypassrls noinherit`
       );
-    } else {
-      const safe =
-        yield* sql`select 1 from pg_roles r where r.rolname = ${role} and r.rolcanlogin and not r.rolsuper and not r.rolcreatedb and not r.rolcreaterole and not r.rolreplication and not r.rolbypassrls and not r.rolinherit and not exists (select 1 from pg_auth_members m where m.member = r.oid) and not exists (select 1 from pg_class c where c.relowner = r.oid) and not exists (select 1 from pg_namespace n where n.nspowner = r.oid) and not has_database_privilege(r.oid, current_database(), 'CREATE') and not has_schema_privilege(r.oid, 'public', 'CREATE') and not coalesce(has_schema_privilege(r.oid, to_regnamespace('vektor_private'), 'CREATE'), false)`;
+    }
 
-      if (safe.length !== 1) {
-        return yield* Effect.die("Existing runtime role is not restricted");
-      }
+    const safe =
+      yield* sql`select 1 from pg_roles r where r.rolname = ${role} and r.rolcanlogin and not r.rolsuper and not r.rolcreatedb and not r.rolcreaterole and not r.rolreplication and not r.rolbypassrls and not r.rolinherit and not exists (select 1 from pg_auth_members m where m.member = r.oid) and not exists (select 1 from pg_class c where c.relowner = r.oid) and not exists (select 1 from pg_namespace n where n.nspowner = r.oid) and not has_database_privilege(r.oid, current_database(), 'CREATE') and not has_schema_privilege(r.oid, 'public', 'CREATE') and not coalesce(has_schema_privilege(r.oid, to_regnamespace('vektor_private'), 'CREATE'), false)`;
+
+    if (safe.length !== 1) {
+      return yield* Effect.die("Runtime role is not restricted");
     }
 
     return yield* Effect.void;

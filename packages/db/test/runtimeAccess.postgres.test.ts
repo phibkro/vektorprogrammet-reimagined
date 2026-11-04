@@ -56,6 +56,36 @@ it.live(
       );
       yield* Effect.gen(function* testDatabase() {
         const admin = yield* TestDatabaseUrl;
+        yield* withClient(
+          admin,
+          (sql) => sql`grant create on schema public to public`
+        );
+
+        const ambientSchema = yield* Effect.exit(
+          provisionRuntimeAccess(admin, password, role)
+        );
+
+        assert.isTrue(Exit.isFailure(ambientSchema));
+        yield* withClient(
+          admin,
+          (sql) => sql`revoke create on schema public from public`
+        );
+        yield* withClient(
+          admin,
+          (sql) =>
+            sql`do $$ begin execute format('grant create on database %I to public', current_database()); end $$`
+        );
+
+        const ambientDatabase = yield* Effect.exit(
+          provisionRuntimeAccess(admin, password, role)
+        );
+
+        assert.isTrue(Exit.isFailure(ambientDatabase));
+        yield* withClient(
+          admin,
+          (sql) =>
+            sql`do $$ begin execute format('revoke create on database %I from public', current_database()); end $$`
+        );
         yield* provisionRuntimeAccess(admin, password, role);
         const url = new URL(Redacted.value(admin));
         url.username = role;

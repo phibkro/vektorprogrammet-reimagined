@@ -5,6 +5,7 @@ import {
   DatabaseLive,
   JobDatabaseLive,
 } from "@vektorprogrammet/db";
+import { runtimeDatabaseUrl } from "@vektorprogrammet/db/runtime-url";
 import {
   CurrentPrincipal,
   Job,
@@ -184,7 +185,7 @@ const databaseLayer = (
 ): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
     maxConnections: MAX_CONNECTIONS_PER_REQUEST,
-    url: Redacted.make(env.DATABASE_URL),
+    url: runtimeDatabaseUrl(env.DATABASE_URL),
   }).pipe(Layer.orDie);
 
 /** Authentication asks the domain through the same request-scoped database layer. */
@@ -427,7 +428,7 @@ const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
       JobDatabaseLive({
         retention: retentionModeFor(deployment),
-        url: Redacted.make(env.DATABASE_URL),
+        url: runtimeDatabaseUrl(env.DATABASE_URL),
       }).pipe(Layer.orDie)
     )
   );

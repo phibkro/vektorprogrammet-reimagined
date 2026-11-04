@@ -12,6 +12,8 @@ Install Terraform and initialize from this directory with `terraform init -backe
 
 The Worker's database URL must be the restricted non-owner runtime login, never a migration or bootstrap URL. This does not restrict the separate server-only Supabase secret key: existing Auth administration and Storage adapters still hold provider-level authority, so compromise of the Worker can exercise that authority. Keep both secrets private and assess that residual access independently.
 
+The database URL uses `vektor_runtime` or the pooler's `vektor_runtime.<supabase_project_ref>` username. Only an optional `sslmode` query parameter is accepted; connection override options and fragments are rejected. A username check is not a database privilege check: before deployment, independently attest that the actual role is non-owner, has no administrative capabilities or RLS bypass, and cannot create objects or assume privileged roles.
+
 For an existing project, import only its settings (not the project), after initializing and setting all required variables:
 
 ```sh

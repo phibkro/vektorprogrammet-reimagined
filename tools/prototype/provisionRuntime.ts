@@ -4,6 +4,7 @@ import {
   provisionRuntimeAccess,
   runtimeRoleExists,
 } from "@vektorprogrammet/db/runtime-provision";
+import { runtimeDatabaseUrl } from "@vektorprogrammet/db/runtime-url";
 import { Config, Crypto, Effect, FileSystem, Path, Redacted } from "effect";
 
 const program = Effect.gen(function* provisionRuntimeMain() {
@@ -90,7 +91,7 @@ const program = Effect.gen(function* provisionRuntimeMain() {
   }
 
   const existing = yield* runtimeRoleExists(admin);
-  const login = probeRuntimeLogin(Redacted.make(runtime));
+  const login = probeRuntimeLogin(runtimeDatabaseUrl(runtime));
 
   if (existing) {
     yield* login;

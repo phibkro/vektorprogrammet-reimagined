@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./platform/*": "./src/platform/*.ts",
     "./runtime-provision": "./src/runtimeAccess.ts",
+    "./runtime-url": "./src/runtimeUrl.ts",
     "./testing": "./test/support/disposableDatabase.ts",
     "./testing/local-seed": "./test/support/localSeed.ts",
     "./testing/read-only-role": "./test/support/readOnlyRole.ts"
