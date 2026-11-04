@@ -42,18 +42,18 @@ const reporting = (url: Redacted.Redacted) =>
 const TYPED = "typed.by.a.visitor@example.org";
 
 /** Renames a column for the rest of the scope, so that every statement that names it fails. */
-const withoutColumn = (table: string, column: string) =>
+const withoutColumn = (table: string, column: string, kind = "table") =>
   Effect.gen(function* dropColumn() {
     const sql = yield* SqlClient;
 
     yield* Effect.acquireRelease(
       sql.unsafe(
-        `alter table ${table} rename column ${column} to ${column}_gone`
+        `alter ${kind} ${table} rename column ${column} to ${column}_gone`
       ),
       () =>
         sql
           .unsafe(
-            `alter table ${table} rename column ${column}_gone to ${column}`
+            `alter ${kind} ${table} rename column ${column}_gone to ${column}`
           )
           .pipe(Effect.orDie)
     );
@@ -68,7 +68,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         Effect.gen(function* lookupsFail() {
           yield* withoutColumn("person", "company_email");
           yield* withoutColumn("person", "name");
-          yield* withoutColumn("auth.users", "raw_app_meta_data");
+          yield* withoutColumn("vektor_private.users", "person_id", "view");
 
           // The driver is told to report parameters (probe: the error then renders `params: <the typed address>`), so
           // what the test finds is the adapter's doing and not the driver's default.
