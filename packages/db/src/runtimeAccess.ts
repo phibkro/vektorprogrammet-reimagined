@@ -47,8 +47,9 @@ const grantTables = (sql: SqlClientType, role: string) =>
   Effect.gen(function* grantTablesEffect() {
     for (const table of tables) {
       const name = `"${table.replaceAll('"', '""')}"`;
+      yield* sql.unsafe(`revoke all on public.${name} from ${role}, public`);
       yield* sql.unsafe(
-        `revoke all on public.${name} from ${role}, anon, authenticated`
+        `do $$ declare r record; begin for r in select rolname from pg_roles where rolname in ('anon', 'authenticated') loop execute format('revoke all on public.%I from %I', '${table.replaceAll("'", "''")}', r.rolname); end loop; end $$`
       );
       yield* sql.unsafe(
         `grant select, insert, update, delete on public.${name} to ${role}`
@@ -92,7 +93,10 @@ export const provisionRuntimeAccess = (
         );
         yield* grantTables(sql, role);
         yield* sql.unsafe(
-          `revoke all on vektor_private.users, vektor_private.identities, vektor_private.sessions from ${role}, anon, authenticated`
+          `revoke all on vektor_private.users, vektor_private.identities, vektor_private.sessions from ${role}, public`
+        );
+        yield* sql.unsafe(
+          `do $$ declare r record; begin for r in select rolname from pg_roles where rolname in ('anon', 'authenticated') loop execute format('revoke all on vektor_private.users, vektor_private.identities, vektor_private.sessions from %I', r.rolname); end loop; end $$`
         );
         yield* sql.unsafe(
           `grant select on vektor_private.users, vektor_private.identities, vektor_private.sessions to ${role}`

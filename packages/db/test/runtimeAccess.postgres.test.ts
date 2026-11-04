@@ -37,6 +37,18 @@ it.live(
 
       const role = `vektor_runtime_${Arr.join(encoded, "").slice(0, 32)}`;
       const password = Arr.join(encoded, "");
+      const browserRole = `vektor_browser_${Arr.join(encoded, "").slice(0, 32)}`;
+      yield* Effect.acquireRelease(
+        withClient(clusterAdmin, (sql) =>
+          sql.unsafe(
+            `create role "${browserRole}" login password '${password}' noinherit`
+          )
+        ),
+        () =>
+          withClient(clusterAdmin, (sql) =>
+            sql.unsafe(`drop role if exists "${browserRole}"`)
+          ).pipe(Effect.orDie)
+      );
       yield* Effect.acquireRelease(Effect.void, () =>
         withClient(clusterAdmin, (sql) =>
           sql.unsafe(`drop role if exists "${role}"`)
@@ -108,14 +120,36 @@ it.live(
           )
         );
 
+        yield* withClient(admin, (sql) =>
+          sql.unsafe(`grant usage on schema public to "${browserRole}"`)
+        );
+        yield* withClient(admin, (sql) =>
+          sql.unsafe(
+            `grant select, insert on public.site_content to "${browserRole}"`
+          )
+        );
+        yield* withClient(
+          admin,
+          (sql) =>
+            sql`insert into site_content (id, collection, slug, draft) values (gen_random_uuid(), 'texts', 'browser-boundary', '{}'::jsonb)`
+        );
+        const browserUrl = new URL(Redacted.value(admin));
+        browserUrl.username = browserRole;
+        browserUrl.password = password;
+        const browserConnection = Redacted.make(browserUrl.toString());
+
+        const visible = yield* withClient(
+          browserConnection,
+          (sql) => sql`select id from public.site_content`
+        );
+
+        assert.deepStrictEqual(visible, []);
+
         const browser = yield* Effect.exit(
-          withClient(admin, (sql) =>
-            sql.withTransaction(
-              Effect.gen(function* browserRead() {
-                yield* sql`set local role anon`;
-                yield* sql`select * from public.site_content`;
-              })
-            )
+          withClient(
+            browserConnection,
+            (sql) =>
+              sql`insert into site_content (id, collection, slug, draft) values (gen_random_uuid(), 'texts', 'browser-write', '{}'::jsonb)`
           )
         );
 
