@@ -58,7 +58,6 @@ import {
   Exit,
   Fiber,
   Layer,
-  Option,
   Order,
   Predicate,
   Record as Rec,
@@ -78,7 +77,6 @@ import {
   slackChannel,
 } from "./support/fixtures.ts";
 import { describeExit } from "./support/race.ts";
-import { twoPeople, world } from "./support/teamsWorld.ts";
 
 type Proof = InTransaction["Service"];
 
@@ -1192,59 +1190,47 @@ layer(postgresDatabase({ maxConnections: 4 }), {
     "a method interrupted while it runs leaves its level admitting a nested level again: the count is released on interruption",
     () =>
       Effect.gen(function* interruptedMethod() {
-        const { fieldOfStudy } = yield* world("interrupted");
-        const [person] = yield* twoPeople(fieldOfStudy.id, "interrupted");
-        const holding = yield* Deferred.make<null>();
-        const release = yield* Deferred.make<null>();
+        const started = yield* Deferred.make<null>();
+        const sql = yield* SqlClient;
 
-        const holder = yield* transactional(
-          Effect.gen(function* holdTheRow() {
-            yield* AggregateLocks.use((locks) =>
-              locks.lock("Person", person.id)
-            );
+        // Wait inside the real admission guard after SQL completes: cancelling in-flight SQL
+        // aborts PostgreSQL’s transaction, independently of the guard’s active count.
+        const outbox = yield* verified(
+          "Outbox",
+          Outbox.of({
+            enqueue: () =>
+              Effect.gen(function* blockedAfterStatement() {
+                yield* sql`select 1`;
+                yield* Deferred.succeed(started, null);
 
-            yield* Deferred.succeed(holding, null);
-            yield* Deferred.await(release);
+                return yield* Effect.never;
+              }).pipe(Effect.orDie),
           })
-        ).pipe(Effect.forkChild);
-
-        yield* Deferred.await(holding);
+        );
 
         yield* transactional(
           Effect.gen(function* levelWithABlockedMethod() {
-            const blocked = yield* Effect.forkChild(
-              AggregateLocks.use((locks) => locks.lock("Person", person.id))
-            );
+            const blocked = yield* outbox
+              .enqueue([slack("interrupted")])
+              .pipe(Effect.forkChild);
 
-            yield* Effect.sleep("100 millis");
+            yield* Deferred.await(started);
 
-            // A nested level that is not refused queues its SAVEPOINT behind the blocked method on the connection, so
-            // its answer is read from a fiber with a bound, never waited for: a mutant fails here instead of hanging.
-            const attempt = yield* Effect.forkChild(
-              Effect.exit(transactional(Effect.void))
-            );
-
-            const answer = yield* Effect.timeoutOption(
-              Fiber.join(attempt),
-              "2 seconds"
-            );
-
-            const interrupting = yield* Effect.forkChild(
-              Fiber.interrupt(blocked)
-            );
-
-            yield* Deferred.succeed(release, null);
-            yield* Fiber.join(holder);
-            yield* Fiber.join(interrupting);
-            yield* Fiber.interrupt(attempt);
-
+            const answer = yield* Effect.exit(transactional(Effect.void));
+            yield* Fiber.interrupt(blocked);
+            const interrupted = yield* Fiber.await(blocked);
             const nested = yield* Effect.exit(transactional(Effect.void));
-            assert.isTrue(Exit.isSuccess(nested), describeExit(nested));
 
-            assert.isTrue(
-              Option.isSome(answer) && refused(answer.value),
-              `a nested level asked for while a method of the level around it is blocked in the database: ${Option.isSome(answer) ? describeExit(answer.value) : "not refused within 2 seconds"}`
+            assertRefused(
+              answer,
+              "a nested level while a verified method runs"
             );
+            assert.isTrue(
+              Exit.isFailure(interrupted) &&
+                Cause.hasInterruptsOnly(interrupted.cause),
+              describeExit(interrupted)
+            );
+            assert.isTrue(Exit.isSuccess(nested), describeExit(nested));
           })
         );
       }),
