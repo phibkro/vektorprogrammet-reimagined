@@ -78,6 +78,18 @@ export const allowances: readonly Allowance[] = [
       "Synthetic local prototype seed uses the existing database test-client boundary.",
   },
   {
+    allows: ["db"],
+    files: ["tools/prototype/provisionRuntime.ts"],
+    reason:
+      "Synthetic bootstrap applies runtime role grants and verifies its database login.",
+  },
+  {
+    allows: ["db"],
+    files: ["apps/web/test/auth.supabase.test.ts"],
+    reason:
+      "Native Auth integration compares a real SDK identity and session with restricted database projections.",
+  },
+  {
     allows: adapterTest,
     files: ["apps/web/test/**/*.postgres.test.ts"],
     reason:

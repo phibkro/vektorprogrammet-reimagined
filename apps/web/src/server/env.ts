@@ -10,7 +10,7 @@ import type { ContactFormState } from "./contactPost";
 
 export interface WorkerEnv {
   readonly DEPLOYMENT: string;
-  /** Server-only Supabase PostgreSQL connection. */
+  /** Server-only restricted runtime PostgreSQL connection, never migration authority. */
   readonly DATABASE_URL: string;
   readonly SUPABASE_URL: string;
   readonly SUPABASE_PUBLISHABLE_KEY: string;

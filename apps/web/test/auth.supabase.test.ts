@@ -1,4 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
+import { withClient } from "@vektorprogrammet/db/testing";
 import { Array as Arr, Config, Crypto, Effect } from "effect";
 
 import { createAdminClient, createWorkerClient } from "../src/server/supabase";
@@ -48,6 +49,21 @@ describe("Supabase session cookies", () => {
               client.auth.signInWithPassword({ email, password })
             );
 
+            const database = yield* Config.Redacted("DATABASE_URL");
+            const id = signedIn.data.user?.id;
+            assert.isDefined(id);
+
+            const rows = yield* withClient(
+              database,
+              (sql) => sql`select
+              (select count(*)::integer from vektor_private.users where id = ${id} and email = ${email} and person_id = '42') as users,
+              (select count(*)::integer from vektor_private.identities where user_id = ${id}) as identities,
+              (select count(*)::integer from vektor_private.sessions where user_id = ${id}) as sessions`
+            );
+
+            assert.deepStrictEqual(rows, [
+              { identities: 1, sessions: 1, users: 1 },
+            ]);
             assert.isNull(signedIn.error);
 
             const cookie = Arr.join(

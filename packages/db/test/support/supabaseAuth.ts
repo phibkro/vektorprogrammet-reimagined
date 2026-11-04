@@ -2,6 +2,8 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { createAuthViews } from "../../src/authViews.ts";
+
 /** A deterministic synthetic UUID, unique for each fixture person in its disposable database. */
 export const providerUserId = (personId: number): string =>
   `00000000-0000-4000-8000-${personId.toString(16).padStart(12, "0")}`;
@@ -19,6 +21,7 @@ export const createProviderSchema = Effect.gen(
     phone text,
     last_sign_in_at timestamptz,
     email_confirmed_at timestamptz,
+    invited_at timestamptz,
     phone_confirmed_at timestamptz
   )`;
     yield* sql`create table auth.identities (
@@ -38,6 +41,7 @@ export const createProviderSchema = Effect.gen(
     user_agent text,
     ip inet
   )`;
+    yield* createAuthViews(sql);
   }
 );
 

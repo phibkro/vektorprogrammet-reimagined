@@ -634,7 +634,7 @@ export const personalDataRetention = (
       .execute<{ address: string }>(
         sql`select lower(email) as address from person where id = ${id}
           union select lower(company_email) from person where id = ${id} and company_email is not null
-          union select lower(email) from auth.users where raw_app_meta_data->>'personId' = ${String(id)} and email is not null`,
+          union select lower(email) from vektor_private.users where person_id = ${String(id)} and email is not null`,
         "objects"
       )
       .pipe(

@@ -47,11 +47,14 @@ jobs:
         shell: bash
         run: |
           export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
-          export E2E_DISPOSABLE=1
-          devenv shell -- bash tools/prototype/with-env.sh bash -euo pipefail -c '
+          export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
+          export SYNTHETIC_SUPABASE_OWNED=1 E2E_DISPOSABLE=1
+          devenv shell -- bash tools/prototype/with-env.sh --bootstrap bash -euo pipefail -c '
             (cd packages/db && bun run db:migrate)
-            (cd tools/import && IMPORT_TARGET_DATABASE_URL="$DATABASE_URL" env -u DATABASE_URL bun run import:fixture)
-            bun run prototype:setup
+            (cd tools/import && IMPORT_TARGET_DATABASE_URL="$MIGRATION_DATABASE_URL" env -u DATABASE_URL bun run import:fixture)
+          '
+          devenv shell -- bun run prototype:setup
+          devenv shell -- bash tools/prototype/with-env.sh bash -euo pipefail -c '
             bun apps/web/e2e/seedExtra.ts
             bun tools/prototype/seed.ts
           '
@@ -71,6 +74,7 @@ jobs:
         shell: bash
         run: |
           export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
+          export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
           devenv shell -- bash tools/prototype/with-env.sh bun run test:all
       - name: Browser tests
         id: browser
@@ -81,6 +85,7 @@ jobs:
         timeout-minutes: 15
         run: |
           export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
+          export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
           export E2E_MAILPIT_URL="http://127.0.0.1:55434"
           export E2E_DISPOSABLE=1
           devenv shell -- bash tools/prototype/with-env.sh bun run e2e

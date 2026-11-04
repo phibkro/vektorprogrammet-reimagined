@@ -8,8 +8,11 @@ Follow [`tools/prototype/README.md`](../../tools/prototype/README.md) to start t
 
 ```sh
 devenv shell -- bun install
-SUPABASE_ENV_FILE=/path/to/private-local-status.env devenv shell -- bun run prototype:setup
-SUPABASE_ENV_FILE=/path/to/private-local-status.env devenv shell -- bun run prototype:dev
+export SUPABASE_ENV_FILE=/path/to/private-local-status.env
+export RUNTIME_DATABASE_URL_FILE=/path/outside/repository/runtime-url
+export SYNTHETIC_SUPABASE_OWNED=1
+devenv shell -- bun run prototype:setup
+devenv shell -- bun run prototype:dev
 ```
 
 Open http://localhost:3000/logg-inn. Synthetic accounts are declared in [`localPeople.ts`](../../packages/domain/src/localPeople.ts). Use a fresh synthetic Supabase database for the hybrid migration chain. Upgrading an existing prototype database has not been rehearsed and is not supported; do not reset the interactive prototype. Setup refuses remote database/API targets.

@@ -127,7 +127,11 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
-      files: ["tools/import/src/**", "tools/prototype/seed.ts"],
+      files: [
+        "tools/import/src/**",
+        "tools/prototype/seed.ts",
+        "tools/prototype/provisionRuntime.ts",
+      ],
       platform: "node",
       role: "composition-root",
       strictness: "strict",

@@ -21,7 +21,7 @@ variable "server_dir" {
 }
 
 variable "database_url" {
-  description = "Server-only PostgreSQL connection whose role owns the domain tables or has BYPASSRLS, with required Auth-schema reads. Never a browser role."
+  description = "Server-only restricted runtime PostgreSQL URL: non-owner, non-superuser, no RLS bypass or role administration. Never migration credentials."
   type      = string
   sensitive = true
 }

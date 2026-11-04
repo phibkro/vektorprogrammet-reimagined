@@ -7,11 +7,13 @@ supabase start
 umask 077
 supabase status -o env > /tmp/vektor-supabase.env
 export SUPABASE_ENV_FILE=/tmp/vektor-supabase.env
+export RUNTIME_DATABASE_URL_FILE=/tmp/vektor-supabase-runtime-url
+export SYNTHETIC_SUPABASE_OWNED=1
 devenv shell -- bun run prototype:setup
 devenv shell -- bun run prototype:dev
 ```
 
-Open http://localhost:3000. The status file contains administrator credentials: keep it private, never commit it, and do not paste its contents into logs. The commands require direct loopback API and PostgreSQL URLs; they reject remote targets and URL query parameters. They do not reset or drop a database. For an existing local stack, provide that stack's private `status -o env` file instead of starting another one.
+The status file contains administrator credentials; the separate runtime URL file is generated privately and must remain outside Git and logs. Set SYNTHETIC_SUPABASE_OWNED=1 only for a local isolated target you own. Setup never rotates an existing runtime password: a mismatch fails. The application gets only the restricted runtime URL, never the migration URL. Both targets must be direct loopback URLs. Bootstrap creates private, security-barrier, owner-read Auth projections exposing only the fields used by the server. It revokes database TEMPORARY from PUBLIC to prevent runtime DDL, preserving it explicitly for existing login roles other than runtime. New roles need explicit TEMPORARY grants.
 
 Setup applies the existing Drizzle migrations, runs the domain local seed, adds matching Supabase Auth users and two private Storage buckets (`public-files` and `receipts`), and adds a published synthetic tagline if absent. It does not overwrite existing content or a conflicting user or make a public bucket private silently. Run it again safely. The sample login addresses are `ada.admin@example.org`, `lise.leder@example.org`, and `nora.nybegynner@example.org`; their public fixture password is `LOCAL_FAKE_PASSWORD` in `packages/domain/src/localPeople.ts`. The setup checks an actual Ada sign-in without printing the session.
 

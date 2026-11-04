@@ -35,10 +35,10 @@ export const SignInDirectoryLive = Layer.effect(
       function* personOfUser(userId: string) {
         const rows = yield* db
           .select({
-            personId: sql<number>`(auth.users.raw_app_meta_data ->> 'personId')::integer`,
+            personId: sql<number>`vektor_private.users.person_id::integer`,
           })
-          .from(sql`auth.users`)
-          .where(sql`auth.users.id::text = ${userId}`)
+          .from(sql`vektor_private.users`)
+          .where(sql`vektor_private.users.id::text = ${userId}`)
           .pipe(Effect.catch(lookupFailed("personOfUser")));
 
         return Option.map(yield* decodeOwner(rows), (row) => row.personId);
@@ -50,11 +50,11 @@ export const SignInDirectoryLive = Layer.effect(
     ) {
       // Two rows are enough to know that the address is ambiguous.
       const rows = yield* db
-        .select({ email: sql<string>`auth.users.email` })
+        .select({ email: sql<string>`vektor_private.users.email` })
         .from(person)
         .innerJoin(
-          sql`auth.users`,
-          sql`auth.users.raw_app_meta_data ->> 'personId' = ${person.id}::text`
+          sql`vektor_private.users`,
+          sql`vektor_private.users.person_id = ${person.id}::text`
         )
         .where(or(eq(person.email, address), eq(person.companyEmail, address)))
         .limit(2)
@@ -74,11 +74,9 @@ export const SignInDirectoryLive = Layer.effect(
     const signInEmailOf = Effect.fn("SignInDirectory.signInEmailOf")(
       function* signInEmailOf(personId: PersonId) {
         const rows = yield* db
-          .select({ email: sql<string>`auth.users.email` })
-          .from(sql`auth.users`)
-          .where(
-            sql`auth.users.raw_app_meta_data ->> 'personId' = ${personId}::text`
-          )
+          .select({ email: sql<string>`vektor_private.users.email` })
+          .from(sql`vektor_private.users`)
+          .where(sql`vektor_private.users.person_id = ${personId}::text`)
           .limit(1)
           .pipe(Effect.catch(lookupFailed("signInEmailOf")));
 

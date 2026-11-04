@@ -67,7 +67,7 @@ export const AccountRepositoryLive = Layer.effect(
     const sql = yield* SqlClient.SqlClient;
 
     const findAuthIdentitiesByPersonId = (personId: PersonId) =>
-      sql`select id::text as id from auth.users where raw_app_meta_data->>'personId' = ${String(personId)}`.pipe(
+      sql`select id::text as id from vektor_private.users where person_id = ${String(personId)}`.pipe(
         Effect.flatMap(
           Schema.decodeUnknownEffect(
             Schema.Array(Schema.Struct({ id: Schema.String }))
@@ -80,7 +80,7 @@ export const AccountRepositoryLive = Layer.effect(
     const findAuthIdentity = Effect.fn("AccountRepository.findAuthIdentity")(
       function* findAuthIdentity(email: EmailAddress) {
         const rows =
-          yield* sql`select id::text as id, (raw_app_meta_data->>'personId')::integer as "personId", invited_at is not null and email_confirmed_at is null as "pendingInvite" from auth.users where email = ${email} limit 2`.pipe(
+          yield* sql`select id::text as id, person_id::integer as "personId", invited_at is not null and email_confirmed_at is null as "pendingInvite" from vektor_private.users where email = ${email} limit 2`.pipe(
             Effect.orDie
           );
 

@@ -65,6 +65,7 @@ in
     # Connection strings for local services only. Deployed environments get theirs from
     # Alchemy (Hyperdrive binding) or the import operator's shell, never from this file.
     DATABASE_URL = "postgres://127.0.0.1:${pgPort}/vektorprogrammet";
+    MIGRATION_DATABASE_URL = "postgres://127.0.0.1:${pgPort}/vektorprogrammet";
     TEST_DATABASE_ADMIN_URL = "postgres://127.0.0.1:${pgPort}/postgres";
     LEGACY_MYSQL_URL = "mysql://legacy_reader:legacy_reader@127.0.0.1:${mysqlPort}/legacy";
 

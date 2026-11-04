@@ -10,6 +10,8 @@ Install Terraform and initialize from this directory with `terraform init -backe
 
 `supabase_project_ref` identifies the project; `supabase_url`, publishable and secret keys and `database_url` must all come from that **same** project. Supply `site_url`, the actual HTTPS origin; this also sets the Auth site URL and redirect allow-list. The API schema setting excludes `public` so application domain tables are not exposed through PostgREST; verify RLS and grants independently, including for any other exposed schemas. Settings not named here remain the provider/API's responsibility: inspect the imported configuration and plan before approval. The Supabase provider's settings resource supports partial updates; imports can bring other settings, possibly secrets, into local state. Review changes before applying. Auth `disable_signup` blocks self-service signup, not administrator creation/invitation.
 
+The Worker's database URL must be the restricted non-owner runtime login, never a migration or bootstrap URL. This does not restrict the separate server-only Supabase secret key: existing Auth administration and Storage adapters still hold provider-level authority, so compromise of the Worker can exercise that authority. Keep both secrets private and assess that residual access independently.
+
 For an existing project, import only its settings (not the project), after initializing and setting all required variables:
 
 ```sh
