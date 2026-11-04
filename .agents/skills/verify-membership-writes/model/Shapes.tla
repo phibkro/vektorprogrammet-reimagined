@@ -32,8 +32,8 @@ CurrentCode == [
     \* The calls that each command makes, in order (each handler runs in one
     \* transaction, packages/db/src/transactional.ts:44-76; the proof that live.ts checks before each lock and write sends no statement). `createAdminGrant` and
     \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
-    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:198-199,
-    \* 224-225, through lockAccount at 52-67) take the same two locks.
+    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:147-148,
+    \* 173-174, through lockAccount at 46-61) take the same two locks.
     \* createMembership reads history and claims welcome_ledger; deleteMembership
     \* also claims it after removal. Both use the existing Person token and take
     \* no new root lock. Ledger and outbox guarantees are tested on PostgreSQL.
@@ -48,7 +48,7 @@ CurrentCode == [
         createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:241-242
         deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:393, 403
         syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:238, one person
-        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:319, the lock taken in authorization at teams/personResource.ts:33
+        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:196, 201, the lock taken in authorization at teams/personResource.ts:33
     ],
     \* The statements of each call, in order.
     repo |-> [
@@ -165,9 +165,9 @@ ReplaceThroughConstruct == [CurrentCode EXCEPT !.compose =
                      ELSE CurrentCode.compose[k]]]
 
 (***************************************************************************)
-(* Two persons: AggregateLocks.lockAll over two ids. No command calls it   *)
-(* with two persons yet (a merge would), so these records are the code of  *)
-(* locks.ts and not of a command.                                          *)
+(* Two persons: AggregateLocks.lockAll over two ids. Workspace assignment  *)
+(* and merge use it; these records model the lock acquisition order, not   *)
+(* their full commands.                                                    *)
 (***************************************************************************)
 
 \* lockAll("Person", [a, b]) is one statement, SELECT ... WHERE id IN (a, b)
