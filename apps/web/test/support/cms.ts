@@ -126,7 +126,10 @@ export const textsOf = (
   slots: Readonly<Record<string, TextData["content"]>>
 ): readonly Seed<TextData>[] =>
   Arr.map(Rec.toEntries(slots), ([slug, content]) =>
-    published(slug, { content, title: slug })
+    published<TextData>(
+      slug,
+      content === undefined ? { title: slug } : { content, title: slug }
+    )
   );
 
 /** A Portable Text block of one paragraph, for asserting what a page shows. */
