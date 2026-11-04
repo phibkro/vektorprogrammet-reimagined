@@ -29,7 +29,6 @@ import {
   EmailAddress,
   IntegrationCalledInTransaction,
   OutboxMessage,
-  OutboxMessageId,
   PersonId,
   OutboxDelivery,
   codePrincipal,
@@ -44,6 +43,7 @@ import type {
   CodePurpose,
   CodeRepository,
   TransportMessage,
+  OutboxMessageId,
 } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
@@ -161,50 +161,37 @@ const addPerson = (id: number) =>
     yield* sql`insert into person (id, name, email, field_of_study_id) values (${id}, 'Person', ${emailOf(id)}, ${DEPARTMENT})`;
   }).pipe(Effect.orDie);
 
-/** A person with a queued application verification message. */
-const invite = (id: number) =>
+/** Queue one or two independent verification requests for a new person. */
+const queueVerifications = (id: number, count: 1 | 2) =>
   Effect.gen(function* queueVerification() {
     yield* addPerson(id);
 
+    const message = IssueCodeMessage.make({
+      personId: PersonId.make(id),
+      purpose: "verifyApplication",
+    });
+
     const ids = yield* transacted(
       Outbox.use((outbox) =>
-        outbox.enqueue([
-          IssueCodeMessage.make({
-            personId: PersonId.make(id),
-            purpose: "verifyApplication",
-          }),
-        ])
+        outbox.enqueue(count === 1 ? [message] : [message, message])
       )
     );
 
-    return ids[0] ?? OutboxMessageId.make("0");
+    assert.lengthOf(ids, count);
+
+    return ids;
   }).pipe(Effect.orDie);
 
-/** Two independent verification requests for one person. */
+const invite = (id: number) =>
+  Effect.map(queueVerifications(id, 1), (ids) =>
+    Option.getOrThrow(Arr.get(ids, 0))
+  );
+
 const askForResetTwice = (id: number) =>
-  Effect.gen(function* queueTwo() {
-    yield* addPerson(id);
-
-    const ids = yield* transacted(
-      Outbox.use((outbox) =>
-        outbox.enqueue([
-          IssueCodeMessage.make({
-            personId: PersonId.make(id),
-            purpose: "verifyApplication",
-          }),
-          IssueCodeMessage.make({
-            personId: PersonId.make(id),
-            purpose: "verifyApplication",
-          }),
-        ])
-      )
-    );
-
-    return {
-      newer: ids[1] ?? OutboxMessageId.make("0"),
-      older: ids[0] ?? OutboxMessageId.make("0"),
-    };
-  }).pipe(Effect.orDie);
+  Effect.map(queueVerifications(id, 2), (ids) => ({
+    newer: Option.getOrThrow(Arr.get(ids, 1)),
+    older: Option.getOrThrow(Arr.get(ids, 0)),
+  }));
 
 /** The states of the person's codes: at most one per purpose. */
 const codeStates = (personId: number) =>

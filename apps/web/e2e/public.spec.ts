@@ -46,14 +46,12 @@ test("falsifier 5: a registered public file serves bytes and headers; an unknown
   expect(unknown.status()).toBe(404);
 });
 
-test("pre-hydration sign-in never sends credentials in the URL", async ({
-  browser,
-}) => {
-  const { origin } = new URL(test.info().project.use.baseURL ?? "");
-  const context = await browser.newContext({ javaScriptEnabled: false });
-  const page = await context.newPage();
-
-  try {
+test.describe("without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+  test("pre-hydration sign-in never sends credentials in the URL", async ({
+    page,
+  }) => {
+    const { origin } = new URL(test.info().project.use.baseURL ?? "");
     await page.goto(`${origin}/logg-inn`);
     await expect(
       page.getByRole("button", { exact: true, name: "Logg inn" })
@@ -77,9 +75,7 @@ test("pre-hydration sign-in never sends credentials in the URL", async ({
     const destination = new URL(response.url());
     expect(destination.searchParams.has("email")).toBe(false);
     expect(destination.searchParams.has("password")).toBe(false);
-  } finally {
-    await context.close();
-  }
+  });
 });
 
 /** The visible heading of a page: its one `h1`. */
