@@ -7,6 +7,7 @@ describe("restricted runtime database URLs", () => {
   it("accepts direct and Supabase pooler logins", () => {
     for (const url of [
       "postgres://vektor_runtime:example@localhost/db",
+      "postgres://vektor_runtime_a12b:example@localhost/db",
       "postgresql://vektor_runtime.projectref:example@pooler.example/db?sslmode=require",
     ]) {
       assert.strictEqual(Redacted.value(runtimeDatabaseUrl(url)), url);

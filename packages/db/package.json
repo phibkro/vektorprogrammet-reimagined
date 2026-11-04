@@ -10,6 +10,7 @@
     "./runtime-url": "./src/runtimeUrl.ts",
     "./testing": "./test/support/disposableDatabase.ts",
     "./testing/local-seed": "./test/support/localSeed.ts",
+    "./testing/runtime-role": "./test/support/runtimeRole.ts",
     "./testing/read-only-role": "./test/support/readOnlyRole.ts"
   },
   "scripts": {

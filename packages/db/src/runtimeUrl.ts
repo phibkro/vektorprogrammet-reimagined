@@ -5,8 +5,12 @@ export const runtimeDatabaseUrl = (value: string): Redacted.Redacted => {
   if (!URL.canParse(value)) {
     throw new Error("DATABASE_URL is invalid");
   }
+
   const url = new URL(value);
-  const validUser = /^vektor_runtime(?:\.[a-z0-9]+)?$/u.test(url.username);
+
+  const validUser = /^vektor_runtime(?:_[a-z0-9]+|\.[a-z0-9]+)?$/u.test(
+    url.username
+  );
 
   const validOptions =
     Arr.every(

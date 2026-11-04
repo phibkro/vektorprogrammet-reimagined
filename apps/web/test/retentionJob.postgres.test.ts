@@ -12,10 +12,11 @@ import type {
 } from "@cloudflare/workers-types";
 import { assert, layer } from "@effect/vitest";
 import { DatabaseLive } from "@vektorprogrammet/db";
+import { TestDatabaseUrl } from "@vektorprogrammet/db/testing";
 import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
+  runtimeTestDatabase,
+  RuntimeDatabaseUrl,
+} from "@vektorprogrammet/db/testing/runtime-role";
 import {
   Catalog,
   JobRegistry,
@@ -38,7 +39,7 @@ const owner = Layer.unwrap(
   Effect.map(Effect.service(TestDatabaseUrl), (url) =>
     DatabaseLive({ maxConnections: 2, url })
   )
-).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+).pipe(Layer.provideMerge(runtimeTestDatabase), Layer.orDie);
 
 /** What each mode leaves behind: whether the person is anonymised, and the actions that the run audited. */
 const LEFT_BEHIND: Record<
@@ -142,7 +143,7 @@ for (const deployment of Deployment.literals) {
         `${deployment} runs in the mode that its approvals allow: ${modeIn(deployment)}`,
         () =>
           Effect.gen(function* nightlyRun() {
-            const url = yield* TestDatabaseUrl;
+            const url = yield* RuntimeDatabaseUrl;
             yield* seedDuePerson;
 
             const sent = yield* Ref.make<
