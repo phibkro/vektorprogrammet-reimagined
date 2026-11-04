@@ -105,14 +105,25 @@ it.live(
           )
         );
 
+        const adminRoles = yield* withClient(
+          admin,
+          (sql) =>
+            sql<{
+              readonly quoted: string;
+            }>`select quote_ident(current_user) as quoted`
+        );
+
+        const adminRole = adminRoles[0]?.quoted ?? "";
+        assert.notStrictEqual(adminRole, "");
+
         for (const statement of [
           "create temporary table runtime_forbidden (id int)",
           "create schema runtime_forbidden",
           "alter table public.site_content add column runtime_forbidden text",
           "truncate public.site_content",
           "create role runtime_forbidden",
-          "set role postgres",
-          `grant postgres to "${role}"`,
+          `set role ${adminRole}`,
+          `grant ${adminRole} to "${role}"`,
           "delete from auth.users",
           "select * from auth.users",
           "delete from vektor_private.users",
