@@ -1,5 +1,5 @@
 /**
- * The construction that `readOnlyRole` and `authTablesRole` share: a login role on the disposable database that may
+ * The construction for `readOnlyRole`: a login role on the disposable database that may
  * connect and use the `public` schema, plus the one grant that the caller states, and nothing else. Release drops what
  * the role owns and then the role itself; the role is cluster-wide, so that happens before the database is dropped.
  * It needs a `TEST_DATABASE_ADMIN_URL` role that may create roles (devenv's is a superuser).
@@ -18,7 +18,7 @@ const randomWord = Effect.map(Random.nextIntBetween(0, 2 ** 31), (n) =>
  */
 export const restrictedRole = (
   prefix: string,
-  grant: (role: string) => string
+  grant: (role: string) => readonly string[]
 ) =>
   Effect.gen(function* createRole() {
     const database = yield* TestDatabaseUrl;
@@ -32,10 +32,11 @@ export const restrictedRole = (
         Effect.forEach(
           [
             `create role "${role}" login password '${password}' nosuperuser nocreatedb nocreaterole noinherit`,
+            `grant "${role}" to current_user`,
             `revoke temporary on database "${databaseName}" from public`,
             `grant connect on database "${databaseName}" to "${role}"`,
             `grant usage on schema public to "${role}"`,
-            grant(role),
+            ...grant(role),
           ],
           (statement) => client.unsafe(statement),
           { discard: true }

@@ -1,0 +1,361 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5e08472a-73eb-4d1d-9db9-6e82f418eda6",
+  "prevIds": ["e4c2257c-d6b7-4ccb-93d1-cd0988199134"],
+  "footprints": [
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "admission_period"],
+      "writes": ["s|rls|public.admission_period"],
+      "reads": ["n|tbl|public.admission_period", "n|sch|public"],
+      "sqlHash": "b9e245bae13ce876"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "audit_log"],
+      "writes": ["s|rls|public.audit_log"],
+      "reads": ["n|tbl|public.audit_log", "n|sch|public"],
+      "sqlHash": "c707caba9d7ca8d3"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "department"],
+      "writes": ["s|rls|public.department"],
+      "reads": ["n|tbl|public.department", "n|sch|public"],
+      "sqlHash": "3701c5534203c4a0"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "field_of_study"],
+      "writes": ["s|rls|public.field_of_study"],
+      "reads": ["n|tbl|public.field_of_study", "n|sch|public"],
+      "sqlHash": "b60ee10ba0fb4f8d"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "outbox"],
+      "writes": ["s|rls|public.outbox"],
+      "reads": ["n|tbl|public.outbox", "n|sch|public"],
+      "sqlHash": "392d503523388ad4"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "public_file"],
+      "writes": ["s|rls|public.public_file"],
+      "reads": ["n|tbl|public.public_file", "n|sch|public"],
+      "sqlHash": "3d133a81ece5c20a"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "semester"],
+      "writes": ["s|rls|public.semester"],
+      "reads": ["n|tbl|public.semester", "n|sch|public"],
+      "sqlHash": "c4c9fb53920211d6"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "social_event"],
+      "writes": ["s|rls|public.social_event"],
+      "reads": ["n|tbl|public.social_event", "n|sch|public"],
+      "sqlHash": "139ea88248b2ac64"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "admin_grant"],
+      "writes": ["s|rls|public.admin_grant"],
+      "reads": ["n|tbl|public.admin_grant", "n|sch|public"],
+      "sqlHash": "0497d33a5b1fca13"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "ending_soon_digest"],
+      "writes": ["s|rls|public.ending_soon_digest"],
+      "reads": ["n|tbl|public.ending_soon_digest", "n|sch|public"],
+      "sqlHash": "5acf8e0168df7860"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "membership"],
+      "writes": ["s|rls|public.membership"],
+      "reads": ["n|tbl|public.membership", "n|sch|public"],
+      "sqlHash": "a51cd1556539cbb5"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "person"],
+      "writes": ["s|rls|public.person"],
+      "reads": ["n|tbl|public.person", "n|sch|public"],
+      "sqlHash": "3d0aec90139983b5"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "position"],
+      "writes": ["s|rls|public.position"],
+      "reads": ["n|tbl|public.position", "n|sch|public"],
+      "sqlHash": "7e2da3dbf125104c"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "team"],
+      "writes": ["s|rls|public.team"],
+      "reads": ["n|tbl|public.team", "n|sch|public"],
+      "sqlHash": "1c14e1f0367cb729"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "account"],
+      "writes": ["s|rls|public.account"],
+      "reads": ["n|tbl|public.account", "n|sch|public"],
+      "sqlHash": "294c07288ed1df94"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "captured_mail"],
+      "writes": ["s|rls|public.captured_mail"],
+      "reads": ["n|tbl|public.captured_mail", "n|sch|public"],
+      "sqlHash": "7d8c4767518c11cf"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "code"],
+      "writes": ["s|rls|public.code"],
+      "reads": ["n|tbl|public.code", "n|sch|public"],
+      "sqlHash": "c4e20a5dd94b4541"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "admin_list"],
+      "writes": ["s|rls|public.admin_list"],
+      "reads": ["n|tbl|public.admin_list", "n|sch|public"],
+      "sqlHash": "8ec2319545e83a13"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "alumni_request"],
+      "writes": ["s|rls|public.alumni_request"],
+      "reads": ["n|tbl|public.alumni_request", "n|sch|public"],
+      "sqlHash": "24ac6cf2d9dd5d95"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "consent"],
+      "writes": ["s|rls|public.consent"],
+      "reads": ["n|tbl|public.consent", "n|sch|public"],
+      "sqlHash": "e5003f97cd7bd84b"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "captured_slack"],
+      "writes": ["s|rls|public.captured_slack"],
+      "reads": ["n|tbl|public.captured_slack", "n|sch|public"],
+      "sqlHash": "8a4b9f9f378b6c5e"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "company_address"],
+      "writes": ["s|rls|public.company_address"],
+      "reads": ["n|tbl|public.company_address", "n|sch|public"],
+      "sqlHash": "4fd3c9999a05c73a"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "job_run"],
+      "writes": ["s|rls|public.job_run"],
+      "reads": ["n|tbl|public.job_run", "n|sch|public"],
+      "sqlHash": "931932a4017b28c8"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "welcome_ledger"],
+      "writes": ["s|rls|public.welcome_ledger"],
+      "reads": ["n|tbl|public.welcome_ledger", "n|sch|public"],
+      "sqlHash": "46e57a87b2d5280f"
+    },
+    {
+      "statementType": "alter_rls",
+      "statementTarget": ["table", "public", "workspace_report"],
+      "writes": ["s|rls|public.workspace_report"],
+      "reads": ["n|tbl|public.workspace_report", "n|sch|public"],
+      "sqlHash": "2ddcdcb92839ff47"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"admission_period\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"audit_log\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"department\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"field_of_study\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"outbox\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"public_file\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"semester\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"social_event\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"admin_grant\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"ending_soon_digest\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"membership\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"person\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"position\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"team\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"account\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"captured_mail\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"code\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"admin_list\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"alumni_request\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"consent\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"captured_slack\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"company_address\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"job_run\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"welcome_ledger\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    },
+    {
+      "op": "alter",
+      "key": "tables\u0000[\"public\",\"workspace_report\"]",
+      "set": {
+        "isRlsEnabled": true
+      }
+    }
+  ]
+}

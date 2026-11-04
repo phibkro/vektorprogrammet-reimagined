@@ -159,7 +159,7 @@ describe("C5 article page (/nyhet/{slug})", () => {
         assert.deepStrictEqual(article.content, paragraph("Tekst 2"));
         assert.deepStrictEqual(article.image, {
           alt: "Bilde",
-          src: "https://cms.test/_emdash/api/media/file/abc",
+          src: "/_emdash/api/media/file/abc",
         });
         assert.deepStrictEqual(
           Arr.map(article.others, (other) => other.slug),
@@ -635,13 +635,10 @@ describe("the pictures in a text", () => {
 
         assert.deepStrictEqual(
           Arr.map(about.texts["about-header"] ?? [], urlOf),
-          [
-            "https://cms.test/_emdash/api/media/file/m2",
-            "https://elsewhere.example/x.png",
-          ]
+          ["/_emdash/api/media/file/m2", "https://elsewhere.example/x.png"]
         );
         assert.deepStrictEqual(Arr.map(article.content, urlOf), [
-          "https://cms.test/_emdash/api/media/file/m1",
+          "/_emdash/api/media/file/m1",
         ]);
       })
   );

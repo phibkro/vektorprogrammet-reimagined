@@ -229,48 +229,6 @@ describe("spec 0007d falsifier 1: the description is derived from the declaratio
 });
 
 describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a silent drop", () => {
-  it("the accounts domain loses `activateAccount`, `resetPassword` and `requestPasswordReset` with the subjects that took them away", () => {
-    assert.deepStrictEqual(
-      Arr.map(
-        gapsOf(Accounts.AccountDomain, Effx.Gap.guards.UnexpressibleSubject),
-        (gap) => [gap.subject, ...gap.commands]
-      ),
-      [
-        ["Holder(activation)", "activateAccount"],
-        ["Holder(resetPassword)", "resetPassword"],
-        ["Anyone", "requestPasswordReset"],
-      ]
-    );
-    assert.deepStrictEqual(
-      Arr.map(exported(Accounts.AccountDomain).commands, ({ name }) => name),
-      [
-        "createAccount",
-        "deactivateAccount",
-        "reactivateAccount",
-        "updatePerson",
-      ]
-    );
-  });
-
-  it("the Account machine is dropped whole: its guards compare ids and a flag, and one of its commands is gone", () => {
-    assert.deepStrictEqual(exported(Accounts.AccountDomain).machines, []);
-    assert.deepStrictEqual(
-      Arr.map(
-        gapsOf(Accounts.AccountDomain, Effx.Gap.guards.UnexpressibleGuard),
-        (gap) => [gap.transition, gap.id]
-      ),
-      [
-        ["deactivateAccount", "vektorprogrammet/account/different-person"],
-        ["deactivateAccount", "vektorprogrammet/account/not-last-active-admin"],
-        ["reactivateAccount", "vektorprogrammet/account/different-person"],
-      ]
-    );
-    assert.lengthOf(
-      gapsOf(Accounts.AccountDomain, Effx.Gap.guards.MachineDropped),
-      2
-    );
-  });
-
   it("a domain whose every command needs a subject that effx cannot state has no description", () => {
     const described = Effx.describe(Contact.ContactDomain);
 
@@ -473,38 +431,6 @@ describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a
         }
       }
     }
-  });
-
-  it("a dropped machine is closed by whoever closes each of its reasons, and the kernel closes one of the three", () => {
-    const withoutFields: Declaration = {
-      ...Teams.TeamsDomain,
-      machines: [{ ...Teams.MembershipMachine, fields: [] }],
-    };
-
-    // the three ways that the real declarations and the controls drop a machine
-    const reasons = Arr.dedupe(
-      Arr.map(
-        Arr.flatMap(
-          [Accounts.AccountDomain, Sample, withoutFields],
-          (declaration) => gapsOf(declaration, Effx.Gap.guards.MachineDropped)
-        ),
-        ({ reason }) => reason
-      )
-    );
-
-    assert.deepStrictEqual(Arr.sort(reasons, Order.String), [
-      "a guard reads a semester that the machine does not declare",
-      "a guard uses a check that effx does not know",
-      "a transition applies activateAccount, which effx cannot be given",
-    ]);
-
-    assert.deepStrictEqual(
-      Arr.sort(
-        Arr.map(Effx.closures.MachineDropped, ({ by }) => by),
-        Order.String
-      ),
-      ["effx", "effx", "kernel"]
-    );
   });
 });
 

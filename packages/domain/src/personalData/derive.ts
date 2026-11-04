@@ -3,7 +3,7 @@
  * that the notice and the record of processing print, and the checks of the catalog's own consistency. Nothing here
  * reads a database; `packages/db` interprets the rules, and a test closes the catalog over the migrated schema.
  */
-import { Array as Arr, Order, Predicate, Record as Rec } from "effect";
+import { Array as Arr, Match, Order, Predicate, Record as Rec } from "effect";
 
 import type { CatalogOf } from "./catalog.ts";
 import { MergeRule, OnExpiry, Trigger } from "./declaration.ts";
@@ -38,6 +38,15 @@ export const catalogColumns = (catalog: CatalogOf) =>
     Arr.map(Rec.keys(declaration.columns), (column) => ({ column, table }))
   );
 
+/** Free-form content is not found by the automatic person-keyed export or erasure. */
+export const editorialReviewReasons = (catalog: CatalogOf): readonly string[] =>
+  Arr.dedupe(
+    Arr.flatMap(Rec.values(catalog), (table) =>
+      Arr.flatMap(Rec.values(table.columns), (column) =>
+        Predicate.isTagged(column, "EditorialReview") ? [column.reason] : []
+      )
+    )
+  );
 // ------------------------------------------------------------------ retention rules
 
 /**
@@ -266,35 +275,35 @@ const classificationProblems = (
     ([column, classification]) => {
       const where = `${table}.${column}`;
 
-      if (Predicate.isTagged(classification, "NotPersonal")) {
-        return blank(classification.reason)
-          ? [`${where} is NotPersonal without a reason`]
-          : [];
-      }
-
-      const { onExpiry, retention } = classification;
-
-      return [
-        ...missingColumns(
-          `${where}'s retention`,
-          declaration,
-          triggerColumns(retention.trigger)
-        ),
-        ...(Predicate.isTagged(retention.trigger, "LastActivityEnd") &&
-        lacksPerson(declaration)
-          ? [
-              `${where} starts at the last activity end, and ${table} has no person to take it from`,
-            ]
-          : []),
-        ...(Predicate.isTagged(onExpiry, "Anonymise") &&
-        !clearsItsOwnKey(declaration, column, onExpiry) &&
-        (declaration.anonymisedMarker === undefined ||
-          !hasColumn(declaration, declaration.anonymisedMarker))
-          ? [
-              `${where} is anonymised, and ${table} declares no marker column for it`,
-            ]
-          : []),
-      ];
+      return Match.value(classification).pipe(
+        Match.tagsExhaustive({
+          EditorialReview: ({ reason }) =>
+            blank(reason) ? [`${where} needs an editorial review reason`] : [],
+          NotPersonal: ({ reason }) =>
+            blank(reason) ? [`${where} is NotPersonal without a reason`] : [],
+          PersonalData: ({ onExpiry, retention }) => [
+            ...missingColumns(
+              `${where}'s retention`,
+              declaration,
+              triggerColumns(retention.trigger)
+            ),
+            ...(Predicate.isTagged(retention.trigger, "LastActivityEnd") &&
+            lacksPerson(declaration)
+              ? [
+                  `${where} starts at the last activity end, and ${table} has no person to take it from`,
+                ]
+              : []),
+            ...(Predicate.isTagged(onExpiry, "Anonymise") &&
+            !clearsItsOwnKey(declaration, column, onExpiry) &&
+            (declaration.anonymisedMarker === undefined ||
+              !hasColumn(declaration, declaration.anonymisedMarker))
+              ? [
+                  `${where} is anonymised, and ${table} declares no marker column for it`,
+                ]
+              : []),
+          ],
+        })
+      );
     }
   );
 

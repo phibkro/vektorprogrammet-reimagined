@@ -1,7 +1,4 @@
-/**
- * Playwright for the browser tests. `e2e/run.ts` starts the database and `vp dev` and sets the environment
- * this file reads; running `playwright test` by hand needs the same two variables.
- */
+/** The runner supplies the local Worker origin; direct Playwright runs set E2E_BASE_URL. */
 import { defineConfig } from "@playwright/test";
 import { Config, Effect } from "effect";
 

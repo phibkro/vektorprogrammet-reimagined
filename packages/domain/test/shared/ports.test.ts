@@ -11,7 +11,6 @@ const PORTS = {
   CapturedMessageStore: domain.CapturedMessageStore,
   ImportTarget: domain.ImportTarget,
   OutboxDelivery: domain.OutboxDelivery,
-  SessionDirectory: domain.SessionDirectory,
   SignInDirectory: domain.SignInDirectory,
   Transactor: domain.Transactor,
 };

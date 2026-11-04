@@ -78,14 +78,23 @@ const heldWords = ({
 export const erasureMessage = ({
   erased,
   held,
+  editorialReview,
 }: PersonalDataRpcs.ErasureResult): string => {
+  const review =
+    editorialReview.length > 0
+      ? " Redaksjonelt innhold kan også inneholde opplysninger om personen og må gjennomgås manuelt av en redaktør."
+      : "";
+
   if (Arr.isReadonlyArrayNonEmpty(held)) {
-    return `Opplysningene dine er slettet, bortsett fra det vi må beholde: ${Arr.join(Arr.map(held, heldWords), "; ")}.`;
+    return `Opplysninger er slettet lokalt, bortsett fra det vi må beholde: ${Arr.join(Arr.map(held, heldWords), "; ")}. Sletting hos innloggingsleverandøren behandles separat.${review}`;
   }
 
-  return erased
-    ? "Opplysningene dine er slettet. Du er logget ut."
-    : "Det var ingenting mer å slette.";
+  return (
+    (erased
+      ? "Opplysningene er slettet lokalt. Sletting hos innloggingsleverandøren behandles separat."
+      : "Det var ingenting mer å slette lokalt. Sletting hos innloggingsleverandøren kan fortsatt være under behandling.") +
+    review
+  );
 };
 
 export const erasePersonProgram = (form: FormData) =>

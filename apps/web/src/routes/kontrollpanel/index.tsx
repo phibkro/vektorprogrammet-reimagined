@@ -1,7 +1,6 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { PageHeader } from "@/components/panel/pageHeader";
-import { TestActorSwitch } from "@/components/panel/testActorSwitch";
 import {
   Card,
   CardDescription,
@@ -14,11 +13,8 @@ import { pageData } from "@/lib/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/");
 
-const shellApi = getRouteApi("/kontrollpanel");
-
 const Dashboard = () => {
   const { actor, currentSemester } = routeApi.useLoaderData();
-  const { testActors } = shellApi.useLoaderData();
 
   return (
     <>
@@ -42,7 +38,6 @@ const Dashboard = () => {
           </CardHeader>
         </Card>
       </div>
-      {testActors !== null && <TestActorSwitch people={testActors} />}
     </>
   );
 };

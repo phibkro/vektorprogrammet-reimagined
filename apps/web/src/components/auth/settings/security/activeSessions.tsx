@@ -1,35 +1,14 @@
-/** Adapted from better-auth-ui's base-nova ActiveSessions card (MIT). */
-import { useListSessions, useRevokeSession } from "@better-auth-ui/react";
-import { useRouter } from "@tanstack/react-router";
-import { Array as Arr, Option } from "effect";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { authClient } from "@/lib/authClient";
-import type { SessionClient } from "@/lib/sessionClient";
+import { authRequest } from "@/lib/authClient";
 
-export interface SessionView extends SessionClient {
-  readonly id: string;
-  readonly createdAt: string;
-  readonly lastSeen: string;
-}
-
-export const ActiveSessions = ({
-  sessions,
-  currentSessionId,
-}: {
-  readonly sessions: readonly SessionView[];
-  readonly currentSessionId: string | null;
-}) => {
-  const router = useRouter();
-  const listed = useListSessions(authClient);
-
-  const revoke = useRevokeSession(authClient, {
-    onSuccess: () => {
-      void listed.refetch();
-      void router.invalidate();
-    },
-  });
+/** Supabase supports ending the other sessions as a group, not listing individual sessions. */
+export const ActiveSessions = () => {
+  const [state, setState] = useState<"idle" | "pending" | "done" | "error">(
+    "idle"
+  );
 
   return (
     <Card>
@@ -38,53 +17,36 @@ export const ActiveSessions = ({
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
-          {sessions.length === 0 && <p>Ingen aktive økter.</p>}
-          <ul aria-label="Aktive økter" className="grid gap-4">
-            {Arr.map(sessions, (session) => {
-              const authSession = Arr.findFirst(
-                listed.data ?? [],
-                (entry) => entry.id === session.id
+          <p>
+            Du kan avslutte alle andre økter. Individuelle økter vises ikke.
+          </p>
+          <Button
+            disabled={state === "pending"}
+            onClick={() => {
+              setState("pending");
+              void authRequest("revoke-other-sessions").then(
+                () => {
+                  setState("done");
+                },
+                () => {
+                  setState("error");
+                }
               );
-
-              return (
-                <li
-                  className="flex flex-wrap items-center justify-between gap-3 border-b pb-3"
-                  key={session.id}
-                >
-                  <div>
-                    <p>
-                      {session.browser}, {session.system} ({session.device})
-                    </p>
-                    <p>Opprettet: {session.createdAt}</p>
-                    <p>Sist sett: {session.lastSeen}</p>
-                    {session.id === currentSessionId && <p>Denne økten</p>}
-                  </div>
-                  <Button
-                    disabled={Option.isNone(authSession) || revoke.isPending}
-                    onClick={() => {
-                      if (Option.isSome(authSession)) {
-                        revoke.mutate(
-                          { token: authSession.value.token },
-                          {
-                            onSuccess: () => {
-                              if (session.id === currentSessionId) {
-                                void router.navigate({ to: "/logg-inn" });
-                              }
-                            },
-                          }
-                        );
-                      }
-                    }}
-                    type="button"
-                    variant="outline"
-                  >
-                    Avslutt økt
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-          {revoke.isError && <p role="alert">Kunne ikke avslutte økten.</p>}
+            }}
+            type="button"
+            variant="outline"
+          >
+            Avslutt andre økter
+          </Button>
+          {state === "done" && (
+            <p role="status">
+              Andre økter er avsluttet. Tilgang kan vare til eksisterende
+              tilgangstokener utløper.
+            </p>
+          )}
+          {state === "error" && (
+            <p role="alert">Kunne ikke avslutte andre økter.</p>
+          )}
         </div>
       </CardContent>
     </Card>

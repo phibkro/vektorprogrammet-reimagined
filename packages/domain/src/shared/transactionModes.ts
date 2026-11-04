@@ -1,6 +1,5 @@
 import type { CodeRepository } from "../accounts/codeRepository.ts";
 import type { AccountRepository } from "../accounts/services.ts";
-import type { SessionDirectory } from "../accounts/sessionDirectory.ts";
 import type { SignInDirectory } from "../accounts/signInDirectory.ts";
 /**
  * What every store port asks of a transaction, method by method (spec 0018). A method is in exactly one mode:
@@ -103,7 +102,6 @@ export interface StorePorts {
   readonly PublicFileRepository: PublicFileRepository;
   readonly RetentionRun: RetentionRun;
   readonly SemesterRepository: SemesterRepository;
-  readonly SessionDirectory: SessionDirectory;
   readonly SignInDirectory: SignInDirectory;
   readonly SocialEventRepository: SocialEventRepository;
   readonly TeamRepository: TeamRepository;
@@ -128,7 +126,8 @@ export type ModesOf<
 export const TransactionModes = {
   AccountRepository: {
     find: "Read",
-    findActiveByPrivateEmail: "Read",
+    findAuthIdentitiesByPersonId: "Read",
+    findAuthIdentity: "Read",
     findLocked: "Requires",
     invite: "Requires",
     isLastActiveAdmin: "Requires",
@@ -194,12 +193,9 @@ export const TransactionModes = {
   Outbox: { enqueue: "Requires" },
   OutboxDelivery: {
     claim: "Standalone",
-    markDead: "Standalone",
+    due: "Read",
     markDelivered: "Joins",
     markFailed: "Standalone",
-    markQueued: "Standalone",
-    recordFailure: "Standalone",
-    stale: "Read",
   },
   OutboxReports: { overview: "Read" },
   PersonRepository: {
@@ -223,7 +219,6 @@ export const TransactionModes = {
   },
   RetentionRun: { run: "Requires" },
   SemesterRepository: { ensure: "Standalone", find: "Read", list: "Read" },
-  SessionDirectory: { byPerson: "Read" },
   SignInDirectory: {
     match: "Read",
     personOfUser: "Read",
@@ -269,6 +264,5 @@ export const NotStorePorts = {
   CurrentPrincipal: "who acts: a value of the request, not a store capability",
   InTransaction: "the proof that `Transactor.run` provides (TX1 to TX5)",
   Info: "the declaration of the command that runs: a value of the request",
-  PasswordHasher: "computes a hash; keeps no state",
   SiteOrigin: "the address of the site: configuration, not a store capability",
 } as const;

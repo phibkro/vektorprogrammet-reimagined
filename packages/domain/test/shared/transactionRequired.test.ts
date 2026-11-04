@@ -95,8 +95,8 @@ interface MustRequire {
 /** Controls: the calls of methods that stay standalone. */
 interface Standalone {
   readonly "JobRuns.claim": ReturnType<JobRuns["Service"]["claim"]>;
-  readonly "OutboxDelivery.markQueued": ReturnType<
-    OutboxDelivery["Service"]["markQueued"]
+  readonly "OutboxDelivery.claim": ReturnType<
+    OutboxDelivery["Service"]["claim"]
   >;
 }
 
@@ -187,15 +187,13 @@ describe("a call outside a transaction does not type-check (spec 0018)", () => {
       readonly inside: never;
     }>();
 
-    expectTypeOf<
-      Needs<Standalone["OutboxDelivery.markQueued"]>
-    >().toEqualTypeOf<{
+    expectTypeOf<Needs<Standalone["OutboxDelivery.claim"]>>().toEqualTypeOf<{
       readonly outside: never;
       readonly inside: never;
     }>();
 
     expectTypeOf<Wrong<Standalone, InTransaction>>().toEqualTypeOf<
-      "JobRuns.claim" | "OutboxDelivery.markQueued"
+      "JobRuns.claim" | "OutboxDelivery.claim"
     >();
   });
 });

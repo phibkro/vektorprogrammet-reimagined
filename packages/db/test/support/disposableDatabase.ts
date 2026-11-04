@@ -14,6 +14,8 @@ import { migrate } from "drizzle-orm/effect-postgres/migrator";
 import { Config, Context, Effect, Layer, Random, Redacted } from "effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 
+import { createProviderSchema } from "./supabaseAuth.ts";
+
 const migrationsFolder = new URL("../../drizzle/", import.meta.url).pathname;
 
 /** The URL of the disposable database (for raw SQL, schema surgery and the code under test). */
@@ -91,6 +93,7 @@ const migrated = Layer.effectDiscard(
     const url = yield* TestDatabaseUrl;
     yield* Effect.gen(function* applyMigrations() {
       const db = yield* PgDrizzle.makeWithDefaults();
+      yield* createProviderSchema;
       yield* Effect.suspend(() => migrate(db, { migrationsFolder }));
     }).pipe(
       Effect.provide(PgClient.layer({ maxConnections: 1, prepare: false, url }))

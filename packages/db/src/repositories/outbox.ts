@@ -21,6 +21,7 @@ import {
   OutboxMessage,
   OutboxMessageId,
   OutboxOverview,
+  OutboxSweep,
   OutboxReports,
   OVERVIEW_ROWS,
   PersonId,
@@ -32,19 +33,7 @@ import type {
   DeclaredMessage,
   OutboxAck,
 } from "@vektorprogrammet/domain";
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import {
   DateTime,
@@ -119,6 +108,12 @@ const takeable = (id: OutboxMessageId, nowDate: Date) =>
     or(isNull(outbox.claimedUntil), lte(outbox.claimedUntil, nowDate))
   );
 
+/** Privacy intents must remain recoverable after an arbitrary provider outage. */
+const unlimited = sql`${outbox.kind} in (${sql.join(
+  Arr.map(OutboxSweep.DeliveryPolicy.unlimitedKinds, (kind) => sql`${kind}`),
+  sql`, `
+)})`;
+
 export const OutboxDeliveryLive = Layer.effect(
   OutboxDelivery,
   Effect.gen(function* OutboxDeliveryLive() {
@@ -145,6 +140,25 @@ export const OutboxDeliveryLive = Layer.effect(
       const now = yield* DateTime.now;
       const nowDate = DateTime.toDateUtc(now);
 
+      // A crashed final attempt expires into a terminal failure, not an extra send.
+      yield* db
+        .update(outbox)
+        .set({
+          claimToken: null,
+          claimedUntil: null,
+          lastError: sql`coalesce(${outbox.lastError}, 'delivery lease expired')`,
+          status: "dead",
+        })
+        .where(
+          and(
+            takeable(id, nowDate),
+            lte(outbox.nextAttemptAt, nowDate),
+            sql`not (${unlimited})`,
+            sql`${outbox.attempts} >= ${OutboxSweep.DeliveryPolicy.attempts}`
+          )
+        )
+        .pipe(Effect.orDie);
+
       // One conditional UPDATE is the whole claim. A second delivery of the same id waits for the row lock of the first,
       // then re-reads the row (READ COMMITTED), finds a live claim and matches nothing.
       const rows = yield* db
@@ -156,12 +170,19 @@ export const OutboxDeliveryLive = Layer.effect(
             DateTime.add(now, { seconds: leaseSeconds })
           ),
         })
-        .where(takeable(id, nowDate))
+        .where(
+          and(
+            takeable(id, nowDate),
+            lte(outbox.nextAttemptAt, nowDate),
+            sql`(${unlimited} or ${outbox.attempts} < ${OutboxSweep.DeliveryPolicy.attempts})`
+          )
+        )
         .returning({
           attempts: outbox.attempts,
           claimToken: outbox.claimToken,
           createdAt: outbox.createdAt,
           id: outbox.id,
+          kind: outbox.kind,
           payload: outbox.payload,
         })
         .pipe(Effect.orDie);
@@ -196,6 +217,7 @@ export const OutboxDeliveryLive = Layer.effect(
         : OutboxClaim.cases.Undeliverable.make({
             attempts: row.attempts,
             claimToken: OutboxClaimToken.make(row.claimToken),
+            kind: row.kind,
           });
     });
 
@@ -222,9 +244,6 @@ export const OutboxDeliveryLive = Layer.effect(
       return ack;
     });
 
-    /** A credential intent that will not be applied keeps no hash: delivered, or ended for good. */
-    const withoutCredential = sql`case when ${outbox.kind} = 'SetCredential' then jsonb_set(${outbox.payload}, '{passwordHash}', 'null'::jsonb) else ${outbox.payload} end`;
-
     const markDelivered = Effect.fn("OutboxDelivery.markDelivered")(
       function* markDelivered(
         id: OutboxMessageId,
@@ -234,7 +253,6 @@ export const OutboxDeliveryLive = Layer.effect(
 
         return yield* release(id, claimToken, {
           deliveredAt: DateTime.toDateUtc(now),
-          payload: withoutCredential,
           status: "delivered",
         });
       }
@@ -250,89 +268,12 @@ export const OutboxDeliveryLive = Layer.effect(
         return yield* release(id, claimToken, {
           lastError: error,
           nextAttemptAt: DateTime.toDateUtc(next),
+          status: sql`case when not (${unlimited}) and ${outbox.attempts} >= ${OutboxSweep.DeliveryPolicy.attempts} then 'dead'::outbox_status else 'pending'::outbox_status end`,
         });
       }
     );
 
-    const markDead = Effect.fn("OutboxDelivery.markDead")(function* markDead(
-      id: OutboxMessageId
-    ) {
-      const nowDate = DateTime.toDateUtc(yield* DateTime.now);
-
-      const rows = yield* db
-        .update(outbox)
-        .set({
-          claimToken: null,
-          claimedUntil: null,
-          payload: withoutCredential,
-          status: "dead",
-        })
-        .where(and(takeable(id, nowDate), isNotNull(outbox.lastError)))
-        .returning({ id: outbox.id })
-        .pipe(Effect.orDie);
-
-      if (rows.length === 1) {
-        return "failed" as const;
-      }
-
-      const [row] = yield* db
-        .select({
-          claimedUntil: outbox.claimedUntil,
-          status: outbox.status,
-        })
-        .from(outbox)
-        .where(eq(outbox.id, Number(id)))
-        .pipe(Effect.orDie);
-
-      return row?.status === "pending" &&
-        row.claimedUntil !== null &&
-        row.claimedUntil > nowDate
-        ? ("held" as const)
-        : ("settled" as const);
-    });
-
-    const recordFailure = Effect.fn("OutboxDelivery.recordFailure")(
-      function* recordFailure(
-        id: OutboxMessageId,
-        error: string,
-        next: DateTime.Utc
-      ) {
-        const nowDate = DateTime.toDateUtc(yield* DateTime.now);
-
-        const rows = yield* db
-          .update(outbox)
-          .set({ lastError: error, nextAttemptAt: DateTime.toDateUtc(next) })
-          .where(takeable(id, nowDate))
-          .returning({ id: outbox.id })
-          .pipe(Effect.orDie);
-
-        return rows.length === 1 ? ("recorded" as const) : ("settled" as const);
-      }
-    );
-
-    const markQueued = Effect.fn("OutboxDelivery.markQueued")(
-      function* markQueued(ids: readonly OutboxMessageId[]) {
-        if (ids.length === 0) {
-          return;
-        }
-
-        const now = DateTime.toDateUtc(yield* DateTime.now);
-
-        yield* db
-          .update(outbox)
-          .set({ queuedAt: now })
-          .where(
-            and(
-              inArray(outbox.id, pipe(ids, Arr.map(Number))),
-              eq(outbox.status, "pending")
-            )
-          )
-          .pipe(Effect.orDie);
-      }
-    );
-
-    const stale = Effect.fn("OutboxDelivery.stale")(function* stale(options: {
-      readonly before: DateTime.Utc;
+    const due = Effect.fn("OutboxDelivery.due")(function* due(options: {
       readonly limit: number;
     }) {
       const nowDate = DateTime.toDateUtc(yield* DateTime.now);
@@ -344,10 +285,7 @@ export const OutboxDeliveryLive = Layer.effect(
           and(
             eq(outbox.status, "pending"),
             or(isNull(outbox.claimedUntil), lte(outbox.claimedUntil, nowDate)),
-            lte(
-              sql`greatest(coalesce(${outbox.queuedAt}, ${outbox.createdAt}), ${outbox.nextAttemptAt})`,
-              DateTime.toDateUtc(options.before)
-            )
+            lte(outbox.nextAttemptAt, nowDate)
           )
         )
         .orderBy(asc(outbox.id))
@@ -362,12 +300,9 @@ export const OutboxDeliveryLive = Layer.effect(
 
     return OutboxDelivery.of({
       claim,
-      markDead,
+      due,
       markDelivered,
       markFailed,
-      markQueued,
-      recordFailure,
-      stale,
     });
   })
 );
@@ -397,7 +332,6 @@ export const OutboxReportsLive = Layer.effect(
           kind: outbox.kind,
           lastError: outbox.lastError,
           nextAttemptAt: outbox.nextAttemptAt,
-          queuedAt: outbox.queuedAt,
           status: outbox.status,
         })
         .from(outbox)
@@ -426,13 +360,8 @@ export const OutboxReportsLive = Layer.effect(
             kind: row.kind,
             lastError: row.lastError,
             nextAttemptAt: DateTime.fromDateUnsafe(row.nextAttemptAt),
-            queuedAt:
-              row.queuedAt === null
-                ? null
-                : DateTime.fromDateUnsafe(row.queuedAt),
             state: deliveryState({
               lastError: row.lastError,
-              queuedAt: row.queuedAt,
               status: row.status === "dead" ? "dead" : "pending",
             }),
           }))

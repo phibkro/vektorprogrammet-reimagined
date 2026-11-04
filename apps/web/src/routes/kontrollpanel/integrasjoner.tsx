@@ -86,9 +86,8 @@ const accountStatus = (present: boolean | null): string => {
 /** What each state of an undelivered message says to an administrator (spec 0008b). */
 const DELIVERY_STATE_TEXT = {
   failed: "Mislyktes",
-  queued: "I kø",
   retrying: "Prøver igjen",
-  waiting: "Venter på kø",
+  waiting: "Venter",
 } as const;
 
 const IntegrationsPage = () => {

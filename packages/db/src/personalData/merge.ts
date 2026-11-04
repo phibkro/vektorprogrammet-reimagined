@@ -9,10 +9,15 @@ import {
   Catalog,
   Conflict,
   PersonalDataDeclaration,
+  PersonId,
+  RelinkAuthUserMessage,
   personReferences,
 } from "@vektorprogrammet/domain";
 import type {
+  AccountRepository,
   CatalogOf,
+  InTransaction,
+  Outbox,
   Locked,
   PersonReference,
 } from "@vektorprogrammet/domain";
@@ -107,14 +112,16 @@ const asRefusal = (
     : Effect.die(error);
 
 export const personalDataMerge = (services: {
+  readonly accounts: AccountRepository["Service"];
   readonly aggregates: Aggregates["Service"];
   readonly anonymisePerson: (
     locked: Person,
     now: DateTime.Utc
-  ) => Effect.Effect<number>;
+  ) => Effect.Effect<number, never, InTransaction>;
   readonly db: Drizzle["Service"];
+  readonly outbox: Outbox["Service"];
 }) => {
-  const { aggregates, anonymisePerson, db } = services;
+  const { accounts, aggregates, anonymisePerson, db, outbox } = services;
 
   /** A table that a person owns is written through the owner's column only: the rule must name that column. */
   const ownedOn = Effect.fnUntraced(function* ownedOn(
@@ -304,6 +311,22 @@ export const personalDataMerge = (services: {
       return yield* conflict(into, from, ANONYMISED);
     }
 
+    const sourceIdentities = yield* accounts.findAuthIdentitiesByPersonId(
+      PersonId.make(from.id)
+    );
+
+    const targetIdentities = yield* accounts.findAuthIdentitiesByPersonId(
+      PersonId.make(into.id)
+    );
+
+    if (sourceIdentities.length + targetIdentities.length > 1) {
+      return yield* conflict(
+        into,
+        from,
+        "Begge personene har innlogginger som ikke kan slås sammen automatisk."
+      );
+    }
+
     const written = yield* Effect.forEach(
       references,
       ({ column, rule, table }) =>
@@ -316,6 +339,18 @@ export const personalDataMerge = (services: {
     // The merged person becomes a tombstone: no data, and a pointer to the survivor. The row stays, so that the
     // history that refers to it (who granted a place) still has a person to name.
     const now = yield* DateTime.now;
+    const [identity] = sourceIdentities;
+
+    if (identity !== undefined) {
+      yield* outbox.enqueue([
+        RelinkAuthUserMessage.make({
+          from: PersonId.make(from.id),
+          into: PersonId.make(into.id),
+          userId: identity,
+        }),
+      ]);
+    }
+
     yield* anonymisePerson(from, now);
     yield* aggregates
       .updateRoot(from, personRoot, { mergedInto: into.id })

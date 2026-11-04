@@ -13,29 +13,13 @@
       "runBy": {
         "job": "outboxSweep"
       }
-    },
-    {
-      "kind": "Command",
-      "name": "failOutbox",
-      "runBy": {
-        "job": "outboxSweep"
-      }
-    },
-    {
-      "kind": "Command",
-      "name": "recordOutboxFailure",
-      "runBy": {
-        "job": "outboxSweep"
-      }
     }
   ],
   "grants": [
     {
       "permits": [
         "sweepOutbox",
-        "deliverOutbox",
-        "failOutbox",
-        "recordOutboxFailure"
+        "deliverOutbox"
       ],
       "scope": "all",
       "subject": "System(outboxSweep)@all"

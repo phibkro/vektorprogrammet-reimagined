@@ -1,10 +1,9 @@
 /**
- * `bun run e2e` (from `apps/web`): the browser tests, end to end. One scope owns everything the run starts and
- * releases it in reverse order, on success, failure and interruption alike: the stack of `support/stack.ts`
- * (disposable PostgreSQL database, the CMS, `vp dev`), then `playwright test` on top of it.
- *
- * Playwright and its Chromium come from devenv (`PLAYWRIGHT_BROWSERS_PATH`); the specs read the database,
- * the CMS and the origin from the environment this program sets.
+ * Run against an isolated local Supabase project, configured with tools/prototype/with-env.sh.
+ * Before running, migrate and import the synthetic organisation fixture into that same Supabase
+ * database, run prototype:setup, seedExtra.ts and tools/prototype/seed.ts, then set
+ * E2E_DISPOSABLE=1 and E2E_MAILPIT_URL. The CI workflow performs these steps.
+ * E2E_BASE_URL optionally reuses an already-running local Worker instead of starting one.
  */
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect, Redacted, Schema } from "effect";
@@ -24,7 +23,7 @@ const webDirectory = new URL("..", import.meta.url).pathname;
 const main = Effect.gen(function* main() {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
-  const { cms, databaseUrl, origin, publicFileKey } =
+  const { databaseUrl, origin, publicFileKey } =
     yield* startStack(webDirectory);
 
   yield* Effect.log("starting the browser tests");
@@ -43,8 +42,6 @@ const main = Effect.gen(function* main() {
         cwd: webDirectory,
         env: {
           E2E_BASE_URL: origin,
-          E2E_CMS_TOKEN: Redacted.value(cms.token),
-          E2E_CMS_URL: cms.origin,
           E2E_DATABASE_URL: Redacted.value(databaseUrl),
           E2E_PUBLIC_FILE_KEY: publicFileKey,
         },

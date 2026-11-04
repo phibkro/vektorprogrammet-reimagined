@@ -568,17 +568,16 @@ export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "WorkQueue",
     carriers: [
-      carrier(OutboxDelivery, "markQueued"),
-      carrier(OutboxDelivery, "stale"),
-      carrier(OutboxDelivery, "markDead"),
-      carrier(OutboxDelivery, "recordFailure"),
+      carrier(OutboxDelivery, "due"),
+      carrier(OutboxDelivery, "claim"),
+      carrier(OutboxDelivery, "markFailed"),
     ],
     id: "LS5",
     invariant: false,
     property:
-      "The queue's receipt (`markQueued`) is recorded only for pending records; `stale` lists pending records with no live claim whose last receipt or next attempt is not after the cut-off; a dead ending is recorded only after a failure class was recorded.",
+      "Only due pending records without a live lease are selected or claimed; failures stop after the configured attempt limit.",
     rawWriter:
-      "ends a record that has no recorded failure: it ends, and the sweep no longer finds it",
+      "changes a retry date directly: the record becomes eligible earlier or later",
     strength: "port-enforced",
   },
   {

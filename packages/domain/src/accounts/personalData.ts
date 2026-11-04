@@ -1,6 +1,5 @@
 /**
- * What the accounts domain declares about its stored columns (spec 0007b): the account, the codes, the four Better
- * Auth tables and the non-production mailbox and Slack.
+ * The accounts domain declares its account, consent code and non-production mailbox storage.
  */
 import {
   Rules,
@@ -22,8 +21,6 @@ const SECRET =
 
 const ONE_ACCOUNT =
   "Begge personene har en konto, og en person kan bare ha én. De kan ikke slås sammen.";
-
-const BETTER_AUTH_KEY = "A random key that Better Auth makes";
 
 const login = (retention: typeof withThePersonCore) =>
   personal({
@@ -49,95 +46,6 @@ const code = table({
     ["expires_at", "hash", "purpose", "subject", "used_at"]
   ),
   person: ofPerson("subject", Rules.Drop, exported.rows({ hash: SECRET })),
-});
-
-const authUser = table({
-  columns: {
-    ...columns(login(withThePersonCore), [
-      "created_at",
-      "email",
-      "email_verified",
-      "image",
-      "name",
-      "person_id",
-      "updated_at",
-    ]),
-    id: notPersonal(BETTER_AUTH_KEY),
-  },
-  person: ofPerson("person_id", Rules.Single(ONE_ACCOUNT)),
-});
-
-const sessionRetention = afterColumn("expires_at", Periods.sessionExpiry, {
-  en: "the session expires",
-  no: "økten utløper",
-});
-
-const authSession = table({
-  columns: {
-    ...columns(login(sessionRetention), [
-      "created_at",
-      "expires_at",
-      "ip_address",
-      "token",
-      "updated_at",
-      "user_agent",
-      "user_id",
-    ]),
-    id: notPersonal(BETTER_AUTH_KEY),
-  },
-  person: relation({
-    erase: erased.expire,
-    export: exported.rows({ token: SECRET }),
-    key: keyed.via("user_id", "auth_user", "id"),
-    references: {},
-  }),
-});
-
-const authAccount = table({
-  columns: {
-    ...columns(login(withThePersonCore), [
-      "access_token",
-      "access_token_expires_at",
-      "account_id",
-      "created_at",
-      "credential_version",
-      "id_token",
-      "password",
-      "provider_id",
-      "refresh_token",
-      "refresh_token_expires_at",
-      "scope",
-      "updated_at",
-      "user_id",
-    ]),
-    id: notPersonal(BETTER_AUTH_KEY),
-  },
-  person: relation({
-    erase: erased.expire,
-    export: exported.rows({
-      access_token: SECRET,
-      id_token: SECRET,
-      password: SECRET,
-      refresh_token: SECRET,
-    }),
-    key: keyed.via("user_id", "auth_user", "id"),
-    references: {},
-  }),
-});
-
-/** Better Auth's one-time tokens: the library keeps the address in `identifier`. No flow of ours writes this table. */
-const authVerification = table({
-  columns: {
-    ...columns(login(sessionRetention), [
-      "created_at",
-      "expires_at",
-      "identifier",
-      "updated_at",
-      "value",
-    ]),
-    id: notPersonal(BETTER_AUTH_KEY),
-  },
-  person: null,
 });
 
 const capturedMail = table({
@@ -194,10 +102,6 @@ const capturedSlack = table({
 
 export const AccountTables = {
   account,
-  auth_account: authAccount,
-  auth_session: authSession,
-  auth_user: authUser,
-  auth_verification: authVerification,
   captured_mail: capturedMail,
   captured_slack: capturedSlack,
   code,

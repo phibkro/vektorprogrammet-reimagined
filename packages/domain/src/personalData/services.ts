@@ -36,6 +36,7 @@ export type RetentionOutcome = typeof RetentionOutcome.Type;
 
 /** Everything held about one person, as JSON: the rows of each table that names them, by table. */
 export const PersonExport = Schema.Struct({
+  editorialReview: Schema.Array(Schema.String),
   exportedAt: Schema.DateTimeUtc,
   personId: Schema.Int,
   tables: Schema.Record(

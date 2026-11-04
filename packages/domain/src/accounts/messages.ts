@@ -4,7 +4,6 @@ import { Schema } from "effect";
 import { PersonId } from "../shared/ids.ts";
 import { declareMessage } from "../shared/outbox.ts";
 import { CodePurpose } from "./code.ts";
-import { PasswordHash } from "./passwordHasher.ts";
 
 /** Mint a code for `purpose` and mail it to the person: the delivery mints, so no plaintext code is ever stored. */
 export const IssueCodeMessage = declareMessage("IssueCode", {
@@ -12,9 +11,21 @@ export const IssueCodeMessage = declareMessage("IssueCode", {
   purpose: CodePurpose,
 });
 
-/** Write the person's credential after the domain commit: the hash, or none, and whether to end their sessions. */
-export const SetCredentialMessage = declareMessage("SetCredential", {
-  passwordHash: Schema.NullOr(PasswordHash),
+/** Invite delivery runs after the domain transaction commits. */
+export const InviteAccountMessage = declareMessage("InviteAccount", {
   personId: PersonId,
-  revokeSessions: Schema.Boolean,
+});
+
+export const DELETE_AUTH_USER = "DeleteAuthUser";
+export const RELINK_AUTH_USER = "RelinkAuthUser";
+
+/** Provider operations are delivered only after the domain transaction commits. */
+export const DeleteAuthUserMessage = declareMessage(DELETE_AUTH_USER, {
+  userId: Schema.String,
+});
+
+export const RelinkAuthUserMessage = declareMessage(RELINK_AUTH_USER, {
+  from: PersonId,
+  into: PersonId,
+  userId: Schema.String,
 });

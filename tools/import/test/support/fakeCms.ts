@@ -83,28 +83,11 @@ export const makeFakeCms = (
   const sponsors = fakeCollection<SponsorData>();
   const faq = fakeCollection<FaqData>();
   const teams = fakeCollection<TeamData>();
-  /** `collection.field` → its options, in the order they were added. */
-  const options = new Map<string, string[]>();
 
   return {
     layer: Layer.succeed(
       CmsClient,
       CmsClient.of({
-        absoluteUrl: (path) => path,
-        ensureOptions: (collection, field, values) =>
-          Effect.sync(() => {
-            const key = `${collection}.${field}`;
-            const known = options.get(key) ?? [];
-
-            const missing = Arr.filter(
-              Arr.dedupe(values),
-              (value) => !known.includes(value)
-            );
-
-            options.set(key, [...known, ...missing]);
-
-            return missing.length;
-          }),
         faq: faq.collection,
         news: news.collection,
         sponsors: sponsors.collection,
@@ -113,7 +96,6 @@ export const makeFakeCms = (
       })
     ),
     news,
-    options,
     sponsors,
     texts,
   };

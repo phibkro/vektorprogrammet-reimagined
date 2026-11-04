@@ -17,9 +17,8 @@ A port is a service the domain declares and a store implements; `packages/db` ho
 | Port | File | What it lets the caller do |
 | --- | --- | --- |
 | `Transactor` | `shared/transactor.ts` | `run(program)`: the program is one transaction and gets `InTransaction`; a typed failure, a defect or an interruption rolls it back. |
-| `OutboxDelivery` | `outbox/delivery.ts` | Claim one outbox row by id, record the outcome with the claim token, mark dead, record the queue's receipt, list stale rows. |
+| `OutboxDelivery` | `outbox/delivery.ts` | Find due rows, claim by id, and record outcomes with the claim token. |
 | `CapturedMessageStore` | `outbox/captured.ts` | Keep a non-production message once per delivery key. |
-| `SessionDirectory` | `accounts/sessionDirectory.ts` | `byPerson`: a person's live sessions, each with its last seen (`SessionActivity`). |
 | `SignInDirectory` | `accounts/signInDirectory.ts` | The four reads that Better Auth's callbacks need of a person: the person of a user, the identity behind an address, the sign-in address, the profile to create a user from. |
 | `ImportTarget` | `organisation/legacyImport.ts` | The legacy import's one transaction over `TargetTable`s. |
 

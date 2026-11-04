@@ -1,0 +1,17 @@
+{
+  "name": "@vektorprogrammet/prototype",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@supabase/supabase-js": "2.118.0",
+    "@vektorprogrammet/db": "workspace:*",
+    "@vektorprogrammet/domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

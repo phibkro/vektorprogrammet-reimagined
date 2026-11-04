@@ -25,7 +25,7 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { postgresDatabase } from "./support/database.ts";
-import { failedWith, refusalOf } from "./support/failures.ts";
+import { failedWith } from "./support/failures.ts";
 import {
   NAMING_TABLES,
   countWhere,
@@ -36,6 +36,7 @@ import { everything, nothing, seedPerson } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
 import { describeExit, race, raceReport } from "./support/race.ts";
 import { scan, snapshot } from "./support/snapshot.ts";
+import { providerSnapshot, providerUserId } from "./support/supabaseAuth.ts";
 import { asPerson } from "./support/teamsWorld.ts";
 
 const FAR = DateTime.makeUnsafe("2099-01-01T00:00:00Z");
@@ -46,12 +47,11 @@ const LATER = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
 const administrator = (tag: string) =>
   seedPerson(tag, { ...nothing, account: true, grant: true }, LATER);
 
-/** The merge of `from` into `into` is refused, with `reason` in what it says, and no row of the database changed. */
+/** A refused merge leaves every database row unchanged. */
 const refusedWithoutChange = Effect.fnUntraced(function* refusedWithoutChange(
   admin: Seeded,
   into: Seeded,
-  from: Seeded,
-  reason: string
+  from: Seeded
 ) {
   const before = yield* snapshot;
 
@@ -59,7 +59,7 @@ const refusedWithoutChange = Effect.fnUntraced(function* refusedWithoutChange(
     mergeAs(admin.personId, into.personId, from.personId)
   );
 
-  assert.include(refusalOf(exit), reason);
+  assert.isTrue(failedWith(exit, Conflict));
   assert.deepStrictEqual(yield* snapshot, before);
 });
 
@@ -144,6 +144,7 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
           const third = yield* seedPerson("mgthird", nothing, LATER);
 
           yield* sql`insert into admin_grant (granted_by, person_id, until) values (${from.personId}, ${third.personId}, ${DateTime.toDateUtc(FAR)})`;
+          const providerBefore = yield* providerSnapshot;
 
           const result = yield* mergeAs(
             admin.personId,
@@ -152,6 +153,7 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
           );
 
           assert.strictEqual(result.into, into.personId);
+          assert.deepStrictEqual(yield* providerSnapshot, providerBefore);
 
           // Every row of the merged person follows the survivor.
           assert.deepStrictEqual(
@@ -163,7 +165,19 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
 
           assert.strictEqual(survivor.membership, 3);
           assert.strictEqual(survivor.account, 1);
-          assert.strictEqual(survivor.auth_user, 1);
+          assert.deepStrictEqual(
+            yield* sql`select payload from outbox where kind = 'RelinkAuthUser' and payload->>'userId' = ${providerUserId(from.personId)}`,
+            [
+              {
+                payload: {
+                  _tag: "RelinkAuthUser",
+                  from: from.personId,
+                  into: into.personId,
+                  userId: providerUserId(from.personId),
+                },
+              },
+            ]
+          );
           assert.strictEqual(survivor.admin_grant, 1);
           assert.strictEqual(survivor.public_file, 1);
 
@@ -213,7 +227,6 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
           const found = yield* scan(from.values);
 
           assert.deepStrictEqual(Arr.sort(Rec.keys(found), Order.String), [
-            "auth_user",
             "captured_mail",
             "outbox",
           ]);
@@ -331,7 +344,25 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
             LATER
           );
 
-          yield* refusedWithoutChange(admin, into, from, "konto");
+          yield* refusedWithoutChange(admin, into, from);
+        })
+    );
+
+    it.effect(
+      "RULE-201: two provider identities refuse a merge even without two domain accounts, and every table stays unchanged",
+      () =>
+        Effect.gen(function* providerConflict() {
+          const sql = yield* SqlClient;
+          const admin = yield* administrator("mgidentityadmin");
+          const into = yield* seedPerson("mgidentity1", nothing, LATER);
+          const from = yield* seedPerson("mgidentity2", nothing, LATER);
+
+          for (const person of [into, from]) {
+            yield* sql`insert into auth.users (id, raw_app_meta_data)
+            values (${providerUserId(person.personId)}, jsonb_build_object('personId', ${person.personId}::integer))`;
+          }
+
+          yield* refusedWithoutChange(admin, into, from);
         })
     );
 
@@ -357,7 +388,7 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
           // The merged person was a member of the survivor's team in the survivor's own semester (HOST 2021).
           yield* sql`update membership set team_id = ${into.teamId} where person_id = ${from.personId}`;
 
-          yield* refusedWithoutChange(admin, into, from, "overlapper");
+          yield* refusedWithoutChange(admin, into, from);
         })
     );
 
@@ -373,7 +404,7 @@ layer(postgresDatabase({ maxConnections: 30 }), { excludeTestServices: true })(
           // The survivor granted the merged person a place: after the merge the survivor would hold a place that they gave themselves.
           yield* sql`insert into admin_grant (granted_by, person_id, until) values (${into.personId}, ${from.personId}, ${DateTime.toDateUtc(FAR)})`;
 
-          yield* refusedWithoutChange(admin, into, from, "administratorplass");
+          yield* refusedWithoutChange(admin, into, from);
         })
     );
 

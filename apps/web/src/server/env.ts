@@ -1,16 +1,6 @@
-/**
- * The Worker's bindings and the per-request context TanStack Start carries.
- *
- * `alchemy.run.ts` declares the bindings and asserts at compile time that its
- * inferred env satisfies `WorkerEnv`, so a renamed or missing binding fails the
- * type check instead of failing in production. `vite.config.ts` declares the
- * same names for standalone `vp dev` (local only).
- */
+/** Runtime bindings for the single Start Worker; secrets never enter browser configuration. */
 import type {
   ExecutionContext,
-  Hyperdrive,
-  Queue,
-  R2Bucket,
   RateLimit,
   SendEmail,
 } from "@cloudflare/workers-types";
@@ -18,42 +8,23 @@ import type {
 import type { ContactFormState } from "./contactPost";
 
 export interface WorkerEnv {
-  /** `local` | `preview` | `production`; decoded by `deployment.ts`, never compared as a raw string elsewhere. */
   readonly DEPLOYMENT: string;
-  /** Neon through Hyperdrive with query caching disabled (locally: `DATABASE_URL`). */
-  readonly HYPERDRIVE: Hyperdrive;
-  /** Stage-scoped Better Auth signing secret; local uses a fake secret. */
-  readonly BETTER_AUTH_SECRET: string;
-  /** R2 bucket `vp-public-files` (EU jurisdiction, no public access). */
-  readonly PUBLIC_FILES: R2Bucket;
-  /** Per-IP limit for the `/kontakt` form post. */
+  /** Server-only Supabase PostgreSQL connection. */
+  readonly DATABASE_URL: string;
+  readonly SUPABASE_URL: string;
+  readonly SUPABASE_PUBLISHABLE_KEY: string;
+  /** Server-only privileged key, not a VITE_ variable. */
+  readonly SUPABASE_SECRET_KEY: string;
   readonly CONTACT_RATE_LIMIT: RateLimit;
-  /** Turnstile site key (public, rendered into the contact form). */
   readonly TURNSTILE_SITE_KEY: string;
-  /** Turnstile secret (Worker secret). */
   readonly TURNSTILE_SECRET_KEY: string;
-  /** The CMS origin (`apps/cms`, EmDash): the public site reads its content from `/_emdash/api/`. A Preview reads its own PR's CMS. */
-  readonly CMS_URL: string;
-  /** A read-only personal access token of the CMS (scopes `content:read`; Worker secret). */
-  readonly CMS_TOKEN: string;
-  /** The origin the site is served from (`https://…`, no trailing slash), for the links in messages. Empty where no real message is sent. */
   readonly SITE_URL: string;
-  /**
-   * The outbox queue (spec 0008b): bound on `production` and `main` only, because a Worker Preview cannot own a queue
-   * consumer. Present: committed ids go on the queue. Absent (a Preview): they are delivered in `waitUntil`.
-   */
-  readonly OUTBOX_QUEUE?: Queue<string>;
-  /** Production only: Cloudflare Email Service binding. */
   readonly SEND_EMAIL?: SendEmail;
-  /** Production only: sender address for outbox e-mail. */
   readonly MAIL_FROM?: string;
-  /** Production only: Slack incoming webhook (Worker secret). */
   readonly SLACK_WEBHOOK_URL?: string;
-  /** `dry-run` (the default when absent) or `write`: the operator's switch for Google Workspace writes (spec 0008). */
   readonly WORKSPACE_MODE?: string;
 }
 
-/** What `src/server.ts` passes into every TanStack Start request. */
 export interface RequestContext {
   readonly env: WorkerEnv;
   readonly ctx: ExecutionContext;
@@ -62,8 +33,6 @@ export interface RequestContext {
 
 declare module "@tanstack/react-router" {
   interface Register {
-    server: {
-      requestContext: RequestContext;
-    };
+    server: { requestContext: RequestContext };
   }
 }

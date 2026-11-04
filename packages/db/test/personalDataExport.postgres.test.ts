@@ -43,6 +43,7 @@ import {
 } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
 import { snapshot } from "./support/snapshot.ts";
+import { providerUserId } from "./support/supabaseAuth.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
 
@@ -68,8 +69,6 @@ const expectedRows = (seeded: Seeded) => ({
   account: seeded.holdings.account ? 1 : 0,
   admin_grant: seeded.holdings.grant ? 1 : 0,
   alumni_request: seeded.holdings.alumniRequest ? 1 : 0,
-  auth_session: seeded.holdings.account ? 1 : 0,
-  auth_user: seeded.holdings.account ? 1 : 0,
   code: seeded.holdings.code ? 1 : 0,
   consent:
     Number(seeded.holdings.keepDetails) +
@@ -79,6 +78,9 @@ const expectedRows = (seeded: Seeded) => ({
   membership: seeded.holdings.memberships,
   person: 1,
   public_file: seeded.holdings.file ? 1 : 0,
+  supabase_identities: seeded.holdings.account ? 1 : 0,
+  supabase_sessions: seeded.holdings.account ? 1 : 0,
+  supabase_users: seeded.holdings.account ? 1 : 0,
 });
 
 /** Everything that belongs to one person alone: their values and their secrets. */
@@ -125,7 +127,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           assert.deepStrictEqual(leaked(text, ola, [ola, kari]), []);
 
-          // The credentials of the person's own are columns that the catalog excludes: no password hash, session token or code hash.
+          // Domain code hashes are never exported; provider records use an explicit safe-column projection.
           for (const secret of ola.secrets) {
             assert.notInclude(text, secret);
           }
@@ -134,11 +136,48 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             assert.strictEqual(countOf(exported, table), rows, table);
           }
 
+          assert.deepStrictEqual(exported.tables.supabase_users, [
+            {
+              created_at: "2026-10-27T12:00:00+00:00",
+              email: "exola.auth@example.org",
+              email_confirmed_at: null,
+              id: providerUserId(ola.personId),
+              last_sign_in_at: null,
+              phone: null,
+              phone_confirmed_at: null,
+              updated_at: "2026-10-27T12:00:00+00:00",
+            },
+          ]);
+          assert.deepStrictEqual(exported.tables.supabase_identities, [
+            {
+              created_at: "2026-10-27T12:00:00+00:00",
+              id: providerUserId(ola.personId),
+              last_sign_in_at: null,
+              provider: "email",
+              updated_at: "2026-10-27T12:00:00+00:00",
+            },
+          ]);
+          assert.deepStrictEqual(exported.tables.supabase_sessions, [
+            {
+              created_at: "2026-10-27T12:00:00+00:00",
+              id: providerUserId(ola.personId),
+              ip: null,
+              not_after: "2099-01-01T00:00:00+00:00",
+              updated_at: "2026-10-27T12:00:00+00:00",
+              user_agent: null,
+            },
+          ]);
+
           // Exactly the tables that the catalog says: every `Rows` table, and none of the excluded ones.
           assert.deepStrictEqual(
             Arr.sort(Rec.keys(exported.tables), Order.String),
             Arr.sort(
-              Arr.map(exportedTables(Catalog), ({ table }) => table),
+              [
+                ...Arr.map(exportedTables(Catalog), ({ table }) => table),
+                "supabase_identities",
+                "supabase_sessions",
+                "supabase_users",
+              ],
               Order.String
             )
           );

@@ -5,12 +5,10 @@ import {
   DepartmentRepository,
   FieldOfStudyRepository,
   PersonRepository,
-  SessionDirectory,
   consentSummary,
 } from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Effect, Predicate } from "effect";
+import { Array as Arr, Effect, Predicate } from "effect";
 
-import { sessionClient } from "../lib/sessionClient";
 import { navigationFor } from "./shell";
 
 export const signInDestination = Effect.gen(function* signInDestination() {
@@ -31,11 +29,6 @@ export const myPage = Effect.gen(function* myPage() {
 
   const person = yield* (yield* PersonRepository).findById(principal.personId);
 
-  const sessions = yield* (yield* SessionDirectory).byPerson(
-    principal.personId,
-    yield* DateTime.now
-  );
-
   const consents = consentSummary(
     yield* (yield* ConsentRepository).of(principal.personId)
   );
@@ -55,14 +48,7 @@ export const myPage = Effect.gen(function* myPage() {
   return {
     _tag: "Person" as const,
     consents,
-    currentSessionId: principal.sessionId ?? null,
     fieldsOfStudy: Arr.flatten(options),
     person,
-    sessions: Arr.map(sessions, (session) => ({
-      ...sessionClient(session.userAgent),
-      createdAt: DateTime.formatIso(session.createdAt),
-      id: session.id,
-      lastSeen: DateTime.formatIso(session.lastSeen),
-    })),
   };
 });

@@ -4,6 +4,7 @@
  * service contracts just far enough for the web runtime, routes and outbox
  * delivery to be exercised. Every value is a fake same-shape value.
  */
+import { ContentEditor } from "@vektorprogrammet/cms-client";
 import {
   AdmissionPeriodRepository,
   AlreadyExists,
@@ -24,6 +25,7 @@ import {
   OutboxDelivery,
   OutboxMessageId,
   OutboxReports,
+  OutboxSweep,
   PublicFileRepository,
   SemesterId,
   SemesterRepository,
@@ -73,7 +75,6 @@ interface OutboxRow {
   status: "pending" | "delivered" | "dead";
   claimToken: OutboxClaimToken | null;
   nextAttemptAt: DateTime.Utc | null;
-  queuedAt?: DateTime.Utc | null;
   lastError: string | null;
 }
 
@@ -408,7 +409,11 @@ const repositories = Layer.effectContext(
             return OutboxClaim.cases.Settled.make({});
           }
 
-          if (row.claimToken !== null) {
+          if (
+            row.claimToken !== null ||
+            (row.nextAttemptAt !== null &&
+              DateTime.isGreaterThan(row.nextAttemptAt, now))
+          ) {
             return OutboxClaim.cases.Held.make({});
           }
 
@@ -425,68 +430,12 @@ const repositories = Layer.effectContext(
             } satisfies ClaimedOutboxMessage,
           });
         }),
-      markDead: (id) =>
-        Effect.sync(() => {
-          const row = rowOf(id);
-
-          if (row === undefined || row.status !== "pending") {
-            return "settled" as const;
-          }
-
-          if (row.claimToken !== null) {
-            return "held" as const;
-          }
-
-          if (row.lastError === null) {
-            return "settled" as const;
-          }
-
-          row.status = "dead";
-
-          return "failed" as const;
-        }),
-      markDelivered: (id, claimToken) =>
-        updateClaim(id, claimToken, (row) => {
-          row.status = "delivered";
-          row.claimToken = null;
-        }),
-      markFailed: (id, claimToken, error, next) =>
-        updateClaim(id, claimToken, (row) => {
-          row.claimToken = null;
-          row.lastError = error;
-          row.nextAttemptAt = next;
-        }),
-      markQueued: (ids) =>
-        Effect.map(DateTime.now, (now) => {
-          for (const row of db.outbox) {
-            if (row.status === "pending" && ids.includes(row.id)) {
-              row.queuedAt = now;
-            }
-          }
-        }),
-      recordFailure: (id, error, next) =>
-        Effect.sync(() => {
-          const row = rowOf(id);
-
-          if (
-            row === undefined ||
-            row.status !== "pending" ||
-            row.claimToken !== null
-          ) {
-            return "settled" as const;
-          }
-
-          row.lastError = error;
-          row.nextAttemptAt = next;
-
-          return "recorded" as const;
-        }),
-      stale: ({ before, limit }) =>
-        Effect.sync(() =>
+      due: ({ limit }) =>
+        Effect.map(DateTime.now, (before) =>
           Arr.take(
             Arr.map(
               Arr.filter(db.outbox, (row) => {
-                const last = row.queuedAt ?? row.nextAttemptAt;
+                const last = row.nextAttemptAt;
 
                 return (
                   row.status === "pending" &&
@@ -499,6 +448,27 @@ const repositories = Layer.effectContext(
             limit
           )
         ),
+      markDelivered: (id, claimToken) =>
+        updateClaim(id, claimToken, (row) => {
+          row.status = "delivered";
+          row.claimToken = null;
+        }),
+      markFailed: (id, claimToken, error, next) =>
+        updateClaim(id, claimToken, (row) => {
+          row.claimToken = null;
+          row.lastError = error;
+          row.nextAttemptAt = next;
+
+          if (
+            row.attempts >= OutboxSweep.DeliveryPolicy.attempts &&
+            !Arr.some(
+              OutboxSweep.DeliveryPolicy.unlimitedKinds,
+              (kind) => kind === row.message._tag
+            )
+          ) {
+            row.status = "dead";
+          }
+        }),
     });
 
     const reports = OutboxReports.of({
@@ -518,10 +488,8 @@ const repositories = Layer.effectContext(
             kind: row.message._tag,
             lastError: row.lastError,
             nextAttemptAt: row.nextAttemptAt ?? now,
-            queuedAt: row.queuedAt ?? null,
             state: deliveryState({
               lastError: row.lastError,
-              queuedAt: row.queuedAt ?? null,
               status: row.status === "dead" ? "dead" : "pending",
             }),
           })
@@ -613,6 +581,7 @@ export const memoryLayer = (
       Layer.mergeAll(
         repositories,
         transactor,
+        Layer.mock(ContentEditor, { list: Effect.succeed([]) }),
         Layer.mock(WorkspaceReports, { latest: Effect.succeedNone }),
         Layer.succeed(CurrentPrincipal, principal),
         Layer.succeed(SiteOrigin, SITE_ORIGIN)

@@ -2,7 +2,6 @@ import { assert, describe, it } from "@effect/vitest";
 import {
   EmailAddress,
   OutboxClaimToken,
-  OutboxDelivery,
   OutboxMessageId,
   OutboxMessage as OutboxMessageSchema,
   OutboxSweep,
@@ -17,16 +16,14 @@ import {
   Duration,
   Effect,
   Layer,
-  Logger,
   Predicate,
   pipe,
 } from "effect";
 import { TestClock } from "effect/testing";
 
 import { AccountDelivery } from "../src/server/accountDelivery";
-import { deliverOutbox, failOutbox } from "../src/server/outboxDelivery";
-import { deliveryDecisions } from "../src/server/outboxQueue";
-import { withEnding, withOutbox } from "../src/server/outboxSweep";
+import { deliverOutbox } from "../src/server/outboxDelivery";
+import { withOutbox } from "../src/server/outboxSweep";
 import { DeliveryFailed, MessageSender } from "../src/server/senders";
 import { makeTables, memoryLayer } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
@@ -181,182 +178,32 @@ describe("outbox delivery by id (spec 0008b)", () => {
   );
 
   it.effect(
-    "a failed send leaves the row pending with the class of the failure and the policy's delay, and is never dead from here",
+    "a retry is not delivered early and the final failure is terminal",
     () =>
-      Effect.gen(function* effectProgram() {
+      Effect.gen(function* retries() {
         const tables = makeTables({ outbox: [pendingRow("a")] });
         const [first] = yield* run(tables, true, ["a"]);
-
         assert.isTrue(Predicate.isTagged(first, "Retrying"));
-        assert.strictEqual(
-          Predicate.isTagged(first, "Retrying") ? first.afterSeconds : -1,
-          Duration.toSeconds(OutboxSweep.retryDelay(1))
-        );
-        assert.strictEqual(tables.outbox[0]?.lastError, "transport down");
-        assert.strictEqual(tables.outbox[0]?.status, "pending");
-        assert.isNull(tables.outbox[0]?.claimToken);
+        const [early] = yield* run(tables, false, ["a"]);
+        assert.isTrue(Predicate.isTagged(early, "Held"));
+        assert.strictEqual(tables.outbox[0]?.attempts, 1);
 
-        // However often it fails, only the dead-letter queue ends it: eight failures in a row stay pending.
         for (
           let attempt = 2;
-          attempt <= OutboxSweep.DeliveryPolicy.attempts + 2;
+          attempt <= OutboxSweep.DeliveryPolicy.attempts;
           attempt += 1
         ) {
           yield* TestClock.adjust("24 hours");
           yield* run(tables, true, ["a"]);
         }
 
-        assert.strictEqual(tables.outbox[0]?.status, "pending");
+        assert.strictEqual(tables.outbox[0]?.status, "dead");
         assert.strictEqual(
           tables.outbox[0]?.attempts,
-          OutboxSweep.DeliveryPolicy.attempts + 2
+          OutboxSweep.DeliveryPolicy.attempts
         );
-
-        // The next delivery that works records it.
-        const [last] = yield* run(tables, false, ["a"]);
-        assert.isTrue(Predicate.isTagged(last, "Delivered"));
-      })
-  );
-
-  it.effect(
-    "the dead-letter queue ends a pending row; a delivered one, a held one and a missing one stay as they are",
-    () =>
-      Effect.gen(function* effectProgram() {
-        const tables = makeTables({
-          outbox: [
-            { ...pendingRow("a"), lastError: "transport down" },
-            { ...pendingRow("b"), status: "delivered" as const },
-            { ...pendingRow("c"), claimToken: OutboxClaimToken.make("live") },
-            pendingRow("d"),
-          ],
-        });
-
-        const results = yield* failOutbox(
-          ids("a", "b", "c", "d", "missing")
-        ).pipe(Effect.provide(services(tables, false)));
-
-        assert.deepStrictEqual(
-          pipe(
-            results,
-            Arr.map((result) => result._tag)
-          ),
-          ["Failed", "Settled", "Held", "Settled", "Settled"]
-        );
-        assert.deepStrictEqual(
-          pipe(
-            tables.outbox,
-            Arr.map((row) => row.status)
-          ),
-          ["dead", "delivered", "pending", "pending"],
-          "row d never failed at a provider (the queue's attempts went on an outage): it stays pending for the sweep"
-        );
-        assert.strictEqual(
-          tables.outbox[0]?.lastError,
-          "transport down",
-          "the class of the last failure is kept"
-        );
-
-        // A dead row is never delivered again, by any message.
-        const sent: OutboxMessage[] = [];
-        yield* run(tables, false, ["a"], sent);
-        assert.strictEqual(sent.length, 0);
-      })
-  );
-
-  it.effect(
-    "an outage that makes every delivery die retries the message with the policy's delay for its own delivery count, not a flat one",
-    () =>
-      Effect.gen(function* backoffOfDefects() {
-        const tables = makeTables({ outbox: [pendingRow("1")] });
-
-        const outage = Layer.mergeAll(
-          services(tables, false),
-          Layer.mock(AccountDelivery, {})
-        );
-
-        const delays = yield* Effect.forEach(
-          Arr.range(1, OutboxSweep.DeliveryPolicy.attempts),
-          (attempts) =>
-            deliveryDecisions([{ attempts, body: "1" }]).pipe(
-              Effect.updateService(OutboxDelivery, (real) =>
-                OutboxDelivery.of({
-                  ...real,
-                  claim: () => Effect.die("the database is unreachable"),
-                })
-              ),
-              Effect.provide(outage),
-              Effect.map((decisions) =>
-                Arr.map(decisions, (decision) =>
-                  Predicate.isTagged(decision, "Retry")
-                    ? decision.afterSeconds
-                    : -1
-                )
-              )
-            )
-        );
-
-        assert.deepStrictEqual(
-          delays.flat(),
-          Arr.map(Arr.range(1, OutboxSweep.DeliveryPolicy.attempts), (n) =>
-            Math.ceil(seconds(n))
-          ),
-          "each delivery's retry waits the policy's delay for its count"
-        );
-        assert.isAbove(
-          delays.flat().at(-1) ?? 0,
-          delays.flat()[0] ?? 0,
-          "and the delay grows: the attempts last hours, not minutes"
-        );
-        assert.strictEqual(
-          tables.outbox[0]?.status,
-          "pending",
-          "nothing was written to the row"
-        );
-      })
-  );
-
-  it.effect(
-    "a sender that dies after the claim is a failure of the row: a class is recorded, the claim is released, the retry waits the policy's delay, and the log holds no address",
-    () =>
-      Effect.gen(function* poisonRow() {
-        const tables = makeTables({ outbox: [pendingRow("1")] });
-        const logged: string[] = [];
-
-        const dying = Layer.mergeAll(
-          memoryLayer(tables),
-          Layer.succeed(
-            MessageSender,
-            MessageSender.of({
-              send: () => Effect.die(new Error("avdeling@example.org")),
-            })
-          ),
-          Layer.mock(AccountDelivery, {}),
-          Layer.mock(WorkspaceWriter, {}),
-          Logger.layer([
-            Logger.map(Logger.formatJson, (line) => {
-              logged.push(line);
-            }),
-          ])
-        );
-
-        const decisions = yield* deliveryDecisions([
-          { attempts: 1, body: "1" },
-        ]).pipe(Effect.provide(dying));
-
-        assert.deepStrictEqual(
-          Arr.map(decisions, (decision) =>
-            Predicate.isTagged(decision, "Retry") ? decision.afterSeconds : -1
-          ),
-          [Math.ceil(seconds(1))]
-        );
-        assert.strictEqual(tables.outbox[0]?.status, "pending");
-        assert.strictEqual(tables.outbox[0]?.lastError, "delivery defect");
-        assert.isNull(tables.outbox[0]?.claimToken);
-        assert.isAbove(logged.length, 0, "the defect was logged");
-        assert.isFalse(
-          Arr.some(logged, (line) => line.includes("avdeling@example.org")),
-          "the log holds the defect's class, never its text"
-        );
+        const [settled] = yield* run(tables, false, ["a"]);
+        assert.isTrue(Predicate.isTagged(settled, "Settled"));
       })
   );
 });
@@ -394,27 +241,9 @@ const commands = [
         verdictOf
       ),
   ],
-  [
-    "failOutbox",
-    (principal: Principal) =>
-      withEnding((client) => client.failOutbox({ ids: [] })).pipe(
-        Effect.provide(layerFor(principal)),
-        verdictOf
-      ),
-  ],
-  [
-    "recordOutboxFailure",
-    (principal: Principal) =>
-      withEnding((client) =>
-        client.recordOutboxFailure({
-          failure: "delivery stack unavailable",
-          messages: [],
-        })
-      ).pipe(Effect.provide(layerFor(principal)), verdictOf),
-  ],
 ] as const;
 
-describe("spec 0006 R1 and spec 0008b: the outbox's four commands are held by the outboxSweep job alone", () => {
+describe("spec 0006 R1 and spec 0008b: the outbox's two commands are held by the outboxSweep job alone", () => {
   it.effect(
     "the job runs each of them; every other principal, an administrator included, is refused",
     () =>

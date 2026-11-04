@@ -7,6 +7,7 @@
  * A server function runs `panelReads.<its own name>`, never a view directly: `test/panelReads.test.ts` fails on a
  * GET function that does not.
  */
+import { ContentEditor } from "@vektorprogrammet/cms-client";
 import { Effect } from "effect";
 
 import { integrationsView } from "./integrations";
@@ -26,6 +27,10 @@ const guarded = <A, E, R>(read: PanelRead, view: Effect.Effect<A, E, R>) =>
 
 export const panelReads = {
   getAdmins: guarded("getAdmins", adminsView),
+  getContent: guarded(
+    "getContent",
+    ContentEditor.use((editor) => editor.list)
+  ),
   getDashboard: guarded("getDashboard", dashboardView),
   getDepartments: guarded("getDepartments", departmentsView),
   getFieldsOfStudy: guarded("getFieldsOfStudy", fieldsOfStudyView),

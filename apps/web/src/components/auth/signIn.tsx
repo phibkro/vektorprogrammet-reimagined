@@ -1,36 +1,34 @@
-/** Adapted from better-auth-ui's base-nova sign-in registry component (MIT). */
-import { useSignInEmail } from "@better-auth-ui/react";
-import { useNavigate } from "@tanstack/react-router";
+import { useHydrated, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/authClient";
+import { authRequest } from "@/lib/authClient";
 import { text } from "@/lib/formText";
 
 export const SignIn = () => {
-  const [remember, setRemember] = useState(false);
   const navigate = useNavigate();
+  const hydrated = useHydrated();
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  const signIn = useSignInEmail(authClient, {
-    onSuccess: () => {
-      void navigate({ to: "/etter-innlogging" });
-    },
-  });
-
-  const submit = (event: {
-    currentTarget: HTMLFormElement;
-    preventDefault: () => void;
-  }) => {
+  const submit: React.ComponentProps<"form">["onSubmit"] = (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    signIn.mutate({
+    setPending(true);
+    setFailed(false);
+    void authRequest("sign-in/email", {
       email: text(form, "email"),
       password: text(form, "password"),
-      rememberMe: remember,
-    });
+    })
+      .then(() => navigate({ to: "/etter-innlogging" }))
+      .catch(() => {
+        setFailed(true);
+      })
+      .finally(() => {
+        setPending(false);
+      });
   };
 
   return (
@@ -39,7 +37,7 @@ export const SignIn = () => {
         <CardTitle>Logg inn</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4" onSubmit={submit}>
+        <form className="grid gap-4" method="post" onSubmit={submit}>
           <label className="grid gap-1" htmlFor="email">
             E-post
             <Input
@@ -60,16 +58,8 @@ export const SignIn = () => {
               type="password"
             />
           </label>
-          <label className="flex items-center gap-2" htmlFor="remember">
-            <Checkbox
-              checked={remember}
-              id="remember"
-              onCheckedChange={setRemember}
-            />{" "}
-            Husk meg
-          </label>
-          {signIn.isError && <p role="alert">Feil e-post eller passord.</p>}
-          <Button disabled={signIn.isPending} type="submit">
+          {failed && <p role="alert">Feil e-post eller passord.</p>}
+          <Button disabled={!hydrated || pending} type="submit">
             Logg inn
           </Button>
           <a href="/glemt-passord">Glemt passord?</a>

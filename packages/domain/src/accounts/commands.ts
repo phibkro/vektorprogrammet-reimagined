@@ -6,7 +6,7 @@
  * administrator, which spans every administrator, so they lock the admin list before the person; `deactivateAccount`
  * decides through its token whether the person is the last Active administrator.
  */
-import { DateTime, Effect, Option, Predicate } from "effect";
+import { DateTime, Effect, Option } from "effect";
 
 import { recordAudit } from "../audit/auditLog.ts";
 import * as Commands from "../kernel/commands.ts";
@@ -20,9 +20,6 @@ import { Outbox } from "../shared/outbox.ts";
 import { InTransaction } from "../shared/transaction.ts";
 import { personResource } from "../teams/personResource.ts";
 import { PersonRepository } from "../teams/services.ts";
-import { hashCode } from "./code.ts";
-import type { CodePurpose, CodeToken } from "./code.ts";
-import { CodeRepository } from "./codeRepository.ts";
 import {
   AccountDomain,
   AccountMachine,
@@ -31,14 +28,11 @@ import {
   createAccount,
   deactivateAccount,
   reactivateAccount,
-  requestPasswordReset,
-  resetPassword,
   updatePerson,
 } from "./declaration.ts";
 import type { Account } from "./entities.ts";
-import { IssueCodeMessage, SetCredentialMessage } from "./messages.ts";
-import { PasswordHasher } from "./passwordHasher.ts";
-import { codeResource, personOf, runWithCode } from "./principal.ts";
+import { InviteAccountMessage } from "./messages.ts";
+import { personOf } from "./principal.ts";
 import { AccountRepository } from "./services.ts";
 
 const conflict = (personId: number) =>
@@ -65,23 +59,6 @@ const lockAccount = Effect.fn("Account.lock")(function* lockAccount(
   }
 
   return { account: found.value, locked };
-});
-
-const consumeCode = Effect.fn("Account.consumeCode")(function* consumeCode(
-  locked: Locked<"Person">,
-  purpose: CodePurpose,
-  token: CodeToken,
-  now: DateTime.Utc
-) {
-  const codes = yield* CodeRepository;
-  const hash = yield* Effect.orDie(hashCode(token));
-  const consumed = yield* codes.consume(locked, { hash, now, purpose });
-
-  if (!consumed) {
-    return yield* conflict(locked.id);
-  }
-
-  return yield* Effect.void;
 });
 
 /**
@@ -113,39 +90,18 @@ const changeState = Effect.fn("Account.changeState")(function* changeState(
   return yield* (yield* AccountRepository).transition(locked, transition);
 });
 
-const queueCredential = Effect.fn("Account.queueCredential")(
-  function* queueCredential(
-    personId: PersonId,
-    password: string,
-    revokeSessions: boolean
-  ) {
-    const hasher = yield* PasswordHasher;
-    const outbox = yield* Outbox;
-    const passwordHash = yield* hasher.hash(password);
-    yield* outbox.enqueue([
-      SetCredentialMessage.make({
-        passwordHash,
-        personId,
-        revokeSessions,
-      }),
-    ]);
-  }
-);
-
 export const AccountHandlers = AccountRpc.toLayer({
   activateAccount: AccountDomain.handle(activateAccount, {
-    resource: () => codeResource,
-    run: ({ code, password }, principal) =>
+    resource: ({ personId }) => Effect.succeed({ personId }),
+    run: ({ personId, email }, principal) =>
       Effect.gen(function* activation() {
         yield* InTransaction;
-        const personId = personOf(principal);
-
-        if (personId === null) {
-          return yield* Effect.die("activation needs a code principal");
-        }
-
-        const now = yield* DateTime.now;
         const { account, locked } = yield* lockAccount(personId);
+        const person = yield* (yield* PersonRepository).findLocked(locked);
+
+        if (person.email !== email) {
+          return yield* conflict(personId);
+        }
 
         const activated = yield* changeState(
           locked,
@@ -155,9 +111,7 @@ export const AccountHandlers = AccountRpc.toLayer({
           false
         );
 
-        yield* consumeCode(locked, "activation", code, now);
         yield* (yield* AccountRepository).verifyEmail(locked);
-        yield* queueCredential(personId, password, false);
         yield* recordAudit(principal, "account.activated", "Account", personId);
 
         return activated;
@@ -174,12 +128,7 @@ export const AccountHandlers = AccountRpc.toLayer({
         // `personResource` took the lock before authorization: it is held, and this returns its token.
         const locked = yield* (yield* AggregateLocks).lock("Person", personId);
         const account = yield* accounts.invite(locked);
-        yield* outbox.enqueue([
-          IssueCodeMessage.make({
-            personId,
-            purpose: "activation",
-          }),
-        ]);
+        yield* outbox.enqueue([InviteAccountMessage.make({ personId })]);
         yield* recordAudit(principal, "account.invited", "Account", personId);
 
         return account;
@@ -242,78 +191,6 @@ export const AccountHandlers = AccountRpc.toLayer({
         return updated;
       }),
   }),
-  requestPasswordReset: AccountDomain.handle(requestPasswordReset, {
-    resource: () => Effect.succeed({}),
-    run: ({ email }) =>
-      Effect.gen(function* requestReset() {
-        yield* InTransaction;
-        const accounts = yield* AccountRepository;
-        const people = yield* PersonRepository;
-        const candidate = yield* accounts.findActiveByPrivateEmail(email);
-
-        if (Option.isNone(candidate)) {
-          return;
-        }
-
-        const { personId } = candidate.value;
-
-        const locked = yield* (yield* AggregateLocks)
-          .lock("Person", personId)
-          .pipe(Effect.option);
-
-        if (Option.isNone(locked)) {
-          return;
-        }
-
-        // Recheck both the address and the state through the lock: they may have changed since the candidate was found.
-        const person = yield* people.findLocked(locked.value);
-        const current = yield* accounts.findLocked(locked.value);
-
-        if (
-          person.email === email &&
-          Option.exists(current, (account) =>
-            Predicate.isTagged(account.state, "Active")
-          )
-        ) {
-          yield* (yield* Outbox).enqueue([
-            IssueCodeMessage.make({
-              personId,
-              purpose: "resetPassword",
-            }),
-          ]);
-        }
-      }),
-  }),
-  resetPassword: AccountDomain.handle(resetPassword, {
-    resource: () => codeResource,
-    run: ({ code, password }, principal) =>
-      Effect.gen(function* resetAccountPassword() {
-        yield* InTransaction;
-        const personId = personOf(principal);
-
-        if (personId === null) {
-          return yield* Effect.die("password reset needs a code principal");
-        }
-
-        const now = yield* DateTime.now;
-        const { account, locked } = yield* lockAccount(personId);
-
-        if (!Predicate.isTagged(account.state, "Active")) {
-          return yield* conflict(personId);
-        }
-
-        yield* consumeCode(locked, "resetPassword", code, now);
-        yield* queueCredential(personId, password, true);
-        yield* recordAudit(
-          principal,
-          "account.passwordReset",
-          "Account",
-          personId
-        );
-
-        return yield* Effect.void;
-      }),
-  }),
   updatePerson: AccountDomain.handle(updatePerson, {
     resource: ({ personId }) =>
       personResource(AccountDomain.authorize, "updatePerson", personId),
@@ -344,12 +221,7 @@ export const withAccounts = Commands.inProcess(AccountRpc, AccountHandlers);
 
 export const AccountEndpoints = {
   activateAccount: Commands.endpoint(activateAccount, (payload) =>
-    runWithCode(
-      AccountDomain,
-      "activation",
-      payload.code,
-      withAccounts((client) => client.activateAccount(payload))
-    )
+    withAccounts((client) => client.activateAccount(payload))
   ),
   createAccount: Commands.endpoint(createAccount, (payload) =>
     withAccounts((client) => client.createAccount(payload))
@@ -359,17 +231,6 @@ export const AccountEndpoints = {
   ),
   reactivateAccount: Commands.endpoint(reactivateAccount, (payload) =>
     withAccounts((client) => client.reactivateAccount(payload))
-  ),
-  requestPasswordReset: Commands.endpoint(requestPasswordReset, (payload) =>
-    withAccounts((client) => client.requestPasswordReset(payload))
-  ),
-  resetPassword: Commands.endpoint(resetPassword, (payload) =>
-    runWithCode(
-      AccountDomain,
-      "resetPassword",
-      payload.code,
-      withAccounts((client) => client.resetPassword(payload))
-    )
   ),
   updatePerson: Commands.endpoint(updatePerson, (payload) =>
     withAccounts((client) => client.updatePerson(payload))

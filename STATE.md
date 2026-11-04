@@ -1,6 +1,18 @@
 # State
 
-**Lifecycle:** build (spec 0008b, outbox delivery on Cloudflare Queues; spec 0008 is merged)
+**Lifecycle:** build — spec 0024, single Start Worker + Supabase prototype. Earlier implementation history below is retained as provenance, not current deployment guidance.
+
+## Current prototype (2026-11-04)
+
+- Architecture: one Start Worker, Supabase Postgres/Auth/Storage, in-app content editor, due-safe Postgres outbox delivery; Terraform owns hosted Worker artifacts and selected existing-project settings. No remote import/plan/apply or deployment has run.
+- The local prototype is running. Spec `docs/specs/0024-supabase-prototype.md` records the exercised journeys and evidence limits. The integration baseline passed 1,213 tests in 10 units. Final UI/RLS fixes passed focused SQL/Auth checks, native API probes, compiled-browser regressions and the membership model/code run. The full workspace suite was not repeated after those final changes.
+- Startup and synthetic account references: `tools/prototype/README.md`, `apps/web/README.md`, `packages/domain/src/localPeople.ts`. Secrets/captured links stay outside Git and logs. Local CLI defaults and non-loopback published ports make this synthetic-only.
+- Native provider credentials/recovery replace old custom code purposes; alumni consent remains application-specific. Provider erasure/relink is durable external work, with explicit pending/manual-editorial disclosures. Existing full modernization production gates still apply.
+- Plugin 0.2.0 overlapping role groups leave application-only rules active at framework roots; root lint configuration contains a narrow applicability correction for actual auth route/browser roots. Retire it when the maintained plugin resets non-applicable rules across overlaps.
+- A real signed-in legacy-file request exposed a raw-Worker/Start cookie-context boundary error. The redirect now uses only the public registry layer. Its updated browser case passed for anonymous and signed-in requests.
+- The membership model and code checks ran, but its artifact-digest warning names uncommitted covered files. This is not an exact-commit proof or a proof of provider lifecycle behavior.
+- Compiled-Worker verification found and fixed the editor SDK's import-time randomness during SSR. Only the browser editor is lazy/client-only. The protected page still renders server-side and refuses the leader with HTTP 403. The content journey failed before and passed after the fix.
+- Supabase's inherited Data API grants exposed domain tables before RLS. The shared Drizzle factory now enables RLS without browser policies. Real anonymous/authenticated reads returned no rows and inserts failed with SQLSTATE 42501. The server connection must own/bypass the tables and retain required Auth-schema reads. Local live RPC/view inventory found no bypass; hosted projects still need that inventory.
 
 ## Done
 

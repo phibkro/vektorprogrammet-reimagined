@@ -50,10 +50,6 @@ describe("spec 0007c R2: a refusal names a command of its domain", () => {
 
   it("the code endpoints refuse with the command of the code's purpose, and that is a command of the domain that runs it", () => {
     expectTypeOf<
-      (typeof codePolicy)["activation" | "resetPassword"]["command"]
-    >().toExtend<AccountNames>();
-
-    expectTypeOf<
       (typeof codePolicy)["alumniConsent"]["command"]
     >().toExtend<PersonalDataNames>();
 

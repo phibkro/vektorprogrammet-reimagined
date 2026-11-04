@@ -1,28 +1,12 @@
-/**
- * Spec 0005, the public site in a browser, against `vp dev` (the `local` deployment), a CMS that is EmDash itself
- * (`apps/cms` under `astro dev`, `e2e/support/cms.ts`) holding the default copy of `apps/cms/seed/seed.json` and
- * the importer's fake articles, texts and sponsors, and a PostgreSQL database that the importer filled from its
- * fake legacy fixture. The pages read the CMS over its REST API with a token and the departments from
- * PostgreSQL: these tests check what an anonymous visitor sees. `journey.spec.ts` runs first (Playwright takes
- * the files in name order) and leaves its own departments behind, so what the pages must list about departments
- * is read from the database, not written here.
- *
- * Falsifier 1: every page renders from the CMS and PostgreSQL. Falsifier 2: an edit published in the CMS shows
- * without a deploy. Falsifier 3: the contact form queues its notifications in one transaction. Falsifier 5: the
- * legacy URLs answer 301.
+/** Public pages, real private Storage, PostgreSQL content, and the in-app editor.
+ * The content and organisation fixtures are synthetic; publication is exercised through the UI.
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/domain";
 import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
-import {
-  paragraph,
-  publishText,
-  readText,
-  runCms,
-  saveText,
-} from "./support/editor.ts";
-import { openPage, screenshot } from "./support/panel.ts";
+import { openPage, screenshot, signIn } from "./support/panel.ts";
 import {
   LEGACY_FILE_KEY,
   activeDepartments,
@@ -62,11 +46,47 @@ test("falsifier 5: a registered public file serves bytes and headers; an unknown
   expect(unknown.status()).toBe(404);
 });
 
+test("pre-hydration sign-in never sends credentials in the URL", async ({
+  browser,
+}) => {
+  const { origin } = new URL(test.info().project.use.baseURL ?? "");
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+
+  try {
+    await page.goto(`${origin}/logg-inn`);
+    await expect(
+      page.getByRole("button", { exact: true, name: "Logg inn" })
+    ).toBeDisabled();
+    await page
+      .getByLabel("E-post", { exact: true })
+      .fill("pre-hydration@example.org");
+    await page.getByLabel("Passord", { exact: true }).fill(LOCAL_FAKE_PASSWORD);
+
+    // Even a forced native submit must use the body, never the address or its history.
+    const [response] = await Promise.all([
+      page.waitForResponse((incoming) =>
+        incoming.request().isNavigationRequest()
+      ),
+      page.locator("form").evaluate((form: HTMLFormElement) => {
+        form.submit();
+      }),
+    ]);
+
+    expect(response.request().method()).toBe("POST");
+    const destination = new URL(response.url());
+    expect(destination.searchParams.has("email")).toBe(false);
+    expect(destination.searchParams.has("password")).toBe(false);
+  } finally {
+    await context.close();
+  }
+});
+
 /** The visible heading of a page: its one `h1`. */
 const heading = (page: Page, name: string) =>
   page.getByRole("heading", { exact: true, level: 1, name });
 
-/** A page of the site, the `h1` it shows and the `h2` headings that its CMS texts and layout give it. */
+/** A page of the site, its visible heading and the headings supplied by its content and layout. */
 const PAGES = [
   {
     h1: "Om Vektorprogrammet",
@@ -90,13 +110,13 @@ const PAGES = [
   },
 ] as const;
 
-test("falsifier 1: the home page shows the CMS's tagline, its published news and its sponsors, and the admission state of PostgreSQL", async ({
+test("falsifier 1: home renders published content and the department admission state", async ({
   page,
 }) => {
   await openPage(page, "/");
 
   await expect(heading(page, "Vektorprogrammet")).toBeVisible();
-  // The tagline is the default copy of the CMS's `home-tagline` text.
+  // The tagline comes from the published content fixture.
   await expect(
     page.getByText("Vektorprogrammet arbeider for å øke interessen")
   ).toBeVisible();
@@ -105,7 +125,7 @@ test("falsifier 1: the home page shows the CMS's tagline, its published news and
     page.getByRole("heading", { name: "Opptaket er stengt for øyeblikket." })
   ).toBeVisible();
 
-  // The importer put one published article and two drafts in the CMS: only the published one is news.
+  // The fixture contains one published article and two drafts: only the published one is news.
   const news = page.getByRole("region", { name: "Nyheter" });
   await expect(
     news.getByRole("link", { name: /Opptak åpner/u })
@@ -127,9 +147,7 @@ test("falsifier 1: the home page shows the CMS's tagline, its published news and
 });
 
 for (const { h1, h2, path } of PAGES) {
-  test(`falsifier 1: ${path} renders its texts from the CMS`, async ({
-    page,
-  }) => {
+  test(`falsifier 1: ${path} renders its published texts`, async ({ page }) => {
     await openPage(page, path);
 
     await expect(heading(page, h1)).toBeVisible();
@@ -144,7 +162,7 @@ for (const { h1, h2, path } of PAGES) {
   });
 }
 
-test("falsifier 1: the FAQ of /assistenter and /team are the CMS's `faq` entries", async ({
+test("falsifier 1: /assistenter and /team show their published FAQ entries", async ({
   page,
 }) => {
   const questions = page.locator("[data-slot='accordion-trigger']");
@@ -201,7 +219,7 @@ test("falsifier 1: /team, /nyheter, /kontakt and /skoler list the departments of
   }
 });
 
-test("falsifier 1: the news list and an article come from the CMS; a draft is not public (RULE-267)", async ({
+test("falsifier 1: published news is public and drafts are not (RULE-267)", async ({
   page,
 }) => {
   await openPage(page, "/nyheter");
@@ -214,7 +232,10 @@ test("falsifier 1: the news list and an article come from the CMS; a draft is no
   await page.getByRole("link", { name: /Opptak åpner/u }).click();
   await expect(page).toHaveURL(/\/nyhet\/opptak-apner$/u);
   await expect(heading(page, "Opptak åpner")).toBeVisible();
-  // RULE-133: the legacy article had a <script>; the importer's sanitiser removed it, and the page never runs one.
+  await expect(page.getByRole("main")).toContainText(
+    "Opptaket er åpent for søknader."
+  );
+  // Published portable text must not produce executable script elements.
   await expect(page.getByRole("main")).not.toContainText("alert(1)");
   await expect(page.getByRole("main").locator("script")).toHaveCount(0);
   await screenshot(page, "public-article");
@@ -225,41 +246,53 @@ test("falsifier 1: the news list and an article come from the CMS; a draft is no
   }
 });
 
-/** The text a published edit puts in the CMS, and the text the page starts with. */
-const EDITED_TAGLINE = "Teksten ble endret av en redaktør i CMS-et.";
+const EDITED_TAGLINE = "Teksten ble endret av en redaktør.";
 
-test("falsifier 2: a text saved in the CMS is not public until it is published, and then it shows without a deploy", async ({
+test("a saved draft is private until an editor publishes it", async ({
   page,
+  browser,
 }) => {
-  const original = await runCms(readText("home-tagline"));
+  const { origin } = new URL(test.info().project.use.baseURL ?? "");
+  const context = await browser.newContext();
+  const editor = await context.newPage();
+  const pageErrors: string[] = [];
+  editor.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+  });
+  await signIn(editor, origin, "ada.admin@example.org", LOCAL_FAKE_PASSWORD);
+  await openPage(editor, `${origin}/kontrollpanel/innhold`);
+  await editor
+    .getByRole("listitem")
+    .filter({ hasText: "home-tagline" })
+    .getByRole("button", { name: "Rediger" })
+    .click();
+  const content = editor.getByLabel("Innhold", { exact: true });
+  const original = await content.textContent();
 
+  if (original === null) {
+    throw new Error("Editor content is missing");
+  }
+
+  await content.fill(EDITED_TAGLINE);
+  await editor.getByRole("button", { name: "Lagre utkast" }).click();
+  await expect(editor.getByRole("status")).toContainText("Utkastet er lagret");
   await openPage(page, "/");
   await expect(page.getByText(EDITED_TAGLINE)).toHaveCount(0);
-
-  // An editor's save of a published text is a draft: the visitor still reads the published one.
-  await runCms(
-    saveText("home-tagline", {
-      ...original.data,
-      content: paragraph(EDITED_TAGLINE),
-    })
+  await editor.getByRole("button", { name: "Publiser lagret utkast" }).click();
+  await expect(editor.getByRole("status")).toContainText(
+    "Utkastet er publisert"
   );
   await openPage(page, "/");
-  await expect(page.getByText(EDITED_TAGLINE)).toHaveCount(0);
-  await expect(
-    page.getByText("Vektorprogrammet arbeider for å øke interessen")
-  ).toBeVisible();
-
-  // Publishing makes it the page's text on the next request: nothing is built, deployed or restarted.
-  await runCms(publishText("home-tagline"));
-  await openPage(page, "/");
   await expect(page.getByText(EDITED_TAGLINE)).toBeVisible();
-  await screenshot(page, "public-home-edited");
-
-  // Put the original back (and publish it), so that no later test sees the edit.
-  await runCms(saveText("home-tagline", original.data));
-  await runCms(publishText("home-tagline"));
-  await openPage(page, "/");
-  await expect(page.getByText(EDITED_TAGLINE)).toHaveCount(0);
+  await content.fill(original);
+  await editor.getByRole("button", { name: "Lagre utkast" }).click();
+  await expect(editor.getByRole("status")).toContainText("Utkastet er lagret");
+  await editor.getByRole("button", { name: "Publiser lagret utkast" }).click();
+  await expect(editor.getByRole("status")).toContainText(
+    "Utkastet er publisert"
+  );
+  await context.close();
+  expect(pageErrors).toEqual([]);
 });
 
 /** What the form needs to be sent: three fields and a message (an ASCII address: the browser refuses `ø` before the `@`). */
@@ -399,6 +432,7 @@ for (const [from, to] of ALIASES) {
 
 test("falsifier 5: a legacy file path answers 301 to the registered file, and an unregistered one is 404", async ({
   request,
+  page,
 }) => {
   const legacyPath = "images/Logo images/e2e-logo.png";
   const url = "/images/Logo%20images/e2e-logo.png";
@@ -407,11 +441,20 @@ test("falsifier 5: a legacy file path answers 301 to the registered file, and an
   expect(unregistered.status()).toBe(404);
 
   await runDatabase(registerLegacyFile(legacyPath));
-  const response = await request.get(url, { maxRedirects: 0 });
-  await runDatabase(forgetLegacyFile);
 
-  expect(response.status()).toBe(301);
-  expect(response.headers().location).toBe(`/filer/${LEGACY_FILE_KEY}`);
+  try {
+    const response = await request.get(url, { maxRedirects: 0 });
+    expect(response.status()).toBe(301);
+    expect(response.headers().location).toBe(`/filer/${LEGACY_FILE_KEY}`);
+
+    const { origin } = new URL(test.info().project.use.baseURL ?? "");
+    await signIn(page, origin, "ada.admin@example.org", LOCAL_FAKE_PASSWORD);
+    const signedIn = await page.request.get(url, { maxRedirects: 0 });
+    expect(signedIn.status()).toBe(301);
+    expect(signedIn.headers().location).toBe(`/filer/${LEGACY_FILE_KEY}`);
+  } finally {
+    await runDatabase(forgetLegacyFile);
+  }
 });
 
 test("falsifier 5: the receipt address of the contact form answers 301 to the department's page", async ({

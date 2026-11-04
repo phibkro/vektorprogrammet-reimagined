@@ -97,8 +97,16 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
+      files: ["apps/web/src/lib/authClient.ts"],
+      platform: "browser",
+      role: "composition-root",
+      strictness: "strict",
+    },
+    {
       files: [
         "apps/web/src/server.ts",
+        "apps/web/src/routes/aktiver.tsx",
+        "apps/web/src/routes/auth/confirm.ts",
         "apps/web/src/server/authStartup.ts",
         "apps/web/src/server/runtime.ts",
         "apps/web/src/server/contactPost.ts",
@@ -115,7 +123,7 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
-      files: ["tools/import/src/**"],
+      files: ["tools/import/src/**", "tools/prototype/seed.ts"],
       platform: "node",
       role: "composition-root",
       strictness: "strict",
@@ -314,6 +322,28 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     overrides: [
       ...effectConfigResult.overrides,
+      // Plugin 0.2.0 does not reset rules absent from a later overlapping role. These are real framework roots.
+      {
+        files: [
+          "apps/web/src/lib/authClient.ts",
+          "apps/web/src/routes/aktiver.tsx",
+          "apps/web/src/routes/auth/confirm.ts",
+        ],
+        rules: {
+          "effect/no-native-promise-control-flow": "off",
+          "effect/no-premature-execution": "off",
+        },
+      },
+      // Persisted wire-format expectations must remain independent of the constructors they verify.
+      {
+        files: [
+          "packages/db/test/personalDataErasure.postgres.test.ts",
+          "packages/db/test/personalDataMerge.postgres.test.ts",
+          "packages/db/test/retentionCascade.postgres.test.ts",
+          "packages/domain/test/outbox/messages.test.ts",
+        ],
+        rules: { "anti-slop-effect/no-manual-tagged-construction": "off" },
+      },
       // No import cycle between files of a package, type-only imports included (ADR 0015, stage 1). The files and the
       // cycles that `tools/quality/checkModuleGraph.ts` looks for are the declaration's `acyclic` globs.
       {
@@ -385,6 +415,7 @@ export default defineConfig({
         // These framework entry callbacks return the Effect runtime's Promise; requiring async wrappers conflicts with the Effect async-function rule.
         files: [
           "apps/web/src/functions/public.functions.ts",
+          "apps/web/src/functions/content.functions.ts",
           "apps/web/src/components/forms.tsx",
           "apps/web/src/routes/filer/$key.ts",
           "apps/web/src/routes/kontakt/*.tsx",
@@ -408,6 +439,7 @@ export default defineConfig({
         // unicorn/throw-new-error treats Schema.TaggedError class definitions as throw sites; they contain no throw.
         files: [
           "packages/domain/src/shared/errors.ts",
+          "tools/prototype/seed.ts",
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
@@ -540,6 +572,7 @@ export default defineConfig({
         // promise/prefer-await-to-then and typescript/promise-function-async conflict with effecttsgo/async-function at TanStack, React, Playwright-runner and Miniflare Promise ABIs.
         files: [
           "apps/web/src/server.ts",
+          "tools/prototype/seed.ts",
           "apps/web/src/server/runtime.ts",
           "apps/web/src/server/contactPost.ts",
           "apps/web/src/server/accountPost.ts",
@@ -721,6 +754,7 @@ export default defineConfig({
       ...effectConfigResult.rules,
       ...tsgoRules,
       ...localAntiSlopRules,
+      // The Promise style preset requires async/await; Effect-native forbids it outside host ABIs.
       "complexity/complexity": ["error", { cognitive: 15 }],
       // Effect's language service reads `@effect-leakable-service` from a service's JSDoc (`InTransaction`, spec 0006b).
       "jsdoc/check-tag-names": [
@@ -731,6 +765,9 @@ export default defineConfig({
         "error",
         { patterns: restrictedImportPatterns([], restrictedSourcePatterns) },
       ],
+      "promise/prefer-await-to-callbacks": "off",
+      "promise/prefer-await-to-then": "off",
+      "typescript/promise-function-async": "off",
       // Workspace modules consistently use lower camelCase filenames.
       "unicorn/filename-case": ["error", { case: "camelCase" }],
       // Preset contradiction: effecttsgo(prefer-effect-array) requires Effect's data-first Array module

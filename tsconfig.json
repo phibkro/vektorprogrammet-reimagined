@@ -310,6 +310,31 @@
           },
           {
             "include": [
+              "apps/web/src/lib/authClient.ts",
+              "../../apps/web/src/lib/authClient.ts"
+            ],
+            "options": {
+              "allowedUnstableApis": [
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/Crypto",
+                "effect/PlatformError",
+                "effect/Stdio",
+                "effect/rpc/Rpc",
+                "effect/rpc/RpcGroup",
+                "effect/rpc/RpcClient",
+                "effect/rpc/RpcServer",
+                "effect/http/FetchHttpClient",
+                "effect/http/Headers",
+                "effect/http/HttpClient",
+                "effect/http/HttpClientError",
+                "effect/http/HttpClientRequest",
+                "effect/http/HttpClientResponse"
+              ]
+            }
+          },
+          {
+            "include": [
               "packages/cms-client/src/**/*.ts",
               "packages/cms-client/src/**/*.tsx",
               "../../packages/cms-client/src/**/*.ts",

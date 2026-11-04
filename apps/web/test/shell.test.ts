@@ -5,7 +5,7 @@
  *
  *  1. the sidebar changes when one fact about the principal changes (a leader flag, a team's function, the
  *     department, an admin place), so no role list stands behind it;
- *  2. the shell view carries that sidebar, and the local test-actor switch only in a `local` deployment;
+ *  2. the shell view carries that sidebar and the signed-in actor;
  *  3. every control a page offers is shown exactly when the command behind it would not refuse the principal
  *     (`Forbidden`): the view and the command read the same decision, and this test is the edge between them.
  *
@@ -50,6 +50,7 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "people",
   "admins",
   "integrations",
+  "content",
   "socialEvents",
 ];
 
@@ -125,10 +126,10 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
       ["people"]
     );
 
-    // The admin place is the only difference: the admin list and Integrations are for administrators.
+    // The admin place is the only difference: only administrators manage admin places, integrations and content.
     assert.deepStrictEqual(
       Arr.difference(sectionsOf(ADMIN), sectionsOf(leaderOf(1))),
-      ["admins", "integrations"]
+      ["admins", "integrations", "content"]
     );
 
     // The department is the only difference: the facts are the person's own department's, so the sections are the
@@ -136,45 +137,28 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
     assert.deepStrictEqual(sectionsOf(leaderOf(2)), sectionsOf(leaderOf(1)));
   });
 
-  it.effect(
-    "the shell view carries the sidebar, who is acting, and the test-actor switch only in a local deployment",
-    () =>
-      Effect.gen(function* shellViewEffect() {
-        const tables = makeTables();
-        yield* seedWorld(tables);
+  it.effect("the shell view carries the sidebar and the current actor", () =>
+    Effect.gen(function* shellViewEffect() {
+      const tables = makeTables();
+      yield* seedWorld(tables);
 
-        const leader = leaderOf(TRONDHEIM, { personId: PEOPLE.lise });
+      const leader = leaderOf(TRONDHEIM, { personId: PEOPLE.lise });
 
-        const local = assertSuccess(
-          yield* viewAs(tables, leader, shellView("local"))
-        );
+      const local = assertSuccess(yield* viewAs(tables, leader, shellView));
 
-        const preview = assertSuccess(
-          yield* viewAs(tables, leader, shellView("preview"))
-        );
+      const visitor = assertSuccess(
+        yield* viewAs(tables, anonymous, shellView)
+      );
 
-        const visitor = assertSuccess(
-          yield* viewAs(tables, anonymous, shellView("local"))
-        );
-
-        assert.deepStrictEqual(local.navigation, navigationFor(leader));
-        assert.deepStrictEqual(local.actor, {
-          admin: false,
-          leader: true,
-          member: true,
-          name: "Lise Leder",
-        });
-        assert.deepStrictEqual(local.testActors, [
-          "Ada Admin",
-          "Bjorn Bergen",
-          "Eva Ekstern",
-          "Lise Leder",
-          "Mats Medlem",
-          "Nora Neste",
-        ]);
-        assert.isNull(preview.testActors);
-        assert.deepStrictEqual([visitor.actor, visitor.navigation], [null, []]);
-      })
+      assert.deepStrictEqual(local.navigation, navigationFor(leader));
+      assert.deepStrictEqual(local.actor, {
+        admin: false,
+        leader: true,
+        member: true,
+        name: "Lise Leder",
+      });
+      assert.deepStrictEqual([visitor.actor, visitor.navigation], [null, []]);
+    })
   );
 });
 

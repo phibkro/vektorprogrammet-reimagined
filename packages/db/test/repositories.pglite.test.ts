@@ -450,11 +450,10 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
           ),
           "recorded"
         );
-        assert.strictEqual(yield* delivery.markDead(second.id), "failed");
         assert.deepStrictEqual(
           yield* claimTags,
-          ["Settled", "Settled"],
-          "a delivered row and a dead row are both settled"
+          ["Settled", "Held"],
+          "a delivered row is settled and a retry is not due"
         );
       })
   );

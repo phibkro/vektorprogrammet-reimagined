@@ -45,6 +45,7 @@ export const Hold = Schema.Struct({
 });
 
 export const ErasureResult = Schema.Struct({
+  editorialReview: Schema.Array(Schema.String),
   /** `false` when nothing was left to erase: a second call changes nothing. */
   erased: Schema.Boolean,
   /** Rows that a legal hold keeps, with the date when the hold ends. */

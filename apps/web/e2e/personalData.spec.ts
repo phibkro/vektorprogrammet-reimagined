@@ -22,7 +22,6 @@ import {
 } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Order, Schema } from "effect";
 
-import { ANONYMOUS_CHOICE } from "../src/lib/testActor.ts";
 import { RETENTION_CRON } from "../worker.config.ts";
 import {
   TEST_ADMIN,
@@ -64,13 +63,9 @@ const decodeExportFile = Schema.decodeEffect(Schema.fromJsonString(ExportFile));
 
 const originOf = () => new URL(test.info().project.use.baseURL ?? "").origin;
 
-/**
- * A page of a browser context of its own whose actor is nobody. Without the cookie the local stack acts as Ada Admin
- * (`ANONYMOUS_CHOICE` chooses nobody), and Ada's grants would hide a code that opened too much.
- */
+/** A fresh browser context has no provider session. */
 const visitorPage = async (browser: Browser) => {
   const context = await browser.newContext();
-  await signInAs(context, ANONYMOUS_CHOICE);
 
   return await context.newPage();
 };

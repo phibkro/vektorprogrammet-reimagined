@@ -1,62 +1,51 @@
-/**
- * Spec 0022 F4: the catalog's `OutboxMessage` is the union that the library held before the split (ADR 0015 stage 3). The
- * rows that `packages/db` persists decode with it, the `outbox.kind` check lists its tags, and the queue consumer
- * matches on them, so its tags, their order and the encoded shape of each are pinned to main `c0ab784`, where
- * `shared/outbox.ts` declared them in one `Schema.TaggedUnion`. `outboxMessage.golden.json` is that union's tags and
- * its `SchemaRepresentation` as JSON, written by a script run on that commit.
- */
+/** Provider lifecycle intents are persisted in the same catalog as other outbox messages. */
 import { assert, describe, it } from "@effect/vitest";
-import { Record as Rec, Schema, SchemaRepresentation } from "effect";
+import { Effect, Schema } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
 import {
-  EmailAddress,
-  IssueCodeMessage,
-  OutboxMessage,
-  SetCredentialMessage,
+  DeleteAuthUserMessage,
+  RelinkAuthUserMessage,
+  PersonId,
   SlackPostMessage,
   SlackTarget,
-  WorkspaceChangeMessage,
   declareMessage,
   isListed,
+  OutboxMessage,
 } from "../../src/index.ts";
 import type { DeclaredMessage, EmailMessage } from "../../src/index.ts";
-import golden from "./outboxMessage.golden.json" with { type: "json" };
 
-const representationOf = (union: Schema.Top) =>
-  SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(union.ast));
+describe("provider lifecycle intents", () => {
+  it.effect("round trips deletion and relink without credentials", () =>
+    Effect.gen(function* lifecycleRoundTrip() {
+      const deletion = DeleteAuthUserMessage.make({
+        userId: "00000000-0000-4000-8000-000000000001",
+      });
 
-describe("spec 0022 F4: the catalog is the union of before", () => {
-  it("has the tags of main, in the order that the outbox.kind check lists them", () => {
-    assert.deepStrictEqual(Rec.keys(OutboxMessage.cases), golden.cases);
-  });
+      const relink = RelinkAuthUserMessage.make({
+        from: PersonId.make(1),
+        into: PersonId.make(2),
+        userId: deletion.userId,
+      });
 
-  it("has the encoded shape of main for every case", () => {
-    assert.deepStrictEqual(
-      representationOf(OutboxMessage),
-      golden.representation
-    );
-  });
+      const encodedDeletion =
+        yield* Schema.encodeEffect(OutboxMessage)(deletion);
 
-  it("control: a union with one field renamed does not have it", () => {
-    const renamed = Schema.Union([
-      declareMessage("Email", {
-        recipient: EmailAddress,
-        replyTo: Schema.NullOr(EmailAddress),
-        subject: Schema.String,
-        text: Schema.String,
-      }),
-      IssueCodeMessage,
-      SetCredentialMessage,
-      SlackPostMessage,
-      WorkspaceChangeMessage,
-    ]);
-
-    assert.notStrictEqual(
-      JSON.stringify(representationOf(renamed)),
-      JSON.stringify(golden.representation)
-    );
-  });
+      const encodedRelink = yield* Schema.encodeEffect(OutboxMessage)(relink);
+      assert.deepStrictEqual(
+        yield* Schema.decodeEffect(OutboxMessage)(encodedDeletion),
+        deletion
+      );
+      assert.deepStrictEqual(
+        yield* Schema.decodeEffect(OutboxMessage)(encodedRelink),
+        relink
+      );
+      assert.deepStrictEqual(encodedDeletion, {
+        _tag: "DeleteAuthUser",
+        userId: deletion.userId,
+      });
+    })
+  );
 });
 
 describe("spec 0022 R3 and R5: only a declared message can be enqueued, and the catalog says which are listed", () => {

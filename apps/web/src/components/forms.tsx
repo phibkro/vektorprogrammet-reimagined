@@ -1,4 +1,4 @@
-import { useRouter } from "@tanstack/react-router";
+import { useHydrated, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Array as Arr, Effect, Predicate } from "effect";
 import {
@@ -198,6 +198,7 @@ export const CommandForm = ({
   extraActions?: ReactNode;
 }) => {
   const router = useRouter();
+  const hydrated = useHydrated();
   const run = useServerFn(action);
   const [outcome, setOutcome] = useState<Outcome<string> | null>(null);
   const [crashed, setCrashed] = useState(false);
@@ -246,6 +247,7 @@ export const CommandForm = ({
 
   return (
     <form
+      method="post"
       noValidate
       onSubmit={onSubmit}
       className={className ?? "grid max-w-xl gap-4"}
@@ -254,7 +256,7 @@ export const CommandForm = ({
         {children}
       </OutcomeMessages>
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={!hydrated || pending}>
           {submitLabel}
         </Button>
         {extraActions}

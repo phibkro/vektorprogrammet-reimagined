@@ -35,8 +35,6 @@ export const Periods = {
   personCore: period(years(1), "decided"),
   /** The same, while a `keepDetails` consent is current (§11.9 decision 1). */
   personCoreWithKeepDetails: period(years(5), "decided"),
-  /** `auth_session` and `auth_verification`: the row goes when the session or token expires (§11.3). */
-  sessionExpiry: period(days(0), "decided"),
   /** `workspace_report`: a snapshot of the Google Workspace projection, which holds addresses (spec 0008, proposed). */
   workspaceReports: period(days(30), "proposed"),
 } as const;

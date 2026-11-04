@@ -2,6 +2,14 @@
 
 A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organisation that places student assistants in schools. Phase 1 covers the public site and organisation core. Spec 0006 starts Phase 2 with people, teams and a declaration kernel.
 
+## Current prototype override (2026-11-04)
+
+Spec `docs/specs/0024-supabase-prototype.md` supersedes the vendor-specific deployment, authentication, storage, CMS, queue and test-actor implementation notes below for the running prototype. Current commands/configuration are in `apps/web/README.md`, `tools/prototype/README.md`, `docs/system/architecture.md` and `infra/terraform/README.md`. Run one Start Worker with Supabase Postgres/Auth/Storage; there is no application Alchemy deployment, Better Auth, EmDash process, Cloudflare Queue, R2 or Hyperdrive. MySQL is only an importer/test prerequisite. Use real synthetic Supabase sessions, not test-actor cookies. Historical specs and the older detailed notes below remain provenance, not instructions to restore retired integrations. The general domain invariants, transaction/lock discipline, authorization, privacy gates and verification requirements remain binding.
+
+`prototype:setup` consumes a private local Supabase CLI status env file, migrates/seeds synthetic data and provisions provider identities/private buckets; `prototype:dev` starts the Worker locally. Terraform alone owns the hosted Worker artifact/settings and explicitly selected existing Supabase settings. Do not apply or deploy without operator authority. Keep provider secrets, captured links and Terraform state out of logs and Git. The prototype does not authorize production data/password/file migration or live messages.
+
+Provider identity erasure/relink is durable post-commit outbox work, not a cross-system SQL transaction. Public content has independent draft/published snapshots and editorial personal data requires manual review. Preserve due-aware lease-fenced claims and privacy-intent retry/retention protection. Use existing commands and maintained SDK/editor components rather than rebuilding general-purpose Auth/CMS/queue infrastructure.
+
 ## Where the truth lives
 
 | Fact | Source |

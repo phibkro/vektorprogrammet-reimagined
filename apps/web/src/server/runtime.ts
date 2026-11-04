@@ -1,23 +1,11 @@
-/**
- * The composition root for one Worker request (architecture §3).
- *
- * - The per-request Layer is built here: a Worker cannot reuse I/O objects
- *   across requests, so the database client, R2, and the HTTP client live and
- *   die with the request. Only I/O-free services sit at module scope.
- * - Request data (headers, cookies, form fields) is read by the caller before
- *   the Effect program starts and passed in as plain values (`RequestScope`).
- * - The program runs with the request's `AbortSignal`, so a cancelled request
- *   interrupts it (and rolls back an open transaction).
- * - Typed failures go through the one error table (`failureOf`); defects are
- *   logged and rethrown, which the framework answers with 500.
- * - After a command commits, the outbox ids it enqueued are published in `ctx.waitUntil`: put on the outbox queue where
- *   the Worker has one, delivered right there in a Worker Preview, which has none (spec 0008b). The cron sweep puts back
- *   what a crash or a lost message left without a queue message.
- */
+/** One request owns the database and SDK adapters; domain transactions commit before delivery. */
 import type { ExecutionContext } from "@cloudflare/workers-types";
-import type { CmsClient } from "@vektorprogrammet/cms-client";
-import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
-import { DatabaseLive, JobDatabaseLive } from "@vektorprogrammet/db";
+import type { CmsClient, ContentEditor } from "@vektorprogrammet/cms-client";
+import {
+  ContentLive,
+  DatabaseLive,
+  JobDatabaseLive,
+} from "@vektorprogrammet/db";
 import {
   CurrentPrincipal,
   Job,
@@ -51,15 +39,12 @@ import type {
   OutboxDelivery,
   OutboxMessageId,
   OutboxReports,
-  PasswordHasher,
-  PersonId,
   PersonRepository,
   PersonalDataStore,
   PositionRepository,
   PrincipalDirectory,
   PublicFileRepository,
   SemesterRepository,
-  SessionDirectory,
   SignInDirectory,
   SocialEventRepository,
   TeamRepository,
@@ -86,7 +71,7 @@ import { decodeDeployment } from "./deployment";
 import type { WorkerEnv } from "./env";
 import { failureOf, success } from "./errors";
 import type { RequestError } from "./errors";
-import { r2FileStoreLayer } from "./fileStore";
+import { supabaseFileStoreLayer } from "./fileStore";
 import { runners } from "./jobRunners";
 import type { TickServices } from "./jobRunners";
 import { dispatchTick } from "./jobs";
@@ -94,16 +79,13 @@ import {
   OutboxPublisher,
   capturingOutbox,
   directPublisherLayer,
-  queuePublisherLayer,
 } from "./outboxPublisher";
 import type { DirectDeliveryServices } from "./outboxPublisher";
-import { handleBatch } from "./outboxQueue";
-import type { OutboxBatch } from "./outboxQueue";
 import { withOutbox } from "./outboxSweep";
-import { passwordHasherLayer } from "./password";
 import { resolvePrincipal } from "./principal";
 import { contactRateLimiterLayer } from "./rateLimit";
 import type { ContactRateLimiter } from "./rateLimit";
+import { legacyFileLocation } from "./redirects";
 import { retentionModeFor } from "./retentionMode";
 import { messageSenderLayer, senderConfigFromEnv } from "./senders";
 import type { MessageSender } from "./senders";
@@ -117,7 +99,7 @@ import {
   workspaceWriterLayer,
 } from "./workspace";
 
-/** Hyperdrive pools connections itself; one request needs very few. */
+/** Keep the short-lived request pool small; Supabase supplies the shared database. */
 const MAX_CONNECTIONS_PER_REQUEST = 2;
 
 /** Everything about the request a program may depend on, read before entering Effect. */
@@ -126,8 +108,6 @@ export interface RequestScope {
   readonly ctx: Pick<ExecutionContext, "waitUntil">;
   readonly headers: Headers;
   readonly signal: AbortSignal;
-  /** Raw `vp-test-actor` cookie (honoured only in a `local` deployment). */
-  readonly testActor: string | undefined;
 }
 
 /** What `DatabaseLive` provides (packages/db contract). */
@@ -164,7 +144,6 @@ export type DatabaseServices =
   | WorkspaceFacts
   | WorkspaceReports
   | OutboxDelivery
-  | SessionDirectory
   | Transactor
   | SignInDirectory
   | SqlClient.SqlClient;
@@ -173,39 +152,34 @@ export type DatabaseServices =
 export type RequestServices =
   | DatabaseServices
   | Auth
-  | PasswordHasher
   | FileStore
   | CurrentPrincipal
   | SiteOrigin
   | Crypto.Crypto
   | TurnstileVerifier
   | ContactRateLimiter
-  | CmsClient;
+  | CmsClient
+  | ContentEditor;
 
 /**
  * What a command may require: the request's services without the ports of other systems, and the transaction it runs in.
  * `Transactor.run` refuses a program that requires an integration port (ADR 0015, rule 1; spec 0020), so a command that
- * needs one is a `prepare` step instead, which runs before the transaction opens. `CmsClient` (EmDash's client) is an
- * integration that the domain's marker cannot reach yet (`packages/cms-client` imports no workspace package), so it is
- * left out here by name.
+ * needs one is a `prepare` step instead, which runs before the transaction opens.
+ * The separate published-content read port is also excluded from domain commands.
  */
 type CommandServices =
   | Exclude<RequestServices, CmsClient | IntegrationPort>
   | InTransaction;
 
 const databaseLayer = (
-  env: Pick<TickEnv, "HYPERDRIVE">
+  env: Pick<TickEnv, "DATABASE_URL">
 ): Layer.Layer<DatabaseServices> =>
   DatabaseLive({
     maxConnections: MAX_CONNECTIONS_PER_REQUEST,
-    url: Redacted.make(env.HYPERDRIVE.connectionString),
+    url: Redacted.make(env.DATABASE_URL),
   }).pipe(Layer.orDie);
 
-/**
- * Better Auth over the scope's one database layer (spec 0017, falsifier 7): the library asks the domain through the
- * services that `database` provides, so no second pool is opened for it, and `database` is one build however many
- * layers of the scope need it. Every scope that has Better Auth has it through this function.
- */
+/** Authentication asks the domain through the same request-scoped database layer. */
 const authOverDatabase = (
   env: AuthEnvironment,
   database: Layer.Layer<DatabaseServices>
@@ -223,20 +197,13 @@ export const liveRequestLayer = (
     Effect.map(decodeDeployment(scope.env.DEPLOYMENT), (deployment) =>
       Layer.mergeAll(
         workspaceModeLayer(workspaceConfigFromEnv(deployment, scope.env)),
-        r2FileStoreLayer(scope.env.PUBLIC_FILES),
-        Layer.effect(
-          CurrentPrincipal,
-          resolvePrincipal(deployment, scope.testActor, scope.headers)
-        ),
+        supabaseFileStoreLayer(scope.env),
+        Layer.effect(CurrentPrincipal, resolvePrincipal(scope.headers)),
         Layer.succeed(SiteOrigin)(scope.env.SITE_URL),
         webCryptoLayer,
-        passwordHasherLayer,
         turnstileLiveLayer(Redacted.make(scope.env.TURNSTILE_SECRET_KEY)),
         contactRateLimiterLayer(scope.env.CONTACT_RATE_LIMIT),
-        cmsLayer({
-          token: Redacted.make(scope.env.CMS_TOKEN),
-          url: scope.env.CMS_URL,
-        })
+        ContentLive.pipe(Layer.provide(database))
       ).pipe(
         Layer.provideMerge(authOverDatabase(scope.env, database)),
         Layer.provide(FetchHttpClient.layer)
@@ -280,7 +247,7 @@ export interface Committed<A> {
 
 /**
  * A command in two steps: `prepare` runs OUTSIDE any transaction (provider
- * I/O: Turnstile, the rate limit, an R2 upload), then `command(prepared)`
+ * I/O: Turnstile, the rate limit, a Storage upload), then `command(prepared)`
  * runs inside one through `Transactor`. Exported for tests.
  */
 export const runCommandOutcome = <
@@ -312,6 +279,17 @@ export const runCommandOutcome = <
     signal
   );
 
+/** A public registry lookup also runs before Start has installed an SSR cookie context. */
+export const runLegacyFileRedirect = (
+  scope: Pick<RequestScope, "env" | "signal">,
+  legacyPath: string
+) =>
+  runOutcome(
+    databaseLayer(scope.env),
+    legacyFileLocation(legacyPath),
+    scope.signal
+  );
+
 /** A query (a read: it must not write) in the live per-request Layer. */
 export const runQuery = <A, E extends RequestError, R extends RequestServices>(
   scope: RequestScope,
@@ -320,9 +298,8 @@ export const runQuery = <A, E extends RequestError, R extends RequestServices>(
   runOutcome(liveRequestLayer(scope), program, scope.signal);
 
 /**
- * Outbox delivery with its own connection: used by `waitUntil` and by the cron tick, which passes the database of the
- * jobs (`jobDatabaseLayer`); a request's delivery has the ordinary one. Better Auth asks the domain through that same
- * database layer (one build, shared by reference). Exported for tests.
+ * Post-commit delivery owns its database connection. Scheduled delivery receives
+ * the job database; request delivery uses the ordinary database. Exported for tests.
  */
 export const deliveryLayer = (
   env: TickEnv,
@@ -338,7 +315,7 @@ export const deliveryLayer = (
 > =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
-      accountDeliveryLayer.pipe(
+      accountDeliveryLayer(env).pipe(
         Layer.provideMerge(
           Layer.mergeAll(
             messageSenderLayer(senderConfigFromEnv(deployment, env)).pipe(
@@ -374,20 +351,12 @@ const runScheduled = <A, E, R>(
   );
 
 /**
- * The publisher of the outbox ids that a commit named (spec 0008b): the queue's, where the Worker has the binding, which
- * needs only the database for the receipt (`queued`); the direct one in a Worker Preview, which has no queue and delivers
- * on the spot, to the capture sink, and needs the whole delivery stack (`direct`). Only the chosen layer is built.
+ * Post-commit publication delivers directly; durable outbox rows back scheduled retries.
  */
 const publisherLayerFor = (
-  env: Pick<TickEnv, "OUTBOX_QUEUE">,
-  layers: {
-    readonly direct: Layer.Layer<DirectDeliveryServices>;
-    readonly queued: Layer.Layer<OutboxDelivery>;
-  }
+  delivery: Layer.Layer<DirectDeliveryServices>
 ): Layer.Layer<OutboxPublisher> =>
-  env.OUTBOX_QUEUE === undefined
-    ? directPublisherLayer.pipe(Layer.provide(layers.direct))
-    : queuePublisherLayer(env.OUTBOX_QUEUE).pipe(Layer.provide(layers.queued));
+  directPublisherLayer.pipe(Layer.provide(delivery));
 
 /**
  * After a command has committed: publish the ids it enqueued, with the request's own database connection pool gone, so
@@ -398,10 +367,7 @@ export const runPublish = (
   ids: readonly OutboxMessageId[]
 ): Promise<void> =>
   runScheduled(
-    publisherLayerFor(env, {
-      direct: deliveryLayer(env),
-      queued: databaseLayer(env),
-    }),
+    publisherLayerFor(deliveryLayer(env)),
     OutboxPublisher.use((publisher) => publisher.publish(ids))
   );
 
@@ -425,56 +391,23 @@ export const runDeliveryChecked = (
   );
 
 /**
- * One batch from Cloudflare Queues (spec 0008b): the outbox queue's messages deliver rows, the dead-letter queue's end
- * them (`handleBatch`). The dead-letter queue's branch is built on the database layer only, and a delivery stack that
- * cannot be built is recorded on the rows (`holdForUnavailableStack`). Every message is answered by the handler itself;
- * it rejects only when the database layer cannot be built, and the queue then returns the whole batch.
- */
-export const runQueue = (env: TickEnv, batch: OutboxBatch): Promise<void> =>
-  Effect.runPromise(
-    handleBatch(batch, {
-      database: databaseLayer(env),
-      delivery: deliveryLayer(env),
-    }).pipe(logDefects)
-  );
-
-export const runSignInPerson = (
-  env: AuthEnvironment,
-  input: {
-    readonly personId: PersonId;
-    readonly password: string;
-    readonly headers: Headers;
-  },
-  signal: AbortSignal,
-  database: Layer.Layer<DatabaseServices> = databaseLayer(env)
-): Promise<Response> =>
-  Effect.runPromise(
-    Auth.use((auth) => auth.signInPerson(input)).pipe(
-      Effect.provide(authOverDatabase(env, database)),
-      Effect.orDie,
-      logDefects
-    ),
-    { signal }
-  );
-
-/**
  * What a scheduled tick reads of the Worker's bindings: the deployment, the site's origin, the database's connection
  * string, the Better Auth secret, the senders' production bindings and the Workspace mode. A test runs the tick without a
  * Cloudflare binding (`WorkerEnv` satisfies it).
  */
 export type TickEnv = Pick<
   WorkerEnv,
-  | "BETTER_AUTH_SECRET"
+  | "DATABASE_URL"
+  | "SUPABASE_URL"
+  | "SUPABASE_PUBLISHABLE_KEY"
+  | "SUPABASE_SECRET_KEY"
   | "DEPLOYMENT"
   | "MAIL_FROM"
   | "SEND_EMAIL"
   | "SITE_URL"
   | "SLACK_WEBHOOK_URL"
-  | "OUTBOX_QUEUE"
   | "WORKSPACE_MODE"
-> & {
-  readonly HYPERDRIVE: Pick<WorkerEnv["HYPERDRIVE"], "connectionString">;
-};
+>;
 
 /**
  * The database of every scheduled job: `JobDatabaseLive`, the only layer that carries a retention run that changes
@@ -487,7 +420,7 @@ const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
       JobDatabaseLive({
         maxConnections: MAX_CONNECTIONS_PER_REQUEST,
         retention: retentionModeFor(deployment),
-        url: Redacted.make(env.HYPERDRIVE.connectionString),
+        url: Redacted.make(env.DATABASE_URL),
       }).pipe(Layer.orDie)
     )
   );
@@ -505,7 +438,7 @@ const tickLayer = (env: TickEnv): Layer.Layer<TickServices | Transactor> =>
       return Layer.mergeAll(
         workspaceDirectoryLayer(workspace),
         workspaceModeLayer(workspace),
-        publisherLayerFor(env, { direct: delivery, queued: delivery }),
+        publisherLayerFor(delivery),
         delivery
       );
     })
@@ -586,10 +519,10 @@ export const runCommand = <
   command: Effect.Effect<A, E, R>
 ): Promise<Outcome<A>> => runPreparedCommand(scope, Effect.void, () => command);
 
-/** Each Better Auth path has a separate per-IP bucket on the shared Worker binding. */
+/** Auth endpoints share a per-IP limiter; every handler validates the provider session. */
 export const runAuthRequest = (
   request: Request,
-  env: AuthEnvironment & Pick<WorkerEnv, "CONTACT_RATE_LIMIT">,
+  env: AuthEnvironment & Pick<WorkerEnv, "CONTACT_RATE_LIMIT" | "DATABASE_URL">,
   database: Layer.Layer<DatabaseServices> = databaseLayer(env)
 ): Promise<Response> =>
   Effect.runPromise(

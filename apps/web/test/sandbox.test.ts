@@ -6,31 +6,16 @@ import type {
 import { assert, describe, it } from "@effect/vitest";
 import {
   CapturedMessageStore,
-  DEFAULT_LOCAL_PERSON,
-  DepartmentId,
   EmailAddress,
   OutboxMessage as OutboxMessageSchema,
   SlackTarget,
-  anonymous,
 } from "@vektorprogrammet/domain";
 import type { TransportMessage } from "@vektorprogrammet/domain";
-import {
-  Array as Arr,
-  DateTime,
-  Effect,
-  Exit,
-  Layer,
-  Predicate,
-  Redacted,
-  Ref,
-} from "effect";
+import { Array as Arr, Effect, Exit, Layer, Redacted, Ref } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
-import { TestClock } from "effect/testing";
 
-import { Auth } from "../src/server/auth";
 import { decodeDeployment } from "../src/server/deployment";
 import type { Deployment } from "../src/server/deployment";
-import { resolvePrincipal } from "../src/server/principal";
 import {
   captureSenderLayer,
   MessageSender,
@@ -38,13 +23,6 @@ import {
   productionSenderLayer,
 } from "../src/server/senders";
 import type { SenderConfig, SenderConfigRejected } from "../src/server/senders";
-import { makeTables, memoryLayer } from "./support/memory";
-import {
-  PEOPLE,
-  TRONDHEIM,
-  TRONDHEIM_TEAM,
-  seedWorld,
-} from "./support/teamWorld";
 
 const email: TransportMessage = OutboxMessageSchema.cases.Email.make({
   replyTo: null,
@@ -101,10 +79,6 @@ const mailboxOver = (kept: Kept) =>
         Ref.update(kept, (all) => [...all, [key, message] as const]),
     })
   );
-
-const noSession = Layer.mock(Auth, {
-  session: () => Effect.succeed({ cookiePresent: false, value: null }),
-});
 
 const sendMessages = Effect.gen(function* sendMessages() {
   const sender = yield* MessageSender;
@@ -234,63 +208,5 @@ describe("deployment and actor", () => {
       assert.isTrue(Exit.isFailure(exit));
       assert.strictEqual(yield* decodeDeployment("preview"), "preview");
     })
-  );
-  it.effect(
-    "the test actor exists only in a local deployment, and is a person the database knows",
-    () =>
-      Effect.gen(function* localActorEffect() {
-        yield* TestClock.setTime(
-          DateTime.toEpochMillis(
-            DateTime.makeUnsafe("2026-10-15T12:00:00+02:00")
-          )
-        );
-
-        const tables = makeTables();
-        yield* seedWorld(tables);
-
-        const resolve = (deployment: Deployment, selection?: string) =>
-          resolvePrincipal(deployment, selection, new Headers()).pipe(
-            Effect.provide(Layer.merge(memoryLayer(tables), noSession))
-          );
-
-        const byDefault = yield* resolve("local");
-        const lise = yield* resolve("local", "Lise Leder");
-
-        assert.isTrue(
-          Predicate.isTagged(byDefault, "Person") &&
-            byDefault.personId === PEOPLE.ada &&
-            byDefault.adminUntil !== undefined,
-          `without a cookie the local actor is ${DEFAULT_LOCAL_PERSON}, an administrator`
-        );
-        assert.isTrue(
-          Predicate.isTagged(lise, "Person") &&
-            lise.personId === PEOPLE.lise &&
-            lise.adminUntil === undefined
-        );
-        assert.deepStrictEqual(
-          Predicate.isTagged(lise, "Person") ? lise.memberships : [],
-          [
-            {
-              departmentId: DepartmentId.make(TRONDHEIM),
-              function: "recruitment",
-              leader: true,
-              teamId: TRONDHEIM_TEAM,
-            },
-          ]
-        );
-        assert.deepStrictEqual(yield* resolve("local", "anonymous"), anonymous);
-        assert.deepStrictEqual(
-          yield* resolve("local", "Ukjent Person"),
-          anonymous
-        );
-        assert.deepStrictEqual(
-          yield* resolve("preview", "Ada Admin"),
-          anonymous
-        );
-        assert.deepStrictEqual(
-          yield* resolve("production", "Ada Admin"),
-          anonymous
-        );
-      })
   );
 });

@@ -6,6 +6,10 @@
     },
     {
       "kind": "Command",
+      "name": "activateAccount"
+    },
+    {
+      "kind": "Command",
       "name": "deactivateAccount"
     },
     {
@@ -35,7 +39,15 @@
     },
     {
       "permits": [
+        "activateAccount"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
         "createAccount",
+        "activateAccount",
         "deactivateAccount",
         "reactivateAccount",
         "updatePerson"

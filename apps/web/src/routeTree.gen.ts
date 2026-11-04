@@ -25,6 +25,7 @@ import { Route as SlettetRouteImport } from './routes/slettet'
 import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-passord'
 import { Route as ApiEksportRouteImport } from './routes/api/eksport'
 import { Route as ApiIsolationRouteImport } from './routes/api/isolation'
+import { Route as AuthConfirmRouteImport } from './routes/auth/confirm'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
 import { Route as KontaktDepartmentRouteImport } from './routes/kontakt/$department'
@@ -32,6 +33,7 @@ import { Route as KontrollpanelIndexRouteImport } from './routes/kontrollpanel/i
 import { Route as KontrollpanelAdministratorerRouteImport } from './routes/kontrollpanel/administratorer'
 import { Route as KontrollpanelArrangementerRouteImport } from './routes/kontrollpanel/arrangementer'
 import { Route as KontrollpanelAvdelingerRouteImport } from './routes/kontrollpanel/avdelinger'
+import { Route as KontrollpanelInnholdRouteImport } from './routes/kontrollpanel/innhold'
 import { Route as KontrollpanelIntegrasjonerRouteImport } from './routes/kontrollpanel/integrasjoner'
 import { Route as KontrollpanelLinjerRouteImport } from './routes/kontrollpanel/linjer'
 import { Route as KontrollpanelPersonerRouteImport } from './routes/kontrollpanel/personer'
@@ -124,6 +126,11 @@ const ApiIsolationRoute = ApiIsolationRouteImport.update({
   path: '/api/isolation',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthConfirmRoute = AuthConfirmRouteImport.update({
+  id: '/auth/confirm',
+  path: '/auth/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FilerKeyRoute = FilerKeyRouteImport.update({
   id: '/filer/$key',
   path: '/filer/$key',
@@ -159,6 +166,11 @@ const KontrollpanelArrangementerRoute =
 const KontrollpanelAvdelingerRoute = KontrollpanelAvdelingerRouteImport.update({
   id: '/avdelinger',
   path: '/avdelinger',
+  getParentRoute: () => KontrollpanelRouteRoute,
+} as any)
+const KontrollpanelInnholdRoute = KontrollpanelInnholdRouteImport.update({
+  id: '/innhold',
+  path: '/innhold',
   getParentRoute: () => KontrollpanelRouteRoute,
 } as any)
 const KontrollpanelIntegrasjonerRoute =
@@ -235,11 +247,13 @@ export interface FileRoutesByFullPath {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/innhold': typeof KontrollpanelInnholdRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
@@ -270,11 +284,13 @@ export interface FileRoutesByTo {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/innhold': typeof KontrollpanelInnholdRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
@@ -307,11 +323,13 @@ export interface FileRoutesById {
   '/tilbakestill-passord': typeof TilbakestillPassordRoute
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
+  '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
   '/kontrollpanel/administratorer': typeof KontrollpanelAdministratorerRoute
   '/kontrollpanel/arrangementer': typeof KontrollpanelArrangementerRoute
   '/kontrollpanel/avdelinger': typeof KontrollpanelAvdelingerRoute
+  '/kontrollpanel/innhold': typeof KontrollpanelInnholdRoute
   '/kontrollpanel/integrasjoner': typeof KontrollpanelIntegrasjonerRoute
   '/kontrollpanel/linjer': typeof KontrollpanelLinjerRoute
   '/kontrollpanel/personer': typeof KontrollpanelPersonerRoute
@@ -345,11 +363,13 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/innhold'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/personer'
@@ -380,11 +400,13 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/innhold'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/personer'
@@ -416,11 +438,13 @@ export interface FileRouteTypes {
     | '/tilbakestill-passord'
     | '/api/eksport'
     | '/api/isolation'
+    | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
     | '/kontrollpanel/administratorer'
     | '/kontrollpanel/arrangementer'
     | '/kontrollpanel/avdelinger'
+    | '/kontrollpanel/innhold'
     | '/kontrollpanel/integrasjoner'
     | '/kontrollpanel/linjer'
     | '/kontrollpanel/personer'
@@ -453,6 +477,7 @@ export interface RootRouteChildren {
   TilbakestillPassordRoute: typeof TilbakestillPassordRoute
   ApiEksportRoute: typeof ApiEksportRoute
   ApiIsolationRoute: typeof ApiIsolationRoute
+  AuthConfirmRoute: typeof AuthConfirmRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
   NyhetSlugRoute: typeof NyhetSlugRoute
@@ -577,6 +602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIsolationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/confirm': {
+      id: '/auth/confirm'
+      path: '/auth/confirm'
+      fullPath: '/auth/confirm'
+      preLoaderRoute: typeof AuthConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/filer/$key': {
       id: '/filer/$key'
       path: '/filer/$key'
@@ -624,6 +656,13 @@ declare module '@tanstack/react-router' {
       path: '/avdelinger'
       fullPath: '/kontrollpanel/avdelinger'
       preLoaderRoute: typeof KontrollpanelAvdelingerRouteImport
+      parentRoute: typeof KontrollpanelRouteRoute
+    }
+    '/kontrollpanel/innhold': {
+      id: '/kontrollpanel/innhold'
+      path: '/innhold'
+      fullPath: '/kontrollpanel/innhold'
+      preLoaderRoute: typeof KontrollpanelInnholdRouteImport
       parentRoute: typeof KontrollpanelRouteRoute
     }
     '/kontrollpanel/integrasjoner': {
@@ -710,6 +749,7 @@ interface KontrollpanelRouteRouteChildren {
   KontrollpanelAdministratorerRoute: typeof KontrollpanelAdministratorerRoute
   KontrollpanelArrangementerRoute: typeof KontrollpanelArrangementerRoute
   KontrollpanelAvdelingerRoute: typeof KontrollpanelAvdelingerRoute
+  KontrollpanelInnholdRoute: typeof KontrollpanelInnholdRoute
   KontrollpanelIntegrasjonerRoute: typeof KontrollpanelIntegrasjonerRoute
   KontrollpanelLinjerRoute: typeof KontrollpanelLinjerRoute
   KontrollpanelPersonerRoute: typeof KontrollpanelPersonerRoute
@@ -723,6 +763,7 @@ const KontrollpanelRouteRouteChildren: KontrollpanelRouteRouteChildren = {
   KontrollpanelAdministratorerRoute: KontrollpanelAdministratorerRoute,
   KontrollpanelArrangementerRoute: KontrollpanelArrangementerRoute,
   KontrollpanelAvdelingerRoute: KontrollpanelAvdelingerRoute,
+  KontrollpanelInnholdRoute: KontrollpanelInnholdRoute,
   KontrollpanelIntegrasjonerRoute: KontrollpanelIntegrasjonerRoute,
   KontrollpanelLinjerRoute: KontrollpanelLinjerRoute,
   KontrollpanelPersonerRoute: KontrollpanelPersonerRoute,
@@ -752,6 +793,7 @@ const rootRouteChildren: RootRouteChildren = {
   TilbakestillPassordRoute: TilbakestillPassordRoute,
   ApiEksportRoute: ApiEksportRoute,
   ApiIsolationRoute: ApiIsolationRoute,
+  AuthConfirmRoute: AuthConfirmRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,
   NyhetSlugRoute: NyhetSlugRoute,

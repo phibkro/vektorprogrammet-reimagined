@@ -17,9 +17,10 @@ import type {
   Locked,
   PersonDraft,
 } from "@vektorprogrammet/domain";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
 import type { DateTime } from "effect";
+import { SqlClient } from "effect/sql";
 
 import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots as aggregateRoots } from "../aggregate/declaration.ts";
@@ -60,6 +61,44 @@ export const AccountRepositoryLive = Layer.effect(
   AccountRepository,
   Effect.gen(function* AccountRepositoryLive() {
     const db = yield* Drizzle;
+    const sql = yield* SqlClient.SqlClient;
+
+    const findAuthIdentitiesByPersonId = (personId: PersonId) =>
+      sql`select id::text as id from auth.users where raw_app_meta_data->>'personId' = ${String(personId)}`.pipe(
+        Effect.flatMap(
+          Schema.decodeUnknownEffect(
+            Schema.Array(Schema.Struct({ id: Schema.String }))
+          )
+        ),
+        Effect.map((rows) => Arr.map(rows, (row) => row.id)),
+        Effect.orDie
+      );
+
+    const findAuthIdentity = Effect.fn("AccountRepository.findAuthIdentity")(
+      function* findAuthIdentity(email: EmailAddress) {
+        const rows =
+          yield* sql`select id::text as id, (raw_app_meta_data->>'personId')::integer as "personId", invited_at is not null and email_confirmed_at is null as "pendingInvite" from auth.users where email = ${email} limit 2`.pipe(
+            Effect.orDie
+          );
+
+        const identities = yield* Schema.decodeUnknownEffect(
+          Schema.Array(
+            Schema.Struct({
+              id: Schema.String,
+              pendingInvite: Schema.Boolean,
+              personId: Schema.NullOr(PersonId),
+            })
+          )
+        )(rows).pipe(Effect.orDie);
+
+        if (identities.length > 1) {
+          return yield* Effect.die("duplicate provider email");
+        }
+
+        return Arr.head(identities);
+      }
+    );
+
     const aggregates = yield* Aggregates;
 
     const list = db
@@ -98,22 +137,6 @@ export const AccountRepositoryLive = Layer.effect(
         );
       }
     );
-
-    const findActiveByPrivateEmail = Effect.fn(
-      "AccountRepository.findActiveByPrivateEmail"
-    )(function* findActiveByPrivateEmail(email: EmailAddress) {
-      const rows = yield* db
-        .select({ personId: account.personId, state: account.state })
-        .from(account)
-        .innerJoin(person, eq(person.id, account.personId))
-        .where(and(eq(person.email, email), eq(account.state, "Active")))
-        .pipe(Effect.orDie);
-
-      return Option.map(
-        yield* decodeFirstOption(decodeAccount)(rows),
-        accountOf
-      );
-    });
 
     const invite = Effect.fn("AccountRepository.invite")(function* invite(
       locked: Locked<"Person">
@@ -259,7 +282,8 @@ export const AccountRepositoryLive = Layer.effect(
 
     return AccountRepository.of({
       find,
-      findActiveByPrivateEmail,
+      findAuthIdentitiesByPersonId,
+      findAuthIdentity,
       findLocked,
       invite,
       isLastActiveAdmin,

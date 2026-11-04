@@ -12,6 +12,7 @@
  * (`e2e/shell.spec.ts`) send the same requests over HTTP.
  */
 import { assert, describe, it } from "@effect/vitest";
+import { ContentEditor } from "@vektorprogrammet/cms-client";
 import {
   DepartmentId,
   PrincipalDirectory,
@@ -91,6 +92,7 @@ const GUARDED: Calls = Rec.map(panelReads, asCall);
 /** The views the guard wraps, bare: what a route without its guard would run. */
 const BARE: Calls = {
   getAdmins: () => adminsView,
+  getContent: () => ContentEditor.use((editor) => editor.list),
   getDashboard: () => dashboardView,
   getDepartments: () => departmentsView,
   getFieldsOfStudy: () => fieldsOfStudyView,

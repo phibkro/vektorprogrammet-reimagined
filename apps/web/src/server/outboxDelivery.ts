@@ -1,12 +1,4 @@
-/**
- * Delivery of the rows that a queue message names (spec 0008b): claim the row by id, interpret its intent, and fence the
- * acknowledgement by claim token. Who asks is the Queue consumer, or, in a Worker Preview that has no queue, the request's
- * own `waitUntil`; the row is delivered the same way either way, and the claim is the only thing that keeps two asks apart.
- *
- * A failed delivery is not decided here: the row stays pending, its claim is released and its next attempt is dated, and
- * the answer is `Retrying` with the delay. The queue owns how often that happens (`DeliveryPolicy.attempts`), and its
- * dead-letter queue ends the row (`failOutbox`).
- */
+/** Due-safe, lease-fenced delivery after commit and from the scheduled sweep. */
 import {
   OutboxDelivery,
   OutboxSweep,
@@ -18,6 +10,7 @@ import type {
   OutboxMessageId,
 } from "@vektorprogrammet/domain";
 import {
+  Array as Arr,
   Cause,
   Context,
   DateTime,
@@ -56,17 +49,25 @@ const deliverClaim = Effect.fnUntraced(function* deliverClaim(
   const delivery = yield* OutboxDelivery;
   const { message } = row;
 
+  if (Predicate.isTagged(message, "InviteAccount")) {
+    return yield* (yield* AccountDelivery).inviteAccount(row, message);
+  }
+
   if (Predicate.isTagged(message, "IssueCode")) {
     return yield* (yield* AccountDelivery).issueCode(row, message);
   }
 
-  if (Predicate.isTagged(message, "SetCredential")) {
-    yield* (yield* AccountDelivery).setCredential(row, message);
-  } else if (Predicate.isTagged(message, "WorkspaceChange")) {
-    yield* (yield* WorkspaceWriter).apply(message.change);
-  } else {
-    yield* (yield* MessageSender).send(message, row.id);
+  if (Predicate.isTagged(message, "DeleteAuthUser")) {
+    return yield* (yield* AccountDelivery).deleteAuthUser(row, message);
   }
+
+  if (Predicate.isTagged(message, "RelinkAuthUser")) {
+    return yield* (yield* AccountDelivery).relinkAuthUser(row, message);
+  }
+
+  yield* Predicate.isTagged(message, "WorkspaceChange")
+    ? WorkspaceWriter.use((writer) => writer.apply(message.change))
+    : MessageSender.use((sender) => sender.send(message, row.id));
 
   return yield* delivery.markDelivered(row.id, row.claimToken);
 });
@@ -92,7 +93,8 @@ interface HeldClaim {
  */
 const failClaim = Effect.fnUntraced(function* failClaim(
   held: HeldClaim,
-  reason: string
+  reason: string,
+  kind: string
 ) {
   const { id } = held;
   const wait = (yield* RetryDelay)(held.attempts);
@@ -108,12 +110,24 @@ const failClaim = Effect.fnUntraced(function* failClaim(
     Effect.annotateLogs({ attempts: held.attempts, outboxId: id, reason })
   );
 
-  return ack === "claimLost"
-    ? OutboxSweep.DeliveryResult.cases.Settled.make({ id })
-    : OutboxSweep.DeliveryResult.cases.Retrying.make({
-        afterSeconds: Math.ceil(Duration.toSeconds(wait)),
-        id,
-      });
+  if (ack === "claimLost") {
+    return OutboxSweep.DeliveryResult.cases.Settled.make({ id });
+  }
+
+  if (
+    held.attempts >= OutboxSweep.DeliveryPolicy.attempts &&
+    !Arr.some(
+      OutboxSweep.DeliveryPolicy.unlimitedKinds,
+      (candidate) => candidate === kind
+    )
+  ) {
+    return OutboxSweep.DeliveryResult.cases.Failed.make({ id });
+  }
+
+  return OutboxSweep.DeliveryResult.cases.Retrying.make({
+    afterSeconds: Math.ceil(Duration.toSeconds(wait)),
+    id,
+  });
 });
 
 /**
@@ -159,7 +173,7 @@ const deliverClaimed = Effect.fnUntraced(function* deliverClaimed(
       : OutboxSweep.DeliveryResult.cases.Settled.make({ id });
   }
 
-  return yield* failClaim(row, result.failure.reason);
+  return yield* failClaim(row, result.failure.reason, row.message._tag);
 });
 
 const deliverOne = Effect.fnUntraced(function* deliverOne(id: OutboxMessageId) {
@@ -178,7 +192,7 @@ const deliverOne = Effect.fnUntraced(function* deliverOne(id: OutboxMessageId) {
       Settled: () =>
         Effect.succeed(OutboxSweep.DeliveryResult.cases.Settled.make({ id })),
       Undeliverable: (held) =>
-        failClaim({ ...held, id }, "undecodable payload"),
+        failClaim({ ...held, id }, "undecodable payload", held.kind),
     })
   );
 });
@@ -188,29 +202,4 @@ export const deliverOutbox = Effect.fn("deliverOutbox")(function* deliverOutbox(
   ids: readonly OutboxMessageId[]
 ) {
   return yield* Effect.forEach(ids, deliverOne, { concurrency: 1 });
-});
-
-/** Ends the rows that the dead-letter queue holds: failed, unless they were delivered meanwhile or a live claim holds them. */
-export const failOutbox = Effect.fn("failOutbox")(function* failOutbox(
-  ids: readonly OutboxMessageId[]
-) {
-  const delivery = yield* OutboxDelivery;
-
-  return yield* Effect.forEach(
-    ids,
-    (id) =>
-      Effect.map(delivery.markDead(id), (ending): OutboxSweep.EndingResult => {
-        if (ending === "failed") {
-          return OutboxSweep.EndingResult.cases.Failed.make({ id });
-        }
-
-        return ending === "held"
-          ? OutboxSweep.EndingResult.cases.Held.make({
-              afterSeconds: LEASE_SECONDS,
-              id,
-            })
-          : OutboxSweep.EndingResult.cases.Settled.make({ id });
-      }),
-    { concurrency: 1 }
-  );
 });

@@ -6,7 +6,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./testing": "./test/support/disposableDatabase.ts",
-    "./testing/auth-tables-role": "./test/support/authTablesRole.ts",
     "./testing/local-seed": "./test/support/localSeed.ts",
     "./testing/read-only-role": "./test/support/readOnlyRole.ts"
   },
@@ -20,6 +19,7 @@
   },
   "dependencies": {
     "@effect/sql-pg": "catalog:",
+    "@vektorprogrammet/cms-client": "workspace:*",
     "@vektorprogrammet/domain": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"
@@ -30,7 +30,6 @@
     "@effect/vitest": "catalog:",
     "@electric-sql/pglite": "catalog:",
     "@types/node": "catalog:",
-    "bcryptjs": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"

@@ -59,10 +59,17 @@ describe("spec 0007b: one click answers one question", () => {
 
 describe("spec 0007b: what an erasure tells the person", () => {
   it("says that it is done, that there was nothing to do, or what the law keeps and until when", () => {
-    assert.include(erasureMessage({ erased: true, held: [] }), "er slettet");
-    assert.include(erasureMessage({ erased: false, held: [] }), "ingenting");
+    assert.include(
+      erasureMessage({ editorialReview: ["review"], erased: true, held: [] }),
+      "redaktør"
+    );
+    assert.include(
+      erasureMessage({ editorialReview: [], erased: false, held: [] }),
+      "ingenting"
+    );
 
     const kept = erasureMessage({
+      editorialReview: [],
       erased: true,
       held: [
         {

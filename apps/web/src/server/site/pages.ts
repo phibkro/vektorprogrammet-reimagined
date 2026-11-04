@@ -8,12 +8,13 @@
  * the client returns published entries only), RULE-331 (front page news), RULE-326 (ten per page, newest
  * first), RULE-119 (is admission open), and the footer order of sponsors.
  */
-import { CmsClient, PortableText } from "@vektorprogrammet/cms-client";
+import { CmsClient } from "@vektorprogrammet/cms-client";
 import type {
   Entry,
   ImageValue,
   NewsData,
   TeamData,
+  PortableText,
 } from "@vektorprogrammet/cms-client";
 import {
   AdmissionPeriodRepository,
@@ -39,7 +40,6 @@ import {
   Order,
   Record as Rec,
   Result,
-  Schema,
 } from "effect";
 
 import { TEXT_SLOTS } from "../../lib/textSlots";
@@ -55,7 +55,7 @@ export type TextView = readonly PortableTextBlock[] | null;
 export type TextViews = Readonly<Record<string, TextView>>;
 
 export interface ImageView {
-  /** An absolute URL on the CMS (`/_emdash/api/media/file/…` answers without a token). */
+  /** URL of a public file or external image. */
   readonly src: string;
   readonly alt: string;
 }
@@ -120,33 +120,14 @@ const osloDate = (instant: DateTime.DateTime): string => {
 const publishedOn = (entry: Entry<NewsData>): DateTime.Utc =>
   entry.publishedAt ?? entry.createdAt;
 
-const imageOf = (
-  cms: { readonly absoluteUrl: (path: string) => string },
-  image: ImageValue | null | undefined
-): ImageView | null =>
+const imageOf = (image: ImageValue | null | undefined): ImageView | null =>
   image === null || image === undefined || image.src === undefined
     ? null
-    : { alt: image.alt ?? "", src: cms.absoluteUrl(image.src) };
+    : { alt: image.alt ?? "", src: image.src };
 
-/**
- * Text an editor wrote refers to its pictures by the CMS's own media path (`/_emdash/api/media/file/…`), which
- * only the CMS origin answers: the page shows them from there.
- */
-const withMediaOrigin = (
-  cms: { readonly absoluteUrl: (path: string) => string },
+const textView = (
   blocks: readonly PortableTextBlock[] | null | undefined
-): TextView =>
-  blocks === null || blocks === undefined
-    ? null
-    : Arr.map(blocks, (block) =>
-        Schema.is(PortableText.ImageBlock)(block) &&
-        block.asset.url !== undefined
-          ? {
-              ...block,
-              asset: { ...block.asset, url: cms.absoluteUrl(block.asset.url) },
-            }
-          : block
-      );
+): TextView => blocks ?? null;
 
 const byCity = (city: string) => (candidate: string) =>
   candidate.toLowerCase() === city.toLowerCase();
@@ -191,10 +172,7 @@ export const pageTexts = Effect.fn("pageTexts")(function* pageTexts(
     Arr.filterMap(entries, (entry) =>
       entry.slug === null
         ? Result.failVoid
-        : Result.succeed([
-            entry.slug,
-            withMediaOrigin(cms, entry.data.content),
-          ] as const)
+        : Result.succeed([entry.slug, textView(entry.data.content)] as const)
     )
   );
 
@@ -208,12 +186,9 @@ export const pageTexts = Effect.fn("pageTexts")(function* pageTexts(
 
 const newestFirst = Order.mapInput(Order.flip(DateTime.Order), publishedOn);
 
-const newsCard = (
-  cms: { readonly absoluteUrl: (path: string) => string },
-  entry: Entry<NewsData>
-): NewsCardView => ({
+const newsCard = (entry: Entry<NewsData>): NewsCardView => ({
   date: osloDate(publishedOn(entry)),
-  image: imageOf(cms, entry.data.image),
+  image: imageOf(entry.data.image),
   slug: entry.slug ?? "",
   sticky: entry.data.sticky ?? false,
   title: entry.data.title,
@@ -224,7 +199,6 @@ const readableArticles = Effect.gen(function* readableArticles() {
   const cms = yield* CmsClient;
 
   return {
-    cms,
     entries: Arr.sort(
       Arr.filter(yield* cms.news.published, (entry) => entry.slug !== null),
       newestFirst
@@ -241,7 +215,7 @@ export const footerSponsors = Effect.gen(function* footerSponsors() {
       Arr.map(yield* cms.sponsors.published, (entry) => entry.data)
     ),
     (sponsor): SponsorView => ({
-      logo: imageOf(cms, sponsor.logo),
+      logo: imageOf(sponsor.logo),
       name: sponsor.name,
       size: sponsor.size,
       url: sponsor.url,
@@ -251,12 +225,12 @@ export const footerSponsors = Effect.gen(function* footerSponsors() {
 
 /** Hjem: the tagline, the departments with their admission, and the front page news (RULE-331). */
 export const homePage = Effect.gen(function* homePage() {
-  const { cms, entries } = yield* readableArticles;
+  const { entries } = yield* readableArticles;
   const now = yield* DateTime.now;
 
   const front = selectFrontPageNews(
     Arr.map(entries, (entry) => ({
-      card: newsCard(cms, entry),
+      card: newsCard(entry),
       createdAt: publishedOn(entry),
       published: true,
       sticky: entry.data.sticky ?? false,
@@ -380,7 +354,7 @@ export const newsPage = Effect.fn("newsPage")(function* newsPage(query: {
   readonly page: number;
   readonly department: string | null;
 }) {
-  const { cms, entries } = yield* readableArticles;
+  const { entries } = yield* readableArticles;
   const departments = yield* departmentViews;
   const wanted = query.department?.toLowerCase();
 
@@ -405,10 +379,7 @@ export const newsPage = Effect.fn("newsPage")(function* newsPage(query: {
       ),
   });
 
-  const shown = paginate(
-    Arr.map(visible, (entry) => newsCard(cms, entry)),
-    query.page
-  );
+  const shown = paginate(Arr.map(visible, newsCard), query.page);
 
   return {
     department: Option.getOrNull(department),
@@ -426,7 +397,7 @@ export const newsPage = Effect.fn("newsPage")(function* newsPage(query: {
 export const articlePage = Effect.fn("articlePage")(function* articlePage(
   slug: string
 ) {
-  const { cms, entries } = yield* readableArticles;
+  const { entries } = yield* readableArticles;
 
   const found = Arr.findFirst(entries, (entry) => entry.slug === slug);
 
@@ -435,14 +406,14 @@ export const articlePage = Effect.fn("articlePage")(function* articlePage(
   }
 
   return {
-    ...newsCard(cms, found.value),
-    content: withMediaOrigin(cms, found.value.data.content) ?? [],
+    ...newsCard(found.value),
+    content: textView(found.value.data.content) ?? [],
     others: Arr.map(
       Arr.take(
         Arr.filter(entries, (entry) => entry.slug !== slug),
         5
       ),
-      (entry) => newsCard(cms, entry)
+      newsCard
     ),
   } satisfies ArticleView;
 });

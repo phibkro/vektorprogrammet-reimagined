@@ -64,11 +64,6 @@ const naming = {
   admin_grant: (id: number) => `person_id = ${id}`,
   alumni_request: (id: number) => `person_id = ${id}`,
   audit_log: (id: number) => `person_id = ${id}`,
-  auth_account: (id: number) =>
-    `user_id in (select id from auth_user where person_id = ${id})`,
-  auth_session: (id: number) =>
-    `user_id in (select id from auth_user where person_id = ${id})`,
-  auth_user: (id: number) => `person_id = ${id}`,
   code: (id: number) => `subject = ${id}`,
   consent: (id: number) => `person_id = ${id}`,
   ending_soon_digest: (id: number) => `person_id = ${id}`,

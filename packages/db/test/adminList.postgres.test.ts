@@ -15,7 +15,6 @@ import {
   AccountRepository,
   AdminGrantRepository,
   CurrentPrincipal,
-  PasswordHasher,
   Principal,
   SiteOrigin,
   TeamsEndpoints,
@@ -365,7 +364,6 @@ const summarized = (
 layer(
   Layer.mergeAll(
     postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)),
-    Layer.mock(PasswordHasher, {}),
     Layer.succeed(SiteOrigin)("https://vektorprogrammet.test")
   ),
   { excludeTestServices: true }

@@ -21,33 +21,29 @@
         "src/server.ts",
         "src/router.tsx",
         "src/start.ts",
-        "alchemy.run.ts",
         "e2e/playwright.config.ts",
         "e2e/**/*.spec.ts",
-        "e2e/support/r2SeedWorker.ts",
-        "test/support/*.worker.ts"
+        "e2e/seedExtra.ts"
       ],
       "project": [
         "src/**/*.{ts,tsx}",
         "test/**/*.{ts,tsx}",
         "e2e/**/*.ts",
         "**/*.css"
-      ],
-      "ignoreDependencies": ["^cloudflare$"]
-    },
-    "apps/cms": {
-      "entry": ["src/live.config.ts"],
-      "project": ["**/*.{ts,astro}"]
+      ]
     },
     "packages/cms-client": {
-      "ignore": ["src/generated.ts"],
-      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/domain": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/db": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "tools/prototype": {
+      "entry": ["seed.ts"],
+      "project": ["*.ts"]
     },
     "tools/import": {
       "project": ["src/**/*.ts", "test/**/*.ts"]

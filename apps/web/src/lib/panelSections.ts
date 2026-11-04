@@ -57,6 +57,12 @@ export const PANEL_SECTIONS = [
   },
   {
     group: "Innhold",
+    key: "content",
+    label: "Nettsideinnhold",
+    to: "/kontrollpanel/innhold",
+  },
+  {
+    group: "Innhold",
     key: "socialEvents",
     label: "Arrangementer",
     to: "/kontrollpanel/arrangementer",

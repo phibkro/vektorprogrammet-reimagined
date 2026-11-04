@@ -68,7 +68,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
         Effect.gen(function* lookupsFail() {
           yield* withoutColumn("person", "company_email");
           yield* withoutColumn("person", "name");
-          yield* withoutColumn("auth_user", "person_id");
+          yield* withoutColumn("auth.users", "raw_app_meta_data");
 
           // The driver is told to report parameters (probe: the error then renders `params: <the typed address>`), so
           // what the test finds is the adapter's doing and not the driver's default.

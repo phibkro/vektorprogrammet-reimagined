@@ -4,9 +4,8 @@ import { createServerFn } from "@tanstack/react-start";
  * transaction: authorize, validate, write, audit), called through its endpoint: the input is decoded with the
  * command's own payload schema. Commands answer with a short notice; pages re-load their data afterwards.
  */
-import { Effect, Schema } from "effect";
+import { Schema } from "effect";
 
-import { decodeDeployment } from "../server/deployment";
 import { requestWorkspaceReportProgram } from "../server/integrations";
 import {
   saveDepartmentProgram,
@@ -44,15 +43,16 @@ export const getShell = createServerFn({ method: "GET" }).handler(
   ({ context }) => {
     const scope = requestScope(context);
 
-    return runQuery(
-      scope,
-      Effect.flatMap(decodeDeployment(scope.env.DEPLOYMENT), shellView)
-    );
+    return runQuery(scope, shellView);
   }
 );
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(
   ({ context }) => runQuery(requestScope(context), panelReads.getDashboard)
+);
+
+export const getContent = createServerFn({ method: "GET" }).handler(
+  ({ context }) => runQuery(requestScope(context), panelReads.getContent)
 );
 
 export const getDepartments = createServerFn({ method: "GET" }).handler(

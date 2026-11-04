@@ -112,28 +112,14 @@ const memoryCollection = <A>(seed: readonly Seed<A>[]): Collection<A> => {
 };
 
 /** The CMS with `seed` in it; a collection left out is empty. */
-export const memoryCms = (seed: Partial<CmsSeed> = {}) => {
-  const options = new Map<string, Set<string>>();
-
-  return Layer.succeed(CmsClient, {
-    absoluteUrl: (path) => new URL(path, "https://cms.test").toString(),
-    ensureOptions: (collection, field, values) =>
-      Effect.sync(() => {
-        const key = `${collection}.${field}`;
-        const known = options.get(key) ?? new Set<string>();
-        const added = Arr.filter(values, (value) => !known.has(value));
-
-        options.set(key, new Set([...known, ...values]));
-
-        return added.length;
-      }),
+export const memoryCms = (seed: Partial<CmsSeed> = {}) =>
+  Layer.succeed(CmsClient, {
     faq: memoryCollection(seed.faq ?? []),
     news: memoryCollection(seed.news ?? []),
     sponsors: memoryCollection(seed.sponsors ?? []),
     teams: memoryCollection(seed.teams ?? []),
     texts: memoryCollection(seed.texts ?? []),
   });
-};
 
 /** The seeded texts by slot: `{ "home-tagline": [block] }` as published text entries. */
 export const textsOf = (

@@ -7,11 +7,7 @@ import { holder } from "../kernel/subject.ts";
 import type { Personal } from "../kernel/subject.ts";
 import { PersonId } from "../shared/ids.ts";
 
-export const CodePurpose = Schema.Literals([
-  "activation",
-  "alumniConsent",
-  "resetPassword",
-]);
+export const CodePurpose = Schema.Literals(["alumniConsent"]);
 
 export type CodePurpose = typeof CodePurpose.Type;
 
@@ -24,23 +20,11 @@ export type CodePurpose = typeof CodePurpose.Type;
  * below the declarations and cannot name their tags.
  */
 export const codePolicy = {
-  activation: {
-    account: "Invited",
-    command: "activateAccount",
-    lifetimeSeconds: 14 * 24 * 60 * 60,
-    singleUse: true,
-  },
   alumniConsent: {
     account: null,
     command: "answerAlumniConsent",
     lifetimeSeconds: 60 * 24 * 60 * 60,
     singleUse: false,
-  },
-  resetPassword: {
-    account: "Active",
-    command: "resetPassword",
-    lifetimeSeconds: 24 * 60 * 60,
-    singleUse: true,
   },
 } as const satisfies Record<
   CodePurpose,

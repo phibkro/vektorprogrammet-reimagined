@@ -45,6 +45,7 @@ const SECTIONS_BY_ACTOR = {
     "Personer",
     "Administratorer",
     "Integrasjoner",
+    "Nettsideinnhold",
     "Arrangementer",
   ],
   [TEST_LEADER]: [

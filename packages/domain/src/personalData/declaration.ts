@@ -142,6 +142,7 @@ export type Retention = typeof Retention.Type;
 
 /** What is declared about one stored column. */
 export const Classification = Schema.TaggedUnion({
+  EditorialReview: { reason: Schema.String },
   NotPersonal: { reason: Schema.String },
   PersonalData: {
     legalBasis: LegalBasis,
@@ -167,6 +168,10 @@ export const personal = (fields: {
 
 export const notPersonal = (reason: string): Classification =>
   Classification.cases.NotPersonal.make({ reason });
+
+/** Free-form editorial data can name people but has no machine-readable person key. */
+export const editorialReview = (reason: string): Classification =>
+  Classification.cases.EditorialReview.make({ reason });
 
 /** How a row relates to a person: the column that holds the person's id, or one hop through a parent table. */
 export const PersonKey = Schema.TaggedUnion({

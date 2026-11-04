@@ -1,20 +1,17 @@
-/**
- * Public surface of `@vektorprogrammet/cms-client`: the typed EmDash content client (`CmsClient`), the collection
- * schemas and Portable Text. `src/generated.ts` is generated and stays private to the package.
- */
+/** Shared collection schemas, Portable Text and content service contracts. */
 export {
   CmsClient,
   CmsInvalidContent,
   CmsRejected,
   CmsUnavailable,
+  ContentEditor,
   CreateOutcome,
-  layer,
 } from "./client.ts";
 
 export type {
-  CmsConfig,
   CmsFailure,
   Collection,
+  ContentDraft,
   Entry,
   Listing,
   NewEntry,

@@ -5,17 +5,12 @@
  * 15). There is no second who-may-do-what list: the declaration names what a page exercises, never the role that
  * holds it (ADR 0001). Hiding is presentation; the data and the commands refuse a forged request with 403.
  */
-import {
-  CurrentPrincipal,
-  PersonRepository,
-  PrincipalDirectory,
-} from "@vektorprogrammet/domain";
+import { CurrentPrincipal, PersonRepository } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Predicate } from "effect";
 
 import { PANEL_SECTIONS } from "../lib/panelSections";
 import type { NavigationGroup } from "../lib/panelSections";
-import type { Deployment } from "./deployment";
 import { mayOpenSection } from "./panelAccess";
 
 /** The sidebar for `principal`: the sections they may open, grouped; nothing for a principal that is not a person. */
@@ -72,19 +67,13 @@ export const nameOfActor = Effect.gen(function* nameOfActor() {
   );
 });
 
-/**
- * The control-panel layout's data: who is acting, the sidebar they get, and the people the local test-actor switch
- * offers (only in a `local` deployment, the one place a test actor exists).
- */
-export const shellView = (deployment: Deployment) =>
-  Effect.gen(function* shellProgram() {
-    const principal = yield* CurrentPrincipal;
-    const name = yield* nameOfActor;
-    const directory = yield* PrincipalDirectory;
+/** The control-panel layout’s actor and authorized navigation. */
+export const shellView = Effect.gen(function* shellProgram() {
+  const principal = yield* CurrentPrincipal;
+  const name = yield* nameOfActor;
 
-    return {
-      actor: actorSummary(principal, name),
-      navigation: navigationFor(principal),
-      testActors: deployment === "local" ? yield* directory.names(50) : null,
-    };
-  });
+  return {
+    actor: actorSummary(principal, name),
+    navigation: navigationFor(principal),
+  };
+});

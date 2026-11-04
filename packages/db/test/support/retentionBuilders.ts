@@ -16,7 +16,7 @@ import type { SqlError } from "effect/sql/SqlError";
 import { encodeJson } from "./json.ts";
 
 /** The rows that a builder may attach to: a person, a team and a position. The person is already created. */
-export interface Fixture {
+interface Fixture {
   readonly personId: number;
   readonly positionId: number;
   readonly tag: string;
@@ -83,10 +83,6 @@ const fromActivity =
 
       return { present: Effect.orDie(present(sql, fixture)), start: WINTER };
     });
-
-const authUser = (sql: SqlClient, { personId, tag }: Fixture) =>
-  sql`insert into auth_user (id, created_at, email, name, person_id, updated_at)
-    values (${`user-${tag}`}, ${at(WINTER)}, ${`${tag}.auth@example.org`}, ${`Auth ${tag}`}, ${personId}, ${at(WINTER)})`;
 
 export const builders = {
   "account(person_id,state)": fromActivity(
@@ -156,79 +152,6 @@ export const builders = {
         start: WINTER,
       };
     }),
-  "auth_account(access_token,access_token_expires_at,account_id,created_at,credential_version,id_token,password,provider_id,refresh_token,refresh_token_expires_at,scope,updated_at,user_id)":
-    fromActivity(
-      (sql, fixture) =>
-        Effect.andThen(
-          authUser(sql, fixture),
-          sql`insert into auth_account (id, account_id, created_at, provider_id, updated_at, user_id)
-            values (${`account-${fixture.tag}`}, ${fixture.tag}, ${at(WINTER)}, 'credential', ${at(WINTER)}, ${`user-${fixture.tag}`})`
-        ),
-      (sql, { tag }) =>
-        Effect.map(
-          sql<{
-            present: boolean;
-          }>`select exists (select 1 from auth_account where id = ${`account-${tag}`}) as present`,
-          flag
-        )
-    ),
-  "auth_session(created_at,expires_at,ip_address,token,updated_at,user_agent,user_id)":
-    (fixture) =>
-      Effect.gen(function* buildSession() {
-        const sql = yield* SqlClient;
-        yield* createdAt(fixture.personId, FAR_AHEAD);
-        yield* Effect.orDie(authUser(sql, fixture));
-        yield* Effect.orDie(
-          sql`insert into auth_session (id, created_at, expires_at, token, updated_at, user_id)
-            values (${`session-${fixture.tag}`}, ${at(WINTER)}, ${at(WINTER)}, ${`token-${fixture.tag}`}, ${at(WINTER)}, ${`user-${fixture.tag}`})`
-        );
-
-        return {
-          present: Effect.orDie(
-            Effect.map(
-              sql<{
-                present: boolean;
-              }>`select exists (select 1 from auth_session where id = ${`session-${fixture.tag}`}) as present`,
-              flag
-            )
-          ),
-          start: WINTER,
-        };
-      }),
-  "auth_user(created_at,email,email_verified,image,name,person_id,updated_at)":
-    fromActivity(
-      (sql, fixture) => authUser(sql, fixture),
-      (sql, { tag }) =>
-        Effect.map(
-          sql<{
-            present: boolean;
-          }>`select exists (select 1 from auth_user where id = ${`user-${tag}`}) as present`,
-          flag
-        )
-    ),
-  "auth_verification(created_at,expires_at,identifier,updated_at,value)": (
-    fixture
-  ) =>
-    Effect.gen(function* buildVerification() {
-      const sql = yield* SqlClient;
-      yield* createdAt(fixture.personId, FAR_AHEAD);
-      yield* Effect.orDie(
-        sql`insert into auth_verification (id, created_at, expires_at, identifier, updated_at, value)
-          values (${`verification-${fixture.tag}`}, ${at(WINTER)}, ${at(WINTER)}, ${`${fixture.tag}@example.org`}, ${at(WINTER)}, 'x')`
-      );
-
-      return {
-        present: Effect.orDie(
-          Effect.map(
-            sql<{
-              present: boolean;
-            }>`select exists (select 1 from auth_verification where id = ${`verification-${fixture.tag}`}) as present`,
-            flag
-          )
-        ),
-        start: WINTER,
-      };
-    }),
   "captured_mail(recipient,sent_at,subject,text)": (fixture) =>
     Effect.gen(function* buildCapturedMail() {
       const sql = yield* SqlClient;
@@ -277,7 +200,7 @@ export const builders = {
       yield* createdAt(fixture.personId, FAR_AHEAD);
       yield* Effect.orDie(
         sql`insert into code (expires_at, hash, purpose, subject)
-          values (${at(WINTER)}, ${SHA}, 'resetPassword', ${fixture.personId})`
+          values (${at(WINTER)}, ${SHA}, 'alumniConsent', ${fixture.personId})`
       );
 
       return {
@@ -470,7 +393,4 @@ export const builders = {
  * The other tables whose rows a rule's fixture makes expire in the same run, besides the rule's own table and the
  * person (which every rule that starts at the person's last activity end also anonymises). Keyed by rule id.
  */
-export const alsoChanges = {
-  "auth_account(access_token,access_token_expires_at,account_id,created_at,credential_version,id_token,password,provider_id,refresh_token,refresh_token_expires_at,scope,updated_at,user_id)":
-    ["auth_user"],
-} satisfies Readonly<Record<string, readonly string[]>>;
+export const alsoChanges: Readonly<Record<string, readonly string[]>> = {};

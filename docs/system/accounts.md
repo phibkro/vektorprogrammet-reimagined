@@ -14,10 +14,8 @@ A reset request gives the same answer for every address. Only an active account'
 | --- | --- | --- |
 | A team leader in the department | Invite a person to activate an account.<br>Update a person's profile. | department |
 | The person the record belongs to | Update a person's profile. | own |
-| The holder of the activation code | Activate an invited account with its single-use code. | own |
-| The holder of the resetPassword code | Reset an active account's password with its single-use code. | own |
-| Anyone, also without signing in | Request a password reset without revealing whether an account exists. | all |
-| An admin | Invite a person to activate an account.<br>Request a password reset without revealing whether an account exists.<br>Deactivate an account without changing the person.<br>Reactivate a deactivated account.<br>Update a person's profile. | all |
+| The person the record belongs to | Activate an invited account after provider verification. | own |
+| An admin | Invite a person to activate an account.<br>Activate an invited account after provider verification.<br>Deactivate an account without changing the person.<br>Reactivate a deactivated account.<br>Update a person's profile. | all |
 
 <!-- docgen:end who -->
 
@@ -42,9 +40,7 @@ stateDiagram-v2
 | Command or read | Resource | Method | What it does | Granted to | Scope | Replaces |
 | --- | --- | --- | --- | --- | --- | --- |
 | `createAccount` | Account | `create` | Invite a person to activate an account. | Leader(d); Admin | department, all | RULE-207, RULE-323 |
-| `activateAccount` | Account | `:activate` | Activate an invited account with its single-use code. | Holder(activation) | own | RULE-131, RULE-201 |
-| `requestPasswordReset` | Account | `:requestPasswordReset` | Request a password reset without revealing whether an account exists. | Anyone; Admin | all | RULE-112 |
-| `resetPassword` | Account | `:resetPassword` | Reset an active account's password with its single-use code. | Holder(resetPassword) | own | RULE-126, RULE-166 |
+| `activateAccount` | Account | `:activate` | Activate an invited account after provider verification. | Self; Admin | own, all | RULE-131, RULE-201 |
 | `deactivateAccount` | Account | `:deactivate` | Deactivate an account without changing the person. Never one's own account and never the last active admin. | Admin | all | RULE-202, RULE-299 |
 | `reactivateAccount` | Account | `:reactivate` | Reactivate a deactivated account. Never one's own account. | Admin | all | RULE-202, RULE-299 |
 | `updatePerson` | Person | `update` | Update a person's profile. | Leader(d); Self; Admin | department, own, all | RULE-143 |
@@ -57,9 +53,7 @@ stateDiagram-v2
 
 | Purpose       | Command             | Hours | Account | Single use |
 | ------------- | ------------------- | ----- | ------- | ---------- |
-| activation    | activateAccount     | 336   | Invited | yes        |
 | alumniConsent | answerAlumniConsent | 1440  | none    | no         |
-| resetPassword | resetPassword       | 24    | Active  | yes        |
 
 <!-- docgen:end code-policy -->
 

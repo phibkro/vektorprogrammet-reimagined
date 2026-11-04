@@ -1,40 +1,63 @@
-/**
- * `FileStore` over the R2 binding (bucket `vp-public-files`, no public
- * access): objects are only ever read through `/filer/{key}`. Keys are
- * content-addressed, so `put` is idempotent. R2 failures are defects: the
- * domain contract gives `FileStore` no error channel.
- */
-import type { R2Bucket } from "@cloudflare/workers-types";
+/** Supabase SDK boundary. The private bucket is served only through the domain file registry. */
 import { FileStore } from "@vektorprogrammet/domain";
-import { Effect, Layer, Option, Schema, Stream } from "effect";
+import { Effect, Layer, Option, Stream } from "effect";
 
-const decodeR2Chunk = Schema.decodeUnknownEffect(Schema.instanceOf(Uint8Array));
+import type { WorkerEnv } from "./env";
+import { createAdminClient } from "./supabase";
 
-export const r2FileStoreLayer = (bucket: R2Bucket): Layer.Layer<FileStore> =>
-  Layer.succeed(
-    FileStore,
-    FileStore.of({
+export const PUBLIC_FILES_BUCKET = "public-files";
+
+export const supabaseFileStoreLayer = (
+  config: Pick<
+    WorkerEnv,
+    "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SECRET_KEY"
+  >
+): Layer.Layer<FileStore> =>
+  Layer.sync(FileStore, () => {
+    const bucket = createAdminClient(config).storage.from(PUBLIC_FILES_BUCKET);
+
+    return FileStore.of({
       get: (key) =>
-        Effect.promise(() => bucket.get(key)).pipe(
-          Effect.map((object) =>
-            object === null
-              ? Option.none()
-              : Option.some({
-                  body: Stream.fromAsyncIterable(
-                    object.body,
-                    (cause) => cause
-                  ).pipe(
-                    Stream.mapEffect((chunk) => decodeR2Chunk(chunk)),
-                    Stream.orDie
-                  ),
-                  size: object.size,
-                })
-          ),
-          Effect.withSpan("FileStore.get")
-        ),
+        Effect.gen(function* getStoredFile() {
+          const result = yield* Effect.promise((signal) =>
+            bucket.download(key, {}, { signal })
+          );
+
+          if (result.error !== null) {
+            if (
+              "statusCode" in result.error &&
+              result.error.statusCode === "404"
+            ) {
+              return Option.none();
+            }
+
+            return yield* Effect.die(result.error);
+          }
+
+          const blob = result.data;
+
+          return Option.some({
+            body: Stream.fromAsyncIterable(
+              blob.stream(),
+              (cause) => cause
+            ).pipe(Stream.orDie),
+            size: blob.size,
+          });
+        }),
       put: ({ key, bytes, contentType }) =>
-        Effect.promise(() =>
-          bucket.put(key, bytes, { httpMetadata: { contentType } })
-        ).pipe(Effect.asVoid, Effect.withSpan("FileStore.put")),
-    })
-  );
+        Effect.gen(function* putStoredFile() {
+          const result = yield* Effect.promise(() =>
+            bucket.upload(key, bytes, {
+              contentType,
+              upsert: true,
+            })
+          );
+
+          if (result.error !== null) {
+            return yield* Effect.die(result.error);
+          }
+
+          return yield* Effect.void;
+        }),
+    });
+  });

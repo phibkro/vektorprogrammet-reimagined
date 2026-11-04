@@ -90,9 +90,8 @@ const bindings = (
   connectionString: string,
   sent: Ref.Ref<readonly (EmailMessage | EmailMessageBuilder)[]>
 ): TickEnv => ({
-  BETTER_AUTH_SECRET: "retention-test-signing-key-not-a-secret",
+  DATABASE_URL: connectionString,
   DEPLOYMENT: deployment,
-  HYPERDRIVE: { connectionString },
   MAIL_FROM: "noreply@retention.example",
   SEND_EMAIL: {
     send: flow(
@@ -105,6 +104,9 @@ const bindings = (
   },
   SITE_URL: "https://retention.example",
   SLACK_WEBHOOK_URL: "https://hooks.example.invalid/fake",
+  SUPABASE_PUBLISHABLE_KEY: "local-test-publishable-key",
+  SUPABASE_SECRET_KEY: "local-test-secret-key",
+  SUPABASE_URL: "http://127.0.0.1:1",
 });
 
 const whatTheRunLeft = Effect.gen(function* whatTheRunLeft() {

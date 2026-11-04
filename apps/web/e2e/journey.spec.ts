@@ -1,7 +1,7 @@
 /**
  * Spec 0001, journey steps 1 to 4 in a browser (step 2 is spec 0003: semesters come from the cron job, not
- * from a form), against `vp dev` (the `local` deployment, a test actor chosen by cookie) and a PostgreSQL
- * database that the real importer filled from its fake legacy fixture (`e2e/support/database.ts`): this is
+ * from a form), against the local Worker, provider-backed sign-in and the real Supabase database
+ * filled by the importer from its synthetic legacy fixture: this is
  * migrated data, with the importer's own quirks. The fixture's third department (an invalid e-mail address) is
  * quarantined, its five duplicate semester rows are collapsed to two, and its orphan fields of study are left
  * out. One story over one database, so the tests run in order. Every create and edit form opens in a Sheet

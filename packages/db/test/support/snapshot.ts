@@ -7,6 +7,9 @@ import { Catalog } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Number as Num, Record as Rec } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { encodeJson } from "./json.ts";
+import { providerSnapshot } from "./supabaseAuth.ts";
+
 export const snapshot = Effect.gen(function* snapshot() {
   const sql = yield* SqlClient;
 
@@ -18,7 +21,10 @@ export const snapshot = Effect.gen(function* snapshot() {
       .pipe(Effect.map(([row]) => [table, `${row?.n}:${row?.h}`] as const))
   );
 
-  return Rec.fromEntries(tables);
+  return {
+    ...Rec.fromEntries(tables),
+    provider: yield* encodeJson(yield* providerSnapshot),
+  };
 });
 
 /**

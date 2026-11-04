@@ -8,8 +8,10 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
+  AccountRepository,
   AggregateLocks,
   Catalog,
+  Outbox,
   retentionRules,
   ruleId,
 } from "@vektorprogrammet/domain";
@@ -225,7 +227,17 @@ const skippingRun = Effect.fnUntraced(function* skippingRun(
   const aggregates = yield* Aggregates;
   const db = yield* Drizzle;
   const locks = yield* AggregateLocks;
-  const store = personalDataRetention({ aggregates, db, locks }, without(rule));
+
+  const store = personalDataRetention(
+    {
+      accounts: yield* AccountRepository,
+      aggregates,
+      db,
+      locks,
+      outbox: yield* Outbox,
+    },
+    without(rule)
+  );
 
   return (now: DateTime.Utc) =>
     transactional(store.expire(now)).pipe(Effect.orDie);

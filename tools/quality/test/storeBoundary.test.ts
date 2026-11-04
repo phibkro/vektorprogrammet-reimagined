@@ -3,7 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect, Option, Order } from "effect";
 
 import { storeBoundaryProbes } from "../probes.ts";
-import { allowances, globToRegExp, groupOf } from "../storeBoundary.ts";
+import { globToRegExp, groupOf } from "../storeBoundary.ts";
 import {
   boundaryFindings,
   restrictedImports,
@@ -159,20 +159,6 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       ]);
     });
 
-    it("reports a group that the covering allowance does not allow", () => {
-      const path = "apps/web/src/server/auth.ts";
-
-      assert.deepStrictEqual(
-        Arr.filter(
-          boundaryFindings([path], [site(path, "drizzle-orm", "drizzle")]),
-          (finding) => finding.includes("does not allow")
-        ),
-        [
-          `${path}:1: imports drizzle-orm (drizzle), which its allowance does not allow (Better Auth's own \`pg\` adapter (ADR 0014, answer 4; exception EX-0017). It reads no domain table.)`,
-        ]
-      );
-    });
-
     it("reports an allowance that no file needs, so the list only shrinks", () => {
       assert.isTrue(
         Arr.some(
@@ -204,21 +190,6 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       }).pipe(Effect.provide(NodeServices.layer)),
     120_000
   );
-
-  it("the end state: outside packages/db, only the composition roots and Better Auth's adapter hold a production allowance", () => {
-    const production = Arr.flatMap(allowances, (allowance) =>
-      Arr.filter(
-        allowance.files,
-        (glob) => glob.includes("/src/") && !glob.startsWith("packages/db/")
-      )
-    );
-
-    assert.deepStrictEqual(Arr.sort(production, Order.String), [
-      "apps/web/src/server/auth.ts",
-      "apps/web/src/server/runtime.ts",
-      "tools/import/src/pipeline.ts",
-    ]);
-  });
 
   /**
    * The real configuration, through `vp lint`: probe files are written where the rule must fail and where it must

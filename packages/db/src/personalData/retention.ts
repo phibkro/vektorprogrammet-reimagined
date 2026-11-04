@@ -12,12 +12,20 @@
  * between the decision and the write. Owned rows use `Aggregates` and the chunk's tokens, in ascending id order. Other
  * rules use conditional bulk statements, in chunks of rows.
  */
-import { Catalog, retentionRules } from "@vektorprogrammet/domain";
+import {
+  Catalog,
+  DeleteAuthUserMessage,
+  OutboxSweep,
+  PersonId,
+  retentionRules,
+} from "@vektorprogrammet/domain";
 import type {
+  AccountRepository,
   AggregateLocks,
   CatalogOf,
   Counts,
   InTransaction,
+  Outbox,
   Locked,
   RetentionRule,
 } from "@vektorprogrammet/domain";
@@ -157,7 +165,20 @@ const dueAt = (
   rule: RetentionRule,
   now: DateTime.Utc,
   activity: ActivityDue
-): SQL => allOf(expiredAt(rule, now, activity), notAnonymised(rule));
+): SQL =>
+  allOf(
+    expiredAt(rule, now, activity),
+    notAnonymised(rule),
+    rule.table === "outbox"
+      ? sql`(${col("outbox", "status")} = 'delivered' or ${col("outbox", "kind")} not in (${sql.join(
+          Arr.map(
+            OutboxSweep.DeliveryPolicy.unlimitedKinds,
+            (kind) => sql`${kind}`
+          ),
+          sql`, `
+        )}))`
+      : undefined
+  );
 
 /** No rule is decided by a person's facts: a bulk rule, which has no person, and the search for candidates, which reads the facts itself. */
 const noOne: ActivityDue = () => sql`false`;
@@ -317,12 +338,12 @@ interface Run {
     where: SQL,
     tokens: Tokens,
     now: DateTime.Utc
-  ) => Effect.Effect<number>;
+  ) => Effect.Effect<number, never, InTransaction>;
   /** A bulk rule over every row that has expired at `now`: how many rows. */
   readonly bulk: (
     rule: RetentionRule,
     now: DateTime.Utc
-  ) => Effect.Effect<number>;
+  ) => Effect.Effect<number, never, InTransaction>;
 }
 
 /**
@@ -395,13 +416,15 @@ const nightly = (
  */
 export const personalDataRetention = (
   services: {
+    readonly accounts: AccountRepository["Service"];
     readonly aggregates: Aggregates["Service"];
     readonly db: Drizzle["Service"];
     readonly locks: AggregateLocks["Service"];
+    readonly outbox: Outbox["Service"];
   },
   rules: readonly RetentionRule[] = retentionRules(catalog)
 ) => {
-  const { aggregates, db, locks } = services;
+  const { accounts, aggregates, db, locks, outbox } = services;
 
   /** The rules that erasure runs: the tables whose person relation declares `Expire`. */
   const erasing = Arr.sort(
@@ -446,7 +469,8 @@ export const personalDataRetention = (
     rule: RetentionRule,
     where: SQL,
     tokens: Tokens,
-    now: DateTime.Utc
+    now: DateTime.Utc,
+    deleteIdentity: boolean
   ) {
     const table = yield* tableOf(rule.table);
 
@@ -466,6 +490,33 @@ export const personalDataRetention = (
 
     // A person's photo goes with the person: the keys are read before the statement that clears them.
     const keys = rule.table === "person" ? yield* photosOf(db, where) : [];
+
+    if (rule.table === "person" && deleteIdentity) {
+      const people = yield* db
+        .execute<{ id: number }>(
+          sql`select person.id from person where ${where}`,
+          "objects"
+        )
+        .pipe(Effect.orDie);
+
+      yield* Effect.forEach(
+        people,
+        ({ id }) =>
+          Effect.gen(function* enqueueIdentityDeletion() {
+            const identities = yield* accounts.findAuthIdentitiesByPersonId(
+              PersonId.make(id)
+            );
+
+            yield* Effect.forEach(
+              identities,
+              (userId) =>
+                outbox.enqueue([DeleteAuthUserMessage.make({ userId })]),
+              { discard: true }
+            );
+          }),
+        { discard: true }
+      );
+    }
 
     const rows =
       rule.table === "person"
@@ -489,11 +540,14 @@ export const personalDataRetention = (
     rule: RetentionRule,
     where: SQL,
     tokens: Tokens,
-    now: DateTime.Utc
-  ): Effect.Effect<number> =>
+    now: DateTime.Utc,
+    deleteIdentity = true
+  ): Effect.Effect<number, never, InTransaction> =>
     Match.value(rule.expiry).pipe(
       Match.when("Delete", () => remove(rule, where, tokens)),
-      Match.when("Anonymise", () => anonymise(rule, where, tokens, now)),
+      Match.when("Anonymise", () =>
+        anonymise(rule, where, tokens, now, deleteIdentity)
+      ),
       Match.exhaustive
     );
 
@@ -501,7 +555,7 @@ export const personalDataRetention = (
   const sweep = (
     rule: RetentionRule,
     now: DateTime.Utc
-  ): Effect.Effect<number> =>
+  ): Effect.Effect<number, never, InTransaction> =>
     Effect.gen(function* sweepChunk() {
       const chunk = sql`ctid = any(array(select ctid from ${identifier(rule.table)} where ${dueAt(rule, now, noOne)} limit ${BULK_CHUNK}))`;
       const rows = yield* apply(rule, chunk, [], now);
@@ -538,7 +592,7 @@ export const personalDataRetention = (
       .execute<{ address: string }>(
         sql`select lower(email) as address from person where id = ${id}
           union select lower(company_email) from person where id = ${id} and company_email is not null
-          union select lower(email) from auth_user where person_id = ${id}`,
+          union select lower(email) from auth.users where raw_app_meta_data->>'personId' = ${String(id)} and email is not null`,
         "objects"
       )
       .pipe(
@@ -580,7 +634,7 @@ export const personalDataRetention = (
   const anonymisePerson = (
     locked: Locked<"Person">,
     now: DateTime.Utc
-  ): Effect.Effect<number> =>
+  ): Effect.Effect<number, never, InTransaction> =>
     Effect.map(
       Effect.forEach(
         Arr.filter(erasing, (rule) => rule.table === "person"),
@@ -592,7 +646,8 @@ export const personalDataRetention = (
               notAnonymised(rule)
             ),
             [locked],
-            now
+            now,
+            false
           )
       ),
       Num.sumAll

@@ -58,9 +58,7 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
 | `createAccount` | `create` | accounts | Invite a person to activate an account. | Leader(d); Admin |
-| `activateAccount` | `:activate` | accounts | Activate an invited account with its single-use code. | Holder(activation) |
-| `requestPasswordReset` | `:requestPasswordReset` | accounts | Request a password reset without revealing whether an account exists. | Anyone; Admin |
-| `resetPassword` | `:resetPassword` | accounts | Reset an active account's password with its single-use code. | Holder(resetPassword) |
+| `activateAccount` | `:activate` | accounts | Activate an invited account after provider verification. | Self; Admin |
 | `deactivateAccount` | `:deactivate` | accounts | Deactivate an account without changing the person. Never one's own account and never the last active admin. | Admin |
 | `reactivateAccount` | `:reactivate` | accounts | Reactivate a deactivated account. Never one's own account. | Admin |
 
@@ -121,10 +119,8 @@ The page is generated from the declarations in `packages/domain`: run `bun run d
 
 | Command | Method | Domain | What it does | Granted to |
 | --- | --- | --- | --- | --- |
-| `sweepOutbox` | `:sweep` | outbox | Find the pending outbox rows that no queue message covers any more. Names at most `limit` pending rows without a fresh receipt (older than `DeliveryPolicy.requeueAfter`) and no live claim: the job puts their ids on the queue again. It changes and delivers nothing: the queue's consumer delivers. | System(outboxSweep) |
-| `deliverOutbox` | `:deliver` | outbox | Deliver the mail, Slack and credential intents that a queue message names. Claims the rows the queue message names, each only while it is pending and no live claim holds it; code mail is minted and acknowledged in its delivery transaction (spec 0007 R1). | System(outboxSweep) |
-| `failOutbox` | `:fail` | outbox | Mark the rows that the queue gave up on as failed. The dead-letter queue's consumer: a row becomes `dead` only when it is pending, unclaimed and a delivery failure was recorded on it (`last_error`); a row that never failed stays pending for the sweep, and a delivered one is left alone. | System(outboxSweep) |
-| `recordOutboxFailure` | `:record` | outbox | Record that a delivery could not start on the rows that the queue messages name. The consumer could not build its delivery stack (a sender or auth binding is missing or refused): it records the class of that failure on the rows its messages name, each only while pending and unclaimed, and dates the next attempt by `DeliveryPolicy.retryDelay` for the message's delivery count. The dead-letter queue's consumer can then end them. It reads and writes nothing else, and no provider was tried. | System(outboxSweep) |
+| `sweepOutbox` | `:sweep` | outbox | Find due pending outbox rows. Finds at most limit due pending rows without a live claim. | System(outboxSweep) |
+| `deliverOutbox` | `:deliver` | outbox | Deliver due outbox messages. Claims due rows with fenced leases before delivery. | System(outboxSweep) |
 
 ### SupportTicket
 

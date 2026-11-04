@@ -7,8 +7,10 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
+  AccountRepository,
   AggregateLocks,
   Catalog,
+  Outbox,
   LegalHolds,
   PersonId,
   PersonalDataEndpoints,
@@ -17,6 +19,7 @@ import {
 } from "@vektorprogrammet/domain";
 import type { Hold, Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Exit, Record as Rec } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
 
 import { Aggregates } from "../src/aggregate/aggregates.ts";
 import { personalDataRetention } from "../src/personalData/retention.ts";
@@ -33,6 +36,7 @@ import {
 import { everything, seedPerson } from "./support/personData.ts";
 import type { Seeded } from "./support/personData.ts";
 import { scan, snapshot } from "./support/snapshot.ts";
+import { providerSnapshot, providerUserId } from "./support/supabaseAuth.ts";
 
 const NOW = DateTime.makeUnsafe("2026-10-27T12:00:00Z");
 const FAR = DateTime.makeUnsafe("2099-01-01T00:00:00Z");
@@ -46,9 +50,6 @@ const ERASED_TABLES = [
   "account",
   "admin_grant",
   "alumni_request",
-  "auth_account",
-  "auth_session",
-  "auth_user",
   "code",
   "consent",
   "ending_soon_digest",
@@ -82,6 +83,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const ola: Seeded = yield* seedPerson("erola", everything, NOW);
           const kari: Seeded = yield* seedPerson("erkari", everything, NOW);
           const karisRowsBefore = yield* rowsLeft(kari.personId);
+          const providerBefore = yield* providerSnapshot;
 
           const result = yield* eraseAs(
             selfPrincipal(ola.personId),
@@ -105,6 +107,20 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           );
 
           assert.strictEqual(yield* auditedErasures(ola.personId), 1);
+          // Supabase owns the actual deletion, delivered after this transaction commits.
+          assert.deepStrictEqual(yield* providerSnapshot, providerBefore);
+          const sql = yield* SqlClient;
+          assert.deepStrictEqual(
+            yield* sql`select payload from outbox where kind = 'DeleteAuthUser' and payload->>'userId' = ${providerUserId(ola.personId)}`,
+            [
+              {
+                payload: {
+                  _tag: "DeleteAuthUser",
+                  userId: providerUserId(ola.personId),
+                },
+              },
+            ]
+          );
 
           // Kari's rows are as they were: the erasure touched the person and nothing of anyone else's.
           assert.deepStrictEqual(
@@ -148,7 +164,13 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const real = yield* PersonalDataStore;
 
           const withoutPerson = personalDataRetention(
-            { aggregates, db, locks },
+            {
+              accounts: yield* AccountRepository,
+              aggregates,
+              db,
+              locks,
+              outbox: yield* Outbox,
+            },
             Arr.filter(
               retentionRules(Catalog),
               (rule) => rule.table !== "person"

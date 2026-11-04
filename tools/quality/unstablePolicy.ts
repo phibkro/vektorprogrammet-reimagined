@@ -63,6 +63,7 @@ export const unstablePolicy = {
     override(["tools/*/test/**", "apps/*/e2e/**"], ...testingTools),
     override(["packages/db/src/**"], ...base, "sql"),
     override(["apps/web/src/server/**"], ...base, "sql", "http"),
+    override(["apps/web/src/lib/authClient.ts"], ...base, "http"),
     override(["packages/cms-client/src/**"], ...base, "http"),
     override(["tools/import/src/**"], ...tools, "mysql"),
     override(["tools/import/test/**"], ...testingTools, "mysql"),

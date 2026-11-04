@@ -3,6 +3,7 @@ import { Array as Arr } from "effect";
 import {
   BuildingIcon,
   CalendarDaysIcon,
+  FileTextIcon,
   ExternalLinkIcon,
   GraduationCapIcon,
   LayoutDashboardIcon,
@@ -49,6 +50,7 @@ import type { ActorSummary } from "@/server/shell";
 
 const SECTION_ICONS: Readonly<Record<SectionKey, LucideIcon>> = {
   admins: ShieldCheckIcon,
+  content: FileTextIcon,
   departments: BuildingIcon,
   fieldsOfStudy: GraduationCapIcon,
   integrations: PlugIcon,

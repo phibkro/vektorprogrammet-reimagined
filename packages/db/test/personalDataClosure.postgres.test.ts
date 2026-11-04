@@ -56,6 +56,17 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           );
 
           assert.deepStrictEqual(catalogProblems(Catalog, Forms), []);
+
+          // Provider-owned tables live outside the public catalog and have no FK to person.
+          const sql = yield* SqlClient;
+          assert.deepStrictEqual(
+            yield* sql`select table_name from information_schema.tables where table_schema = 'auth' order by table_name`,
+            [
+              { table_name: "identities" },
+              { table_name: "sessions" },
+              { table_name: "users" },
+            ]
+          );
         })
     );
 
@@ -78,7 +89,6 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             "account.person_id",
             "consent.person_id",
             "alumni_request.person_id",
-            "auth_user.person_id",
             "code.subject",
             "person.merged_into",
           ]) {

@@ -24,8 +24,6 @@ export const integrationsView = Effect.gen(function* integrationsView() {
       open: Arr.map(outbox.open, (row) => ({
         ...row,
         nextAttemptAt: DateTime.formatIso(row.nextAttemptAt),
-        queuedAt:
-          row.queuedAt === null ? null : DateTime.formatIso(row.queuedAt),
       })),
     },
     report: Option.match(latest, {

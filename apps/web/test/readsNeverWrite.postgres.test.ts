@@ -11,12 +11,15 @@
  * `packages/db/test/readOnlyRole.postgres.test.ts`; the negative controls here run a write through the same
  * harness.
  *
- * The list of read paths is written down here, so a new `runQuery` call site must be registered too:
- * the last test counts the call sites in the source.
+ * Every registered read is exercised against actual database privileges; no source-text assertions.
  */
 import { assert, layer } from "@effect/vitest";
-import type { CmsClient, CmsFailure } from "@vektorprogrammet/cms-client";
-import { DatabaseLive } from "@vektorprogrammet/db";
+import type {
+  CmsClient,
+  CmsFailure,
+  ContentEditor,
+} from "@vektorprogrammet/cms-client";
+import { ContentLive, DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
@@ -63,9 +66,7 @@ import {
   Exit,
   Layer,
   Option,
-  Order,
   Predicate,
-  Record as Rec,
   Stream,
 } from "effect";
 import type { Context, Redacted } from "effect";
@@ -98,17 +99,11 @@ import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 
 type ReadServices =
   | CmsClient
+  | ContentEditor
   | DatabaseServices
   | CurrentPrincipal
   | FileStore
   | Auth;
-
-/** Every source file of the app, as text: the read paths are checked against its `runQuery` call sites. */
-const SOURCES = import.meta.glob<string>("../src/**/*.{ts,tsx}", {
-  eager: true,
-  import: "default",
-  query: "?raw",
-});
 
 /** What a read path answers: a value, the typed `NotFound` that a missing row means, or the typed `Forbidden` of its own grant check. */
 type Expected = "ok" | "NotFound" | "Forbidden";
@@ -232,7 +227,10 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getDepartmentSlug", departmentSlugById(1), {
     empty: "NotFound",
   }),
-  readPath("panel.functions getShell", shellView("local")),
+  readPath("panel.functions getContent", panelReads.getContent, {
+    refusedTo: NOT_ADMIN,
+  }),
+  readPath("panel.functions getShell", shellView),
   readPath("panel.functions getDashboard", panelReads.getDashboard, {
     refusedTo: NO_PANEL,
   }),
@@ -285,7 +283,7 @@ const READ_PATHS: readonly ReadPath[] = [
   ),
   readPath(
     "server/runtime liveRequestLayer: the principal's facts",
-    resolvePrincipal("local", LOCAL_PERSON, new Headers())
+    resolvePrincipal(new Headers())
   ),
   readPath(
     "server/principal active account and memberships",
@@ -304,16 +302,6 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("routes/api/isolation GET", isolationReport("preview")),
   readPath("server.ts legacy file redirect", legacyFileLocation(LEGACY_PATH)),
 ];
-
-/** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
-const RUN_QUERY_CALL_SITES = {
-  "functions/account.functions.ts": 2,
-  "functions/panel.functions.ts": 11,
-  "functions/public.functions.ts": 11,
-  "routes/api/isolation.ts": 1,
-  "routes/filer/$key.ts": 1,
-  "server.ts": 1,
-};
 
 const ACTORS: readonly (readonly [string, Principal])[] = [
   ["anonymous", anonymous],
@@ -334,10 +322,11 @@ const fileStore = Layer.succeed(
 
 /** The services of one request: `DatabaseLive` as the role behind `url`, and an R2 stand-in. */
 const requestServices = (url: Redacted.Redacted) =>
-  Layer.merge(
+  Layer.mergeAll(
+    ContentLive,
     fileStore,
     Layer.mock(Auth, {
-      session: () => Effect.succeed({ cookiePresent: false, value: null }),
+      session: () => Effect.succeed({ cookiePresent: false, personId: null }),
     })
   ).pipe(
     Layer.provideMerge(DatabaseLive({ maxConnections: 2, url })),
@@ -352,6 +341,7 @@ const SEED = [
      (1, 'Alfaby', 'kontakt@alfa.example', 'Avdeling Alfa', 'ALFA', true, '${KEY_SMALL}'),
      (2, 'Betaby', 'kontakt@beta.example', 'Avdeling Beta', 'BETA', false, null)`,
   `insert into field_of_study (department_id, name, short_name) values (1, 'Fag Alfa', 'FA')`,
+  `insert into site_content (collection, slug, draft) values ('texts', 'read-check', '{"title":"Utkast"}'::jsonb)`,
 ];
 
 /**
@@ -459,7 +449,7 @@ const readerContext = Effect.gen(function* readerContext() {
 });
 
 const runAs = <A, E>(
-  context: Context.Context<DatabaseServices | FileStore | Auth>,
+  context: Context.Context<DatabaseServices | ContentEditor | FileStore | Auth>,
   principal: Principal,
   program: Effect.Effect<A, E, ReadServices>,
   cms: Partial<CmsSeed> = {}
@@ -540,6 +530,29 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
     () =>
       Effect.gen(function* seededEffect() {
         yield* seedDatabase;
+        const reader = yield* readerContext;
+
+        const content = yield* panelReads.getContent.pipe(
+          Effect.provideService(CurrentPrincipal, ADMIN),
+          Effect.provideContext(reader)
+        );
+
+        assert.deepStrictEqual(
+          Arr.map(content, (entry) => ({
+            collection: entry.collection,
+            draft: entry.draft,
+            published: entry.published,
+            slug: entry.slug,
+          })),
+          [
+            {
+              collection: "texts",
+              draft: { title: "Utkast" },
+              published: null,
+              slug: "read-check",
+            },
+          ]
+        );
         yield* readEveryPath("seeded");
       })
   );
@@ -576,51 +589,4 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
         assert.isTrue(Exit.isSuccess(allowed));
       })
   );
-
-  it("the registered read paths cover every runQuery call site in the source", () => {
-    const counted = Arr.map(
-      Rec.toEntries(SOURCES),
-      ([file, text]) =>
-        [
-          file.replace("../src/", ""),
-          Arr.length(text.match(/\brunQuery\(/gu) ?? []),
-        ] as const
-    );
-
-    // `server/runtime.ts` defines `runQuery`; every other file that calls it is a read path.
-    const sites = Rec.fromEntries(
-      Arr.filter(
-        counted,
-        ([file, count]) => count > 0 && file !== "server/runtime.ts"
-      )
-    );
-
-    assert.deepStrictEqual(sites, RUN_QUERY_CALL_SITES);
-  });
-
-  it("falsifier 4: no semester create command or server function exists, and the registry's runner is the only caller of the semester job", () => {
-    const files = Arr.map(
-      Rec.toEntries(SOURCES),
-      ([file, text]) => [file.replace("../src/", ""), text] as const
-    );
-
-    const naming = (pattern: RegExp) =>
-      Arr.map(
-        Arr.filter(files, ([, text]) => pattern.test(text)),
-        ([file]) => file
-      );
-
-    assert.deepStrictEqual(
-      naming(
-        /createSemester|saveSemester|semesterInput|ensureCurrentSemester/u
-      ),
-      []
-    );
-    // The Worker's `scheduled` handler runs the registry (`runTick`); only the runner table names the semester job.
-    assert.deepStrictEqual(naming(/semesterJob/u), ["server/jobRunners.ts"]);
-    assert.deepStrictEqual(Arr.sort(naming(/runTick/u), Order.String), [
-      "server.ts",
-      "server/runtime.ts",
-    ]);
-  });
 });

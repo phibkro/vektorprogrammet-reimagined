@@ -95,10 +95,6 @@ describe("writeContent", () => {
           draft: 0,
           published: 1,
         });
-        assert.strictEqual(written.departmentOptionsAdded, 1);
-        assert.deepStrictEqual(cms.options.get("news.departments"), [
-          "Trondheim",
-        ]);
         assert.strictEqual(
           cms.news.stored.get("opptak-apner")?.status,
           "published"

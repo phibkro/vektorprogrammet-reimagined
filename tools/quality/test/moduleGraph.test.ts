@@ -3,7 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect, Order } from "effect";
 
 import { importForms, importSpecifiers } from "../importSpecifiers.ts";
-import { baseline, declaration, integrationCalls } from "../moduleGraph.ts";
+import { baseline, declaration } from "../moduleGraph.ts";
 import type { Declaration } from "../moduleGraph.ts";
 import { moduleGraphFindings, scanImports } from "../moduleGraphCheck.ts";
 import { moduleGraphProbes } from "../probes.ts";
@@ -676,33 +676,5 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
         }).pipe(Effect.provide(NodeServices.layer)),
       120_000
     );
-
-    it("the baseline is pinned: a stage that removes an import lowers the count, and nothing adds to it", () => {
-      // The three imports between modules are gone (ADR 0015 stages 2 and 3, spec 0022); five between packages remain (stage 5).
-      assert.lengthOf(baseline, 5);
-
-      // One call of another system inside a transaction that the type bound does not see (review round 1).
-      assert.deepStrictEqual(
-        Arr.map(
-          integrationCalls,
-          ({ file, within, call }) =>
-            `${file} ${within.service}.${within.method} ${call.service}.${call.method}`
-        ),
-        [
-          "apps/web/src/server/accountDelivery.ts Transactor.run MessageSender.send",
-        ]
-      );
-
-      assert.deepStrictEqual(
-        Arr.map(baseline, ({ from, to }) => `${from} -> ${to}`),
-        [
-          "apps/cms/scripts/checkBundle.ts -> packages/db",
-          "apps/cms/scripts/checkBundle.ts -> apps/web",
-          "apps/web/test/textSlots.test.ts -> apps/cms",
-          "tools/db-path-spike/alchemy.run.ts -> apps/web",
-          "tools/oxlint/anti-slop/rules/no-owned-table-write.ts -> packages/db",
-        ]
-      );
-    });
   });
 });

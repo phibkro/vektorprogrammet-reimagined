@@ -9,6 +9,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { activateAccount } from "./accountsWorld.ts";
 import { encodeJson } from "./json.ts";
+import { providerUserId } from "./supabaseAuth.ts";
 import { asPerson, world } from "./teamsWorld.ts";
 
 /** Which tables a seeded person has rows in. */
@@ -65,7 +66,7 @@ export interface Seeded {
   readonly name: string;
   readonly personId: number;
   readonly positionId: number;
-  /** The credential values (a password hash, a session token, a code hash): none may appear in their own export either. */
+  /** The synthetic code hash: no credential may appear in its owner's export. */
   readonly secrets: readonly string[];
   readonly tag: string;
   readonly teamId: number;
@@ -101,9 +102,7 @@ export const seedPerson = Effect.fnUntraced(function* seedPerson(
 
   const companyEmail = `${tag}.firma@example.org`;
   const authEmail = `${tag}.auth@example.org`;
-  const authName = `Auth ${tag}`;
-  const password = `secret-password-${tag}`;
-  const token = `secret-token-${tag}`;
+  const userId = providerUserId(personId);
   const codeHash = hexOf(`code-${tag}`);
 
   yield* sql`update person set company_email = ${companyEmail} where id = ${personId}`;
@@ -117,19 +116,19 @@ export const seedPerson = Effect.fnUntraced(function* seedPerson(
   if (holdings.account) {
     yield* asPerson(person.id, activateAccount);
 
-    yield* sql`insert into auth_user (id, created_at, email, name, person_id, updated_at)
-      values (${`user-${tag}`}, ${instant}, ${authEmail}, ${authName}, ${personId}, ${instant})`;
+    yield* sql`insert into auth.users (id, created_at, email, raw_app_meta_data, updated_at)
+      values (${userId}, ${instant}, ${authEmail}, ${yield* encodeJson({ personId })}::jsonb, ${instant})`;
 
-    yield* sql`insert into auth_account (id, account_id, created_at, password, provider_id, updated_at, user_id)
-      values (${`account-${tag}`}, ${tag}, ${instant}, ${password}, 'credential', ${instant}, ${`user-${tag}`})`;
+    yield* sql`insert into auth.identities (id, user_id, provider, created_at, updated_at)
+      values (${userId}, ${userId}, 'email', ${instant}, ${instant})`;
 
-    yield* sql`insert into auth_session (id, created_at, expires_at, token, updated_at, user_id)
-      values (${`session-${tag}`}, ${instant}, ${at("2099-01-01T00:00:00Z")}, ${token}, ${instant}, ${`user-${tag}`})`;
+    yield* sql`insert into auth.sessions (id, created_at, not_after, updated_at, user_id)
+      values (${userId}, ${instant}, ${at("2099-01-01T00:00:00Z")}, ${instant}, ${userId})`;
   }
 
   if (holdings.code) {
     yield* sql`insert into code (expires_at, hash, purpose, subject)
-      values (${at("2099-01-01T00:00:00Z")}, ${codeHash}, 'resetPassword', ${personId})`;
+      values (${at("2099-01-01T00:00:00Z")}, ${codeHash}, 'alumniConsent', ${personId})`;
   }
 
   for (const [kind, given] of [
@@ -179,6 +178,12 @@ export const seedPerson = Effect.fnUntraced(function* seedPerson(
 
     yield* sql`insert into captured_mail (recipient, sent_at, subject, text)
       values (${person.email}, ${instant}, ${`Emne ${tag}`}, ${`Hei ${person.name}`})`;
+
+    if (holdings.account) {
+      // Provider and domain addresses deliberately differ: erasure must clean both.
+      yield* sql`insert into captured_mail (recipient, sent_at, subject, text)
+        values (${authEmail}, ${instant}, 'Provider notification', 'Synthetic provider notification')`;
+    }
   }
 
   const seeded: Seeded = {
@@ -187,17 +192,14 @@ export const seedPerson = Effect.fnUntraced(function* seedPerson(
     name: person.name,
     personId,
     positionId: memberPosition,
-    secrets: [
-      ...(holdings.account ? [password, token] : []),
-      ...(holdings.code ? [codeHash] : []),
-    ],
+    secrets: holdings.code ? [codeHash] : [],
     tag,
     teamId: team.id,
     values: [
       person.name,
       person.email,
       companyEmail,
-      ...(holdings.account ? [authEmail, authName] : []),
+      ...(holdings.account ? [authEmail] : []),
     ],
   };
 

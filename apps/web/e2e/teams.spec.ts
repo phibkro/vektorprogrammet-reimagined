@@ -2,7 +2,7 @@
 // oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
+import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "@vektorprogrammet/domain";
 import { Array as Arr } from "effect";
 
 import {
@@ -100,9 +100,33 @@ test("falsifier 10: an admin and leader create a team and members, switch princi
   expect(beforeChange).toHaveLength(1);
   expect(beforeEnd).toHaveLength(1);
 
-  // Select the new person with the actual local switch, not a separate role assignment.
+  // Invite and activate the new member with the actual provider-backed flow.
+  await memberRow(page, EXTEND)
+    .getByRole("button", { name: `Inviter ${EXTEND}` })
+    .click();
+  expect(await submitSheet(page, "Send invitasjon")).toBe(200);
+  await expect
+    .poll(async () => {
+      const messages = await runDatabase(
+        capturedMailTo("emma.extend@example.org")
+      );
+
+      return messages.length;
+    })
+    .toBeGreaterThan(2);
+
+  const [invitation] = await runDatabase(
+    capturedMailTo("emma.extend@example.org")
+  );
+
+  const inviteLink = /https?:\/\/\S+/u.exec(invitation?.text ?? "")?.[0];
+  expect(inviteLink).toBeDefined();
+  await context.clearCookies();
+  await openPage(page, inviteLink ?? "");
+  await page.getByLabel("Nytt passord").fill(LOCAL_FAKE_PASSWORD);
+  await page.getByRole("button", { name: "Aktiver konto" }).click();
+  await page.waitForURL(/\/(?:kontrollpanel|min-side)(?:\/|$)/u);
   await openPage(page, "/kontrollpanel");
-  await page.getByRole("button", { exact: true, name: EXTEND }).click();
   await expect(
     page.getByText(`${EXTEND}, teammedlem`, { exact: true })
   ).toBeVisible();
@@ -125,8 +149,8 @@ test("falsifier 10: an admin and leader create a team and members, switch princi
   ).toHaveCount(0);
 
   // Switch back to the leader and open the exact extend link sent in an ending-soon digest.
+  await signInAs(context, TEST_LEADER);
   await openPage(page, "/kontrollpanel");
-  await page.getByRole("button", { exact: true, name: TEST_LEADER }).click();
   await expect(
     page.getByText(`${TEST_LEADER}, teamleder`, { exact: true })
   ).toBeVisible();

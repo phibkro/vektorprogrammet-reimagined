@@ -23,6 +23,7 @@ export const SECTION_COMMANDS: Readonly<
   Record<SectionKey, NonEmptyReadonlyArray<Command>>
 > = {
   admins: ["createAdminGrant", "deleteAdminGrant"],
+  content: ["createAdminGrant"],
   departments: ["createDepartment", "updateDepartment"],
   fieldsOfStudy: ["createFieldOfStudy", "updateFieldOfStudy"],
   integrations: ["viewIntegrations", "createWorkspaceReport"],
@@ -40,6 +41,7 @@ export const SECTION_COMMANDS: Readonly<
  */
 export const READ_SECTIONS = {
   getAdmins: "admins",
+  getContent: "content",
   getDashboard: "overview",
   getDepartments: "departments",
   getFieldsOfStudy: "fieldsOfStudy",

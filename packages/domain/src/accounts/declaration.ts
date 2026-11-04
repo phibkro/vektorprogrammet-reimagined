@@ -8,15 +8,13 @@ import {
   info,
   leader,
   self,
-  anyone,
   make as declareDomain,
 } from "../kernel/domain.ts";
 import * as Machine from "../kernel/machine.ts";
 import { DomainErrorSchema } from "../shared/errors.ts";
 import { PersonId } from "../shared/ids.ts";
 import { Person, PersonEmailInput, PersonInput } from "../teams/entities.ts";
-import { CodeToken, codeHolder } from "./code.ts";
-import { Account, AccountState, Password } from "./entities.ts";
+import { Account, AccountState } from "./entities.ts";
 
 export const createAccount = Rpc.make("createAccount", {
   error: DomainErrorSchema,
@@ -35,47 +33,16 @@ export const createAccount = Rpc.make("createAccount", {
 
 export const activateAccount = Rpc.make("activateAccount", {
   error: DomainErrorSchema,
-  payload: { code: CodeToken, password: Password },
+  payload: { email: PersonEmailInput, personId: PersonId },
   success: Account,
 }).annotate(
   Info,
   info({
-    credential: "activation",
     machine: "Account",
     method: ":activate",
     replaces: ["RULE-131", "RULE-201"],
     resource: "Account",
-    summary: "Activate an invited account with its single-use code.",
-  })
-);
-
-export const requestPasswordReset = Rpc.make("requestPasswordReset", {
-  error: DomainErrorSchema,
-  payload: { email: PersonEmailInput },
-  success: Schema.Void,
-}).annotate(
-  Info,
-  info({
-    method: ":requestPasswordReset",
-    replaces: ["RULE-112"],
-    resource: "Account",
-    summary:
-      "Request a password reset without revealing whether an account exists.",
-  })
-);
-
-export const resetPassword = Rpc.make("resetPassword", {
-  error: DomainErrorSchema,
-  payload: { code: CodeToken, password: Password },
-  success: Schema.Void,
-}).annotate(
-  Info,
-  info({
-    credential: "resetPassword",
-    method: ":resetPassword",
-    replaces: ["RULE-126", "RULE-166"],
-    resource: "Account",
-    summary: "Reset an active account's password with its single-use code.",
+    summary: "Activate an invited account after provider verification.",
   })
 );
 
@@ -128,8 +95,6 @@ export const updatePerson = Rpc.make("updatePerson", {
 export const AccountRpc = RpcGroup.make(
   createAccount,
   activateAccount,
-  requestPasswordReset,
-  resetPassword,
   deactivateAccount,
   reactivateAccount,
   updatePerson
@@ -223,9 +188,7 @@ export const AccountDomain = declareDomain({
   grants: [
     grant([leader], ["createAccount", "updatePerson"], "department"),
     grant([self], ["updatePerson"], "own"),
-    grant([codeHolder("activation")], ["activateAccount"], "own"),
-    grant([codeHolder("resetPassword")], ["resetPassword"], "own"),
-    grant([anyone], ["requestPasswordReset"], "all"),
+    grant([self], ["activateAccount"], "own"),
   ],
   machines: [AccountMachine],
   name: "accounts",

@@ -28,6 +28,13 @@ jobs:
       - name: Install workspace dependencies and prepare editor/hooks
         shell: bash
         run: devenv shell -- bun install --frozen-lockfile
+      - name: Start local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          devenv shell -- bunx supabase@2.111.0 start >/dev/null 2>&1 || { echo "Supabase start failed" >&2; exit 1; }
+          umask 077
+          devenv shell -- bunx supabase@2.111.0 status -o env > "$RUNNER_TEMP/supabase.env" 2>/dev/null
       - name: Wait for database services
         shell: bash
         run: |
@@ -35,6 +42,18 @@ jobs:
             until pg_isready --host 127.0.0.1 --port "${PGPORT}"; do sleep 1; done
             mysql_port="$(bun -e "console.log(new URL(process.env.LEGACY_MYSQL_URL).port)")"
             until MYSQL_PWD=legacy_reader mysqladmin ping --silent --host 127.0.0.1 --port "$mysql_port" --user legacy_reader; do sleep 1; done
+          '
+      - name: Prepare browser fixtures in local Supabase
+        shell: bash
+        run: |
+          export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
+          export E2E_DISPOSABLE=1
+          devenv shell -- bash tools/prototype/with-env.sh bash -euo pipefail -c '
+            (cd packages/db && bun run db:migrate)
+            (cd tools/import && IMPORT_TARGET_DATABASE_URL="$DATABASE_URL" env -u DATABASE_URL bun run import:fixture)
+            bun run prototype:setup
+            bun apps/web/e2e/seedExtra.ts
+            bun tools/prototype/seed.ts
           '
       - name: Vite+ checks
         shell: bash
@@ -50,14 +69,21 @@ jobs:
         run: devenv shell -- bun run check:docs
       - name: Workspace tests
         shell: bash
-        run: devenv shell -- bun run test:all
+        run: |
+          export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
+          devenv shell -- bash tools/prototype/with-env.sh bun run test:all
       - name: Browser tests
         id: browser
         shell: bash
         # A run takes 2 to 3 minutes. The limit makes a run that passes its tests and then never exits fail the
         # step, instead of holding the job for the 6-hour default.
+        # Turnstile always-pass test keys still require outbound Cloudflare verification.
         timeout-minutes: 15
-        run: devenv shell -- bun run e2e
+        run: |
+          export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
+          export E2E_MAILPIT_URL="http://127.0.0.1:55434"
+          export E2E_DISPOSABLE=1
+          devenv shell -- bash tools/prototype/with-env.sh bun run e2e
       # Playwright keeps a trace and a screenshot only for a failing test (e2e/playwright.config.ts). They contain only
       # the disposable stack's test data and links. Retain them briefly for diagnosis (issues #39, #40).
       - name: Upload browser failure evidence
@@ -68,9 +94,6 @@ jobs:
           path: apps/web/test-results/
           if-no-files-found: warn
           retention-days: 7
-      - name: Run the CMS bundle in workerd
-        shell: bash
-        run: devenv shell -- bun run check:cms
       - name: Knip
         shell: bash
         run: devenv shell -- bun run knip

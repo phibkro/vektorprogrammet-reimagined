@@ -2,6 +2,7 @@
  * Runs a program as a principal over the in-memory services (`memory.ts`), the way a server function does, and
  * answers with the runtime's serializable `Outcome` (the error table's statuses included).
  */
+import type { ContentEditor } from "@vektorprogrammet/cms-client";
 import type {
   AccountRepository,
   AdminGrantRepository,
@@ -37,6 +38,7 @@ import type { MemoryTables } from "./memory";
 const { signal } = new AbortController();
 
 export type ViewServices =
+  | ContentEditor
   | AccountRepository
   | AggregateLocks
   | CurrentPrincipal

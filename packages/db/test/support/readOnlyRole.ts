@@ -24,10 +24,17 @@ export class ReadOnlyDatabaseUrl extends Context.Service<
 
 export const readOnlyRole = Layer.effect(
   ReadOnlyDatabaseUrl,
-  restrictedRole(
-    "vp_read_only_",
-    (role) => `grant select on all tables in schema public to "${role}"`
-  )
+  restrictedRole("vp_read_only_", (role) => [
+    `grant select on all tables in schema public to "${role}"`,
+    `do $reader_policy$
+      declare target record;
+      begin
+        for target in select schemaname, tablename from pg_tables where schemaname = 'public' and rowsecurity loop
+          execute format('create policy %I on %I.%I for select to %I using (true)', '${role}_read', target.schemaname, target.tablename, '${role}');
+        end loop;
+      end;
+    $reader_policy$`,
+  ])
 );
 
 /** Asserts that `exit` is the refusal of a write by the role: a failure whose cause says `permission denied`. */

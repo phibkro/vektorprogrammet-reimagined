@@ -1,6 +1,6 @@
 /**
- * Fake identities for local development, Preview and browser tests. The local test-actor cookie selects by name;
- * Ada, Lise and Nora also have fake sign-in credentials. Mats starts without an account for the invitation journey.
+ * Synthetic people for local development, previews and browser tests. Supabase setup links Active seeded accounts
+ * to real provider identities. Mats starts without an account for the invitation journey.
  */
 export const LOCAL_PEOPLE = [
   "Ada Admin",

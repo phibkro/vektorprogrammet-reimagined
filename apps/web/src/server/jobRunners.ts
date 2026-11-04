@@ -80,19 +80,12 @@ const oneShot = <A, R extends NotAnIntegration>(
     ),
 });
 
-/**
- * The safety net of the queue (spec 0008b): the outbox rows are the record, and the queue only carries their ids. Each chunk
- * asks the command for up to `chunkSize` pending rows that no receipt covers any more (the rows that a crash between
- * commit and enqueue, or a message the queue lost, left behind) and puts their ids on the queue again; the receipt is
- * written by the publisher. It delivers nothing: the consumer does, and a duplicate message is harmless (the claim is
- * conditional). Nothing here runs inside a transaction, which is why the sweep runs in `prepare`. A full chunk means more
- * may be stale, so it goes on until the job's budget; what is left is found by the next tick.
- */
+/** Deliver bounded chunks of due rows outside the job transaction. */
 const sweepOutbox = Effect.gen(function* sweep() {
   const { chunkSize: limit, chunksPerTick: budget } = JobRegistry.outboxSweep;
   const publisher = yield* OutboxPublisher;
   let chunks = 0;
-  let queued = 0;
+  let selected = 0;
 
   while (chunks < budget) {
     const { stale } = yield* withOutbox((client) =>
@@ -100,7 +93,7 @@ const sweepOutbox = Effect.gen(function* sweep() {
     );
 
     chunks += 1;
-    queued += stale.length;
+    selected += stale.length;
     yield* publisher.publish(stale);
 
     if (stale.length < limit) {
@@ -109,10 +102,10 @@ const sweepOutbox = Effect.gen(function* sweep() {
   }
 
   yield* Effect.logInfo("outbox sweep finished").pipe(
-    Effect.annotateLogs({ queued })
+    Effect.annotateLogs({ selected })
   );
 
-  return { queued };
+  return { selected };
 });
 
 /**

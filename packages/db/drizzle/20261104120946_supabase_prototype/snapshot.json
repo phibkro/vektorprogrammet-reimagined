@@ -1,0 +1,243 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "ed3cfc95-4712-4b7b-9887-0f185d05dba0",
+  "prevIds": ["3bce482f-ee30-4923-ac1e-0f9eda0e04e9"],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": ["table", "public", "site_content"],
+      "writes": [
+        "s|tbl|public.site_content",
+        "n|tbl|public.site_content",
+        "e|tbl|public.site_content",
+        "n|rel|public.site_content",
+        "n|type|public.site_content",
+        "n|rel|public.site_content_pkey",
+        "n|rel|public.site_content_collection_slug_unique"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "outbox"],
+      "writes": ["s|ck|public.outbox.outbox_kind"],
+      "reads": [
+        "n|tbl|public.outbox",
+        "n|sch|public",
+        "n|col|public.outbox.kind",
+        "e|col|public.outbox.kind"
+      ],
+      "sqlHash": "8a8b6176cd7d39a8"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "code"],
+      "writes": ["s|ck|public.code.code_purpose"],
+      "reads": [
+        "n|tbl|public.code",
+        "n|sch|public",
+        "n|col|public.code.purpose",
+        "e|col|public.code.purpose"
+      ],
+      "sqlHash": "383f2128aae47261"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "site_content",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "collection",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "slug",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "draft",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "published",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "draft_published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "site_content_pkey",
+        "columns": ["id"],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "site_content_collection_slug_unique",
+        "nameExplicit": true,
+        "columns": ["collection", "slug"],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "site_content_collection_check",
+        "value": "\"collection\" in ('texts', 'news', 'sponsors', 'faq', 'teams')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_content",
+        "name": "site_content_published_date",
+        "value": "(\"published\" is null) = (\"published_at\" is null)",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"outbox\",\"outbox_kind\"]",
+      "set": {
+        "value": "\"kind\" in ('Email', 'IssueCode', 'InviteAccount', 'SlackPost', 'WorkspaceChange')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"code\",\"code_purpose\"]",
+      "set": {
+        "value": "\"purpose\" in ('alumniConsent')"
+      }
+    }
+  ]
+}

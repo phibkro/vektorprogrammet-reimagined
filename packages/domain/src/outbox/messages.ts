@@ -10,17 +10,21 @@
 import { Schema } from "effect";
 
 import {
+  DeleteAuthUserMessage,
+  RelinkAuthUserMessage,
   IssueCodeMessage,
-  SetCredentialMessage,
+  InviteAccountMessage,
 } from "../accounts/messages.ts";
 import { EmailMessage, SlackPostMessage } from "../shared/outbox.ts";
 import { WorkspaceChangeMessage } from "../workspace/message.ts";
 
 /** Persisted as JSON by `packages/db`; decode with this schema on read. */
 export const OutboxMessage = Schema.Union([
+  DeleteAuthUserMessage,
+  RelinkAuthUserMessage,
   EmailMessage,
   IssueCodeMessage,
-  SetCredentialMessage,
+  InviteAccountMessage,
   SlackPostMessage,
   WorkspaceChangeMessage,
 ]).pipe(Schema.toTaggedUnion("_tag"));

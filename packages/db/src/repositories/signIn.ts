@@ -1,19 +1,15 @@
-/**
- * The adapter of `SignInDirectory` (declared by the domain): the reads that Better Auth made of domain tables with its own
- * pool, as plain selects of the application's connection. The one link between a sign-in identity and a person is
- * `auth_user.person_id`.
- */
+/** Authentication identity lookups use Supabase administrator-owned app metadata. */
 import {
   PersonId,
   SignInDirectory,
   SignInMatch,
   SignInProfile,
 } from "@vektorprogrammet/domain";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { Effect, Layer, Option, Schema } from "effect";
 
 import { Drizzle, decodeFirstOption, decodeWith } from "../internal/drizzle.ts";
-import { authUser, person } from "../schema.ts";
+import { person } from "../schema.ts";
 
 const OwnerRow = Schema.Struct({ personId: PersonId });
 const EmailRow = Schema.Struct({ email: Schema.String });
@@ -38,9 +34,11 @@ export const SignInDirectoryLive = Layer.effect(
     const personOfUser = Effect.fn("SignInDirectory.personOfUser")(
       function* personOfUser(userId: string) {
         const rows = yield* db
-          .select({ personId: authUser.personId })
-          .from(authUser)
-          .where(eq(authUser.id, userId))
+          .select({
+            personId: sql<number>`(auth.users.raw_app_meta_data ->> 'personId')::integer`,
+          })
+          .from(sql`auth.users`)
+          .where(sql`auth.users.id::text = ${userId}`)
           .pipe(Effect.catch(lookupFailed("personOfUser")));
 
         return Option.map(yield* decodeOwner(rows), (row) => row.personId);
@@ -52,9 +50,12 @@ export const SignInDirectoryLive = Layer.effect(
     ) {
       // Two rows are enough to know that the address is ambiguous.
       const rows = yield* db
-        .select({ email: authUser.email })
+        .select({ email: sql<string>`auth.users.email` })
         .from(person)
-        .innerJoin(authUser, eq(authUser.personId, person.id))
+        .innerJoin(
+          sql`auth.users`,
+          sql`auth.users.raw_app_meta_data ->> 'personId' = ${person.id}::text`
+        )
         .where(or(eq(person.email, address), eq(person.companyEmail, address)))
         .limit(2)
         .pipe(Effect.catch(lookupFailed("match")));
@@ -73,9 +74,11 @@ export const SignInDirectoryLive = Layer.effect(
     const signInEmailOf = Effect.fn("SignInDirectory.signInEmailOf")(
       function* signInEmailOf(personId: PersonId) {
         const rows = yield* db
-          .select({ email: authUser.email })
-          .from(authUser)
-          .where(eq(authUser.personId, personId))
+          .select({ email: sql<string>`auth.users.email` })
+          .from(sql`auth.users`)
+          .where(
+            sql`auth.users.raw_app_meta_data ->> 'personId' = ${personId}::text`
+          )
           .limit(1)
           .pipe(Effect.catch(lookupFailed("signInEmailOf")));
 

@@ -7,6 +7,7 @@ import {
   Catalog,
   PersonExport,
   exportedTables,
+  editorialReviewReasons,
 } from "@vektorprogrammet/domain";
 import type { CatalogOf, PersonId } from "@vektorprogrammet/domain";
 import { sql } from "drizzle-orm";
@@ -39,7 +40,19 @@ const tablesOf = (personId: number): SQL =>
         sql`${table}::text, (select coalesce(jsonb_agg(to_jsonb(${identifier(table)}) - ${omitted(Rec.keys(exclude))}), '[]'::jsonb) from ${identifier(table)} where ${aboutPeople(table, key, { addresses: [], ids: [personId] })})`
     ),
     sql`, `
-  )}) as tables`;
+  )}) || jsonb_build_object(
+    'supabase_users', (select coalesce(jsonb_agg(jsonb_build_object(
+      'id', u.id, 'email', u.email, 'phone', u.phone, 'created_at', u.created_at,
+      'updated_at', u.updated_at, 'last_sign_in_at', u.last_sign_in_at,
+      'email_confirmed_at', u.email_confirmed_at, 'phone_confirmed_at', u.phone_confirmed_at
+    )), '[]'::jsonb) from auth.users u where u.raw_app_meta_data->>'personId' = ${String(personId)}),
+    'supabase_identities', (select coalesce(jsonb_agg(jsonb_build_object(
+      'id', i.id, 'provider', i.provider, 'created_at', i.created_at, 'updated_at', i.updated_at, 'last_sign_in_at', i.last_sign_in_at
+    )), '[]'::jsonb) from auth.identities i join auth.users u on u.id = i.user_id where u.raw_app_meta_data->>'personId' = ${String(personId)}),
+    'supabase_sessions', (select coalesce(jsonb_agg(jsonb_build_object(
+      'id', s.id, 'created_at', s.created_at, 'updated_at', s.updated_at, 'not_after', s.not_after, 'user_agent', s.user_agent, 'ip', s.ip::text
+    )), '[]'::jsonb) from auth.sessions s join auth.users u on u.id = s.user_id where u.raw_app_meta_data->>'personId' = ${String(personId)})
+  ) as tables`;
 
 export const personalDataExport = (db: Drizzle["Service"]) =>
   Effect.fn("PersonalDataStore.exportOf")(function* exportOf(
@@ -54,5 +67,10 @@ export const personalDataExport = (db: Drizzle["Service"]) =>
     // A row that does not decode is a statement that does not return what the catalog says: a defect, never an export.
     const tables = yield* decodeTables(row?.tables);
 
-    return { exportedAt: now, personId, tables };
+    return {
+      editorialReview: editorialReviewReasons(catalog),
+      exportedAt: now,
+      personId,
+      tables,
+    };
   }, Effect.orDie);

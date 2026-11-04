@@ -1,25 +1,16 @@
-/**
- * The delivery stack over a disposable migrated database: the real repositories, the Better Auth adapter, the crypto, the
- * password hasher and the capture sender, so a test delivers outbox messages as the Worker does and reads the mailbox.
- */
+/** Real SQL repositories, crypto and captured transports over a disposable migrated database. */
 import { DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
-import {
-  AuthTablesDatabaseUrl,
-  authTablesRole,
-} from "@vektorprogrammet/db/testing/auth-tables-role";
 import type { CapturedMessageStore } from "@vektorprogrammet/domain";
 import { OutboxMessageId, SiteOrigin } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Redacted } from "effect";
+import { Array as Arr, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { accountDeliveryLayer } from "../../src/server/accountDelivery";
-import { authLayer } from "../../src/server/auth";
 import { deliverOutbox } from "../../src/server/outboxDelivery";
-import { passwordHasherLayer } from "../../src/server/password";
 import { captureSenderLayer } from "../../src/server/senders";
 import type { MessageSender } from "../../src/server/senders";
 import { webCryptoLayer } from "../../src/server/webCrypto";
@@ -28,28 +19,17 @@ import { workspaceWriterLayer } from "../../src/server/workspace";
 /** The origin that the links of the mail name. */
 export const origin = "https://mail.example";
 
-/**
- * The delivery stack with the transport that `sender` is: the capture sink, or a test's own provider. Better Auth's pool
- * is the role that holds privileges on the four `auth_*` tables only (spec 0017, falsifier 6), so every delivery here
- * proves that the library reads no domain table; the application's own database layer is built once and serves both.
- */
-export const liveWith = (
+/** Compose delivery against the request-independent database layer and captured sender. */
+const liveWith = (
   sender: Layer.Layer<MessageSender, never, CapturedMessageStore>
 ) =>
   Layer.unwrap(
     Effect.gen(function* buildDelivery() {
       const url = yield* TestDatabaseUrl;
-      const authUrl = yield* AuthTablesDatabaseUrl;
       const database = DatabaseLive({ maxConnections: 8, url });
 
       const infrastructure = Layer.mergeAll(
         database,
-        authLayer({
-          BETTER_AUTH_SECRET: "local-fake-signing-secret-only-123456789",
-          HYPERDRIVE: { connectionString: Redacted.value(authUrl) },
-          SITE_URL: origin,
-        }).pipe(Layer.provide(database)),
-        passwordHasherLayer,
         webCryptoLayer,
         workspaceWriterLayer({ deployment: "local", mode: "dry-run" }),
         Layer.succeed(SiteOrigin)(origin)
@@ -57,19 +37,20 @@ export const liveWith = (
 
       const capture = sender.pipe(Layer.provideMerge(infrastructure));
 
-      return accountDeliveryLayer.pipe(Layer.provideMerge(capture));
+      return accountDeliveryLayer({
+        SITE_URL: origin,
+        SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+        SUPABASE_SECRET_KEY: "test-secret-key",
+        SUPABASE_URL: "http://127.0.0.1:54321",
+      }).pipe(Layer.provideMerge(capture));
     })
-  ).pipe(
-    Layer.provideMerge(authTablesRole),
-    Layer.provideMerge(migratedTestDatabase),
-    Layer.orDie
-  );
+  ).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
 
 export const live = liveWith(captureSenderLayer);
 
 /**
- * Delivers every pending row, as the queue's consumer would once it had a message for each. The delivery is by id (spec
- * 0008b): a test that wants "whatever is waiting" names the rows by reading them.
+ * Delivers due pending rows through the same id-based, lease-fenced claim used by the scheduled sweep.
+ * The test names its rows explicitly; no Cloudflare Queue or separate process is involved.
  */
 export const deliverPending = Effect.gen(function* deliverPending() {
   const sql = yield* SqlClient;

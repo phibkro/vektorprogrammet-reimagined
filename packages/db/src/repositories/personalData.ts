@@ -5,11 +5,13 @@
  * requests are tables that the Person root owns, so every write takes the person's token and goes through `Aggregates`.
  */
 import {
+  AccountRepository,
   AggregateLocks,
   AlumniRequests,
   ConsentKind,
   ConsentRepository,
   LegalHolds,
+  Outbox,
   PersonId,
   PersonalDataStore,
   RetentionRun,
@@ -177,13 +179,23 @@ export const PersonalDataStoreLive = Layer.effect(
     const db = yield* Drizzle;
     const aggregates = yield* Aggregates;
     const locks = yield* AggregateLocks;
+    const outbox = yield* Outbox;
+    const accounts = yield* AccountRepository;
 
-    const retention = personalDataRetention({ aggregates, db, locks });
+    const retention = personalDataRetention({
+      accounts,
+      aggregates,
+      db,
+      locks,
+      outbox,
+    });
 
     const { merge } = personalDataMerge({
+      accounts,
       aggregates,
       anonymisePerson: retention.anonymisePerson,
       db,
+      outbox,
     });
 
     const setPhoto = Effect.fn("PersonalDataStore.setPhoto")(function* setPhoto(
@@ -219,7 +231,16 @@ const RetentionRunApplyLive = Layer.effect(
     const db = yield* Drizzle;
     const aggregates = yield* Aggregates;
     const locks = yield* AggregateLocks;
-    const { expire } = personalDataRetention({ aggregates, db, locks });
+    const outbox = yield* Outbox;
+    const accounts = yield* AccountRepository;
+
+    const { expire } = personalDataRetention({
+      accounts,
+      aggregates,
+      db,
+      locks,
+      outbox,
+    });
 
     return RetentionRun.of({
       run: (now) =>

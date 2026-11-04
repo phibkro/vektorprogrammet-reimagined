@@ -1,5 +1,10 @@
 /** What the content domain declares about its stored columns (spec 0007b): social events are published for their audience. */
-import { columns, notPersonal, table } from "../personalData/declaration.ts";
+import {
+  columns,
+  editorialReview,
+  notPersonal,
+  table,
+} from "../personalData/declaration.ts";
 
 const socialEvent = table({
   columns: columns(
@@ -20,4 +25,27 @@ const socialEvent = table({
   person: null,
 });
 
-export const ContentTables = { social_event: socialEvent } as const;
+const siteContent = table({
+  columns: {
+    ...columns(
+      editorialReview(
+        "Editorial content can name people; an editor must review and remove matching material from both drafts and published content on request."
+      ),
+      ["draft", "published"]
+    ),
+    ...columns(notPersonal("Content identity and publication bookkeeping"), [
+      "id",
+      "collection",
+      "slug",
+      "created_at",
+      "draft_published_at",
+      "published_at",
+    ]),
+  },
+  person: null,
+});
+
+export const ContentTables = {
+  site_content: siteContent,
+  social_event: socialEvent,
+} as const;

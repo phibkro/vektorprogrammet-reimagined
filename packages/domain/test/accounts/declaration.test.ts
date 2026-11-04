@@ -3,7 +3,6 @@ import { assert, describe, it } from "@effect/vitest";
 import {
   Arbitrary,
   Array as Arr,
-  DateTime,
   Effect,
   Predicate,
   Schema,
@@ -23,12 +22,6 @@ import {
 
 const personId = PersonId.make(1);
 const otherId = PersonId.make(2);
-
-const admin = Principal.cases.Person.make({
-  adminUntil: DateTime.makeUnsafe("2100-01-01T00:00:00Z"),
-  memberships: [],
-  personId,
-});
 
 const context = {
   actorId: otherId,
@@ -140,19 +133,27 @@ describe("spec 0007: Account declarations", () => {
     assert.isTrue(Machine.can(mutant, "deactivateAccount", "Active", last));
   });
 
-  it("RULE-131, 201: an admin holding an activation code is confined to activateAccount and its person", () => {
-    const codePrincipal = Principal.narrow(admin, {
-      command: "activateAccount",
-      resource: { personId },
-    });
+  it("RULE-131, 201: a verified invitee is confined to activating their own account", () => {
+    const codePrincipal = Principal.narrow(
+      Principal.cases.Person.make({ memberships: [], personId }),
+      {
+        command: "activateAccount",
+        resource: { personId },
+      }
+    );
 
     assert.isTrue(authorize(codePrincipal, "activateAccount", { personId }));
     assert.isFalse(
       authorize(codePrincipal, "activateAccount", { personId: otherId })
     );
-    assert.isFalse(authorize(codePrincipal, "resetPassword", { personId }));
     assert.isFalse(authorize(codePrincipal, "deactivateAccount", { personId }));
-    assert.isFalse(authorize(admin, "activateAccount", { personId }));
+    assert.isFalse(
+      authorize(
+        Principal.cases.Person.make({ memberships: [], personId: otherId }),
+        "activateAccount",
+        { personId }
+      )
+    );
 
     const narrowedAgain = Principal.narrow(codePrincipal, {
       command: "deactivateAccount",

@@ -44,7 +44,6 @@ import {
   RetentionRunReportLive,
   retentionRunLayer,
 } from "./repositories/personalData.ts";
-import { SessionDirectoryLive } from "./repositories/sessions.ts";
 import { SignInDirectoryLive } from "./repositories/signIn.ts";
 import { SocialEventRepositoryLive } from "./repositories/socialEvents.ts";
 import {
@@ -88,7 +87,6 @@ const Repositories = Layer.mergeAll(
   AccountRepositoryLive,
   CodeRepositoryLive,
   CapturedMessageStoreLive,
-  SessionDirectoryLive,
   SignInDirectoryLive,
   PersonRepositoryLive,
   TeamRepositoryLive,
@@ -105,7 +103,9 @@ const Repositories = Layer.mergeAll(
   ConsentRepositoryLive,
   AlumniRequestsLive,
   LegalHoldsLive,
-  PersonalDataStoreLive,
+  PersonalDataStoreLive.pipe(
+    Layer.provide(Layer.mergeAll(OutboxLive, AccountRepositoryLive))
+  ),
   JobRunsLive,
   WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
@@ -168,7 +168,13 @@ export const JobDatabaseLive = (
     config,
     Layer.mergeAll(
       Repositories,
-      retentionRunLayer(config.retention).pipe(Layer.provide(AggregatesLayer))
+      retentionRunLayer(config.retention).pipe(
+        Layer.provide(
+          Layer.mergeAll(OutboxLive, AccountRepositoryLive).pipe(
+            Layer.provideMerge(AggregatesLayer)
+          )
+        )
+      )
     )
   );
 

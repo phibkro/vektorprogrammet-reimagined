@@ -7,7 +7,6 @@ import {
   CodeRepository,
   CurrentPrincipal,
   EmailAddress,
-  PasswordHasher,
   PersonId,
   PersonRepository,
   Principal,
@@ -15,7 +14,6 @@ import {
   codePrincipal,
   mintCode,
 } from "@vektorprogrammet/domain";
-import type { CodePurpose } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -31,71 +29,19 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../src/index.ts";
-import { activeAdmin, moveAccount } from "./support/accountsWorld.ts";
+import { activeAdmin } from "./support/accountsWorld.ts";
 import { postgresDatabase } from "./support/database.ts";
 import { raceReport } from "./support/race.ts";
 import { asPerson, lockPerson, world } from "./support/teamsWorld.ts";
 
 const expiresAt = DateTime.makeUnsafe("2099-01-01T00:00:00.000Z");
 const beforeExpiry = DateTime.makeUnsafe("2098-12-31T23:59:59.999Z");
-const now = DateTime.makeUnsafe("2026-10-27T12:00:00.000Z");
 
 const RACE_ROUNDS = 300;
 
-type AccountStateName = "Invited" | "Active" | "Deactivated";
-
-const assertAuthority = (
-  principal: Principal,
-  purpose: CodePurpose,
-  personId: PersonId
-) => {
-  const command =
-    purpose === "activation" ? "activateAccount" : "resetPassword";
-
-  const other = purpose === "activation" ? "resetPassword" : "activateAccount";
-  assert.isTrue(authorize(principal, command, { personId }));
-  assert.isFalse(authorize(principal, other, { personId }));
-  assert.isFalse(
-    authorize(principal, command, { personId: PersonId.make(personId + 1) })
-  );
-  assert.isFalse(authorize(principal, "deactivateAccount", { personId }));
-};
-
-const checkPurpose = Effect.fnUntraced(function* checkPurpose(
-  personId: PersonId,
-  state: AccountStateName,
-  purpose: CodePurpose
-) {
-  const code = yield* mintCode().pipe(Effect.orDie);
-
-  yield* asPerson(personId, (locked) =>
-    CodeRepository.use((codes) =>
-      codes.replace(locked, { expiresAt, hash: code.hash, purpose })
-    )
-  );
-
-  const principal = yield* codePrincipal(code.token, purpose);
-
-  const expected =
-    (purpose === "activation" && state === "Invited") ||
-    (purpose === "resetPassword" && state === "Active");
-
-  assert.strictEqual(Option.isSome(principal), expected);
-
-  if (Option.isSome(principal)) {
-    assertAuthority(principal.value, purpose, personId);
-  }
-});
-
-layer(
-  Layer.merge(
-    postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)),
-    Layer.mock(PasswordHasher, {})
-  ),
-  {
-    excludeTestServices: true,
-  }
-)("RULE-131, 132, 201, 220: single-use credentials on PostgreSQL", (it) => {
+layer(postgresDatabase().pipe(Layer.provideMerge(NodeServices.layer)), {
+  excludeTestServices: true,
+})("Person locks, alumni codes and last administrators on PostgreSQL", (it) => {
   it.effect(
     "100 rounds: a Person aggregate lock holds until transaction completion",
     () =>
@@ -166,55 +112,9 @@ layer(
   );
 
   it.effect(
-    "300 rounds: 20 concurrent uses of each fresh code have exactly one winner",
+    "alumni consent codes are reusable, scoped, expire and are replaced",
     () =>
-      Effect.gen(function* codeConcurrency() {
-        const fixture = yield* world("code-race");
-        const codes = yield* CodeRepository;
-
-        for (const round of Arr.range(1, RACE_ROUNDS)) {
-          const { hash } = yield* mintCode().pipe(Effect.orDie);
-
-          yield* asPerson(fixture.person.id, (locked) =>
-            codes.replace(locked, { expiresAt, hash, purpose: "activation" })
-          );
-
-          const uses = yield* Effect.all(
-            Arr.makeBy(20, () =>
-              Effect.exit(
-                asPerson(fixture.person.id, (locked) =>
-                  codes.consume(locked, {
-                    hash,
-                    now,
-                    purpose: "activation",
-                  })
-                )
-              )
-            ),
-            { concurrency: "unbounded" }
-          );
-
-          const report = raceReport(round, uses);
-          assert.strictEqual(
-            Arr.filter(uses, Exit.isFailure).length,
-            0,
-            report
-          );
-          assert.strictEqual(
-            Arr.filter(uses, (exit) => Exit.isSuccess(exit) && exit.value)
-              .length,
-            1,
-            report
-          );
-        }
-      }),
-    120_000
-  );
-
-  it.effect(
-    "expiry is strict to the millisecond, scope is exact, and resend invalidates the older code",
-    () =>
-      Effect.gen(function* codeBoundaries() {
+      Effect.gen(function* alumniCodeBoundaries() {
         const fixture = yield* world("code-boundary");
         const other = yield* world("code-other");
         const codes = yield* CodeRepository;
@@ -223,101 +123,56 @@ layer(
 
         const replace = (hash: typeof first.hash) =>
           asPerson(fixture.person.id, (locked) =>
-            codes.replace(locked, {
-              expiresAt,
-              hash,
-              purpose: "activation",
+            codes.replace(locked, { expiresAt, hash, purpose: "alumniConsent" })
+          );
+
+        const request = {
+          hash: first.hash,
+          now: beforeExpiry,
+          purpose: "alumniConsent",
+        } as const;
+
+        yield* replace(first.hash);
+        assert.isFalse(
+          yield* asPerson(other.person.id, (locked) =>
+            codes.consume(locked, request)
+          )
+        );
+        assert.isTrue(Option.isSome(yield* codes.findUsable(request)));
+        assert.isTrue(
+          Option.isNone(yield* codes.findUsable({ ...request, now: expiresAt }))
+        );
+        const principal = yield* codePrincipal(first.token, "alumniConsent");
+        assert.isTrue(Option.isSome(principal));
+
+        if (Option.isSome(principal)) {
+          assert.isTrue(
+            authorize(principal.value, "answerAlumniConsent", {
+              personId: fixture.person.id,
             })
           );
-
-        /** One presentation of a code by `personId`: the lock that a command takes is the subject. */
-        const consume = (
-          personId: PersonId,
-          presented: {
-            readonly hash: typeof first.hash;
-            readonly now: DateTime.Utc;
-            readonly purpose: CodePurpose;
-          }
-        ) => asPerson(personId, (locked) => codes.consume(locked, presented));
-
-        yield* replace(first.hash);
-
-        assert.isFalse(
-          yield* consume(fixture.person.id, {
-            hash: first.hash,
-            now: beforeExpiry,
-            purpose: "resetPassword",
-          })
-        );
-        assert.isFalse(
-          yield* consume(other.person.id, {
-            hash: first.hash,
-            now: beforeExpiry,
-            purpose: "activation",
-          })
-        );
-        assert.isFalse(
-          yield* consume(fixture.person.id, {
-            hash: first.hash,
-            now: expiresAt,
-            purpose: "activation",
-          })
-        );
-        assert.isTrue(
-          yield* consume(fixture.person.id, {
-            hash: first.hash,
-            now: beforeExpiry,
-            purpose: "activation",
-          })
-        );
-        yield* replace(first.hash);
-        yield* replace(second.hash);
-        assert.isFalse(
-          yield* consume(fixture.person.id, {
-            hash: first.hash,
-            now,
-            purpose: "activation",
-          })
-        );
-        assert.isTrue(
-          yield* consume(fixture.person.id, {
-            hash: second.hash,
-            now,
-            purpose: "activation",
-          })
-        );
-      })
-  );
-
-  it.effect(
-    "each code principal has exactly its command, subject and transition state",
-    () =>
-      Effect.gen(function* codeStateProperty() {
-        const fixture = yield* world("code-state");
-
-        yield* asPerson(fixture.person.id, (locked) =>
-          AccountRepository.use((accounts) => accounts.invite(locked))
-        );
-
-        for (const state of ["Invited", "Active", "Deactivated"] as const) {
-          if (state === "Active") {
-            yield* asPerson(fixture.person.id, (locked) =>
-              moveAccount(locked, "activateAccount", "Invited")
-            );
-          }
-
-          if (state === "Deactivated") {
-            yield* asPerson(fixture.person.id, (locked) =>
-              moveAccount(locked, "deactivateAccount", "Active")
-            );
-          }
-
-          yield* Effect.forEach(
-            ["activation", "resetPassword"] satisfies readonly CodePurpose[],
-            (purpose) => checkPurpose(fixture.person.id, state, purpose),
-            { discard: true }
+          assert.isFalse(
+            authorize(principal.value, "answerAlumniConsent", {
+              personId: other.person.id,
+            })
+          );
+          assert.isFalse(
+            authorize(principal.value, "deactivateAccount", {
+              personId: fixture.person.id,
+            })
           );
         }
+
+        assert.isTrue(
+          Option.isSome(yield* codePrincipal(first.token, "alumniConsent"))
+        );
+        yield* replace(second.hash);
+        assert.isTrue(
+          Option.isNone(yield* codePrincipal(first.token, "alumniConsent"))
+        );
+        assert.isTrue(
+          Option.isSome(yield* codePrincipal(second.token, "alumniConsent"))
+        );
       })
   );
   it.effect(

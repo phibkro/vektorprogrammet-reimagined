@@ -24,7 +24,6 @@ import {
   PersonRepository,
   PositionRepository,
   PrincipalDirectory,
-  LOCAL_FAKE_PASSWORD,
   LOCAL_PEOPLE,
   TeamRepository,
   advanceSemester,
@@ -39,9 +38,8 @@ import type {
   Team,
   TeamFunction,
 } from "@vektorprogrammet/domain";
-import { hashSync as bcryptHash } from "bcryptjs";
-import { Array as Arr, DateTime, Effect, Option, Order, Schema } from "effect";
-import { SqlClient } from "effect/sql/SqlClient";
+import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
+import type { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/index.ts";
 import { activateAccount } from "./accountsWorld.ts";
@@ -173,26 +171,13 @@ const join = Effect.fnUntraced(function* join(
   ).pipe(Effect.catchTag("AlreadyExists", () => Effect.void));
 });
 
-/** EX-0018: seed fake Better Auth credentials outside any domain command transaction. */
+/** Seed domain accounts; Supabase owns the corresponding credentials. */
 const seedFakeAccounts = Effect.fnUntraced(function* seedFakeAccounts(
   people: readonly Person[]
 ) {
-  const sql = yield* SqlClient;
   const accounts = yield* AccountRepository;
-  const instant = yield* DateTime.now;
-  const now = DateTime.toDateUtc(instant);
-
-  const passwordHash = yield* Effect.try(() =>
-    bcryptHash(LOCAL_FAKE_PASSWORD, 12)
-  ).pipe(Effect.orDie);
-
-  const decodeUser = Schema.decodeUnknownEffect(
-    Schema.Struct({ id: Schema.NonEmptyString })
-  );
 
   for (const person of people) {
-    const id = `fake-${person.id}`;
-
     yield* asPerson(person.id, (locked) =>
       Effect.gen(function* seedAccount() {
         if (Option.isNone(yield* accounts.findLocked(locked))) {
@@ -202,20 +187,6 @@ const seedFakeAccounts = Effect.fnUntraced(function* seedFakeAccounts(
         yield* accounts.verifyEmail(locked).pipe(Effect.orDie);
       })
     );
-    yield* sql`insert into auth_user (id, person_id, name, email, email_verified, created_at, updated_at)
-      values (${id}, ${person.id}, ${person.name}, ${person.email}, true, ${now}, ${now}) on conflict do nothing`.pipe(
-      Effect.orDie
-    );
-
-    const rows =
-      yield* sql`select id from auth_user where person_id = ${person.id}`.pipe(
-        Effect.orDie
-      );
-
-    const user = yield* decodeUser(rows[0]).pipe(Effect.orDie);
-    yield* sql`insert into auth_account (id, account_id, provider_id, user_id, password, credential_version, created_at, updated_at)
-      values (${`credential-${person.id}`}, ${user.id}, 'credential', ${user.id}, ${passwordHash}, 0, ${now}, ${now})
-      on conflict do nothing`.pipe(Effect.orDie);
   }
 });
 

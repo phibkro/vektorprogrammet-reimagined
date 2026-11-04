@@ -30,6 +30,7 @@ import { InTransaction } from "../shared/transaction.ts";
 import { personResource } from "../teams/personResource.ts";
 import { MembershipRepository, PersonRepository } from "../teams/services.ts";
 import { leftAt, stillAsked } from "./alumni.ts";
+import { Catalog } from "./catalog.ts";
 import {
   answerOf,
   answerRecord,
@@ -39,6 +40,7 @@ import {
 } from "./consents.ts";
 import type { AlumniBox, StoredConsent } from "./consents.ts";
 import type { ConsentKind } from "./declaration.ts";
+import { editorialReviewReasons } from "./derive.ts";
 import {
   PersonalDataDomain,
   PersonalDataRpc,
@@ -278,6 +280,7 @@ export const PersonalDataHandlers = PersonalDataRpc.toLayer({
         }
 
         return {
+          editorialReview: editorialReviewReasons(Catalog),
           erased,
           held: Arr.map(held, ({ reason, source, until }) => ({
             reason,

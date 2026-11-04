@@ -24,30 +24,6 @@
     "domain": "teams"
   },
   {
-    "_tag": "UnexpressibleSubject",
-    "commands": [
-      "activateAccount"
-    ],
-    "domain": "accounts",
-    "subject": "Holder(activation)"
-  },
-  {
-    "_tag": "UnexpressibleSubject",
-    "commands": [
-      "resetPassword"
-    ],
-    "domain": "accounts",
-    "subject": "Holder(resetPassword)"
-  },
-  {
-    "_tag": "UnexpressibleSubject",
-    "commands": [
-      "requestPasswordReset"
-    ],
-    "domain": "accounts",
-    "subject": "Anyone"
-  },
-  {
     "_tag": "UnexpressibleGuard",
     "domain": "accounts",
     "id": "vektorprogrammet/account/different-person",
@@ -73,12 +49,6 @@
     "domain": "accounts",
     "machine": "Account",
     "reason": "a guard uses a check that effx does not know"
-  },
-  {
-    "_tag": "MachineDropped",
-    "domain": "accounts",
-    "machine": "Account",
-    "reason": "a transition applies activateAccount, which effx cannot be given"
   },
   {
     "_tag": "UnexpressibleSubject",

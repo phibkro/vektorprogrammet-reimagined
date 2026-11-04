@@ -38,7 +38,7 @@ const restricted: Readonly<Record<Group, Restriction>> = {
   },
   pg: {
     message:
-      "`pg` is the PostgreSQL driver: only Better Auth's own adapter (`apps/web/src/server/auth.ts`) and adapter tests use it (spec 0017).",
+      "`pg` is an engine adapter detail: use the domain ports outside database adapters and their tests.",
     regexes: ["^pg(?:/|$)"],
   },
   "sql-pg": {
@@ -72,17 +72,14 @@ export const allowances: readonly Allowance[] = [
       "Composition root of the Worker: builds `DatabaseLive` and `JobDatabaseLive` per request, delivery and job scope.",
   },
   {
-    allows: ["pg"],
-    files: ["apps/web/src/server/auth.ts"],
+    allows: ["db"],
+    files: ["tools/prototype/seed.ts"],
     reason:
-      "Better Auth's own `pg` adapter (ADR 0014, answer 4; exception EX-0017). It reads no domain table.",
+      "Synthetic local prototype seed uses the existing database test-client boundary.",
   },
   {
     allows: adapterTest,
-    files: [
-      "apps/web/test/**/*.postgres.test.ts",
-      "apps/web/test/**/*.worker.test.ts",
-    ],
+    files: ["apps/web/test/**/*.postgres.test.ts"],
     reason:
       "Adapter tests: each builds the real database Layer against a disposable PostgreSQL (spec 0017, resolution 1).",
   },
@@ -91,16 +88,10 @@ export const allowances: readonly Allowance[] = [
     files: [
       "apps/web/test/support/commandOutcome.ts",
       "apps/web/test/support/deliveryLive.ts",
-      "apps/web/test/support/outboxQueue.worker.ts",
       "apps/web/test/support/workspaceDatabase.ts",
     ],
     reason:
       "Test support that builds the real database Layer for the adapter tests above.",
-  },
-  {
-    allows: ["db"],
-    files: ["apps/web/e2e/support/database.ts"],
-    reason: "Browser-test harness: creates and migrates a disposable database.",
   },
   {
     allows: ["sql-pg"],
@@ -110,11 +101,6 @@ export const allowances: readonly Allowance[] = [
     ],
     reason:
       "Browser-test probes read and seed domain tables with raw SQL; they become adapter tests or use the ports in ADR 0014 stages 3 and 4.",
-  },
-  {
-    allows: ["db"],
-    files: ["apps/cms/scripts/checkBundle.ts"],
-    reason: "Bundle check: creates a disposable database for the CMS Worker.",
   },
   {
     allows: groups,
@@ -136,7 +122,10 @@ export const allowances: readonly Allowance[] = [
   },
   {
     allows: ["db"],
-    files: ["tools/import/src/pipeline.ts"],
+    files: [
+      "tools/import/src/pipeline.ts",
+      "tools/import/src/emdash/pipeline.ts",
+    ],
     reason:
       "Composition root of the importer: builds `ImportDatabaseLive`, the one place that names the adapter.",
   },

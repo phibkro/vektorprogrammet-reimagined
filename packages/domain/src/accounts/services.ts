@@ -28,10 +28,17 @@ export class AccountRepository extends Context.Service<
       locked: Locked<"Person">
     ) => Effect.Effect<Option.Option<Account>, never, InTransaction>;
     readonly list: Effect.Effect<readonly Account[]>;
-    /** Whom to lock for a password reset; the caller rechecks through the lock. */
-    readonly findActiveByPrivateEmail: (
-      email: EmailAddress
-    ) => Effect.Effect<Option.Option<Account>>;
+    /** Provider lookup for retrying an invitation without scanning identities. */
+    readonly findAuthIdentitiesByPersonId: (
+      personId: PersonId
+    ) => Effect.Effect<readonly string[]>;
+    readonly findAuthIdentity: (email: EmailAddress) => Effect.Effect<
+      Option.Option<{
+        readonly id: string;
+        readonly personId: number | null;
+        readonly pendingInvite: boolean;
+      }>
+    >;
     readonly invite: (
       locked: Locked<"Person">
     ) => Effect.Effect<Account, AlreadyExists, InTransaction>;

@@ -1,0 +1,1 @@
+ALTER TABLE "site_content" DROP CONSTRAINT "site_content_collection_check", ADD CONSTRAINT "site_content_collection_check" CHECK ("collection" in ('faq', 'news', 'sponsors', 'teams', 'texts'));

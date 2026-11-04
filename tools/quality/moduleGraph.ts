@@ -65,7 +65,7 @@ export interface ServiceMethod {
 }
 
 /** A call of another system inside a transaction that the type bound cannot see, tolerated until `retirementTrigger`. */
-export interface IntegrationCall {
+interface IntegrationCall {
   readonly file: string;
   /** The call, by the service its receiver is bound to in `file`, not by the receiver's name: `MessageSender.send`. */
   readonly call: ServiceMethod;
@@ -237,7 +237,14 @@ const modules: readonly Module[] = [
     ),
     layer: "service",
     name: "triggers",
-    uses: ["annotations", "kernel", "outbox", "transactions", "vocabulary"],
+    uses: [
+      "annotations",
+      "iam",
+      "kernel",
+      "outbox",
+      "transactions",
+      "vocabulary",
+    ],
   },
   {
     except: src("workspace/companyEmail.ts"),
@@ -326,12 +333,11 @@ const modules: readonly Module[] = [
 const units: readonly Unit[] = [
   { root: "packages/domain", uses: [] },
   { root: "packages/cms-client", uses: [] },
-  { root: "packages/db", uses: ["packages/domain"] },
+  { root: "packages/db", uses: ["packages/domain", "packages/cms-client"] },
   {
     root: "apps/web",
     uses: ["packages/domain", "packages/db", "packages/cms-client"],
   },
-  { root: "apps/cms", uses: [] },
   { root: "tools/quality", uses: ["packages/domain"] },
   { root: "tools/docgen", uses: ["packages/domain"] },
   { root: "tools/effx-conformance", uses: ["packages/domain"] },
@@ -340,6 +346,7 @@ const units: readonly Unit[] = [
     root: "tools/import",
     uses: ["packages/domain", "packages/db", "packages/cms-client"],
   },
+  { root: "tools/prototype", uses: ["packages/domain", "packages/db"] },
   { root: "tools/db-path-spike", uses: ["packages/db", "packages/domain"] },
 ];
 
@@ -349,24 +356,6 @@ const units: readonly Unit[] = [
  * modules; what is left are imports between packages (stage 5).
  */
 export const baseline: readonly Tolerated[] = [
-  {
-    from: "apps/cms/scripts/checkBundle.ts",
-    reason:
-      "The bundle check makes a disposable database with `packages/db`'s test helper. Stage 5 (package rows).",
-    to: "packages/db",
-  },
-  {
-    from: "apps/cms/scripts/checkBundle.ts",
-    reason:
-      "The bundle check reads the web Worker's `worker.config.ts`, the compatibility settings both Workers share. Stage 5 moves it where both may import it.",
-    to: "apps/web",
-  },
-  {
-    from: "apps/web/test/textSlots.test.ts",
-    reason:
-      "The test reads the CMS seed (`../../cms/seed/seed.json`) to compare it with the text slots. Stage 5: the seed read goes through a package export.",
-    to: "apps/cms",
-  },
   {
     from: "tools/db-path-spike/alchemy.run.ts",
     reason:
@@ -389,7 +378,7 @@ export const baseline: readonly Tolerated[] = [
  * call inside that one, so the restructure that moves the mail out of the transaction retires the entry, a renamed
  * variable does not, and the list can only shrink (spec 0020, review rounds 1 to 3).
  */
-export const integrationCalls: readonly IntegrationCall[] = [
+const integrationCalls: readonly IntegrationCall[] = [
   {
     call: { method: "send", service: "MessageSender" },
     file: "apps/web/src/server/accountDelivery.ts",

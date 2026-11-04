@@ -148,9 +148,6 @@ layer(live, { excludeTestServices: true })(
           assert.isNull(second.keepDetails);
 
           // It opens the answer and nothing else, and only for its purpose.
-          assert.isTrue(
-            Option.isNone(yield* codePrincipal(token, "activation"))
-          );
           const holder = yield* codePrincipal(token, "alumniConsent");
           assert.isTrue(Option.isSome(holder));
 

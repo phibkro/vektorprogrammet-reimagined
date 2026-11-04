@@ -679,7 +679,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                 aggregates.insert(
                   locked,
                   Person.owned.code,
-                  { expiresAt, hash, purpose: "activation", usedAt: null },
+                  { expiresAt, hash, purpose: "alumniConsent", usedAt: null },
                   {
                     action: "replace",
                     set: { expiresAt },
