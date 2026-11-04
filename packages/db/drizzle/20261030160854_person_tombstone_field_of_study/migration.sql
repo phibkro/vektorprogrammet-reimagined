@@ -1,0 +1,2 @@
+ALTER TABLE "person" ALTER COLUMN "field_of_study_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "person" ADD CONSTRAINT "person_field_of_study_or_tombstone" CHECK ("field_of_study_id" is not null or "merged_into" is not null);

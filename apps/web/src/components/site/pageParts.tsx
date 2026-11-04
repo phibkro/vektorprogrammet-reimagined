@@ -86,7 +86,7 @@ export const greenButtonClass =
 
 /**
  * Which departments have admission open now (RULE-119, from the organisation data), each with the way to its
- * contact page. Applications themselves are Phase 3; today a department is asked.
+ * application form (spec 0009).
  */
 export const AdmissionStatus = ({
   className,
@@ -132,9 +132,9 @@ export const AdmissionStatus = ({
               className={cn(greenButtonClass, "min-w-40")}
               key={department.id}
               params={{ department: department.slug }}
-              to="/kontakt/$department"
+              to="/soknad/$department"
             >
-              {`Kontakt ${department.shortName}`}
+              {`Søk i ${department.shortName}`}
             </Link>
           ))}
         </nav>

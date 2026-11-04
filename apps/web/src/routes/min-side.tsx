@@ -3,17 +3,18 @@ import {
   getRouteApi,
   useNavigate,
 } from "@tanstack/react-router";
-import { Predicate } from "effect";
+import { Array as Arr, Predicate } from "effect";
 import { useState } from "react";
 
 import { ActiveSessions } from "@/components/auth/settings/security/activeSessions";
 import { ChangePassword } from "@/components/auth/settings/security/changePassword";
 import { ConsentQuestions } from "@/components/consentQuestions";
-import { CommandForm } from "@/components/forms";
+import { CommandForm } from "@/components/form/commandForm";
 import { OwnData } from "@/components/ownData";
-import { ProfileFields } from "@/components/profileFields";
+import { ProfileFields, profileDefaults } from "@/components/profileFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UpdateProfileForm } from "@/forms/people";
 import { getMyPage, updateProfile } from "@/functions/account.functions";
 import { answerOwnConsent } from "@/functions/personalData.functions";
 import { authRequest } from "@/lib/authClient";
@@ -63,6 +64,11 @@ const MyPage = () => {
     );
   }
 
+  const fieldChoices = Arr.map(page.fieldsOfStudy, (field) => ({
+    label: field.label,
+    value: String(field.id),
+  }));
+
   return (
     <main className="mx-auto grid max-w-3xl gap-6 px-4 py-12">
       <div className="flex items-center justify-between">
@@ -74,12 +80,18 @@ const MyPage = () => {
           <CardTitle>Profil</CardTitle>
         </CardHeader>
         <CardContent>
-          <CommandForm action={updateProfile} submitLabel="Lagre profil">
-            <input name="personId" type="hidden" value={page.person.id} />
-            <ProfileFields
-              fieldsOfStudy={page.fieldsOfStudy}
-              profile={page.person}
-            />
+          <CommandForm
+            action={updateProfile}
+            defaults={{
+              ...profileDefaults(fieldChoices, page.person),
+              personId: String(page.person.id),
+            }}
+            schema={UpdateProfileForm.schema}
+            submitLabel="Lagre profil"
+          >
+            {(Field) => (
+              <ProfileFields Field={Field} fieldsOfStudy={fieldChoices} />
+            )}
           </CommandForm>
         </CardContent>
       </Card>

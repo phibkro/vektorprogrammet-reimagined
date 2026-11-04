@@ -4,6 +4,7 @@ import {
   WorkspaceNotConfigured,
   WorkspaceWriteRefused,
   WorkspaceWriter,
+  refusingInTransaction,
 } from "@vektorprogrammet/domain";
 import type { WorkspaceMode } from "@vektorprogrammet/domain";
 /**
@@ -63,7 +64,12 @@ export const workspaceDirectoryLayer = (
   config: WorkspaceConfig
 ): Layer.Layer<WorkspaceDirectory> =>
   Layer.succeed(WorkspaceDirectory)(
-    config.deployment === "production" ? unconfiguredDirectory : emptyDirectory
+    refusingInTransaction(
+      "WorkspaceDirectory",
+      config.deployment === "production"
+        ? unconfiguredDirectory
+        : emptyDirectory
+    )
   );
 
 const refusing = (reason: string) =>
@@ -83,16 +89,19 @@ export const workspaceWriterLayer = (
   config: WorkspaceConfig
 ): Layer.Layer<WorkspaceWriter> =>
   Layer.succeed(WorkspaceWriter)(
-    Match.value(config).pipe(
-      Match.when({ mode: "dry-run" }, () =>
-        refusing("Workspace writes are off: WORKSPACE_MODE is not write")
-      ),
-      Match.when({ deployment: "production" }, () =>
-        refusing(
-          "Workspace writes need the Google adapter and its credentials, which the operator provisions (spec 0008)"
-        )
-      ),
-      Match.orElse(() => capturing)
+    refusingInTransaction(
+      "WorkspaceWriter",
+      Match.value(config).pipe(
+        Match.when({ mode: "dry-run" }, () =>
+          refusing("Workspace writes are off: WORKSPACE_MODE is not write")
+        ),
+        Match.when({ deployment: "production" }, () =>
+          refusing(
+            "Workspace writes need the Google adapter and its credentials, which the operator provisions (spec 0008)"
+          )
+        ),
+        Match.orElse(() => capturing)
+      )
     )
   );
 

@@ -57,6 +57,7 @@ const TABLES = {
  * and messages, job runs and reports are never erased by a replacement.
  */
 const BUILT_ON_TABLES = [
+  schema.application,
   schema.code,
   schema.account,
   schema.consent,
@@ -68,6 +69,7 @@ const BUILT_ON_TABLES = [
   schema.jobRun,
   schema.workspaceReport,
   schema.endingSoonDigest,
+  schema.impactSnapshot,
   schema.adminGrant,
   schema.membership,
   schema.companyAddress,
@@ -135,6 +137,7 @@ export const ImportTargetLive = Layer.effect(
         const protectedRows = yield* Effect.forEach(
           [
             schema.account,
+            schema.application,
             schema.code,
             schema.consent,
             schema.welcomeLedger,

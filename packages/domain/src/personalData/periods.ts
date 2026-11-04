@@ -7,11 +7,13 @@
  * The `decided` values come from the operator's decisions of 2026-10-26 (`INFORMATION_MODEL.md` §11.7 and §11.9). The
  * `proposed` ones are the brief's proposals, or this slice's own for data that no decision names.
  */
-import { days, period, years } from "./declaration.ts";
+import { days, months, period, years } from "./declaration.ts";
 
 export const Periods = {
   /** `admin_grant`: a place on the admin list is kept as long as the audit trail it belongs with (proposed). */
   adminPlaceAfterEnd: period(years(3), "proposed"),
+  /** `application`: an application is deleted this long after the end of its admission period (spec 0009, proposed). */
+  applicationAfterPeriodEnd: period(months(6), "proposed"),
   /** `audit_log`: ids and action names, never values (§11.3, proposed). */
   auditRows: period(years(3), "proposed"),
   /** `captured_mail`: the non-production mailbox (proposed). */

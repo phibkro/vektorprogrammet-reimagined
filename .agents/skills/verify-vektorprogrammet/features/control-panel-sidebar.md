@@ -29,15 +29,15 @@ Preconditions:
 - **The committed story.** Run `scripts/drive.sh shell.spec.ts`. Exit code `0`, all tests pass (Playwright prints the count), covering sidebar per person (Ada Admin, Lise Leder, anonymous), controls per grant on five pages, the forged request, the sheet, and both viewports. It saves screenshots into `screenshots/`.
 - **Admin-place grant, revoke and last-place refusal.** In a browser as `Ada Admin`, open `/kontrollpanel/administratorer`. Click `Gi administratorplass`, choose `Nora Nybegynner`, set `Til (dato og klokkeslett)` to a future time far ahead (for example `2099-12-31T12:00`) and submit `Gi plass`; the list now has Ada and Nora. Click `Fjern plassen til Nora Nybegynner`, submit `Fjern`, and confirm Nora is gone while Ada remains. Now grant `Lise Leder` an admin place ending after now but before the active semester boundary (the windows end at Aug 1 for Vår and Jan 1 for Høst; for Høst 2026, use `2026-12-31T23:00`). Switch the `Testaktør` to Lise and open the page again. Click `Fjern plassen til Ada Admin` and submit. The sheet stays open and shows the message `Den siste administratorplassen som varer etter dette semesteret kan ikke fjernes.`; Ada’s row and database grant remain unchanged.
 - **What each person gets, from the server.** Run `scripts/page.sh /kontrollpanel --as "<person>"` for each person and compare the `links:` line:
-  - `Ada Admin`: `/kontrollpanel /administratorer /arrangementer /avdelinger /integrasjoner /linjer /personer /semestre /team`.
-  - `Lise Leder`: the same without `/administratorer` and `/integrasjoner`.
+  - `Ada Admin`: `/kontrollpanel /administratorer /arrangementer /avdelinger /effekt /integrasjoner /linjer /personer /semestre /team`.
+  - `Lise Leder`: the same without `/administratorer`, `/effekt` and `/integrasjoner`.
   - `Mats Medlem`: `/kontrollpanel /arrangementer /semestre /team`.
   - `Sofie Styre`: `/kontrollpanel /arrangementer /personer /semestre /team`.
   - `Nora Nybegynner` and `Eva Ekstern`: `403`, `h1: Ingen tilgang`, empty `links:`.
   - `anonymous`: `403`, `h1: Ikke innlogget`, empty `links:`.
 - **A forbidden section by address.** `scripts/page.sh /kontrollpanel/administratorer --as "Lise Leder"` prints `403`; `--as "Ada Admin"` prints `200`. The same holds for `/kontrollpanel/integrasjoner` (spec 0008; see [integrations](./integrations.md)).
 - **Look at it.** `scripts/shot.sh /kontrollpanel panel-lise --as "Lise Leder"` and `scripts/shot.sh /kontrollpanel panel-lise-phone --as "Lise Leder" --phone`. The footer reads `Innlogget som Lise Leder, teamleder`; the entries are grouped `Generelt`, `Organisasjon`, `Innhold` (and `Administrasjon` for Ada Admin).
-- **Switch person in the browser.** Open `/kontrollpanel` with your driver as `Ada Admin` (cookie `vp-test-actor=Ada Admin` on `localhost`), choose the button `Lise Leder` in the `Testaktør` list; the overview now says `Innlogget som Lise Leder, teamleder`, the sidebar loses `Administratorer` and `Integrasjoner`, and the cookie value is `Lise Leder`.
+- **Switch person in the browser.** Open `/kontrollpanel` with your driver as `Ada Admin` (cookie `vp-test-actor=Ada Admin` on `localhost`), choose the button `Lise Leder` in the `Testaktør` list; the overview now says `Innlogget som Lise Leder, teamleder`, the sidebar loses `Administratorer`, `Integrasjoner` and `Effekt`, and the cookie value is `Lise Leder`.
 - **Proof.** `scripts/report.sh --features "sidebar-by-person, sidebar-refused, controls-by-grant, forged-request, admin-grants"`; attach the `page.sh` outputs for every person, the browser trace/screenshots of the admin grant journey, the drive log and `results-<n>.json`.
 
 ## Gotchas

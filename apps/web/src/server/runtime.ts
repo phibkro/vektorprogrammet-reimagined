@@ -19,6 +19,7 @@ import type {
   AggregateLocks,
   AdmissionPeriodRepository,
   AlumniRequests,
+  ApplicationRepository,
   AuditLog,
   CapturedMessageStore,
   CodeRepository,
@@ -29,7 +30,10 @@ import type {
   FileStore,
   InTransaction,
   IntegrationPort,
+  ImpactSnapshots,
+  ImpactSource,
   IsolationProbe,
+  PlatformProbe,
   NotAnIntegration,
   JobRun,
   LegalHolds,
@@ -116,9 +120,13 @@ export type DatabaseServices =
   | AggregateLocks
   | CodeRepository
   | AdmissionPeriodRepository
+  | ApplicationRepository
   | DepartmentRepository
   | SemesterRepository
+  | ImpactSnapshots
+  | ImpactSource
   | IsolationProbe
+  | PlatformProbe
   | FieldOfStudyRepository
   | SocialEventRepository
   | PublicFileRepository
@@ -418,7 +426,6 @@ const jobDatabaseLayer = (env: TickEnv): Layer.Layer<DatabaseServices> =>
   Layer.unwrap(
     Effect.map(decodeDeployment(env.DEPLOYMENT), (deployment) =>
       JobDatabaseLive({
-        maxConnections: MAX_CONNECTIONS_PER_REQUEST,
         retention: retentionModeFor(deployment),
         url: Redacted.make(env.DATABASE_URL),
       }).pipe(Layer.orDie)

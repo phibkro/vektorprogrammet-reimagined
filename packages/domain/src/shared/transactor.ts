@@ -6,11 +6,11 @@
  * `run` also refuses a program that requires an integration port (`IntegrationPort`, ADR 0015 rule 1, spec 0020): a
  * call to another system does not belong inside the transaction. The refusal is a bound on `R`, an early warning that
  * reads requirements and nothing else. It does not see a port that the program reaches without requiring it: a provider
- * built inside (`Effect.provide`), a port that a Layer captured when it was built (`AccountDelivery.issueCode` calls
- * `MessageSender` so, tolerated in `integrationCalls` of `tools/quality/moduleGraph.ts` until code delivery is
- * restructured), `Effect.serviceOption`, `Effect.context` with `Context.getOption`, and a service that is not marked
- * whose Layer captures a port. A generic caller whose bound is `object` or `{}` admits every service, ports too. The
- * runtime guard (an integration adapter refuses a call while a transaction is open) comes with that restructuring.
+ * built inside (`Effect.provide`), a port that a Layer captured when it was built, `Effect.serviceOption`,
+ * `Effect.context` with `Context.getOption`, and a service that is not marked whose Layer captures a port. A generic
+ * caller whose bound is `object` or `{}` admits every service, ports too. What the bound does not see, the runtime
+ * guard refuses (spec 0024): every integration port is built through `refusingInTransaction` (`integrationGuard.ts`),
+ * and a call made while the fiber holds the transaction's proof dies as `IntegrationCalledInTransaction`.
  */
 import { Context } from "effect";
 import type { Effect } from "effect";

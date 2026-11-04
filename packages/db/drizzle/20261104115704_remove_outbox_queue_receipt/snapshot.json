@@ -3,7 +3,7 @@
   "version": "9",
   "dialect": "postgres",
   "id": "3bce482f-ee30-4923-ac1e-0f9eda0e04e9",
-  "prevIds": ["682241f2-5504-4f81-9edc-ba5d15b66c0e"],
+  "prevIds": ["430ae868-aa43-4e9a-9a10-c2f7ab285d05"],
   "footprints": [
     {
       "statementType": "drop_column",

@@ -5,6 +5,7 @@ import {
   PersonId,
   SignInDirectory,
   passwordAllowed,
+  refusingInTransaction,
 } from "@vektorprogrammet/domain";
 import type {
   IntegrationPort,
@@ -458,6 +459,8 @@ export const authLayer = (env: AuthEnvironment) =>
       const accounts = yield* AccountRepository;
       const directory = yield* SignInDirectory;
 
-      return makeAuth(env, accounts, directory);
+      return Auth.of(
+        refusingInTransaction("Auth", makeAuth(env, accounts, directory))
+      );
     })
   );

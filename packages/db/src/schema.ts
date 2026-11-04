@@ -2,20 +2,27 @@ import {
   ADMIN_LIST_ID,
   AccountState,
   ActualState,
+  ApplicationState,
   AuditAction,
   AuditClient,
+  Bolk,
   COMPANY_EMAIL_PATTERN,
   CodePurpose,
+  CodeState,
   ConsentKind,
   EntityName,
   FileExtension,
+  Gender,
+  HeardAbout,
   JobRun,
+  ImpactMeasures,
   OutboxMessage,
   ReportStatus,
   StoredContentType,
   SystemJob,
   TeamFunction,
   Term,
+  Weekday,
   WorkspaceMode,
 } from "@vektorprogrammet/domain";
 /**
@@ -113,6 +120,9 @@ export const teamFunction = pgEnum("team_function", TeamFunction.literals);
  * constraint of the memberships.
  */
 export const UniqueConstraint = {
+  admissionPeriodDepartmentSemester:
+    "admission_period_department_semester_unique",
+  applicationPersonPeriod: "application_person_period_unique",
   departmentCity: "department_city_unique",
   membershipOverlap: "membership_no_overlap",
   personCompanyEmail: "person_company_email_unique",
@@ -216,7 +226,9 @@ export const fieldOfStudy = pgTable(
 /**
  * Spec 0006: one human known to Vektorprogrammet. The department is the field of study's (RULE-164). Spec 0007b adds
  * the creation time (the start of the period of a person with no engagement), the photo, `anonymised_at` (set when the
- * core fields were anonymised) and `merged_into` (the tombstone of a merge, which `AggregateLocks` does not lock).
+ * core fields were anonymised), `merged_into` (the tombstone of a merge, which `AggregateLocks` does not lock) and
+ * `last_admin_place_end` (spec 0026: the latest end of an admin place that retention deleted, kept so that the person's
+ * last activity does not move when the row goes).
  */
 export const person = pgTable(
   "person",
@@ -228,10 +240,11 @@ export const person = pgTable(
       .default(sql`now()`),
     email: text("email").notNull(),
     emailVerified: boolean("email_verified").notNull().default(false),
-    fieldOfStudyId: integer("field_of_study_id")
-      .notNull()
-      .references(() => fieldOfStudy.id),
+    fieldOfStudyId: integer("field_of_study_id").references(
+      () => fieldOfStudy.id
+    ),
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    lastAdminPlaceEnd: instant("last_admin_place_end"),
     mergedInto: integer("merged_into").references((): AnyPgColumn => person.id),
     name: text("name").notNull(),
     photoKey: text("photo_key").references(() => publicFile.key),
@@ -257,6 +270,10 @@ export const person = pgTable(
     check(
       "person_merged_anonymised",
       sql`${t.mergedInto} is null or ${t.anonymisedAt} is not null`
+    ),
+    check(
+      "person_field_of_study_or_tombstone",
+      sql`${t.fieldOfStudyId} is not null or ${t.mergedInto} is not null`
     ),
   ]
 );
@@ -286,17 +303,20 @@ export const account = pgTable(
   ]
 );
 
-/** One current, hashed code per purpose and person. Resending atomically replaces it. */
+/**
+ * One current, hashed code per purpose and person. Issuing atomically replaces it; the new code is stored `Unsent`, and
+ * only a `Usable` code authenticates (spec 0024: `CodeMachine`, the one writer of `state` is `Aggregates.apply`).
+ */
 export const code = pgTable(
   "code",
   {
     expiresAt: instant("expires_at").notNull(),
     hash: text("hash").notNull(),
     purpose: text("purpose").notNull(),
+    state: text("state").notNull(),
     subject: integer("subject")
       .notNull()
       .references(() => person.id),
-    usedAt: instant("used_at"),
   },
   (t) => [
     primaryKey({
@@ -306,6 +326,7 @@ export const code = pgTable(
     unique("code_hash_unique").on(t.hash),
     check("code_purpose", oneOf(sql`${t.purpose}`, CodePurpose.literals)),
     check("code_hash_format", sql`${t.hash} ~ '^[0-9a-f]{64}$'`),
+    check("code_state", oneOf(sql`${t.state}`, Rec.keys(CodeState.cases))),
   ]
 );
 
@@ -558,7 +579,49 @@ export const endingSoonDigest = pgTable(
   ]
 );
 
-/** C2 admission periods. Phase 1 imports them; Phase 3 adds the repository and the editor. */
+/**
+ * Spec 0027 D7: the closed cells of a semester, written once. A row is a count with its provenance and names no person;
+ * `department_id` is null for "all departments". `impact_snapshot_cell_unique` makes a second close of a cell a conflict
+ * that the adapter answers with `false` (the first value stays). The application's port has an insert and a read and no
+ * update or delete; a writer with the table's own privileges could still change a row (port-enforced).
+ */
+export const impactSnapshot = pgTable(
+  "impact_snapshot",
+  {
+    closedAt: instant("closed_at").notNull(),
+    coverage: text("coverage").notNull(),
+    coverageReason: text("coverage_reason"),
+    definitionHash: text("definition_hash").notNull(),
+    departmentId: integer("department_id").references(() => department.id),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    measure: text("measure").notNull(),
+    semesterTerm: semesterTerm("semester_term").notNull(),
+    semesterYear: integer("semester_year").notNull(),
+    source: text("source").notNull(),
+    sourceRef: text("source_ref"),
+    value: integer("value").notNull(),
+  },
+  (t) => [
+    unique("impact_snapshot_cell_unique")
+      .on(t.measure, t.semesterTerm, t.semesterYear, t.departmentId)
+      .nullsNotDistinct(),
+    check(
+      "impact_snapshot_measure",
+      oneOf(sql`${t.measure}`, ImpactMeasures.MeasureId.literals)
+    ),
+    check(
+      "impact_snapshot_coverage",
+      sql`(${t.coverage} = 'complete' and ${t.coverageReason} is null) or (${t.coverage} = 'incomplete' and ${t.coverageReason} is not null)`
+    ),
+    check(
+      "impact_snapshot_source",
+      oneOf(sql`${t.source}`, ["legacy-import", "reimagined"])
+    ),
+    check("impact_snapshot_value", sql`${t.value} >= 0`),
+  ]
+);
+
+/** C2 admission periods (spec 0009): one per department and semester (RULE-015, UK1), created and extended by staff. */
 export const admissionPeriod = pgTable(
   "admission_period",
   {
@@ -573,8 +636,71 @@ export const admissionPeriod = pgTable(
     startsAt: instant("starts_at").notNull(),
   },
   (t) => [
-    index("admission_period_department_idx").on(t.departmentId, t.semesterId),
+    unique(UniqueConstraint.admissionPeriodDepartmentSemester).on(
+      t.departmentId,
+      t.semesterId
+    ),
     check("admission_period_window", sql`${t.endsAt} > ${t.startsAt}`),
+  ]
+);
+
+/**
+ * C3 applications (spec 0009): owned by the person who applied (spec 0006b), so every write takes that person's lock. The
+ * weekdays, the bolk and the sources are closed sets from the domain; the teams are ids that the command checks against the
+ * department (an array cannot carry a foreign key). The special needs text, the version of the consent it rests on and
+ * the time are all present or all null.
+ */
+export const application = pgTable(
+  "application",
+  {
+    availableWeekdays: text("available_weekdays").array().notNull(),
+    bolk: text("bolk").notNull(),
+    createdAt: instant("created_at").notNull(),
+    doublePosition: boolean("double_position").notNull(),
+    fieldOfStudyId: integer("field_of_study_id")
+      .notNull()
+      .references(() => fieldOfStudy.id),
+    gender: text("gender"),
+    heardAboutUs: text("heard_about_us").array().notNull(),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    periodId: integer("period_id")
+      .notNull()
+      .references(() => admissionPeriod.id),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => person.id),
+    specialNeeds: text("special_needs"),
+    specialNeedsConsentVersion: integer("special_needs_consent_version"),
+    specialNeedsConsentedAt: instant("special_needs_consented_at"),
+    state: text("state").notNull(),
+    teamInterest: integer("team_interest").array().notNull(),
+    yearOfStudy: integer("year_of_study").notNull(),
+  },
+  (t) => [
+    unique(UniqueConstraint.applicationPersonPeriod).on(t.personId, t.periodId),
+    index("application_period_idx").on(t.periodId),
+    check(
+      "application_state",
+      oneOf(sql`${t.state}`, Rec.keys(ApplicationState.cases))
+    ),
+    check("application_bolk", oneOf(sql`${t.bolk}`, Bolk.literals)),
+    check(
+      "application_gender",
+      sql`${t.gender} is null or ${oneOf(sql`${t.gender}`, Gender.literals)}`
+    ),
+    check("application_year_of_study", sql`${t.yearOfStudy} between 1 and 5`),
+    check(
+      "application_weekdays",
+      sql`cardinality(${t.availableWeekdays}) > 0 and ${t.availableWeekdays} <@ array[${sql.raw(Arr.join(Arr.map(Weekday.literals, literal), ", "))}]::text[]`
+    ),
+    check(
+      "application_heard_about",
+      sql`${t.heardAboutUs} <@ array[${sql.raw(Arr.join(Arr.map(HeardAbout.literals, literal), ", "))}]::text[]`
+    ),
+    check(
+      "application_special_needs",
+      sql`(${t.specialNeeds} is null and ${t.specialNeedsConsentVersion} is null and ${t.specialNeedsConsentedAt} is null) or (${t.specialNeeds} is not null and length(${t.specialNeeds}) between 1 and 1000 and ${t.specialNeedsConsentVersion} is not null and ${t.specialNeedsConsentedAt} is not null)`
+    ),
   ]
 );
 

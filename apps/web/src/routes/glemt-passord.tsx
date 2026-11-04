@@ -6,18 +6,20 @@ import {
 } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { LocalForm } from "@/components/form/localForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { RequestResetForm } from "@/forms/account";
 import { getResetSiteKey } from "@/functions/account.functions";
 import { authRequest } from "@/lib/authClient";
-import { text } from "@/lib/formText";
 
 const routeApi = getRouteApi("/glemt-passord");
 
 const ForgotPassword = () => {
   const siteKey = routeApi.useLoaderData();
   const hydrated = useHydrated();
+  const [captchaToken, setCaptchaToken] = useState("");
 
   const [state, setState] = useState<"idle" | "pending" | "done" | "error">(
     "idle"
@@ -33,18 +35,14 @@ const ForgotPassword = () => {
           {state === "done" ? (
             <p role="status">Hvis en konto finnes, har vi sendt en lenke.</p>
           ) : (
-            <form
-              method="post"
+            <LocalForm
               className="grid gap-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const data = new FormData(event.currentTarget);
-
+              defaults={{ email: "" }}
+              schema={RequestResetForm.schema}
+              onValid={(values) => {
+                const { email } = RequestResetForm.payloadOf(values);
                 setState("pending");
-                void authRequest("request-reset", {
-                  captchaToken: text(data, "cf-turnstile-response"),
-                  email: text(data, "email"),
-                }).then(
+                void authRequest("request-reset", { captchaToken, email }).then(
                   () => {
                     setState("done");
                   },
@@ -54,24 +52,30 @@ const ForgotPassword = () => {
                 );
               }}
             >
-              <label className="grid gap-1" htmlFor="email">
-                Privat e-post
-                <Input
-                  autoComplete="email"
-                  id="email"
-                  name="email"
-                  required
-                  type="email"
-                />
-              </label>
-              <Turnstile siteKey={siteKey} />
-              {state === "error" && (
-                <p role="alert">Kunne ikke sende lenken. Prøv igjen.</p>
+              {(Field) => (
+                <>
+                  <Field label="Privat e-post" name="email">
+                    <Input autoComplete="email" id="email" type="email" />
+                  </Field>
+                  <Turnstile
+                    siteKey={siteKey}
+                    onSuccess={setCaptchaToken}
+                    onExpire={() => {
+                      setCaptchaToken("");
+                    }}
+                  />
+                  {state === "error" && (
+                    <p role="alert">Kunne ikke sende lenken. Prøv igjen.</p>
+                  )}
+                  <Button
+                    disabled={!hydrated || state === "pending"}
+                    type="submit"
+                  >
+                    Send lenke
+                  </Button>
+                </>
               )}
-              <Button disabled={!hydrated || state === "pending"} type="submit">
-                Send lenke
-              </Button>
-            </form>
+            </LocalForm>
           )}
           <a href="/logg-inn">Tilbake til innlogging</a>
         </CardContent>

@@ -2,7 +2,13 @@
  * Fake, same-shape fixtures. No real names, e-mail addresses or credentials:
  * e-mail domains are `.example`, ids are arbitrary.
  */
-import { EmailAddress, FileKey, SlackChannel } from "@vektorprogrammet/domain";
+import {
+  EmailAddress,
+  FileKey,
+  OutboxMessage,
+  SlackChannel,
+  SlackTarget,
+} from "@vektorprogrammet/domain";
 import type { DepartmentDraft, PublicFile } from "@vektorprogrammet/domain";
 import { DateTime } from "effect";
 
@@ -25,6 +31,13 @@ export const departmentDraft = (
 
 export const slackChannel = (name: string): SlackChannel =>
   SlackChannel.make(`#${name}`);
+
+/** A Slack post to the notifications channel: the smallest outbox message. */
+export const slack = (text: string): OutboxMessage =>
+  OutboxMessage.cases.SlackPost.make({
+    target: SlackTarget.cases.Notifications.make({}),
+    text,
+  });
 
 /** A content-addressed key whose hash is `digit` repeated (valid shape, not a real hash). */
 export const fileKey = (

@@ -14,7 +14,11 @@
  * the day a provider offers one the transport below passes the key to it.
  */
 import type { SendEmail } from "@cloudflare/workers-types";
-import { CapturedMessageStore, slackChannelOf } from "@vektorprogrammet/domain";
+import {
+  CapturedMessageStore,
+  refusingInTransaction,
+  slackChannelOf,
+} from "@vektorprogrammet/domain";
 import type {
   IntegrationPort,
   TransportMessage,
@@ -73,18 +77,20 @@ export const captureSenderLayer: Layer.Layer<
   Effect.gen(function* captureSenderLayer() {
     const store = yield* CapturedMessageStore;
 
-    return MessageSender.of({
-      send: (message, key) =>
-        store
-          .record(message, key)
-          .pipe(
-            Effect.andThen(
-              Effect.logInfo(
-                "outbox message captured (non-production deployment)"
-              ).pipe(Effect.annotateLogs({ kind: message._tag }))
-            )
-          ),
-    });
+    return MessageSender.of(
+      refusingInTransaction("MessageSender", {
+        send: (message, key) =>
+          store
+            .record(message, key)
+            .pipe(
+              Effect.andThen(
+                Effect.logInfo(
+                  "outbox message captured (non-production deployment)"
+                ).pipe(Effect.annotateLogs({ kind: message._tag }))
+              )
+            ),
+      })
+    );
   })
 );
 
@@ -182,7 +188,7 @@ export const productionSenderLayer = (
           })
         );
 
-      return MessageSender.of({ send });
+      return MessageSender.of(refusingInTransaction("MessageSender", { send }));
     })
   );
 

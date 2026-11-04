@@ -236,7 +236,7 @@
       "op": "alter",
       "key": "checks\u0000[\"public\",\"code\",\"code_purpose\"]",
       "set": {
-        "value": "\"purpose\" in ('alumniConsent')"
+        "value": "\"purpose\" in ('alumniConsent', 'verifyApplication')"
       }
     }
   ]

@@ -22,10 +22,13 @@ import type { Context } from "effect";
 
 import { CodeRepository } from "../accounts/codeRepository.ts";
 import { AccountRepository } from "../accounts/services.ts";
+import { ApplicationRepository } from "../admission/services.ts";
 import { AuditLog } from "../audit/auditLog.ts";
 import { FileStore, PublicFileRepository } from "../files/services.ts";
+import { ImpactSnapshots } from "../impact/services.ts";
 import { JobRuns } from "../jobs/runs.ts";
 import {
+  AdmissionPeriodRepository,
   DepartmentRepository,
   SemesterRepository,
 } from "../organisation/services.ts";
@@ -210,9 +213,9 @@ export const StoreGuarantees: readonly Guarantee[] = [
     id: "TX5",
     invariant: false,
     property:
-      "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope.",
+      "`InTransaction` is provided only by a `Transactor`, or by a test composition that keeps TX1 to TX3; a program that holds it runs inside such a scope. A store adapter keeps the scopes that are open on a connection as the store keeps them, the innermost last, and checks, before the first statement of a method that requires `InTransaction`, that the proof the program holds is the one of the innermost scope and that the scope has not ended its body, and refuses one that is not: a proof made by hand, one used after its transaction ended, one of another transaction, or one of an outer scope while a nested scope is entered or live (spec 0019 R21). A method counts as running until it ends. A nested scope is refused while a method of the scope around it is running, and when it is asked for from a scope that is not the innermost live one (a fiber that outlives its scope holds a dead scope's context; two nested scopes asked for at once from one parent: the second is refused, every time). A scope that ends waits until no method of it, or of a scope opened inside it, is running, so that no statement of theirs is sent after the one that ends the scope, and a scope that ends while a scope opened inside it is still running fails and rolls back. So for any interleaving of methods and scopes on one connection a method is refused or its row is in the scope that it reported into and in no other (spec 0019 R14, R18, R21). Not stopped: a whole context captured inside a live scope and provided elsewhere writes into that scope while it lives (R7); and a scope that is interrupted after its closing statement was issued reports the interruption although it merged (the store records the statement before it sends it, sends it where it cannot be interrupted, and adds its failure to the cause if it fails, so an interruption alone means the scope merged; its rows are in the scope around it, spec 0019 R26).",
     rawWriter:
-      "provides the proof around a program that runs outside a transaction: nothing in the store refuses it, and a source check catches only accidental use (Effect keys a service by a string, so the proof can be made without naming it)",
+      "makes a proof by hand (Effect keys a service by a string, so it can be made without naming the service), keeps one past its transaction, or uses one beside a nested scope: a program that uses the port is refused at first use and writes nothing; a writer that does not use the port is not asked for a proof at all; a program that carries a live level's whole context out of it is accepted and writes into that level (R7)",
     strength: "port-enforced",
   },
   {
@@ -279,7 +282,9 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(MembershipRepository, "remove"),
       carrier(AdminGrantRepository, "create"),
       carrier(AccountRepository, "transition"),
-      carrier(CodeRepository, "replace"),
+      carrier(CodeRepository, "issue"),
+      carrier(CodeRepository, "acknowledge"),
+      carrier(CodeRepository, "consume"),
       carrier(ConsentRepository, "record"),
     ],
     id: "LK5",
@@ -327,13 +332,15 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(SemesterRepository, "ensure"),
       carrier(PublicFileRepository, "register"),
       carrier(WorkspaceAssignments, "assign"),
-      carrier(CodeRepository, "replace"),
+      carrier(CodeRepository, "issue"),
+      carrier(AdmissionPeriodRepository, "create"),
+      carrier(ApplicationRepository, "insert"),
       carrier(CapturedMessageStore, "record"),
     ],
     id: "UK1",
     invariant: true,
     property:
-      "At most one record per natural key: department city; person e-mail and company e-mail; team name within its department and team group e-mail; semester (term, year); public file key and legacy path; position name; one-time code hash; company address; captured delivery key.",
+      "At most one record per natural key: department city; person e-mail and company e-mail; team name within its department and team group e-mail; semester (term, year); admission period per department and semester; application per person and period; public file key and legacy path; position name; one-time code hash; company address; captured delivery key.",
     rawWriter: "inserts a second record with the same key: refused",
     strength: "store-enforced",
   },
@@ -411,6 +418,8 @@ export const StoreGuarantees: readonly Guarantee[] = [
     capability: "ConditionalWrites",
     carriers: [
       carrier(AccountRepository, "transition"),
+      carrier(CodeRepository, "acknowledge"),
+      carrier(CodeRepository, "consume"),
       carrier(MembershipRepository, "setEnd"),
       carrier(MembershipRepository, "remove"),
     ],
@@ -425,7 +434,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "ConditionalWrites",
     carriers: [
-      carrier(CodeRepository, "replace"),
+      carrier(CodeRepository, "issue"),
       carrier(ConsentRepository, "record"),
     ],
     id: "CW2",
@@ -471,11 +480,12 @@ export const StoreGuarantees: readonly Guarantee[] = [
       carrier(JobRuns, "claim"),
       carrier(WorkspaceAssignments, "assign"),
       carrier(CapturedMessageStore, "record"),
+      carrier(ImpactSnapshots, "close"),
     ],
     id: "CL1",
     invariant: true,
     property:
-      "At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key.",
+      "At most one claim per key: the first-membership welcome per person; the ending-soon digest per person and semester; the alumni request per person and engagement end; a job's run per job and period; a company address; a captured message per delivery key; a closed impact snapshot per measure, semester and department.",
     rawWriter: "inserts a second claim with the same key: refused",
     strength: "store-enforced",
   },
@@ -520,6 +530,17 @@ export const StoreGuarantees: readonly Guarantee[] = [
     ],
   },
   {
+    capability: "ConditionalWrites",
+    carriers: [carrier(ImpactSnapshots, "close")],
+    id: "IM1",
+    invariant: false,
+    property:
+      "A closed cell of the impact snapshots is never changed: `close` writes the cells of a lattice together, leaves a cell that is already closed as it was and says how many it closed, and the port has no way to change or remove a closed cell. The number published for a closed semester therefore does not change silently.",
+    rawWriter:
+      "changes or removes a closed row (the table's owner, a migration, anyone with the application's credentials): the row changes and nothing in the store refuses it. The application's role could be denied the right to change or remove rows of the table; it is not, because one role migrates and runs the application in local and test, and the roles are one infrastructure follow-up. The recovery is the audit row of the job that closed the cell and the source it names.",
+    strength: "port-enforced",
+  },
+  {
     capability: "WorkQueue",
     carriers: [carrier(OutboxDelivery, "claim")],
     id: "LS1",
@@ -533,13 +554,14 @@ export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "WorkQueue",
     carriers: [
+      carrier(OutboxDelivery, "holdClaim"),
       carrier(OutboxDelivery, "markDelivered"),
       carrier(OutboxDelivery, "markFailed"),
     ],
     id: "LS2",
     invariant: false,
     property:
-      "An acknowledgement or release that carries a claim token other than the record's current one changes nothing and reports `claimLost`.",
+      "An acknowledgement, a release or a hold (`holdClaim`, the fence of a write that depends on the claim) that carries a claim token other than the record's current one changes nothing and reports `claimLost`; a hold that succeeds keeps the record locked, so another consumer's claim waits, until the caller's transaction ends.",
     rawWriter:
       "overwrites the claim token: a stale claimant's acknowledgement then succeeds",
     strength: "port-enforced",

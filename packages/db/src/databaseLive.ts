@@ -3,9 +3,8 @@
  * `AuditLog`, `OutboxDelivery` and the `SqlClient` that `transactional` uses,
  * over `@effect/sql-pg` and Drizzle `effect-postgres`.
  *
- * Hyperdrive rules (architecture §3, §4): `prepare: false` (Hyperdrive pools
- * in transaction mode), `multiplex: false`, a small pool, and no advisory
- * locks, LISTEN/NOTIFY or session `SET` anywhere in this package.
+ * `DatabaseLive` uses conservative Supabase client settings; the importer uses a direct connection.
+ * Transactions avoid session-affine constructs because the runtime URL may use a transaction pooler.
  */
 import { PgClient } from "@effect/sql-pg";
 import type { RetentionMode } from "@vektorprogrammet/domain";
@@ -18,10 +17,17 @@ import { roots } from "./aggregate/declaration.ts";
 import { aggregateLocksLayer } from "./aggregate/locks.ts";
 import { Drizzle } from "./internal/drizzle.ts";
 import { IsolationProbeLive } from "./isolationProbe.ts";
+import { PlatformProbeLive } from "./platform/probe.ts";
+import { direct, supabase } from "./platform/profiles.ts";
 import { AccountRepositoryLive } from "./repositories/accounts.ts";
+import { ApplicationRepositoryLive } from "./repositories/admission.ts";
 import { CapturedMessageStoreLive } from "./repositories/capturedMessages.ts";
 import { CodeRepositoryLive } from "./repositories/codes.ts";
 import { PublicFileRepositoryLive } from "./repositories/files.ts";
+import {
+  ImpactSnapshotsLive,
+  ImpactSourceLive,
+} from "./repositories/impact.ts";
 import { JobRunsLive } from "./repositories/jobRuns.ts";
 import { ImportTargetLive } from "./repositories/legacyImport.ts";
 import {
@@ -80,6 +86,7 @@ const AggregatesLayer = Layer.mergeAll(
 const Repositories = Layer.mergeAll(
   DepartmentRepositoryLive,
   AdmissionPeriodRepositoryLive,
+  ApplicationRepositoryLive,
   SemesterRepositoryLive,
   FieldOfStudyRepositoryLive,
   SocialEventRepositoryLive,
@@ -110,8 +117,11 @@ const Repositories = Layer.mergeAll(
   WorkspaceAssignmentsLive,
   WorkspaceFactsLive,
   WorkspaceReportsLive,
+  ImpactSnapshotsLive,
+  ImpactSourceLive,
   TransactorLive,
-  IsolationProbeLive.pipe(Layer.provide(TransactorLive))
+  IsolationProbeLive.pipe(Layer.provide(TransactorLive)),
+  PlatformProbeLive(supabase)
 ).pipe(Layer.provideMerge(AggregatesLayer));
 
 /**
@@ -126,13 +136,13 @@ export const RepositoriesLayer = Layer.mergeAll(
 
 export interface DatabaseConfig {
   readonly url: Redacted.Redacted;
-  /** Pool size; keep it small behind Hyperdrive. */
+  /** Pool size; defaults to the conservative Supabase profile. */
   readonly maxConnections?: number | undefined;
 }
 
 /**
- * One pool per Layer build, under the Hyperdrive rules above, with `services` over it. Exposes `SqlClient` for
- * `transactional`, but not `PgClient`, whose LISTEN/NOTIFY helpers Hyperdrive does not support.
+ * One pool per Layer build using the Supabase profile. The runtime URL can address a direct connection or pooler.
+ * Exposes `SqlClient` for `transactional`, not `PgClient`.
  */
 const databaseOver = <ROut, E, RIn>(
   config: DatabaseConfig,
@@ -144,9 +154,9 @@ const databaseOver = <ROut, E, RIn>(
   ).pipe(
     Layer.provide(
       PgClient.layer({
-        maxConnections: config.maxConnections,
-        multiplex: false,
-        prepare: false,
+        maxConnections: config.maxConnections ?? supabase.client.maxConnections,
+        multiplex: supabase.client.multiplex,
+        prepare: supabase.client.prepare,
         url: config.url,
       })
     )
@@ -180,7 +190,7 @@ export const JobDatabaseLive = (
 
 /**
  * The database of the legacy importer: `ImportTarget` over a direct connection (not Hyperdrive), so prepared statements
- * stay on; two connections are plenty for a sequential import. Only the importer's composition root builds it.
+ * stay on; the settings are the `direct` profile's. Only the importer's composition root builds it.
  */
 export const ImportDatabaseLive = (config: {
   readonly url: Redacted.Redacted;
@@ -191,7 +201,9 @@ export const ImportDatabaseLive = (config: {
         Layer.provideMerge(
           PgClient.layer({
             applicationName: "vektorprogrammet-import",
-            maxConnections: 2,
+            maxConnections: direct.client.maxConnections,
+            multiplex: direct.client.multiplex,
+            prepare: direct.client.prepare,
             url: config.url,
           })
         )

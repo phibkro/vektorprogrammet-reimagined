@@ -4,6 +4,8 @@ import {
   BuildingIcon,
   CalendarDaysIcon,
   FileTextIcon,
+  ChartColumnIcon,
+  ClipboardListIcon,
   ExternalLinkIcon,
   GraduationCapIcon,
   LayoutDashboardIcon,
@@ -50,9 +52,11 @@ import type { ActorSummary } from "@/server/shell";
 
 const SECTION_ICONS: Readonly<Record<SectionKey, LucideIcon>> = {
   admins: ShieldCheckIcon,
+  admission: ClipboardListIcon,
   content: FileTextIcon,
   departments: BuildingIcon,
   fieldsOfStudy: GraduationCapIcon,
+  impact: ChartColumnIcon,
   integrations: PlugIcon,
   overview: LayoutDashboardIcon,
   people: UserRoundIcon,

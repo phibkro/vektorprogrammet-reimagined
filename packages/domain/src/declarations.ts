@@ -6,10 +6,12 @@
 import { Array as Arr } from "effect";
 
 import { AccountDomain } from "./accounts/declaration.ts";
+import { AdmissionDomain } from "./admission/declaration.ts";
 import { AuditDomain } from "./audit/declaration.ts";
 import { ContactDomain } from "./contact/declaration.ts";
 import { ContentDomain } from "./content/declaration.ts";
 import { FilesDomain } from "./files/declaration.ts";
+import { ImpactDomain } from "./impact/declaration.ts";
 import { authorizeWith, canAnywhereWith } from "./kernel/authorize.ts";
 import type { NamesOf } from "./kernel/domain.ts";
 import * as Grant from "./kernel/grant.ts";
@@ -32,6 +34,8 @@ export const Declarations = [
   OutboxDomain,
   PersonalDataDomain,
   WorkspaceDomain,
+  ImpactDomain,
+  AdmissionDomain,
 ] as const;
 
 /** Every command and read that any domain declares. */

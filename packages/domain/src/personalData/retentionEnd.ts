@@ -79,6 +79,11 @@ export const fiscalYearEnd = (at: DateTime.DateTime): DateTime.Utc =>
 /** What the end of a person's last activity is made of. */
 export interface ActivityFacts {
   readonly createdAt: DateTime.Utc;
+  /**
+   * The latest end of an admin place that retention has deleted (`person.last_admin_place_end`, spec 0026): the place is
+   * gone, its end still counts.
+   */
+  readonly keptPlaceEnd: Option.Option<DateTime.Utc>;
   /** The end semester of each membership. */
   readonly memberships: readonly Semester[];
   /** The `until` of each admin place. */
@@ -86,13 +91,15 @@ export interface ActivityFacts {
 }
 
 /**
- * The end of a person's last activity: the later of the end of their last membership and the end of their last admin place
- * (a valid place keeps a person active), and their creation when there is neither.
+ * The end of a person's last activity: the later of the end of their last membership, the end of their last admin place
+ * (a valid place keeps a person active, and so does one that retention deleted: `keptPlaceEnd`), and their creation when
+ * there is none of them.
  */
 export const lastActivityEnd = (facts: ActivityFacts): DateTime.Utc => {
   const ends = [
     ...Arr.map(facts.memberships, semesterEnd),
     ...facts.placeUntils,
+    ...Option.toArray(facts.keptPlaceEnd),
   ];
 
   return Arr.isReadonlyArrayNonEmpty(ends)

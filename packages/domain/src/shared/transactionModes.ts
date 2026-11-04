@@ -1,6 +1,7 @@
 import type { CodeRepository } from "../accounts/codeRepository.ts";
 import type { AccountRepository } from "../accounts/services.ts";
 import type { SignInDirectory } from "../accounts/signInDirectory.ts";
+import type { ApplicationRepository } from "../admission/services.ts";
 /**
  * What every store port asks of a transaction, method by method (spec 0018). A method is in exactly one mode:
  *
@@ -15,7 +16,7 @@ import type { SignInDirectory } from "../accounts/signInDirectory.ts";
  *   `WorkspaceWriter`) are marked `IntegrationPort`, and `Transactor.run` refuses a program that requires one (ADR 0015,
  *   spec 0020); the R2 `FileStore` is the platform and stays a convention that the type system does not check.
  * - `Opens`: opens its own transaction and takes none (`Transactor.run`, `ImportTarget.replaceAll`, and
- *   `IsolationProbe.report`, which opens the transactions it reports on).
+ *   `IsolationProbe.report` and `PlatformProbe.report`, which open the transactions they report on).
  *
  * The declaration is exhaustive by its type: a method of a port without a row, and a row without a method, do not
  * compile. `test/shared/transactionModes.test.ts` checks every row against the method's type, and
@@ -24,6 +25,8 @@ import type { SignInDirectory } from "../accounts/signInDirectory.ts";
 import type { AuditLog } from "../audit/auditLog.ts";
 import type { SocialEventRepository } from "../content/services.ts";
 import type { FileStore, PublicFileRepository } from "../files/services.ts";
+import type { ImpactSnapshots } from "../impact/services.ts";
+import type { ImpactSource } from "../impact/source.ts";
 import type { JobRuns } from "../jobs/runs.ts";
 import type { ImportTarget } from "../organisation/legacyImport.ts";
 import type {
@@ -62,6 +65,7 @@ import type {
 import type { AggregateLocks } from "./aggregate.ts";
 import type { IsolationProbe } from "./isolationProbe.ts";
 import type { Outbox } from "./outbox.ts";
+import type { PlatformProbe } from "./platformProbe.ts";
 import type { Transactor } from "./transactor.ts";
 
 export type TransactionMode =
@@ -77,6 +81,7 @@ export interface StorePorts {
   readonly AccountRepository: AccountRepository;
   readonly AdminGrantRepository: AdminGrantRepository;
   readonly AdmissionPeriodRepository: AdmissionPeriodRepository;
+  readonly ApplicationRepository: ApplicationRepository;
   readonly AggregateLocks: AggregateLocks;
   readonly AlumniRequests: AlumniRequests;
   readonly AuditLog: AuditLog;
@@ -87,6 +92,8 @@ export interface StorePorts {
   readonly DigestLedger: DigestLedger;
   readonly FieldOfStudyRepository: FieldOfStudyRepository;
   readonly FileStore: FileStore;
+  readonly ImpactSnapshots: ImpactSnapshots;
+  readonly ImpactSource: ImpactSource;
   readonly ImportTarget: ImportTarget;
   readonly IsolationProbe: IsolationProbe;
   readonly JobRuns: JobRuns;
@@ -97,6 +104,7 @@ export interface StorePorts {
   readonly OutboxReports: OutboxReports;
   readonly PersonRepository: PersonRepository;
   readonly PersonalDataStore: PersonalDataStore;
+  readonly PlatformProbe: PlatformProbe;
   readonly PositionRepository: PositionRepository;
   readonly PrincipalDirectory: PrincipalDirectory;
   readonly PublicFileRepository: PublicFileRepository;
@@ -125,6 +133,7 @@ export type ModesOf<
 
 export const TransactionModes = {
   AccountRepository: {
+    emailOf: "Requires",
     find: "Read",
     findAuthIdentitiesByPersonId: "Read",
     findAuthIdentity: "Read",
@@ -134,6 +143,7 @@ export const TransactionModes = {
     list: "Read",
     transition: "Requires",
     updateProfile: "Requires",
+    verifiedHolderOf: "Read",
     verifyEmail: "Requires",
   },
   AdminGrantRepository: {
@@ -142,15 +152,31 @@ export const TransactionModes = {
     list: "Read",
     revoke: "Requires",
   },
-  AdmissionPeriodRepository: { list: "Read" },
+  AdmissionPeriodRepository: {
+    create: "Standalone",
+    extend: "Standalone",
+    findById: "Read",
+    list: "Read",
+    listStored: "Read",
+    remove: "Standalone",
+  },
   AggregateLocks: { lock: "Requires", lockAll: "Requires" },
   AlumniRequests: { candidates: "Read", claim: "Requires" },
+  ApplicationRepository: {
+    existsForAddress: "Read",
+    find: "Read",
+    findLocked: "Requires",
+    insert: "Requires",
+    list: "Read",
+    transition: "Requires",
+  },
   AuditLog: { latest: "Read", record: "Requires" },
   CapturedMessageStore: { record: "Standalone" },
   CodeRepository: {
+    acknowledge: "Requires",
     consume: "Requires",
     findUsable: "Read",
-    replace: "Requires",
+    issue: "Requires",
   },
   ConsentRepository: { of: "Read", ofLocked: "Requires", record: "Requires" },
   DepartmentRepository: {
@@ -167,6 +193,8 @@ export const TransactionModes = {
     rename: "Standalone",
   },
   FileStore: { get: "Outside", put: "Outside" },
+  ImpactSnapshots: { close: "Standalone", read: "Read" },
+  ImpactSource: { answers: "Read", schools: "Read" },
   ImportTarget: { replaceAll: "Opens" },
   IsolationProbe: { report: "Opens" },
   JobRuns: {
@@ -194,6 +222,7 @@ export const TransactionModes = {
   OutboxDelivery: {
     claim: "Standalone",
     due: "Read",
+    holdClaim: "Requires",
     markDelivered: "Joins",
     markFailed: "Standalone",
   },
@@ -210,6 +239,7 @@ export const TransactionModes = {
     merge: "Requires",
     setPhoto: "Requires",
   },
+  PlatformProbe: { report: "Opens" },
   PositionRepository: { findById: "Read", list: "Read" },
   PrincipalDirectory: { activeById: "Read", byName: "Read", names: "Read" },
   PublicFileRepository: {

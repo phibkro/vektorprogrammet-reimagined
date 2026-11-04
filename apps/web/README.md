@@ -12,7 +12,7 @@ SUPABASE_ENV_FILE=/path/to/private-local-status.env devenv shell -- bun run prot
 SUPABASE_ENV_FILE=/path/to/private-local-status.env devenv shell -- bun run prototype:dev
 ```
 
-Open http://localhost:3000/logg-inn. The synthetic accounts and fixture password are declared in [`localPeople.ts`](../../packages/domain/src/localPeople.ts); the setup guide lists the login addresses. Setup is rerunnable and refuses a remote database/API target. It does not reset an existing database or overwrite edited content.
+Open http://localhost:3000/logg-inn. Synthetic accounts are declared in [`localPeople.ts`](../../packages/domain/src/localPeople.ts). Use a fresh synthetic Supabase database for the hybrid migration chain. Upgrading an existing prototype database has not been rehearsed and is not supported; do not reset the interactive prototype. Setup refuses remote database/API targets.
 
 The application does not accept a test-actor cookie. Sign in through real local Supabase Auth. Supabase CLI's development keys are publicly shared defaults; ports may be bound beyond loopback. Never use this stack for real personal data or production credentials. Local Auth email is captured by the CLI's Mailpit service; application invitations and notifications use the non-production capture store.
 
@@ -20,7 +20,7 @@ The application does not accept a test-actor cookie. Sign in through real local 
 
 | Binding | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Server-only PostgreSQL connection as a domain-table owner or BYPASSRLS role, with required Auth-schema reads. Hosted deployments use an appropriate Supabase pooler connection. |
+| `DATABASE_URL` | Server-only restricted runtime PostgreSQL role with domain operations and required Auth reads; never an owner, superuser or BYPASSRLS role. Migration credentials stay outside the Worker. |
 | `SUPABASE_URL` | Auth and Storage API origin |
 | `SUPABASE_PUBLISHABLE_KEY` | Public provider client key |
 | `SUPABASE_SECRET_KEY` | Server-only privileged SDK key |
@@ -55,4 +55,4 @@ devenv shell -- bunx vp check
 
 Tests requiring Auth/Storage need the real local Supabase environment. SQL adapter tests use disposable databases and a minimal observed provider-schema fixture where they exercise SQL rather than the provider API. Browser tests must own their Supabase project/database, fixture users and app process; never reset the interactive prototype to run them. Turnstile test-key verification requires outbound access to Cloudflare's documented public test endpoint.
 
-Spec [`0024`](../../docs/specs/0024-supabase-prototype.md) records the prototype contract and exercised evidence. Historical specs describe the previous infrastructure; they are not deployment instructions for this cutover. Production data/password/file migration, real delivery integrations and a hosted release remain separate gates. This infrastructure prototype does not claim that the still-unbuilt recruitment/placement phases are complete.
+Spec [`0028`](../../docs/specs/0028-supabase-prototype.md) records the earlier prototype contract and evidence. Historical specs describe previous infrastructure, not deployment instructions. Production migration, real delivery integrations and a hosted release remain separate gates.

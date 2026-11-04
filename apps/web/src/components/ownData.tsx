@@ -5,8 +5,9 @@
  */
 import { useNavigate } from "@tanstack/react-router";
 
-import { CommandForm } from "@/components/forms";
+import { CommandForm } from "@/components/form/commandForm";
 import { Button } from "@/components/ui/button";
+import { ErasePersonForm } from "@/forms/personalData";
 import { erasePersonData } from "@/functions/personalData.functions";
 
 export const OwnData = ({ personId }: { readonly personId: number }) => {
@@ -41,13 +42,13 @@ export const OwnData = ({ personId }: { readonly personId: number }) => {
           <CommandForm
             action={erasePersonData}
             className="mt-3 grid gap-3"
+            defaults={{ personId: String(personId) }}
             onSuccess={() => {
               void navigate({ to: "/slettet" });
             }}
+            schema={ErasePersonForm.schema}
             submitLabel="Slett opplysningene mine"
-          >
-            <input name="personId" type="hidden" value={personId} />
-          </CommandForm>
+          />
         </details>
       </section>
     </div>

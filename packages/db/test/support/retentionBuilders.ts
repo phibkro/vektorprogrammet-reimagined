@@ -129,6 +129,46 @@ export const builders = {
         flag
       )
   ),
+  "application(available_weekdays,bolk,created_at,double_position,field_of_study_id,gender,heard_about_us,period_id,person_id,special_needs,special_needs_consent_version,special_needs_consented_at,state,team_interest,year_of_study)":
+    (fixture) =>
+      Effect.gen(function* buildApplication() {
+        const sql = yield* SqlClient;
+        // The person core must outlast the application's period.
+        yield* createdAt(fixture.personId, FAR_AHEAD);
+
+        // A period of its own that ends at WINTER: the application's period starts counting there (spec 0009).
+        const [semester] = yield* Effect.orDie(
+          sql<{
+            id: number;
+          }>`insert into semester (term, year) values ('VAR', ${6000 + fixture.personId}) returning id`
+        );
+
+        const [period] = yield* Effect.orDie(
+          sql<{
+            id: number;
+          }>`insert into admission_period (department_id, semester_id, starts_at, ends_at)
+            select department_id, ${semester?.id ?? 0}, ${at(DateTime.subtract(WINTER, { days: 1 }))}, ${at(WINTER)}
+            from team where id = ${fixture.teamId} returning id`
+        );
+
+        yield* Effect.orDie(
+          sql`insert into application (available_weekdays, bolk, created_at, double_position, field_of_study_id, heard_about_us, period_id, person_id, state, team_interest, year_of_study)
+            select array['Monday'], 'Both', ${at(WINTER)}, false, field_of_study_id, array[]::text[], ${period?.id ?? 0}, id, 'Submitted', array[]::integer[], 1
+            from person where id = ${fixture.personId}`
+        );
+
+        return {
+          present: Effect.orDie(
+            Effect.map(
+              sql<{
+                present: boolean;
+              }>`select exists (select 1 from application where person_id = ${fixture.personId}) as present`,
+              flag
+            )
+          ),
+          start: WINTER,
+        };
+      }),
   "audit_log(action,at,client,entity,entity_key,person_id,session_id)": (
     fixture
   ) =>
@@ -194,13 +234,13 @@ export const builders = {
         start: WINTER,
       };
     }),
-  "code(expires_at,hash,purpose,subject,used_at)": (fixture) =>
+  "code(expires_at,hash,purpose,state,subject)": (fixture) =>
     Effect.gen(function* buildCode() {
       const sql = yield* SqlClient;
       yield* createdAt(fixture.personId, FAR_AHEAD);
       yield* Effect.orDie(
-        sql`insert into code (expires_at, hash, purpose, subject)
-          values (${at(WINTER)}, ${SHA}, 'alumniConsent', ${fixture.personId})`
+        sql`insert into code (expires_at, hash, purpose, state, subject)
+          values (${at(WINTER)}, ${SHA}, 'alumniConsent', 'Usable', ${fixture.personId})`
       );
 
       return {
@@ -330,16 +370,17 @@ export const builders = {
         start: WINTER,
       };
     }),
-  "person(company_email,email,email_verified,name,photo_key)": fromActivity(
-    () => Effect.void,
-    (sql, { personId }) =>
-      Effect.map(
-        sql<{
-          present: boolean;
-        }>`select exists (select 1 from person where id = ${personId} and anonymised_at is null) as present`,
-        flag
-      )
-  ),
+  "person(company_email,email,email_verified,last_admin_place_end,name,photo_key)":
+    fromActivity(
+      () => Effect.void,
+      (sql, { personId }) =>
+        Effect.map(
+          sql<{
+            present: boolean;
+          }>`select exists (select 1 from person where id = ${personId} and anonymised_at is null) as present`,
+          flag
+        )
+    ),
   "public_file(uploaded_by)": fromActivity(
     (sql, { personId, tag }) =>
       sql`insert into public_file (content_type, key, name, sha256, size, uploaded_at, uploaded_by)

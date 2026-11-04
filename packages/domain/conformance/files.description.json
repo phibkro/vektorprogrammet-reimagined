@@ -34,7 +34,8 @@
         "endingSoon",
         "retention",
         "alumniConsent",
-        "workspaceSync"
+        "workspaceSync",
+        "impactClose"
       ]
     }
   },

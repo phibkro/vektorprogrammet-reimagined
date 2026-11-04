@@ -4,26 +4,33 @@
  */
 import {
   AdmissionPeriod,
+  AdmissionPeriodId,
   AdmissionPeriodRepository,
+  Conflict,
   Department,
   DepartmentRepository,
   FieldOfStudy,
   FieldOfStudyRepository,
   NotFound,
   SemesterRepository,
+  StoredAdmissionPeriod,
   StoredSemester,
 } from "@vektorprogrammet/domain";
 import type {
+  AdmissionPeriodDraft,
   DepartmentDraft,
   DepartmentId,
   FieldOfStudyDraft,
   FieldOfStudyId,
   Semester,
 } from "@vektorprogrammet/domain";
-import { and, eq, sql } from "drizzle-orm";
-import { Effect, Layer, Schema } from "effect";
+import { and, desc, eq, gt, lt, notExists, sql } from "drizzle-orm";
+import { DateTime, Effect, Layer, Schema } from "effect";
 
-import { classifySqlFailure } from "../classifySqlFailure.ts";
+import {
+  classifySqlFailure,
+  isConstraintViolation,
+} from "../classifySqlFailure.ts";
 import {
   Drizzle,
   decodeFirstOption,
@@ -32,6 +39,7 @@ import {
 } from "../internal/drizzle.ts";
 import {
   admissionPeriod,
+  application,
   department,
   fieldOfStudy,
   semester,
@@ -252,34 +260,185 @@ export const FieldOfStudyRepositoryLive = Layer.effect(
 );
 
 /** An admission period as stored: the instants are `Date`s from the driver (the table's check keeps start before end). */
-const StoredAdmissionPeriod = Schema.Struct({
+const PeriodRow = Schema.Struct({
+  ...StoredAdmissionPeriod.fields,
+  end: Schema.DateTimeUtcFromDate,
+  start: Schema.DateTimeUtcFromDate,
+});
+
+const PeriodDates = Schema.Struct({
   ...AdmissionPeriod.fields,
   end: Schema.DateTimeUtcFromDate,
   start: Schema.DateTimeUtcFromDate,
 });
 
-/** C2 admission periods, read-only: each row joined to its semester. */
+const periodColumns = {
+  departmentId: admissionPeriod.departmentId,
+  end: admissionPeriod.endsAt,
+  id: admissionPeriod.id,
+  semester: { term: semester.term, year: semester.year },
+  semesterId: admissionPeriod.semesterId,
+  start: admissionPeriod.startsAt,
+};
+
+const PERIOD_CHANGED =
+  "Opptaket ble endret av en annen, eller kan ikke endres lenger.";
+
+/** C2 admission periods (spec 0009): each row joined to its semester; a write is one conditional statement (CW1). */
 export const AdmissionPeriodRepositoryLive = Layer.effect(
   AdmissionPeriodRepository,
   Effect.gen(function* AdmissionPeriodRepositoryLive() {
     const db = yield* Drizzle;
-    const decodeAll = decodeWith(Schema.Array(StoredAdmissionPeriod));
+    const decodeAll = decodeWith(Schema.Array(PeriodDates));
+    const decodeStoredAll = decodeWith(Schema.Array(PeriodRow));
+    const decodeStored = decodeWith(PeriodRow);
+    const decodeCreated = decodeWith(Schema.Struct({ id: AdmissionPeriodId }));
+
+    const select = () =>
+      db
+        .select(periodColumns)
+        .from(admissionPeriod)
+        .innerJoin(semester, eq(admissionPeriod.semesterId, semester.id));
+
+    const findById = Effect.fn("AdmissionPeriodRepository.findById")(
+      function* findById(id: AdmissionPeriodId) {
+        const rows = yield* select()
+          .where(eq(admissionPeriod.id, id))
+          .pipe(Effect.orDie);
+
+        const [row] = rows;
+
+        return row === undefined
+          ? yield* new NotFound({ entity: "AdmissionPeriod", key: String(id) })
+          : yield* decodeStored(row);
+      }
+    );
+
+    const create = Effect.fn("AdmissionPeriodRepository.create")(
+      function* create(draft: AdmissionPeriodDraft) {
+        const rows = yield* db
+          .insert(admissionPeriod)
+          .values({
+            departmentId: draft.departmentId,
+            endsAt: DateTime.toDateUtc(draft.end),
+            semesterId: draft.semesterId,
+            startsAt: DateTime.toDateUtc(draft.start),
+          })
+          .returning({ id: admissionPeriod.id })
+          .pipe(
+            Effect.catch((error) =>
+              classifySqlFailure(error, String(draft.departmentId))
+            )
+          );
+
+        const { id } = yield* decodeCreated(yield* single(rows));
+
+        return yield* findById(id).pipe(
+          Effect.catchTag("NotFound", (missing) => Effect.die(missing))
+        );
+      }
+    );
+
+    /** The statement's own answer is "no row": either the period is not there, or it is past what the write may change. */
+    const noRowBecause = (id: AdmissionPeriodId) =>
+      Effect.gen(function* explainNoRow() {
+        const rows = yield* db
+          .select({ id: admissionPeriod.id })
+          .from(admissionPeriod)
+          .where(eq(admissionPeriod.id, id))
+          .pipe(Effect.orDie);
+
+        return yield* rows.length === 0
+          ? new NotFound({ entity: "AdmissionPeriod", key: String(id) })
+          : new Conflict({
+              entity: "AdmissionPeriod",
+              key: String(id),
+              message: PERIOD_CHANGED,
+            });
+      });
+
+    const extend = Effect.fn("AdmissionPeriodRepository.extend")(
+      function* extend(
+        id: AdmissionPeriodId,
+        end: DateTime.Utc,
+        now: DateTime.Utc
+      ) {
+        const rows = yield* db
+          .update(admissionPeriod)
+          .set({ endsAt: DateTime.toDateUtc(end) })
+          .where(
+            and(
+              eq(admissionPeriod.id, id),
+              gt(admissionPeriod.endsAt, DateTime.toDateUtc(now)),
+              lt(admissionPeriod.endsAt, DateTime.toDateUtc(end))
+            )
+          )
+          .returning({ id: admissionPeriod.id })
+          .pipe(Effect.orDie);
+
+        return rows.length === 0
+          ? yield* noRowBecause(id)
+          : yield* findById(id);
+      }
+    );
+
+    const remove = Effect.fn("AdmissionPeriodRepository.remove")(
+      function* remove(id: AdmissionPeriodId, now: DateTime.Utc) {
+        const rows = yield* db
+          .delete(admissionPeriod)
+          .where(
+            and(
+              eq(admissionPeriod.id, id),
+              gt(admissionPeriod.startsAt, DateTime.toDateUtc(now)),
+              notExists(
+                db
+                  .select({ one: sql`1` })
+                  .from(application)
+                  .where(eq(application.periodId, admissionPeriod.id))
+              )
+            )
+          )
+          .returning({ id: admissionPeriod.id })
+          .pipe(
+            // An application that committed after the check: the foreign key refuses the delete (the period is in use).
+            Effect.catch((error) =>
+              isConstraintViolation(error)
+                ? Effect.fail(
+                    new Conflict({
+                      entity: "AdmissionPeriod",
+                      key: String(id),
+                      message: PERIOD_CHANGED,
+                    })
+                  )
+                : Effect.die(error)
+            )
+          );
+
+        if (rows.length === 0) {
+          return yield* noRowBecause(id);
+        }
+
+        return yield* Effect.void;
+      }
+    );
 
     return AdmissionPeriodRepository.of({
-      list: db
-        .select({
-          departmentId: admissionPeriod.departmentId,
-          end: admissionPeriod.endsAt,
-          semester: { term: semester.term, year: semester.year },
-          start: admissionPeriod.startsAt,
-        })
-        .from(admissionPeriod)
-        .innerJoin(semester, eq(admissionPeriod.semesterId, semester.id))
+      create,
+      extend,
+      findById,
+      list: select().pipe(
+        Effect.orDie,
+        Effect.flatMap(decodeAll),
+        Effect.withSpan("AdmissionPeriodRepository.list")
+      ),
+      listStored: select()
+        .orderBy(desc(admissionPeriod.startsAt))
         .pipe(
           Effect.orDie,
-          Effect.flatMap(decodeAll),
-          Effect.withSpan("AdmissionPeriodRepository.list")
+          Effect.flatMap(decodeStoredAll),
+          Effect.withSpan("AdmissionPeriodRepository.listStored")
         ),
+      remove,
     });
   })
 );

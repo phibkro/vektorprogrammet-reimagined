@@ -1,10 +1,10 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr, Schema } from "effect";
 
-import { Field, nativeSelectClass } from "@/components/forms";
+import { Choice, firstValue, optionsOf } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
-import { SemesterSelect, TeamFields } from "@/components/panel/teamForms";
+import { TeamFields, teamDefaults } from "@/components/panel/teamForms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +17,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { InviteAccountForm } from "@/forms/people";
+import {
+  AddMemberForm,
+  CancelMembershipForm,
+  ChangeMembershipForm,
+  DeactivateTeamForm,
+  EndMembershipForm,
+  ExtendMembershipForm,
+  UpdateTeamForm,
+} from "@/forms/teams";
 import { inviteAccount } from "@/functions/account.functions";
 import {
   addMember,
@@ -39,25 +49,6 @@ interface Option {
   readonly name: string;
 }
 
-/** A `<select>` of people or positions, by id. */
-const OptionSelect = ({
-  name,
-  options,
-  defaultValue,
-}: {
-  name: string;
-  options: readonly Option[];
-  defaultValue?: number;
-}) => (
-  <select name={name} className={nativeSelectClass} defaultValue={defaultValue}>
-    {Arr.map(options, (option) => (
-      <option key={option.id} value={option.id}>
-        {option.name}
-      </option>
-    ))}
-  </select>
-);
-
 const rowButton = (label: string, member: MemberRow) => (
   <Button
     variant="outline"
@@ -75,91 +66,107 @@ const MemberActions = ({
   member: MemberRow;
   positions: readonly Option[];
   opened: boolean;
-}) => (
-  <div className="flex flex-wrap justify-end gap-2">
-    {member.canInvite && (
-      <CommandSheet
-        trigger={rowButton("Inviter", member)}
-        triggerLabel="Inviter"
-        title={`Inviter ${member.personName}`}
-        description="En aktiveringslenke sendes til personens private e-post."
-        action={inviteAccount}
-        submitLabel="Send invitasjon"
-      >
-        <input name="personId" type="hidden" value={member.personId} />
-      </CommandSheet>
-    )}
-    {member.canExtend && (
-      <CommandSheet
-        trigger={rowButton("Forleng", member)}
-        triggerLabel="Forleng"
-        title={`Forleng ${member.personName}`}
-        description={`Medlemskapet slutter ${member.end.label}. Ingenting fortsetter av seg selv.`}
-        action={extendMembership}
-        submitLabel="Forleng"
-        defaultOpen={opened}
-      >
-        <input type="hidden" name="id" value={member.id} />
-        <Field name="end" label="Ny slutt">
-          <SemesterSelect name="end" choices={member.extendChoices} />
-        </Field>
-      </CommandSheet>
-    )}
-    {member.canChange && (
-      <CommandSheet
-        trigger={rowButton("Endre", member)}
-        triggerLabel="Endre"
-        title={`Endre ${member.personName}`}
-        description="Det gamle medlemskapet slutter før semesteret du velger, og et nytt begynner da."
-        action={changeMembership}
-        submitLabel="Endre"
-      >
-        <input type="hidden" name="id" value={member.id} />
-        <Field name="from" label="Fra og med">
-          <SemesterSelect name="from" choices={member.changeChoices} />
-        </Field>
-        <Field name="positionId" label="Stilling">
-          <OptionSelect
-            name="positionId"
-            options={positions}
-            defaultValue={member.positionId}
-          />
-        </Field>
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <Switch name="leader" defaultChecked={member.leader} />
-          Leder
-        </label>
-      </CommandSheet>
-    )}
-    {member.canEnd && (
-      <CommandSheet
-        trigger={rowButton("Avslutt", member)}
-        triggerLabel="Avslutt"
-        title={`Avslutt ${member.personName}`}
-        description="Medlemskapet slutter før semesteret du velger."
-        action={endMembership}
-        submitLabel="Avslutt"
-      >
-        <input type="hidden" name="id" value={member.id} />
-        <Field name="semester" label="Første semester uten medlemskap">
-          <SemesterSelect name="semester" choices={member.endChoices} />
-        </Field>
-      </CommandSheet>
-    )}
-    {member.canCancel && (
-      <CommandSheet
-        trigger={rowButton("Kanseller", member)}
-        triggerLabel="Kanseller"
-        title={`Kanseller ${member.personName}`}
-        description="Medlemskapet har ikke begynt, og fjernes helt."
-        action={cancelMembership}
-        submitLabel="Kanseller"
-      >
-        <input type="hidden" name="id" value={member.id} />
-      </CommandSheet>
-    )}
-  </div>
-);
+}) => {
+  const id = String(member.id);
+  const positionChoices = optionsOf(positions);
+
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      {member.canInvite && (
+        <CommandSheet
+          trigger={rowButton("Inviter", member)}
+          triggerLabel="Inviter"
+          title={`Inviter ${member.personName}`}
+          description="En aktiveringslenke sendes til personens private e-post."
+          action={inviteAccount}
+          schema={InviteAccountForm.schema}
+          defaults={{ personId: String(member.personId) }}
+          submitLabel="Send invitasjon"
+        />
+      )}
+      {member.canExtend && (
+        <CommandSheet
+          trigger={rowButton("Forleng", member)}
+          triggerLabel="Forleng"
+          title={`Forleng ${member.personName}`}
+          description={`Medlemskapet slutter ${member.end.label}. Ingenting fortsetter av seg selv.`}
+          action={extendMembership}
+          schema={ExtendMembershipForm.schema}
+          defaults={{ end: firstValue(member.extendChoices), id }}
+          submitLabel="Forleng"
+          defaultOpen={opened}
+        >
+          {(Field) => (
+            <Field name="end" label="Ny slutt">
+              <Choice options={member.extendChoices} />
+            </Field>
+          )}
+        </CommandSheet>
+      )}
+      {member.canChange && (
+        <CommandSheet
+          trigger={rowButton("Endre", member)}
+          triggerLabel="Endre"
+          title={`Endre ${member.personName}`}
+          description="Det gamle medlemskapet slutter før semesteret du velger, og et nytt begynner da."
+          action={changeMembership}
+          schema={ChangeMembershipForm.schema}
+          defaults={{
+            from: firstValue(member.changeChoices),
+            id,
+            leader: member.leader ? "on" : undefined,
+            positionId: String(member.positionId),
+          }}
+          submitLabel="Endre"
+        >
+          {(Field) => (
+            <>
+              <Field name="from" label="Fra og med">
+                <Choice options={member.changeChoices} />
+              </Field>
+              <Field name="positionId" label="Stilling">
+                <Choice options={positionChoices} />
+              </Field>
+              <Field name="leader" label="Leder">
+                <Switch />
+              </Field>
+            </>
+          )}
+        </CommandSheet>
+      )}
+      {member.canEnd && (
+        <CommandSheet
+          trigger={rowButton("Avslutt", member)}
+          triggerLabel="Avslutt"
+          title={`Avslutt ${member.personName}`}
+          description="Medlemskapet slutter før semesteret du velger."
+          action={endMembership}
+          schema={EndMembershipForm.schema}
+          defaults={{ id, semester: firstValue(member.endChoices) }}
+          submitLabel="Avslutt"
+        >
+          {(Field) => (
+            <Field name="semester" label="Første semester uten medlemskap">
+              <Choice options={member.endChoices} />
+            </Field>
+          )}
+        </CommandSheet>
+      )}
+      {member.canCancel && (
+        <CommandSheet
+          trigger={rowButton("Kanseller", member)}
+          triggerLabel="Kanseller"
+          title={`Kanseller ${member.personName}`}
+          description="Medlemskapet har ikke begynt, og fjernes helt."
+          action={cancelMembership}
+          schema={CancelMembershipForm.schema}
+          defaults={{ id }}
+          submitLabel="Kanseller"
+        />
+      )}
+    </div>
+  );
+};
 
 const MemberTableRow = ({
   member,
@@ -206,6 +213,9 @@ const TeamPage = () => {
   } = routeApi.useLoaderData();
 
   const { forleng } = routeApi.useSearch();
+  const personChoices = optionsOf(people);
+  const positionChoices = optionsOf(positions);
+  const teamId = String(team.id);
 
   return (
     <>
@@ -221,25 +231,39 @@ const TeamPage = () => {
                 title="Legg til medlem"
                 description="Slutten følger teamets standardperiode hvis du ikke velger noen."
                 action={addMember}
+                schema={AddMemberForm.schema}
+                defaults={{
+                  end: "",
+                  leader: undefined,
+                  personId: firstValue(personChoices),
+                  positionId: firstValue(positionChoices),
+                  start: firstValue(semesters),
+                  teamId,
+                }}
                 submitLabel="Legg til"
               >
-                <input type="hidden" name="teamId" value={team.id} />
-                <Field name="personId" label="Person">
-                  <OptionSelect name="personId" options={people} />
-                </Field>
-                <Field name="positionId" label="Stilling">
-                  <OptionSelect name="positionId" options={positions} />
-                </Field>
-                <label className="flex items-center gap-2 text-sm font-medium">
-                  <Switch name="leader" />
-                  Leder
-                </label>
-                <Field name="start" label="Fra og med">
-                  <SemesterSelect name="start" choices={semesters} />
-                </Field>
-                <Field name="end" label="Til og med">
-                  <SemesterSelect name="end" choices={semesters} optional />
-                </Field>
+                {(Field) => (
+                  <>
+                    <Field name="personId" label="Person">
+                      <Choice options={personChoices} />
+                    </Field>
+                    <Field name="positionId" label="Stilling">
+                      <Choice options={positionChoices} />
+                    </Field>
+                    <Field name="leader" label="Leder">
+                      <Switch />
+                    </Field>
+                    <Field name="start" label="Fra og med">
+                      <Choice options={semesters} />
+                    </Field>
+                    <Field name="end" label="Til og med">
+                      <Choice
+                        blank="Teamets standardperiode"
+                        options={semesters}
+                      />
+                    </Field>
+                  </>
+                )}
               </CommandSheet>
             )}
             {canEdit && (
@@ -248,10 +272,15 @@ const TeamPage = () => {
                 triggerLabel="Rediger team"
                 title="Rediger team"
                 action={saveTeam}
+                schema={UpdateTeamForm.schema}
+                defaults={{
+                  ...teamDefaults(team),
+                  departmentId: "",
+                  id: teamId,
+                }}
                 submitLabel="Lagre"
               >
-                <input type="hidden" name="id" value={team.id} />
-                <TeamFields team={team} />
+                {(Field) => <TeamFields Field={Field} />}
               </CommandSheet>
             )}
             {canDeactivate && team.active && (
@@ -261,10 +290,10 @@ const TeamPage = () => {
                 title="Deaktiver team"
                 description="Et team slettes aldri. Et deaktivert team tar ikke imot nye medlemmer."
                 action={deactivateTeam}
+                schema={DeactivateTeamForm.schema}
+                defaults={{ id: teamId }}
                 submitLabel="Deaktiver"
-              >
-                <input type="hidden" name="id" value={team.id} />
-              </CommandSheet>
+              />
             )}
           </>
         }

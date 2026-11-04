@@ -11,6 +11,11 @@ import { Console, Effect, FileSystem, Result, Schema } from "effect";
 import { Command, Flag } from "effect/cli";
 
 import {
+  checkDatabasePlatformsDocument,
+  renderDatabasePlatformsDocument,
+} from "./databasePlatforms.ts";
+import { checkImpactDocument, renderImpactDocument } from "./impact.ts";
+import {
   checkAccountsDocument,
   checkAdministrationDocument,
   checkCommandsDocument,
@@ -59,6 +64,16 @@ const DOCUMENTS = [
     check: (document: string) => checkStoreGuaranteesDocument(document),
     file: "../../docs/system/store-guarantees.md",
     render: (document: string) => renderStoreGuaranteesDocument(document),
+  },
+  {
+    check: (document: string) => checkDatabasePlatformsDocument(document),
+    file: "../../docs/system/database-platforms.md",
+    render: (document: string) => renderDatabasePlatformsDocument(document),
+  },
+  {
+    check: (document: string) => checkImpactDocument(document),
+    file: "../../docs/system/impact.md",
+    render: (document: string) => renderImpactDocument(document),
   },
 ] as const;
 

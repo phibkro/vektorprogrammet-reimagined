@@ -28,6 +28,7 @@ import { Array as Arr, DateTime, Effect, Layer, Match, Schema } from "effect";
 import { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import { Drizzle, decodeWith, single } from "../internal/drizzle.ts";
+import { verified } from "../live.ts";
 import { alumniCandidates } from "../personalData/activity.ts";
 import { personalDataExport } from "../personalData/export.ts";
 import { personalDataMerge } from "../personalData/merge.ts";
@@ -120,7 +121,10 @@ export const ConsentRepositoryLive = Layer.effect(
       return asStored(yield* decode(yield* single(rows)));
     });
 
-    return ConsentRepository.of({ of, ofLocked, record });
+    return yield* verified(
+      "ConsentRepository",
+      ConsentRepository.of({ of, ofLocked, record })
+    );
   })
 );
 
@@ -160,7 +164,10 @@ export const AlumniRequestsLive = Layer.effect(
       return rows.length === 1;
     });
 
-    return AlumniRequests.of({ candidates, claim });
+    return yield* verified(
+      "AlumniRequests",
+      AlumniRequests.of({ candidates, claim })
+    );
   })
 );
 
@@ -168,9 +175,9 @@ export const AlumniRequestsLive = Layer.effect(
  * No entity that can be held exists yet: the sources arrive with their entities (spec 0012 adds expense claims). Each
  * is one more layer that provides `LegalHolds`, so a hold cannot be forgotten by the erasure.
  */
-export const LegalHoldsLive = Layer.succeed(
+export const LegalHoldsLive = Layer.effect(
   LegalHolds,
-  LegalHolds.of({ of: () => Effect.succeed([]) })
+  verified("LegalHolds", LegalHolds.of({ of: () => Effect.succeed([]) }))
 );
 
 export const PersonalDataStoreLive = Layer.effect(
@@ -212,12 +219,15 @@ export const PersonalDataStoreLive = Layer.effect(
       return yield* releasePhotos(db, before, yield* DateTime.now);
     });
 
-    return PersonalDataStore.of({
-      erase: retention.erase,
-      exportOf: personalDataExport(db),
-      merge,
-      setPhoto,
-    });
+    return yield* verified(
+      "PersonalDataStore",
+      PersonalDataStore.of({
+        erase: retention.erase,
+        exportOf: personalDataExport(db),
+        merge,
+        setPhoto,
+      })
+    );
   })
 );
 
@@ -242,13 +252,16 @@ const RetentionRunApplyLive = Layer.effect(
       outbox,
     });
 
-    return RetentionRun.of({
-      run: (now) =>
-        Effect.map(expire(now), (counts) => ({
-          counts,
-          mode: "Apply" as const,
-        })),
-    });
+    return yield* verified(
+      "RetentionRun",
+      RetentionRun.of({
+        run: (now) =>
+          Effect.map(expire(now), (counts) => ({
+            counts,
+            mode: "Apply" as const,
+          })),
+      })
+    );
   })
 );
 
@@ -259,13 +272,16 @@ export const RetentionRunReportLive = Layer.effect(
     const db = yield* Drizzle;
     const { expire } = personalDataRetentionReport(db);
 
-    return RetentionRun.of({
-      run: (now) =>
-        Effect.map(expire(now), (counts) => ({
-          counts,
-          mode: "ReportOnly" as const,
-        })),
-    });
+    return yield* verified(
+      "RetentionRun",
+      RetentionRun.of({
+        run: (now) =>
+          Effect.map(expire(now), (counts) => ({
+            counts,
+            mode: "ReportOnly" as const,
+          })),
+      })
+    );
   })
 );
 

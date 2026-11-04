@@ -48,14 +48,21 @@ import {
   Predicate,
 } from "effect";
 
-import { text } from "../lib/formText";
+import { hasValue } from "../forms/formSchema";
 import {
-  SAVED,
-  checkbox,
-  integer,
-  optionalText,
-  osloLocalToIso,
-} from "./panel";
+  AddMemberForm,
+  CancelMembershipForm,
+  ChangeMembershipForm,
+  CreateTeamForm,
+  DeactivateTeamForm,
+  EndMembershipForm,
+  ExtendMembershipForm,
+  GrantAdminForm,
+  RegisterPersonForm,
+  RevokeAdminForm,
+  UpdateTeamForm,
+} from "../forms/teams";
+import { SAVED } from "./panel";
 
 // ---------------------------------------------------------------- semesters in forms
 
@@ -84,18 +91,6 @@ const choicesBetween = (
 
 const later = (left: Semester, right: Semester): Semester =>
   semesterOrdinal(left) >= semesterOrdinal(right) ? left : right;
-
-const SEMESTER_VALUE = /^(?<term>VAR|HOST)-(?<year>\d{4})$/u;
-
-/** `HOST-2026` → the semester; anything else passes through so the domain reports it. */
-export const semesterOfChoice = (raw: string) => {
-  const [, term, year] = SEMESTER_VALUE.exec(raw) ?? [];
-
-  return term === undefined || year === undefined
-    ? raw
-    : { term, year: Number(year) };
-};
-
 // ---------------------------------------------------------------- teams
 
 const byName = Order.mapInput(
@@ -415,94 +410,37 @@ const answered = <A, E, R>(command: Effect.Effect<A, E, R>) =>
   Effect.as(command, SAVED);
 
 /** A blank `id` creates a team in the named department, an `id` changes the team. */
-export const saveTeamProgram = (form: FormData) => {
-  const id = text(form, "id");
-
-  const details = {
-    defaultTerm: integer(text(form, "defaultTerm")),
-    function: text(form, "function"),
-    groupEmail: optionalText(form, "groupEmail"),
-    name: text(form, "name"),
-  };
-
-  return answered(
-    id === ""
-      ? TeamsEndpoints.createTeam({
-          ...details,
-          departmentId: integer(text(form, "departmentId")),
-        })
-      : TeamsEndpoints.updateTeam({ ...details, id: integer(id) })
+export const saveTeamProgram = (form: FormData) =>
+  answered(
+    hasValue(form, "id")
+      ? TeamsEndpoints.updateTeam(UpdateTeamForm.read(form))
+      : TeamsEndpoints.createTeam(CreateTeamForm.read(form))
   );
-};
 
 export const deactivateTeamProgram = (form: FormData) =>
-  answered(TeamsEndpoints.deactivateTeam({ id: integer(text(form, "id")) }));
+  answered(TeamsEndpoints.deactivateTeam(DeactivateTeamForm.read(form)));
 
 export const registerPersonProgram = (form: FormData) =>
-  answered(
-    TeamsEndpoints.createPerson({
-      companyEmail: optionalText(form, "companyEmail"),
-      email: text(form, "email"),
-      fieldOfStudyId: integer(text(form, "fieldOfStudyId")),
-      name: text(form, "name"),
-    })
-  );
+  answered(TeamsEndpoints.createPerson(RegisterPersonForm.read(form)));
 
 /** The end semester is optional: blank takes the team's default term. */
-export const addMemberProgram = (form: FormData) => {
-  const end = optionalText(form, "end");
-
-  const input = {
-    leader: checkbox(form, "leader"),
-    personId: integer(text(form, "personId")),
-    positionId: integer(text(form, "positionId")),
-    start: semesterOfChoice(text(form, "start")),
-    teamId: integer(text(form, "teamId")),
-  };
-
-  return answered(
-    TeamsEndpoints.createMembership(
-      end === null ? input : { ...input, end: semesterOfChoice(end) }
-    )
-  );
-};
+export const addMemberProgram = (form: FormData) =>
+  answered(TeamsEndpoints.createMembership(AddMemberForm.read(form)));
 
 export const extendProgram = (form: FormData) =>
-  answered(
-    TeamsEndpoints.extendMembership({
-      end: semesterOfChoice(text(form, "end")),
-      id: integer(text(form, "id")),
-    })
-  );
+  answered(TeamsEndpoints.extendMembership(ExtendMembershipForm.read(form)));
 
 export const changeProgram = (form: FormData) =>
-  answered(
-    TeamsEndpoints.changeMembership({
-      from: semesterOfChoice(text(form, "from")),
-      id: integer(text(form, "id")),
-      leader: checkbox(form, "leader"),
-      positionId: integer(text(form, "positionId")),
-    })
-  );
+  answered(TeamsEndpoints.changeMembership(ChangeMembershipForm.read(form)));
 
 export const endProgram = (form: FormData) =>
-  answered(
-    TeamsEndpoints.endEarlyMembership({
-      id: integer(text(form, "id")),
-      semester: semesterOfChoice(text(form, "semester")),
-    })
-  );
+  answered(TeamsEndpoints.endEarlyMembership(EndMembershipForm.read(form)));
 
 export const cancelProgram = (form: FormData) =>
-  answered(TeamsEndpoints.deleteMembership({ id: integer(text(form, "id")) }));
+  answered(TeamsEndpoints.deleteMembership(CancelMembershipForm.read(form)));
 
 export const grantAdminProgram = (form: FormData) =>
-  answered(
-    TeamsEndpoints.createAdminGrant({
-      personId: integer(text(form, "personId")),
-      until: osloLocalToIso(text(form, "until")),
-    })
-  );
+  answered(TeamsEndpoints.createAdminGrant(GrantAdminForm.read(form)));
 
 export const revokeAdminProgram = (form: FormData) =>
-  answered(TeamsEndpoints.deleteAdminGrant({ id: integer(text(form, "id")) }));
+  answered(TeamsEndpoints.deleteAdminGrant(RevokeAdminForm.read(form)));
