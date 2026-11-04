@@ -47,20 +47,6 @@ const cell = (value: string): string =>
 const tableRow = (values: readonly string[]): string =>
   `| ${Arr.join(Arr.map(values, cell), " | ")} |`;
 
-/** Unlike an import report, a reference table keeps its header when no rows exist. */
-export const table = (
-  header: readonly string[],
-  rows: readonly (readonly string[])[]
-): string => {
-  const lines = [tableRow(header), tableRow(Arr.map(header, () => "---"))];
-
-  for (const row of rows) {
-    lines.push(tableRow(row));
-  }
-
-  return Arr.join(lines, "\n");
-};
-
 /** Oxfmt aligns short Markdown tables. Emit that same layout so generation and formatting agree. */
 const alignedTable = (
   header: readonly string[],
@@ -89,6 +75,24 @@ const alignedTable = (
     ],
     "\n"
   );
+};
+
+/** Unlike an import report, a reference table keeps its header when no rows exist. */
+export const table = (
+  header: readonly string[],
+  rows: readonly (readonly string[])[]
+): string => {
+  if (Arr.isReadonlyArrayEmpty(rows)) {
+    return alignedTable(header, rows);
+  }
+
+  const lines = [tableRow(header), tableRow(Arr.map(header, () => "---"))];
+
+  for (const row of rows) {
+    lines.push(tableRow(row));
+  }
+
+  return Arr.join(lines, "\n");
 };
 
 /** A method as the page shows it: a standard one as written, a custom one with its colon (`:extend`). */

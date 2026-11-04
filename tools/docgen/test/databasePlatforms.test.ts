@@ -10,6 +10,7 @@ import { Effect, FileSystem, Result } from "effect";
 import {
   PLATFORMS,
   checkDatabasePlatformsDocument,
+  renderDatabasePlatformsDocument,
 } from "../src/databasePlatforms.ts";
 import type { PlatformDeclarations } from "../src/databasePlatforms.ts";
 
@@ -20,6 +21,49 @@ const page = Effect.gen(function* page() {
 }).pipe(Effect.provide(NodeServices.layer));
 
 describe("database platforms document (spec 0025)", () => {
+  it.effect(
+    "renders and checks the empty-client table without format drift",
+    () =>
+      Effect.gen(function* emptyClientsRoundTrip() {
+        const rendered = renderDatabasePlatformsDocument(yield* page);
+        assert.isTrue(Result.isSuccess(rendered));
+
+        if (Result.isSuccess(rendered)) {
+          assert.include(
+            rendered.success,
+            "| Client | Where |\n| ------ | ----- |"
+          );
+          assert.isTrue(
+            Result.isSuccess(checkDatabasePlatformsDocument(rendered.success))
+          );
+        }
+      })
+  );
+
+  it.effect("renders a declared client and detects a changed declaration", () =>
+    Effect.gen(function* declaredClientRoundTrip() {
+      const declared: PlatformDeclarations = {
+        ...PLATFORMS,
+        others: [{ name: "client-one", where: "adapter-one" }],
+      };
+
+      const rendered = renderDatabasePlatformsDocument(yield* page, declared);
+      assert.isTrue(Result.isSuccess(rendered));
+
+      if (Result.isSuccess(rendered)) {
+        assert.include(rendered.success, "| client-one | adapter-one |");
+        assert.isTrue(
+          Result.isSuccess(
+            checkDatabasePlatformsDocument(rendered.success, declared)
+          )
+        );
+        assert.isTrue(
+          Result.isFailure(checkDatabasePlatformsDocument(rendered.success))
+        );
+      }
+    })
+  );
+
   it.effect("F7: the committed page matches the declarations", () =>
     Effect.gen(function* committedPageMatches() {
       assert.isTrue(

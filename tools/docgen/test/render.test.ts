@@ -35,6 +35,7 @@ import {
   renderAdministrationDocument,
   renderCommandsDocument,
   renderDocument,
+  table as renderTable,
 } from "../src/render.ts";
 import type { PersonalDataSources } from "../src/render.ts";
 
@@ -43,6 +44,15 @@ const source = Effect.gen(function* source() {
 
   return yield* fs.readFileString("../../docs/system/teams.md");
 }).pipe(Effect.provide(NodeServices.layer));
+
+describe("reference tables", () => {
+  it("formats an empty table like the Markdown formatter", () => {
+    assert.strictEqual(
+      renderTable(["Client", "Where"], []),
+      "| Client | Where |\n| ------ | ----- |"
+    );
+  });
+});
 
 describe("spec 0006 falsifier 8: generated documentation", () => {
   it.effect(
