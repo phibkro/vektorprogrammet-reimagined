@@ -26,7 +26,7 @@ import type { SupabaseConfig } from "./supabase";
 
 export type AuthEnvironment = SupabaseConfig & { readonly SITE_URL: string };
 
-/** Invalid session credentials are anonymous; provider failures remain observable. */
+/** Only classify errors from getUser with a stored session. `validation_failed` here can mean a malformed refresh token. */
 export const sessionFailure = (error: AuthError) => {
   if (
     isAuthSessionMissingError(error) ||
@@ -35,7 +35,10 @@ export const sessionFailure = (error: AuthError) => {
       error.status < 500 &&
       (error.code === "refresh_token_not_found" ||
         error.code === "refresh_token_already_used" ||
-        error.code === "session_expired"))
+        error.code === "session_expired" ||
+        error.code === "session_not_found" ||
+        error.code === "bad_jwt" ||
+        error.code === "validation_failed"))
   ) {
     return Effect.succeed(null);
   }

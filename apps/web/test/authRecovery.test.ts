@@ -68,11 +68,15 @@ describe("Supabase session failure classification", () => {
           new AuthApiError("stale refresh", 400, "refresh_token_not_found"),
           new AuthApiError("reused refresh", 400, "refresh_token_already_used"),
           new AuthApiError("expired", 401, "session_expired"),
+          new AuthApiError("malformed refresh", 400, "validation_failed"),
+          new AuthApiError("invalid JWT", 401, "bad_jwt"),
+          new AuthApiError("missing session", 401, "session_not_found"),
         ];
 
         const unrelated = [
-          new AuthApiError("bad request", 400, "validation_failed"),
+          new AuthApiError("malformed request", 400, "bad_json"),
           new AuthApiError("configuration refused", 401, "no_authorization"),
+          new AuthApiError("invalid API key", 403, "invalid_api_key"),
           new AuthApiError("provider failure", 500, "refresh_token_not_found"),
           new AuthRetryableFetchError("network unavailable", 503),
         ];
