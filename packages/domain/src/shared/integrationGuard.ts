@@ -47,7 +47,12 @@ type Method = (...args: never[]) => Effect.Effect<unknown, unknown, unknown>;
 type Member = Method | Effect.Effect<unknown, unknown, unknown>;
 
 /** `member` behind the guard: a method refuses before it is called, an effect before it runs. */
-const refusing = (call: string, member: Member) =>
+const refusing = <A, E, R>(
+  call: string,
+  member:
+    | Effect.Effect<A, E, R>
+    | ((...args: never[]) => Effect.Effect<A, E, R>)
+) =>
   Effect.isEffect(member)
     ? outsideTransaction(call, () => member)
     : (...args: never[]) => outsideTransaction(call, () => member(...args));

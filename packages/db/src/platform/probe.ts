@@ -114,9 +114,9 @@ export const PlatformProbeLive = (
       const checkTimeout = options.checkTimeout ?? "15 seconds";
 
       /** A check that cannot run is a check that did not hold, with the reason: the others are still reported. */
-      const settle = (
+      const settle = <E>(
         id: string,
-        run: Effect.Effect<Verdict, unknown>
+        run: Effect.Effect<Verdict, E>
       ): Effect.Effect<PlatformCheckResult> =>
         run.pipe(
           Effect.timeout(checkTimeout),

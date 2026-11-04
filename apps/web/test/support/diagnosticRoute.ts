@@ -21,7 +21,7 @@ export const bodyOf = <S extends Schema.Decoder<unknown>>(
   response: Response
 ) =>
   Effect.flatMap(
-    Effect.promise(async () => await response.text()),
+    Effect.promise(() => response.text()),
     Schema.decodeUnknownEffect(Schema.fromJsonString(body))
   );
 
@@ -29,10 +29,7 @@ export const bodyOf = <S extends Schema.Decoder<unknown>>(
 export const assertEmpty404 = (response: Response) =>
   Effect.gen(function* emptyAnswer() {
     assert.strictEqual(response.status, 404);
-    assert.strictEqual(
-      yield* Effect.promise(async () => await response.text()),
-      ""
-    );
+    assert.strictEqual(yield* Effect.promise(() => response.text()), "");
   });
 
 /** A failed request answers with the status of its own failure (here a refusal: 403). */

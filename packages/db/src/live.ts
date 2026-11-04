@@ -358,7 +358,13 @@ type Member =
   | Effect.Effect<unknown, unknown, unknown>;
 
 /** `member` behind the check: a method runs under it, an effect value too. */
-const behindCheck = (sql: SqlClient, method: string, member: Member) =>
+const behindCheck = <A, E, R>(
+  sql: SqlClient,
+  method: string,
+  member:
+    | Effect.Effect<A, E, R>
+    | ((...args: readonly unknown[]) => Effect.Effect<A, E, R>)
+) =>
   Effect.isEffect(member)
     ? running(sql, method, () => member)
     : (...args: readonly unknown[]) =>

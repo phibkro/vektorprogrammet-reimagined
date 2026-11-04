@@ -260,7 +260,7 @@
         ],
         "symbols": [
           "AuthBoundaryFailure",
-          "QueueSendFailed",
+          "DeliveryClaimLost",
           "LockOrderViolation",
           "LockNotHeld",
           "TransitionNotApplicable",

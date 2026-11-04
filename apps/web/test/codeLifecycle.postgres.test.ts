@@ -66,8 +66,10 @@ import {
   accountDeliveryLayer,
 } from "../src/server/accountDelivery";
 import { Auth } from "../src/server/auth";
+import type { AuthBoundaryFailure } from "../src/server/authError";
 import { deliverOutbox } from "../src/server/outboxDelivery";
 import { MessageSender } from "../src/server/senders";
+import type { DeliveryFailed } from "../src/server/senders";
 import { liveWith } from "./support/deliveryLive";
 import { transacted } from "./support/transacted";
 
@@ -643,10 +645,10 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           });
 
           // Each member is asked for inside the transaction with arguments that a real call would take: the guard
-          // refuses before it reads them. `Auth` has four members, and a Layer that wrapped fewer is found by name.
+          // refuses before it reads them, and a Layer that wrapped fewer is found by name.
           const members: readonly (readonly [
             string,
-            Effect.Effect<unknown, unknown>,
+            Effect.Effect<unknown, AuthBoundaryFailure | DeliveryFailed>,
           ])[] = [
             ["MessageSender.send", sender.send(mail, "inside")],
             ["Auth.handle", auth.handle(new Request("https://mail.example/"))],

@@ -100,6 +100,8 @@ export const unstablePolicy = {
         "apps/web/e2e/**",
         "apps/web/test/contact.test.ts",
         "apps/web/test/errors.test.ts",
+        "apps/web/test/formMessages.test.tsx",
+        "apps/web/test/formRender.test.tsx",
         "apps/web/test/organisationPanel.test.ts",
         "apps/web/test/support/run.ts",
         "apps/web/test/site.test.ts",
