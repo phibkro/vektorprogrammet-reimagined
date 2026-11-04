@@ -10,9 +10,11 @@
 - Supabase owns provider credentials and recovery; alumni consent and application verification remain domain code purposes. Provider erasure/relink is durable external work with explicit pending/manual-editorial disclosures.
 - Plugin 0.2.0 overlapping role groups leave application-only rules active at framework roots; root lint configuration contains a narrow applicability correction for actual auth route/browser roots. Retire it when the maintained plugin resets non-applicable rules across overlaps.
 - A real signed-in legacy-file request exposed a raw-Worker/Start cookie-context boundary error. The redirect now uses only the public registry layer. Its updated browser case passed for anonymous and signed-in requests.
-- The membership model and code checks ran, but its artifact-digest warning names uncommitted covered files. This is not an exact-commit proof or a proof of provider lifecycle behavior.
+- The hybrid membership model passed all maintained cases with reconciled source coverage. Domain conformance vectors were regenerated with the pinned effx checkout. These bounded results do not prove provider lifecycle or deployment privileges; spec 0029 records the limits.
 - Compiled-Worker verification found and fixed the editor SDK's import-time randomness during SSR. Only the browser editor is lazy/client-only. The protected page still renders server-side and refuses the leader with HTTP 403. The content journey failed before and passed after the fix.
-- The earlier prototype enabled RLS after Data API access was observed; hybrid runtime authority is restricted by spec 0029 and needs its own live verification.
+- Hybrid local acceptance passed: compiled browser membership and CMS journeys, explicit authorization refusals, private Storage, provider metadata export, database role denials, and captured outbox delivery. Runtime is non-owner and NOBYPASSRLS. Private Auth views are a bounded owner-read exception. The SDK secret still carries provider authority.
+- Workspace gate: 9 units and 1,481 tests passed at implementation 1cb988f. A subsequent bootstrap-only path containment correction passed real CLI rejection/acceptance checks and full static gates. Two affected credential browser tests passed. Terraform format/validation passed without plan/apply.
+- Hosted preview remains blocked on dedicated synthetic project/control-plane access and independently verified non-delivering native Auth SMTP. No PR, remote project change or deployment ran. Fresh migration execution passed; upgrading the preserved 5d51f3c database remains unrehearsed.
 
 ## Done
 

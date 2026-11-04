@@ -1,6 +1,6 @@
 # Architecture and technology
 
-The runnable prototype is specified in [0028](../specs/0028-supabase-prototype.md): one TanStack Start application on Cloudflare Workers and one Supabase project. Historical infrastructure decisions are superseded for this prototype, not evidence of a production cutover.
+The local hybrid is specified in [0029](../specs/0029-supabase-hybrid.md): one TanStack Start Worker and one Supabase project. [0028](../specs/0028-supabase-prototype.md) records the earlier prototype. Historical infrastructure decisions are not evidence of a production cutover.
 
 ```mermaid
 flowchart LR
@@ -27,11 +27,15 @@ flowchart LR
 
 The browser does not write domain tables through the Supabase Data API. Start server functions invoke domain commands, which authorize against the one grant model and run multi-table writes in a Postgres transaction. Audits and notification intents commit with those changes. Schema constraints and row locks remain responsible for their existing concurrency guarantees; replacing the database host does not replace these rules.
 
+The application uses a non-owner runtime database login without superuser, role-administration or RLS-bypass authority. Bootstrap credentials stay outside the Worker. Grants derive from the Drizzle schema. Closed impact snapshots permit runtime SELECT and INSERT, not UPDATE or DELETE. Browser roles have no domain table privileges. Server-role RLS policies allow the backend operations; they are not a second per-user authorization engine.
+
+Managed Auth tables have native RLS that the bootstrap login cannot change. Three private security-barrier views expose only required identity/session metadata. These owner-read views are an explicit, bounded privilege exception. Runtime can SELECT them but cannot write them, read raw Auth tables or select password/token columns. The server-only SDK key retains separate provider authority for existing Auth and Storage adapters.
+
 Supabase Auth owns passwords and provider sessions. Trusted app metadata identifies a domain person, but current domain account state and department/team grants determine application access. Native invitation/recovery flows replace the former custom credential system. Password recovery requires a provider one-time token when the password is set; a navigation query parameter or an ordinary existing browser session is not recovery proof. Individual provider sessions are not presented as independently revocable when the supported SDK only supplies sign-out scopes.
 
 Files live in private provider buckets. The existing registry remains authoritative for `/filer/$key`, including MIME/disposition/security headers. Auth and Storage SDK keys with elevated privileges remain on the server. Local development status files and Terraform state can contain secrets and must not be logged or committed.
 
-Content has independent draft and published snapshots. Public reads never expose uncommitted editorial changes. Editing uses the maintained Portable Text editor and the existing schemas/rendering, not another CMS deployment. Editorial content can mention people outside a simple foreign-key ownership model; privacy results disclose manual review instead of inventing automatic expiry or silently omitting that data.
+Content has independent draft and published snapshots. Public reads never expose unpublished editorial changes. Native Effect codecs retain unknown JSON, including nested rich-text properties, while known fields require valid values. Editing uses the maintained Portable Text editor and existing rendering, not another CMS deployment. Editorial privacy results disclose manual review rather than inventing automatic expiry.
 
 ## Background work and provider consistency
 
