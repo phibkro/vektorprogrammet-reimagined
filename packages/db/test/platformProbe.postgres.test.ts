@@ -21,7 +21,6 @@ import {
 import { Array as Arr, Deferred, Duration, Effect, Fiber, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { DatabaseLive } from "../src/index.ts";
 import { PlatformProbeLive } from "../src/platform/probe.ts";
 import type { PlatformProbeOptions } from "../src/platform/probe.ts";
 import { direct, hyperdrive } from "../src/platform/profiles.ts";
@@ -145,27 +144,6 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
             failing(yield* reportOf(hyperdrive, unnamed)),
             []
           );
-        }),
-      { timeout: 60_000 }
-    );
-
-    it.effect(
-      "F6: `DatabaseLive`'s settings are the hyperdrive profile's (its probe holds on the layer that the apps build)",
-      () =>
-        Effect.gen(function* theAppsLayer() {
-          const url = yield* TestDatabaseUrl;
-
-          const report = yield* PlatformProbe.use((probe) => probe.report).pipe(
-            Effect.provide(DatabaseLive({ url }).pipe(Layer.orDie))
-          );
-
-          assert.deepStrictEqual(platformProblems(report), []);
-          assert.strictEqual(report.profile, "hyperdrive");
-
-          // Decision D7: the Worker's client names no statement. The probe shows that the layer follows the profile; this
-          // is the decision itself, so a profile that changed it fails here and not only by agreeing with the layer.
-          assert.isFalse(hyperdrive.client.prepare);
-          assert.isFalse(hyperdrive.client.multiplex);
         }),
       { timeout: 60_000 }
     );

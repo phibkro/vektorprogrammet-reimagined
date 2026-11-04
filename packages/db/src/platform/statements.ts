@@ -158,7 +158,7 @@ const detectors: readonly (readonly [Construct, RegExp])[] = [
   [
     "set-session",
     new RegExp(
-      `${START}reset\\b|${START}set\\s+(?!local\\b|transaction\\b|constraints\\b)|\\bset_config\\s*\\((?![^)]*,\\s*true\\s*\\))`,
+      `${START}reset\\s+|${START}set\\s+(?!local\\b|transaction\\b|constraints\\b)|\\bset_config\\s*\\((?![^)]*,\\s*true\\s*\\))`,
       "u"
     ),
   ],

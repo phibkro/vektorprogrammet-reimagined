@@ -51,6 +51,7 @@ const planted: readonly (readonly [DirectOnlyConstruct, string])[] = [
   ["set-session", "SET search_path = public"],
   ["set-session", "set session authorization default"],
   ["set-session", "RESET ALL"],
+  ["set-session", "reset statement_timeout"],
   ["set-session", "select set_config('app.person', '1', false)"],
   ["set-session", "select set_config('app.person', $1, $2)"],
   ["sql-prepare", "PREPARE p AS select 1"],
@@ -253,6 +254,18 @@ describe("spec 0025 F4 and F5: the constructs, the subsets and the recipes", () 
     ];
 
     assert.deepStrictEqual(findingsIn("prose.ts", Arr.join(prose, "\n")), []);
+    assert.deepStrictEqual(
+      findingsIn(
+        "api.ts",
+        'authRequest("reset-password"); fetch("/api/auth/set-session");'
+      ),
+      []
+    );
+    assert.lengthOf(findingsIn("call.ts", 'db.run("RESET ALL");'), 1);
+    assert.lengthOf(
+      findingsIn("call.ts", 'db.run("SET SESSION search_path = public");'),
+      1
+    );
     assert.lengthOf(findingsIn("call.ts", 'db.run("listen outbox");'), 1);
   });
 });
