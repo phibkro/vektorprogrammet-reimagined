@@ -14,6 +14,10 @@ import {
   TestDatabaseUrl,
   migratedTestDatabase,
 } from "@vektorprogrammet/db/testing";
+import {
+  runtimeTestDatabase,
+  RuntimeDatabaseUrl,
+} from "@vektorprogrammet/db/testing/runtime-role";
 import { PlatformProbe, requiredChecks } from "@vektorprogrammet/domain";
 import type { PlatformReport } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Option, Redacted, Schema } from "effect";
@@ -83,7 +87,7 @@ const holding: PlatformReport = {
 const answerFor = (report: PlatformReport) =>
   platformResponse(success(Option.some({ deployment: "preview", report })));
 
-layer(migratedTestDatabase, { excludeTestServices: true })(
+layer(runtimeTestDatabase, { excludeTestServices: true })(
   "GET /api/platform (spec 0025 R5)",
   (it) => {
     it.effect(
@@ -137,7 +141,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
       "F1: what the route runs: production answers an empty 404, a preview answers 200",
       () =>
         Effect.gen(function* theRoute() {
-          const url = yield* TestDatabaseUrl;
+          const url = yield* RuntimeDatabaseUrl;
 
           // A report is a 200 or a 500 with a body, so an empty 404 is an answer that ran no probe. (The request still
           // resolves its principal, which reads the session: that is the database, and it is not the probe.)
