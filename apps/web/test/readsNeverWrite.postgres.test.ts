@@ -14,11 +14,6 @@
  * Every registered read is exercised against actual database privileges; no source-text assertions.
  */
 import { assert, layer } from "@effect/vitest";
-import type {
-  CmsClient,
-  CmsFailure,
-  ContentEditor,
-} from "@vektorprogrammet/cms-client";
 import { ContentLive, DatabaseLive } from "@vektorprogrammet/db";
 import {
   TestDatabaseUrl,
@@ -58,6 +53,11 @@ import type {
   NotFound,
   ValidationFailed,
 } from "@vektorprogrammet/domain";
+import type {
+  CmsClient,
+  CmsFailure,
+  ContentEditor,
+} from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   Cause,

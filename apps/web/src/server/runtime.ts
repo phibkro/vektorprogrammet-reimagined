@@ -1,6 +1,5 @@
 /** One request owns the database and SDK adapters; domain transactions commit before delivery. */
 import type { ExecutionContext } from "@cloudflare/workers-types";
-import type { CmsClient, ContentEditor } from "@vektorprogrammet/cms-client";
 import {
   ContentLive,
   DatabaseLive,
@@ -56,6 +55,7 @@ import type {
   WorkspaceWriter,
   RetentionRun,
 } from "@vektorprogrammet/domain";
+import type { CmsClient, ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Cause, DateTime, Effect, Layer, Predicate, Redacted } from "effect";
 import type { Crypto } from "effect";
 import { FetchHttpClient } from "effect/http";

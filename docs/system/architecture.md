@@ -18,7 +18,7 @@ flowchart LR
 | `apps/web` | React routes/forms, server functions, request composition, Auth/Storage adapters, scheduled delivery |
 | `packages/domain` | Application-specific schemas, permissions, account/membership transitions, invariants, audit/outbox contracts and privacy rules |
 | `packages/db` | Drizzle schema/migrations, Postgres transactions and repositories, content persistence, locking and lease-fenced delivery |
-| `packages/cms-client` | Shared content models and in-process content service contracts; no CMS HTTP service |
+| `packages/domain/src/cms` | Shared content models and in-process content service contracts, exported via `@vektorprogrammet/domain/cms` |
 | `tools/prototype` | Guarded local setup and synthetic provider identities/buckets; not deployed |
 | `tools/import` | Separate legacy import tooling; MySQL is a migration/test dependency, not an application runtime dependency |
 | `infra/terraform` | Selected existing Supabase settings and the single hosted Worker, its assets, bindings and cron triggers |

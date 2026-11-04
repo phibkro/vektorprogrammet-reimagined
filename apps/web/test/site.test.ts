@@ -5,8 +5,6 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { isNotFound } from "@tanstack/react-router";
-import { CmsClient, PortableText } from "@vektorprogrammet/cms-client";
-import type { NewsData } from "@vektorprogrammet/cms-client";
 import {
   Catalog,
   ContactForm,
@@ -14,6 +12,8 @@ import {
   privacyNotice,
 } from "@vektorprogrammet/domain";
 import type { AdmissionPeriod } from "@vektorprogrammet/domain";
+import { CmsClient, PortableText } from "@vektorprogrammet/domain/cms";
+import type { NewsData } from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   DateTime,

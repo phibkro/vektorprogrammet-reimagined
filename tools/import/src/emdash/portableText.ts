@@ -12,7 +12,7 @@
  *
  * Pure and deterministic: keys are `k1`, `k2`, … in document order, so the same HTML gives the same value.
  */
-import type { PortableText } from "@vektorprogrammet/cms-client";
+import type { PortableText } from "@vektorprogrammet/domain/cms";
 import { isTag, isText } from "domhandler";
 import type { ChildNode, Element } from "domhandler";
 import { Array as Arr, HashMap, Option, Record as Rec } from "effect";

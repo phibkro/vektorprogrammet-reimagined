@@ -4,7 +4,7 @@
  * entry, `listings` shows every entry with its status. Tests inspect `stored` afterwards; the real EmDash is
  * exercised by `apps/web/e2e`.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/cms-client";
+import { CmsClient, CreateOutcome } from "@vektorprogrammet/domain/cms";
 import type {
   CmsFailure,
   Collection,
@@ -14,7 +14,7 @@ import type {
   SponsorData,
   TeamData,
   TextData,
-} from "@vektorprogrammet/cms-client";
+} from "@vektorprogrammet/domain/cms";
 import { Array as Arr, Effect, Layer, Option } from "effect";
 
 interface Stored<A> {

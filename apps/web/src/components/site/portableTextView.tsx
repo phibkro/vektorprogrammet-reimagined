@@ -13,7 +13,7 @@ import type {
   PortableTextMarkComponentProps,
   PortableTextTypeComponentProps,
 } from "@portabletext/react";
-import type { PortableText as Cms } from "@vektorprogrammet/cms-client";
+import type { PortableText as Cms } from "@vektorprogrammet/domain/cms";
 import { Array as Arr, Option, Schema } from "effect";
 
 import { cn } from "@/lib/utils";

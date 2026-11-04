@@ -1,3 +1,4 @@
+import { HttpUrl, Slug, sanitizeRichText } from "@vektorprogrammet/domain";
 /**
  * The EmDash half of the import (spec 0005, D5): the legacy articles, static texts and sponsors as CMS entries.
  * Pure: no I/O, no clock, no randomness; the same snapshot gives the same plan.
@@ -13,14 +14,13 @@
  * - A row that breaks a rule of its collection is quarantined with its reasons and never repaired by guessing.
  *   Reasons hold column names and ids only, never values: the report must not carry personal data.
  */
-import { SponsorSize } from "@vektorprogrammet/cms-client";
+import { SponsorSize } from "@vektorprogrammet/domain/cms";
 import type {
   NewEntry,
   NewsData,
   SponsorData,
   TextData,
-} from "@vektorprogrammet/cms-client";
-import { HttpUrl, Slug, sanitizeRichText } from "@vektorprogrammet/domain";
+} from "@vektorprogrammet/domain/cms";
 import type { DateTime } from "effect";
 import { Array as Arr, HashMap, Option, Result, Schema } from "effect";
 

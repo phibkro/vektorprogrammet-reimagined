@@ -64,18 +64,9 @@ export const unstablePolicy = {
     override(["packages/db/src/**"], ...base, "sql"),
     override(["apps/web/src/server/**"], ...base, "sql", "http"),
     override(["apps/web/src/lib/authClient.ts"], ...base, "http"),
-    override(["packages/cms-client/src/**"], ...base, "http"),
     override(["tools/import/src/**"], ...tools, "mysql"),
     override(["tools/import/test/**"], ...testingTools, "mysql"),
-    override(["packages/cms-client/scripts/**"], ...tools, "openapi"),
-    override(
-      [
-        "packages/cms-client/test/client.test.ts",
-        "apps/web/test/sandbox.test.ts",
-      ],
-      ...testing,
-      "http"
-    ),
+    override(["apps/web/test/sandbox.test.ts"], ...testing, "http"),
     override(
       ["packages/db/test/support/disposableDatabase.ts"],
       ...testing,
@@ -88,10 +79,7 @@ export const unstablePolicy = {
     ),
     // Mirror the root lint ignores for generated code and local lint plugins.
     {
-      include: paths(
-        "tools/oxlint/anti-slop/**",
-        "packages/cms-client/src/generated.ts"
-      ),
+      include: paths("tools/oxlint/anti-slop/**"),
       options: {
         diagnosticSeverity: {
           preferEffectArray: "off",

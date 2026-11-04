@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./cms": "./src/cms/index.ts",
     "./testing": "./test/support/teamsInMemory.ts",
     "./testing/retention": "./test/support/retentionGenerators.ts"
   },

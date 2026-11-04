@@ -1,10 +1,3 @@
-/**
- * In-memory Layers for apps/web tests (Node, `vp test`). Real database
- * behaviour is `packages/db`'s job; these fakes implement the domain's
- * service contracts just far enough for the web runtime, routes and outbox
- * delivery to be exercised. Every value is a fake same-shape value.
- */
-import { ContentEditor } from "@vektorprogrammet/cms-client";
 import {
   AdmissionPeriodRepository,
   AlreadyExists,
@@ -51,6 +44,13 @@ import type {
   SocialEvent,
   StoredSemester,
 } from "@vektorprogrammet/domain";
+/**
+ * In-memory Layers for apps/web tests (Node, `vp test`). Real database
+ * behaviour is `packages/db`'s job; these fakes implement the domain's
+ * service contracts just far enough for the web runtime, routes and outbox
+ * delivery to be exercised. Every value is a fake same-shape value.
+ */
+import { ContentEditor } from "@vektorprogrammet/domain/cms";
 import {
   makeTeamTables,
   snapshotTeamTables,

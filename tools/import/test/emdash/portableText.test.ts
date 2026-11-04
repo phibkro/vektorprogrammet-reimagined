@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { PortableText } from "@vektorprogrammet/cms-client";
+import { PortableText } from "@vektorprogrammet/domain/cms";
 import { Array as Arr, Effect, Option, Predicate, Schema } from "effect";
 
 import { htmlToPortableText } from "../../src/emdash/portableText.ts";

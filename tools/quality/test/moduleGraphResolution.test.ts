@@ -256,7 +256,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           "apps/web/src/lib/x.ts": "export const x = 1;\n",
           "apps/web/tsconfig.json":
             '{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }\n',
-          "packages/cms-client/src/a.ts": "export const a = 1;\n",
+          "packages/other/src/a.ts": "export const a = 1;\n",
         };
 
         // Control: an alias that stays inside the unit is no finding.
@@ -273,11 +273,11 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
           yield* findingsOf({
             ...unit,
             "apps/web/src/a.ts":
-              'import type {} from "@/../../cms/src/live.config.ts";\nimport type {} from "@/../../../packages/cms-client/src/a.ts";\n',
+              'import type {} from "@/../../cms/src/live.config.ts";\nimport type {} from "@/../../../packages/other/src/a.ts";\n',
           }),
           [
             "apps/web/src/a.ts:1: apps/web reaches into apps/cms by the path @/../../cms/src/live.config.ts; import the package by its name",
-            "apps/web/src/a.ts:2: apps/web reaches into packages/cms-client by the path @/../../../packages/cms-client/src/a.ts; import the package by its name",
+            "apps/web/src/a.ts:2: apps/web reaches into packages/other by the path @/../../../packages/other/src/a.ts; import the package by its name",
           ]
         );
 

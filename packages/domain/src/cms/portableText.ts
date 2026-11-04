@@ -1,11 +1,4 @@
-/**
- * The Portable Text EmDash stores for a `portableText` field, as the public site and the importer use it.
- *
- * Source of the shapes: EmDash's own components (`emdash/src/components`: `Block`, `Break`, `Code`, `HtmlBlock`,
- * `Image`, `Table`) and its admin's table type (`@emdash-cms/admin/portable-text-table`). A block whose `_type`
- * this repository does not render (embeds, galleries, columns, plugin blocks) still decodes, as `OtherBlock`, so
- * an editor's new block never fails a page; the renderer skips it.
- */
+/** Portable Text used by the public site and importer. Unknown blocks decode and are skipped by the renderer. */
 import { Schema } from "effect";
 
 /** What an annotation or an unknown block carries besides its type: JSON, so a page can hand it to the browser. */
@@ -57,7 +50,7 @@ export const BreakBlock = Schema.Struct({
 
 export type BreakBlock = typeof BreakBlock.Type;
 
-/** EmDash's "inline" HTML block: HTML that EmDash itself sanitizes on render. */
+/** An inline HTML block; renderers must sanitize its HTML. */
 export const HtmlBlock = Schema.Struct({
   _key: Schema.optionalKey(Schema.String),
   _type: Schema.Literal("htmlBlock"),

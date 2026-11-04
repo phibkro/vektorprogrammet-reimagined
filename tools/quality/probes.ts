@@ -12,17 +12,16 @@ import { Record as Rec } from "effect";
 export const storeBoundaryProbes = {
   adapterTest: "apps/web/test/storeBoundaryProbe.postgres.test.ts",
   clean: "apps/web/src/server/storeBoundaryProbeClean.ts",
-  cmsClientSibling: "packages/cms-client/src/storeBoundaryProbe.ts",
   domainSibling: "packages/domain/src/storeBoundaryProbe.ts",
   harness: "tools/db-path-spike/storeBoundaryProbe.ts",
   restricted: "apps/web/src/server/storeBoundaryProbe.ts",
 } as const;
 
 export const moduleGraphProbes = {
-  cycleA: "packages/cms-client/src/moduleGraphProbeCycleA.ts",
-  cycleB: "packages/cms-client/src/moduleGraphProbeCycleB.ts",
-  flatA: "packages/cms-client/src/moduleGraphProbeFlatA.ts",
-  flatB: "packages/cms-client/src/moduleGraphProbeFlatB.ts",
+  cycleA: "packages/db/src/moduleGraphProbeCycleA.ts",
+  cycleB: "packages/db/src/moduleGraphProbeCycleB.ts",
+  flatA: "packages/db/src/moduleGraphProbeFlatA.ts",
+  flatB: "packages/db/src/moduleGraphProbeFlatB.ts",
 } as const;
 
 const probePaths: ReadonlySet<string> = new Set([

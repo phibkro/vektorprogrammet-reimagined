@@ -4,11 +4,11 @@ import {
   getRouteApi,
   useRouter,
 } from "@tanstack/react-router";
-import { FaqPage, ImageValue, SponsorSize } from "@vektorprogrammet/cms-client";
+import { FaqPage, ImageValue, SponsorSize } from "@vektorprogrammet/domain/cms";
 import type {
   CollectionName,
   ContentDraft,
-} from "@vektorprogrammet/cms-client";
+} from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   Effect,

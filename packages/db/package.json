@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@effect/sql-pg": "catalog:",
-    "@vektorprogrammet/cms-client": "workspace:*",
     "@vektorprogrammet/domain": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"

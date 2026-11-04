@@ -1,9 +1,3 @@
-import {
-  CmsInvalidContent,
-  CmsRejected,
-  CmsUnavailable,
-} from "@vektorprogrammet/cms-client";
-import type { CmsFailure } from "@vektorprogrammet/cms-client";
 /**
  * The one table that maps the domain's closed error set (plus the web's own
  * `RateLimited` and the CMS client's three failures) to HTTP statuses. Every server function, server route and
@@ -20,6 +14,12 @@ import {
   ValidationFailed,
 } from "@vektorprogrammet/domain";
 import type { DomainError } from "@vektorprogrammet/domain";
+import {
+  CmsInvalidContent,
+  CmsRejected,
+  CmsUnavailable,
+} from "@vektorprogrammet/domain/cms";
+import type { CmsFailure } from "@vektorprogrammet/domain/cms";
 import { Array as Arr, Match, Schema } from "effect";
 
 import { failureOutcome } from "../lib/outcome";

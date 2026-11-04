@@ -89,7 +89,7 @@ export class CmsClient extends Context.Service<
     readonly faq: Collection<FaqData>;
     readonly teams: Collection<TeamData>;
   }
->()("@vektorprogrammet/cms-client/CmsClient") {}
+>()("@vektorprogrammet/domain/cms/CmsClient") {}
 
 export interface ContentDraft {
   readonly collection: CollectionName;
@@ -119,4 +119,4 @@ export class ContentEditor extends Context.Service<
       data: Schema.Json
     ) => Effect.Effect<void, CmsFailure>;
   }
->()("@vektorprogrammet/cms-client/ContentEditor") {}
+>()("@vektorprogrammet/domain/cms/ContentEditor") {}

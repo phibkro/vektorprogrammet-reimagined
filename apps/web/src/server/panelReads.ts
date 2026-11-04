@@ -7,7 +7,7 @@
  * A server function runs `panelReads.<its own name>`, never a view directly: `test/panelReads.test.ts` fails on a
  * GET function that does not.
  */
-import { ContentEditor } from "@vektorprogrammet/cms-client";
+import { ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Effect } from "effect";
 
 import { integrationsView } from "./integrations";

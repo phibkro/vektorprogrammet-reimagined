@@ -34,6 +34,7 @@ A principal is a person with facts, never a role (ADR 0001). Every scheduled job
 | `organisation` | C1, C2 | departments, fields of study, semesters (RULE-022/033/050/051/084/237), admission decisions (RULE-015/119), the `OrganisationRpc` commands, the semester job (`semesterJob`) and the pure semester reads (`currentSemester`, `findCurrentSemester`) |
 | `teams` | spec 0006 | `Person`, `Team`, `Position`, `Membership` (a term of two semesters, its state calculated in `term.ts`), `AdminGrant`; the `TeamsRpc` commands and the Membership machine; the ending-soon digest (`endingSoon.ts`) |
 | `accounts` | spec 0007 | The Account machine, `AccountRpc`, password policy, single-use Code and request-scoped code principals. [Account reference](../../docs/system/accounts.md). |
+| `cms` | C3, C5, C8 | Shared collection schemas, Portable Text and content service contracts, exported only through `@vektorprogrammet/domain/cms`. Persistence is implemented by `packages/db`; published and draft snapshots remain separate. |
 | `content` | C3, C5, C8 | the pure rules the public pages use (page size and order of news RULE-326/331, the sponsors' footer order), the rich-text sanitizer (RULE-133, run by the CMS importer), slugs, social events (RULE-085/188). Articles, static texts and sponsors live in the CMS since spec 0005 |
 | `contact` | C10 | support ticket (RULE-156/327) and its notifications (RULE-249) |
 | `files` | C11 | magic-byte typing (RULE-130), serving policy and registered-only access (RULE-290) |

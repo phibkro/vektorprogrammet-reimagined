@@ -335,33 +335,6 @@
           },
           {
             "include": [
-              "packages/cms-client/src/**/*.ts",
-              "packages/cms-client/src/**/*.tsx",
-              "../../packages/cms-client/src/**/*.ts",
-              "../../packages/cms-client/src/**/*.tsx"
-            ],
-            "options": {
-              "allowedUnstableApis": [
-                "effect/FileSystem",
-                "effect/Path",
-                "effect/Crypto",
-                "effect/PlatformError",
-                "effect/Stdio",
-                "effect/rpc/Rpc",
-                "effect/rpc/RpcGroup",
-                "effect/rpc/RpcClient",
-                "effect/rpc/RpcServer",
-                "effect/http/FetchHttpClient",
-                "effect/http/Headers",
-                "effect/http/HttpClient",
-                "effect/http/HttpClientError",
-                "effect/http/HttpClientRequest",
-                "effect/http/HttpClientResponse"
-              ]
-            }
-          },
-          {
-            "include": [
               "tools/import/src/**/*.ts",
               "tools/import/src/**/*.tsx",
               "../../tools/import/src/**/*.ts",
@@ -438,44 +411,6 @@
           },
           {
             "include": [
-              "packages/cms-client/scripts/**/*.ts",
-              "packages/cms-client/scripts/**/*.tsx",
-              "../../packages/cms-client/scripts/**/*.ts",
-              "../../packages/cms-client/scripts/**/*.tsx"
-            ],
-            "options": {
-              "allowedUnstableApis": [
-                "effect/FileSystem",
-                "effect/Path",
-                "effect/Crypto",
-                "effect/PlatformError",
-                "effect/Stdio",
-                "@effect/platform-bun/BunRuntime",
-                "@effect/platform-bun/BunServices",
-                "@effect/platform-node/NodeRuntime",
-                "@effect/platform-node/NodeServices",
-                "effect/rpc/Rpc",
-                "effect/rpc/RpcGroup",
-                "effect/rpc/RpcClient",
-                "effect/rpc/RpcServer",
-                "effect/sql",
-                "@effect/sql-pg",
-                "effect/http/FetchHttpClient",
-                "effect/http/Headers",
-                "effect/http/HttpClient",
-                "effect/http/HttpClientError",
-                "effect/http/HttpClientRequest",
-                "effect/http/HttpClientResponse",
-                "effect/process",
-                "effect/cli",
-                "effect/http-api/OpenApi"
-              ]
-            }
-          },
-          {
-            "include": [
-              "packages/cms-client/test/client.test.ts",
-              "../../packages/cms-client/test/client.test.ts",
               "apps/web/test/sandbox.test.ts",
               "../../apps/web/test/sandbox.test.ts"
             ],
@@ -582,9 +517,7 @@
               "tools/oxlint/anti-slop/**/*.ts",
               "tools/oxlint/anti-slop/**/*.tsx",
               "../../tools/oxlint/anti-slop/**/*.ts",
-              "../../tools/oxlint/anti-slop/**/*.tsx",
-              "packages/cms-client/src/generated.ts",
-              "../../packages/cms-client/src/generated.ts"
+              "../../tools/oxlint/anti-slop/**/*.tsx"
             ],
             "options": {
               "diagnosticSeverity": {

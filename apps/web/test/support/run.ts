@@ -1,8 +1,3 @@
-/**
- * Runs a program as a principal over the in-memory services (`memory.ts`), the way a server function does, and
- * answers with the runtime's serializable `Outcome` (the error table's statuses included).
- */
-import type { ContentEditor } from "@vektorprogrammet/cms-client";
 import type {
   AccountRepository,
   AdminGrantRepository,
@@ -28,6 +23,11 @@ import type {
   OutboxReports,
   WorkspaceReports,
 } from "@vektorprogrammet/domain";
+/**
+ * Runs a program as a principal over the in-memory services (`memory.ts`), the way a server function does, and
+ * answers with the runtime's serializable `Outcome` (the error table's statuses included).
+ */
+import type { ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Effect } from "effect";
 
 import type { RequestError } from "../../src/server/errors";

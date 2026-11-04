@@ -1,5 +1,5 @@
 import { assert, layer } from "@effect/vitest";
-import { CmsClient, ContentEditor } from "@vektorprogrammet/cms-client";
+import { CmsClient, ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Effect, Layer, Option } from "effect";
 
 import { ContentLive } from "../src/content.ts";

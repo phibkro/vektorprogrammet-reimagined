@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Schema } from "effect";
 
-import { COLLECTIONS } from "../src/index.ts";
+import { COLLECTIONS } from "../../src/cms/index.ts";
 
 describe("site content schemas", () => {
   it("accepts valid collection data and rejects a malformed news item", () => {

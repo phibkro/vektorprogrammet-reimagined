@@ -90,6 +90,7 @@ const src = (...files: readonly string[]): readonly string[] =>
   Arr.map(files, (file) => `packages/domain/src/${file}`);
 
 const modules: readonly Module[] = [
+  { files: src("cms/*.ts"), layer: "library", name: "cms", uses: [] },
   {
     files: src(
       "shared/ids.ts",
@@ -332,11 +333,10 @@ const modules: readonly Module[] = [
  */
 const units: readonly Unit[] = [
   { root: "packages/domain", uses: [] },
-  { root: "packages/cms-client", uses: [] },
-  { root: "packages/db", uses: ["packages/domain", "packages/cms-client"] },
+  { root: "packages/db", uses: ["packages/domain"] },
   {
     root: "apps/web",
-    uses: ["packages/domain", "packages/db", "packages/cms-client"],
+    uses: ["packages/domain", "packages/db"],
   },
   { root: "tools/quality", uses: ["packages/domain"] },
   { root: "tools/docgen", uses: ["packages/domain"] },
@@ -344,7 +344,7 @@ const units: readonly Unit[] = [
   { root: "tools/oxlint", uses: [] },
   {
     root: "tools/import",
-    uses: ["packages/domain", "packages/db", "packages/cms-client"],
+    uses: ["packages/domain", "packages/db"],
   },
   { root: "tools/prototype", uses: ["packages/domain", "packages/db"] },
   { root: "tools/db-path-spike", uses: ["packages/db", "packages/domain"] },

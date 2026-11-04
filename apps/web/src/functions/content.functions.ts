@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { ContentEditor } from "@vektorprogrammet/cms-client";
+import { ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Effect, Schema } from "effect";
 
 import { requireSection } from "../server/panelAccess";

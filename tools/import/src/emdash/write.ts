@@ -7,8 +7,8 @@
  * (`CmsRejected`, for example a department city that is not an option of `news.departments`): that is counted
  * with the CMS's error code and the run goes on. A CMS that cannot be reached stops the run.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/cms-client";
-import type { Collection } from "@vektorprogrammet/cms-client";
+import { CmsClient, CreateOutcome } from "@vektorprogrammet/domain/cms";
+import type { Collection } from "@vektorprogrammet/domain/cms";
 import { Array as Arr, Data, Effect, Result } from "effect";
 
 import type { EmDashPlan, ImportedCollection, PlannedEntry } from "./plan.ts";

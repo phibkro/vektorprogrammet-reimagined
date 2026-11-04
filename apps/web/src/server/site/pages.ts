@@ -1,21 +1,3 @@
-/**
- * Page data of the public site (spec 0005): Effect programs that read the texts, news, sponsors, FAQ and teams
- * from the CMS (`CmsClient`) and the departments and their admission periods from PostgreSQL, and answer plain,
- * serializable view models (no `DateTime`, no brands the browser cannot revive). Server functions run them
- * through `runQuery`; tests run them against in-memory Layers.
- *
- * The business rules stay in the domain and apply to CMS content unchanged: RULE-267 (a draft is never public:
- * the client returns published entries only), RULE-331 (front page news), RULE-326 (ten per page, newest
- * first), RULE-119 (is admission open), and the footer order of sponsors.
- */
-import { CmsClient } from "@vektorprogrammet/cms-client";
-import type {
-  Entry,
-  ImageValue,
-  NewsData,
-  TeamData,
-  PortableText,
-} from "@vektorprogrammet/cms-client";
 import {
   AdmissionPeriodRepository,
   Catalog,
@@ -32,6 +14,24 @@ import {
   sortSponsorsForFooter,
 } from "@vektorprogrammet/domain";
 import type { Department, PrivacyNotice } from "@vektorprogrammet/domain";
+/**
+ * Page data of the public site (spec 0005): Effect programs that read the texts, news, sponsors, FAQ and teams
+ * from the CMS (`CmsClient`) and the departments and their admission periods from PostgreSQL, and answer plain,
+ * serializable view models (no `DateTime`, no brands the browser cannot revive). Server functions run them
+ * through `runQuery`; tests run them against in-memory Layers.
+ *
+ * The business rules stay in the domain and apply to CMS content unchanged: RULE-267 (a draft is never public:
+ * the client returns published entries only), RULE-331 (front page news), RULE-326 (ten per page, newest
+ * first), RULE-119 (is admission open), and the footer order of sponsors.
+ */
+import { CmsClient } from "@vektorprogrammet/domain/cms";
+import type {
+  Entry,
+  ImageValue,
+  NewsData,
+  TeamData,
+  PortableText,
+} from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   DateTime,

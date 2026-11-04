@@ -35,7 +35,6 @@
         "@tailwindcss/vite": "4.3.3",
         "@tanstack/react-router": "catalog:",
         "@tanstack/react-start": "catalog:",
-        "@vektorprogrammet/cms-client": "workspace:*",
         "@vektorprogrammet/db": "workspace:*",
         "@vektorprogrammet/domain": "workspace:*",
         "class-variance-authority": "0.7.1",
@@ -65,25 +64,11 @@
         "wrangler": "catalog:",
       },
     },
-    "packages/cms-client": {
-      "name": "@vektorprogrammet/cms-client",
-      "version": "0.0.0",
-      "dependencies": {
-        "effect": "catalog:",
-      },
-      "devDependencies": {
-        "@effect/vitest": "catalog:",
-        "@types/node": "catalog:",
-        "typescript": "catalog:",
-        "vite-plus": "catalog:",
-      },
-    },
     "packages/db": {
       "name": "@vektorprogrammet/db",
       "version": "0.0.0",
       "dependencies": {
         "@effect/sql-pg": "catalog:",
-        "@vektorprogrammet/cms-client": "workspace:*",
         "@vektorprogrammet/domain": "workspace:*",
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
@@ -173,7 +158,6 @@
       "dependencies": {
         "@effect/platform-node": "catalog:",
         "@effect/sql-mysql2": "catalog:",
-        "@vektorprogrammet/cms-client": "workspace:*",
         "@vektorprogrammet/db": "workspace:*",
         "@vektorprogrammet/domain": "workspace:*",
         "domhandler": "catalog:",
@@ -1111,8 +1095,6 @@
     "@typescript/typescript-win32-arm64": ["@typescript/typescript-win32-arm64@7.0.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ=="],
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
-
-    "@vektorprogrammet/cms-client": ["@vektorprogrammet/cms-client@workspace:packages/cms-client"],
 
     "@vektorprogrammet/db": ["@vektorprogrammet/db@workspace:packages/db"],
 

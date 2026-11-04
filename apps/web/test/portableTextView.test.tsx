@@ -5,7 +5,7 @@
  * only for an address the page may link to, and a block type the page does not know is skipped.
  */
 import { assert, describe, it } from "@effect/vitest";
-import type { PortableText } from "@vektorprogrammet/cms-client";
+import type { PortableText } from "@vektorprogrammet/domain/cms";
 import { Option } from "effect";
 import { renderToStaticMarkup } from "react-dom/server";
 

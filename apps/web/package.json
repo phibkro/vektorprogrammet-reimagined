@@ -27,7 +27,6 @@
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
-    "@vektorprogrammet/cms-client": "workspace:*",
     "@vektorprogrammet/db": "workspace:*",
     "@vektorprogrammet/domain": "workspace:*",
     "class-variance-authority": "0.7.1",

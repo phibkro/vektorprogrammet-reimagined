@@ -130,7 +130,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     );
 
     assert.deepStrictEqual(
-      groupsIn("packages/cms-client/src/deep/a.ts", "../../../db/src/index.ts"),
+      groupsIn("packages/domain/src/deep/a.ts", "../../../db/src/index.ts"),
       ["db"]
     );
 
@@ -231,10 +231,6 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
         file: storeBoundaryProbes.clean,
       },
       // Packages beside `packages/db`: no allowance covers them.
-      cmsClientSibling: {
-        content: text(siblingImports),
-        file: storeBoundaryProbes.cmsClientSibling,
-      },
       domainSibling: {
         content: text(siblingImports),
         file: storeBoundaryProbes.domainSibling,
@@ -285,10 +281,6 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
             siblingLines
           );
 
-          assert.deepStrictEqual(
-            flagged(probes.cmsClientSibling.file),
-            siblingLines
-          );
           assert.deepStrictEqual(flagged(probes.clean.file), []);
         }).pipe(Effect.provide(NodeServices.layer)),
       180_000

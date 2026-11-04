@@ -489,10 +489,8 @@
       "name": "http",
       "scope": {
         "files": [
-          "packages/cms-client/src/**",
           "apps/web/src/server/**",
           "apps/web/src/lib/authClient.ts",
-          "packages/cms-client/test/client.test.ts",
           "apps/web/test/sandbox.test.ts",
           "tools/**",
           "apps/*/scripts/**",
@@ -563,29 +561,6 @@
         "modules": ["effect/reactivity/Reactivity"]
       },
       "reason": "Derived reactivity keys (ADR 0009).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
-      "nativeAlternativesExamined": [
-        "The native module is the required Effect capability; no stable equivalent provides the same contract."
-      ],
-      "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
-      ],
-      "owner": ".",
-      "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
-      },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
-    },
-    {
-      "id": "EX-0014",
-      "name": "openapi",
-      "scope": {
-        "files": ["packages/cms-client/scripts/**"],
-        "modules": ["effect/http-api/OpenApi"]
-      },
-      "reason": "CMS client generation from EmDash OpenAPI (spec 0005).",
       "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."

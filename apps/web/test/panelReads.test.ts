@@ -12,7 +12,6 @@
  * (`e2e/shell.spec.ts`) send the same requests over HTTP.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { ContentEditor } from "@vektorprogrammet/cms-client";
 import {
   DepartmentId,
   PrincipalDirectory,
@@ -24,6 +23,7 @@ import {
   systemPrincipal,
 } from "@vektorprogrammet/domain";
 import type { Principal } from "@vektorprogrammet/domain";
+import { ContentEditor } from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   Order,

@@ -440,9 +440,9 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
     it("`packages/domain` that imports a workspace package fails", () => {
       assert.deepStrictEqual(
-        check(importing(`${d}/vocab/ids.ts`, "@vektorprogrammet/cms-client")),
+        check(importing(`${d}/vocab/ids.ts`, "@vektorprogrammet/other")),
         [
-          `${d}/vocab/ids.ts:2: packages/domain imports packages/cms-client, which it does not declare in units`,
+          `${d}/vocab/ids.ts:2: packages/domain imports packages/other, which it does not declare in units`,
         ]
       );
     });

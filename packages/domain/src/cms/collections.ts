@@ -1,17 +1,9 @@
-/**
- * What each EmDash collection of `apps/cms/seed/seed.json` holds in an entry's `data`, decoded once at the
- * boundary. EmDash's REST contract types `data` as free JSON (the shape depends on the collection), so these
- * schemas are the typed half of the contract; the seed is the other half, and `test/collections.test.ts` keeps
- * the two in step.
- *
- * EmDash quirks the schemas absorb: a boolean field reads back as 0 or 1, and a field that was never set is
- * absent (or null).
- */
+/** Shared content collection schemas, decoded at the boundary. */
 import { Schema, SchemaGetter } from "effect";
 
 import { PortableText } from "./portableText.ts";
 
-/** A boolean column that EmDash answers as 0 or 1 (and accepts as either). */
+/** Accept boolean values and their integer representation. */
 const IntegerBoolean = Schema.Union([
   Schema.Boolean,
   Schema.Literals([0, 1]).pipe(
@@ -22,7 +14,7 @@ const IntegerBoolean = Schema.Union([
   ),
 ]);
 
-/** An `image` field: the media reference plus the metadata EmDash caches with it. */
+/** An image field with its media reference and metadata. */
 export const ImageValue = Schema.Struct({
   alt: Schema.optionalKey(Schema.String),
   height: Schema.optionalKey(Schema.Finite),
@@ -95,7 +87,7 @@ export const TeamData = Schema.Struct({
 
 export type TeamData = typeof TeamData.Type;
 
-/** The collections of `apps/cms/seed/seed.json`, by slug. */
+/** Content collections by slug. */
 export const COLLECTIONS = {
   faq: FaqData,
   news: NewsData,

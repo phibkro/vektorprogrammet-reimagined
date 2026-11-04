@@ -6,12 +6,12 @@ import {
   CmsUnavailable,
   ContentEditor,
   CreateOutcome,
-} from "@vektorprogrammet/cms-client";
+} from "@vektorprogrammet/domain/cms";
 import type {
   Collection,
   CollectionName,
   Entry,
-} from "@vektorprogrammet/cms-client";
+} from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   DateTime,
