@@ -64,7 +64,7 @@ The app-shared foundation now lives in `apps/web/src/core`. It is not a reusable
 
 Native Vite+ tasks replace duplicated root scripts. Bun retains root lifecycle `prepare` and `commitlint`. `vp run ready` runs static dependencies, then serial `test:all` and a fresh build. `vp run @vektorprogrammet/web#test` gates domain, db and web tasks in order. `vp test --project <name>` runs a direct scope; bare `vp test` can continue later groups after failure. Live, probe, generator and security tasks disable caching. The cached app build fingerprints `SITE_URL`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; release uses the built-in fresh build.
 
-The lead reviewed covered source at `2cd8996e4e0ef6a9676b1d10de02feb3be6c2d6b` and recorded digest `8ded8aa3cf892ecc020decf7527b9eef6f2e13a7`. This confirms source correspondence, not a new TLC run. The full model run remains pending.
+The lead reviewed covered source at `2cd8996e4e0ef6a9676b1d10de02feb3be6c2d6b` and recorded digest `8ded8aa3cf892ecc020decf7527b9eef6f2e13a7`. The final source and formal results are recorded below.
 
 ### Cutover evidence
 
@@ -81,4 +81,14 @@ A compiled smoke then exposed a real immediate-save defect: the title published 
 
 In a compiled replay, the last key preceded the response by 92 ms. The HTTP payload contained the text, and SQL showed the published title and body. All three future fields remained unchanged in draft and publication. During a delayed POST, a later title edit remained present, Save stayed enabled and Publish stayed disabled. The product adds no timer, wait workaround or package. Uncommitted IME DOM input is not proven.
 
-A separate synthetic membership journey used the restricted runtime role. SQL showed one membership, one welcome claim, one `membership.added` audit row, two intents, two deliveries and two captures. The owned browser closed; the owned preview remained up at this observation. The full browser suite did not run. Full ready and formal verification have not yet been repeated after the CMS fix and comment cleanup.
+A separate synthetic membership journey used the restricted runtime role. SQL showed one membership, one welcome claim, one `membership.added` audit row, two intents, two deliveries and two captures. The owned browser closed; the owned preview remained up at this observation. The full browser suite did not run. The final source and verification results are recorded below.
+
+### Final source verification
+
+At `7e8dd1b1bdfb6bf7c69f4ea9a5b04ad7f7505ab1`, native `ready` passed all 18 tasks: eight static gates, 1,487 tests and a fresh Worker build. The test groups were domain 419, db 449, web 272, spike 39, quality 93, import 54, docgen 33, Oxlint 114 and conformance 14. The build emitted a vendor `vite:css-post` sourcemap warning, which limits debug mapping.
+
+The formal run exited zero at coverage digest `b6de534dc14daeb7b927071069bc5ebf7cd8fa85`. All 30 maintained cases and 53 SQL probes passed; `current-code` visited 1,712,396 states. Model predicates and bounds did not change. Frozen install reported 629 installs and 923 packages with no changes; `db:check` passed.
+
+An audit of all 378 emitted JS, MJS, JSON and map files found none of the three actual SDK, runtime or bootstrap private literals. Secret bindings were empty. The cache database also contained none of the raw private literals. On the fresh final artifact, the home page returned 200, anonymous protected teams returned 403, and a synthetic user signed in through Supabase. A new artifact load showed the saved CMS title and body. Runtime-role SQL confirmed both and exact preservation of the three future fields in draft and publication. The earlier fast-save and delayed-POST interleaving used the corrected compiled code.
+
+The full browser suite and credential no-JavaScript cases were not rerun after the correction. Uncommitted IME DOM input remains unproven. The editor SDK beta API remains an upgrade constraint. Cleanup closed owned browser tabs and cleared their cookies, stopped the final preview and owned Supabase project, and stopped devenv and the owned health loop. No owned Supabase containers remained running. Volumes and matching private credentials were retained. Disposable workspace links and cache/audit scripts were removed; evidence stays outside Git. The original localhost:3000 returned HTTP 200 after cleanup. No PR, push, deployment or Terraform external operation ran.
