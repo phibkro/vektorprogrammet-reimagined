@@ -33,7 +33,7 @@ E2E_DISPOSABLE=1 E2E_MAILPIT_URL=http://127.0.0.1:56434 E2E_BASE_URL=http://loca
   devenv shell -- bash tools/prototype/with-env.sh bunx vp run e2e
 ```
 
-All actors use real Supabase sessions. There is no actor-switch cookie, CMS process or simulated R2 fixture. Turnstile test-key verification still needs outbound access to Cloudflare's documented public test endpoint. Keep captured links and browser traces private; they can contain synthetic bearer tokens. Stop only the app/project owned by the test run, preserving the interactive stack. The older repository browser-verification skill describes retired infrastructure; use this guide and the current CI sequence rather than its old launch/actor scripts until that user-authored skill is separately migrated.
+All actors use real Supabase sessions. There is no actor-switch cookie, CMS process or simulated R2 fixture. Turnstile test-key verification still needs outbound access to Cloudflare's documented public test endpoint. Keep captured links and browser traces private; they can contain synthetic bearer tokens. Stop only the app/project owned by the test run, preserving the interactive stack. For path-based coverage, evidence and cleanup, use the [browser-verification procedure](../../.agents/skills/verify-vektorprogrammet/SKILL.md).
 
 Workspace tests that exercise the real provider also need the status mapping:
 

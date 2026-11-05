@@ -18,7 +18,7 @@ stop:   after round 3, unless an open finding is critical or high (then keep goi
 
 ## 1. Prepare
 
-- Create a separate detached worktree for each reviewer/fixer role: `git worktree add --detach ../reimagined-pr-$N-<role> origin/<head branch>` (no local branch); each worktree has its own devenv state. The `verify-vektorprogrammet` skill's `pr-$N` recipe is for a single reviewer, so do not share that worktree among parallel reviewers. If PostgreSQL fails to start in the worktree, follow the worktree gotcha in `AGENTS.md` (§ Run it).
+- Create a separate detached worktree for each reviewer/fixer role: `git worktree add --detach ../reimagined-pr-$N-<role> origin/<head branch>` (no local branch). Each reviewer owns separate dependencies, service state, ports and evidence. Use the current `verify-vektorprogrammet` procedure for the disposable target.
 - Read the PR body, its spec in `docs/specs/` (falsifiers and Revisions), and `git diff --stat origin/main...HEAD`.
 
 ## 2. Review round: two independent reviewers, in parallel
@@ -27,9 +27,9 @@ Give each reviewer the PR number, the worktree, the spec, and this section. Revi
 
 **Verification reviewer.**
 
-1. Run `verify-vektorprogrammet` for every feature its path table maps to the changed paths, and keep the evidence (run directory, `REPORT.md`).
-2. Run `verify-membership-writes` (`run.sh`, and `--code` when `packages/db` changed) when `run.sh --touched origin/main` prints `touched`.
-3. **Keep the verification skills true.** For each changed behaviour, check that the feature map still describes it (entry points, selectors, expected end state), that the path table maps the changed paths, and that the TLA+ coverage block names every writer the model must know. A gap is a finding (`maintenance`); a skill that now describes behaviour the code no longer has is a finding of the severity of the behaviour it hides.
+1. Use `verify-vektorprogrammet` to select coverage from changed paths and behavior. Run the full native browser suite for shared core, adapters and server changes. Keep the run evidence and identify any uncovered behavior.
+2. Run `verify-membership-writes/run.sh --touched origin/main`. If it prints `touched`, run formal verification with `--code` as described by that skill. Its coverage block and writer discovery determine relevance, not a package-name condition.
+3. **Keep the verification skills true.** For each changed behavior, check that the native procedure and path routing cover it and that the TLA+ coverage block names every writer the model must know. A gap is a finding (`maintenance`); a stale procedure is a finding of the severity of the behavior it hides.
 
 **Conformance reviewer.** The spec is written and built in one step and arrives with the code (a plan is not reviewed on its own), so this reviewer judges three things together:
 
@@ -55,11 +55,11 @@ Each finding: severity, file:line or run path, what is wrong in one sentence, an
 
 ## 3. Decide
 
-**Pass** when all of these hold: no open finding of medium or above; CI green on the head (including `Formal verification` when it ran); the verification evidence exists for every mapped feature. Low and nit findings go into the merge comment, or are fixed if cheap.
+**Pass** when all of these hold: no open finding of medium or above; CI green on the head (including `Formal verification` when it ran); the verification evidence covers the selected behavior. Low and nit findings go into the merge comment, or are fixed if cheap.
 
 - **Merge a passing PR** with `.agents/skills/review-pr/merge.sh <n> "<type>: <summary>"` from the main checkout (squash, title `<type>: <summary> (#<n>)`). It refuses (exit 4) unless a round recorded by `record-round.sh` passed the PR's current head, waits for CI green on that head, and merges only that head (`--match-head-commit`). If `main` moved since the head was reviewed, it computes the expected tree with `git merge-tree --write-tree origin/main <reviewed head>` and refuses on conflicts (exit 2) or on files that both changed (exit 3): then rebase, require CI green on the rebased head, and record a new round on it. After a rebase without overlap, `git rev-parse HEAD^{tree}` must equal the expected tree.
 
-**Otherwise**, start a fixer: a separate agent in the PR's worktree, with the findings verbatim. It fixes the code and, for `maintenance` findings, the verification skills themselves (feature maps, path table, TLA+ model and coverage block, sync commit only after confirming the model against the new code). It commits, pushes, and reports. Then the next round, with fresh reviewers.
+**Otherwise**, start a fixer: a separate agent in the PR's worktree, with the findings verbatim. It fixes the code and, for `maintenance` findings, the verification procedures and TLA+ model and coverage block. Confirm the model against the new code before updating its sync digest. It commits, pushes, and reports. Then the next round, with fresh reviewers.
 
 ## 4. Iteration limit
 
