@@ -1,3 +1,5 @@
+import { Array as Arr, Option } from "effect";
+
 import registry from "./effect-exceptions.json" with { type: "json" };
 
 const entries = registry.unstableApis;
@@ -40,6 +42,11 @@ const testing = [...base, "runtimes", "tests", "sql"] as const;
 const tools = [...base, "runtimes", "sql", "http", "tools"] as const;
 const testingTools = [...tools, "tests"] as const;
 
+const previewHmacFiles = Option.match(
+  Arr.findFirst(entries, (entry) => entry.name === "preview-hmac"),
+  { onNone: () => [], onSome: (entry) => entry.scope.files }
+);
+
 const override = (include: readonly string[], ...names: readonly string[]) => ({
   include: paths(...include),
   options: { allowedUnstableApis: modules(...names) },
@@ -61,6 +68,16 @@ export const unstablePolicy = {
       ...tools
     ),
     override(["tools/*/test/**", "apps/*/e2e/**"], ...testingTools),
+    override(
+      Arr.filter(previewHmacFiles, (file) => !file.endsWith(".test.ts")),
+      ...tools,
+      "preview-hmac"
+    ),
+    override(
+      Arr.filter(previewHmacFiles, (file) => file.endsWith(".test.ts")),
+      ...testingTools,
+      "preview-hmac"
+    ),
     override(["apps/web/src/adapters/db/**"], ...base, "sql"),
     override(["apps/web/src/server/**"], ...base, "sql", "http"),
     override(

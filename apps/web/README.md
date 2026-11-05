@@ -31,8 +31,9 @@ The application does not accept a test-actor cookie. Sign in through real local 
 | `DEPLOYMENT` | Explicit local, preview or production mode |
 | `CONTACT_RATE_LIMIT` | Worker-native per-IP limiter |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Spam protection; documented test keys locally |
+| `PREVIEW_HEAD_SHA` | Preview-only served revision; production returns no version response |
 
-Secret values are local runtime variables, never Vite browser variables. Standalone production builds contain empty database/secret bindings; Terraform supplies deployed values. Optional production mail, Slack and Workspace capabilities remain explicit operator-controlled integrations, not part of a safe synthetic deployment.
+Secret values remain server-side. Standalone production builds contain empty database and secret bindings; Alchemy supplies preview runtime bindings. Production mail, Slack and Workspace remain separate operator-controlled integrations.
 
 ## Request and data boundaries
 
@@ -64,7 +65,93 @@ Business rules and grant declarations remain in the domain. Provider adapters do
 
 ## Deployment and verification
 
-[`infra/terraform`](../../infra/terraform/README.md) is the sole owner of the hosted Worker artifact, assets, bindings and cron configuration, plus selected settings on an existing dedicated Supabase project. It derives Worker settings/modules from the actual Vite build output. No Alchemy application deployment or automatic legacy Neon/EmDash preview pipeline remains. Import, plan and apply require operator authority; local validation does not prove a hosted deployment.
+### Synthetic PR previews
+
+The [preview workflow](../../.github/workflows/preview.yml) runs only for pull requests from this repository. Forks receive no deployment credentials.
+
+Supabase owns preview branches, Auth and Storage. Drizzle owns the application schema. Alchemy owns each PR Worker, its assets, bindings and cron triggers. The [Terraform controller is retired](../../infra/terraform/README.md).
+
+`tools/preview` contains the lifecycle commands. They refuse default branches, copied production data, mismatched project identities and unsafe SMTP configuration.
+
+```mermaid
+flowchart LR
+  PR[PR update] --> A[Admit dedicated Alchemy state]
+  A --> B[Supabase branch and capture proof]
+  B --> D[Drizzle migrations and synthetic seed]
+  D --> W[Build and deploy PR Worker]
+  W --> V[Hosted browser and provider checks]
+  V --> U[Verified preview URL]
+  C[PR close] --> F[Live PR and ownership checks]
+  F --> X[Delete owned Worker]
+  X --> Y[Delete owned Supabase branch]
+```
+
+### One-time operator setup
+
+1. Create a dedicated synthetic Supabase project in an organization that supports branching. Never select a production project.
+2. Leave the application data empty. Do not enable a second GitHub migration controller or copy SQL into `supabase/migrations`.
+3. Create a dedicated Mailtrap Email Testing sandbox. Do not use Mailtrap Email Sending credentials.
+4. Disable all forwarding for that sandbox. The confirmation variable records this operator check; capture receipt alone cannot prove absence of forwarding.
+5. Configure the `synthetic-preview` GitHub environment. Require an operator reviewer before adding provider credentials.
+6. Configure the secrets and variables referenced by the workflow. Use scoped provider tokens and never paste their values into chat or logs.
+
+| Configuration | Purpose |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` secret | Branch lifecycle, branch credentials and service configuration for the designated synthetic project |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` secrets | Preview Workers and the dedicated Alchemy backend; existing repository secrets can supply these |
+| `MAILTRAP_API_TOKEN` secret | Read the designated sandbox credentials and captured messages |
+| `PREVIEW_CREDENTIAL_SEED` secret | Stable per-branch HMAC input; create once and retain across reruns |
+| `SUPABASE_PREVIEW_PROJECT_REF` variable | The new dedicated parent project, never production |
+| `CLOUDFLARE_WORKERS_SUBDOMAIN` variable | Actual Workers subdomain of the selected Cloudflare account |
+| `MAILTRAP_ACCOUNT_ID`, `MAILTRAP_INBOX_ID` variables | The dedicated capture sandbox |
+| `MAILTRAP_NO_FORWARDING_CONFIRMED=1` variable | Operator attestation after the forwarding check |
+
+The workflow checks the environment reviewer rule and the exact checked-out PR head before provider operations. Jobs for one PR run sequentially.
+
+### Dedicated Alchemy state
+
+The preview stack uses its own state-store Worker. It does not adopt or upgrade the account-wide default store.
+
+With separate operator authority and scoped Cloudflare credentials, provision or upgrade this backend explicitly:
+
+```sh
+devenv shell -- bunx vp run preview:bootstrap-state
+```
+
+Keep the command output private. Alchemy can include provider response details in errors. Do not add `--force` or run a default-store bootstrap.
+
+Automated deployment requires `CI=true` and sets `updateStateStore:false`. Admission uses the installed SDK's version check before Supabase provisioning. The SDK can use an ephemeral edge preview for authentication; admission does not create application resources or upgrade the backend.
+
+### Lifecycle and recovery
+
+The workflow runs these uncached commands from the repository root:
+
+```sh
+devenv shell -- bunx vp run preview:admit-state
+devenv shell -- bunx vp run preview:prepare
+devenv shell -- bunx vp run preview:bootstrap
+devenv shell -- bunx vp run preview:build
+devenv shell -- bunx vp run preview:deploy
+devenv shell -- bunx vp run preview:verify
+```
+
+These commands require the workflow identity variables and a private `PREVIEW_STATE_FILE` outside Git. Keep local output private too.
+
+The database uses the provider's shared Supavisor host with the documented session port. This supports IPv4 runners without guessing a region or using transaction pooling for migrations.
+
+Only the publishable key enters the build. Receipt decoding rejects swapped API keys and database connection overrides. Migration credentials and control-plane tokens never enter Worker bindings.
+
+Preparation sends one reserved-address Auth invitation and checks the designated Mailtrap inbox. Later checks exercise the deployed revision, browser sign-in, CMS publication, private Storage, database guarantees and native Auth capture.
+
+On closure, the workflow invokes `preview:teardown`. Teardown rechecks the live PR state and head before destructive work. Failed runs retain their PR-scoped resources for retry; they never delete a previously working preview merely because a later build or provider request failed.
+
+Teardown uses PR identity rather than database credentials. It does not require Mailtrap availability. It deletes the Worker before its branch, and refuses orphaned or ambiguous state.
+
+Do not call raw `alchemy destroy`. A stale or reopened PR, missing state, or conflicting ownership requires reconciliation instead of forced deletion. Deployment can resume an interrupted create through Alchemy's ownership-aware recovery. Teardown refuses a create checkpoint without provider attributes: successfully redeploy it before closing, or reconcile it manually. GitHub and provider operations do not form one transaction.
+
+The workflow removes private receipts and logs from the runner. It does not publish them as artifacts. A successful local check does not establish a hosted deployment.
+
+### Local verification
 
 ```sh
 devenv shell -- bunx vp run @vektorprogrammet/web#build

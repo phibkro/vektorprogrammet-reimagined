@@ -26,6 +26,7 @@ import { Route as TilbakestillPassordRouteImport } from './routes/tilbakestill-p
 import { Route as ApiEksportRouteImport } from './routes/api/eksport'
 import { Route as ApiIsolationRouteImport } from './routes/api/isolation'
 import { Route as ApiPlatformRouteImport } from './routes/api/platform'
+import { Route as ApiPreviewVersionRouteImport } from './routes/api/preview-version'
 import { Route as AuthConfirmRouteImport } from './routes/auth/confirm'
 import { Route as FilerKeyRouteImport } from './routes/filer/$key'
 import { Route as KontaktIndexRouteImport } from './routes/kontakt/index'
@@ -135,6 +136,11 @@ const ApiIsolationRoute = ApiIsolationRouteImport.update({
 const ApiPlatformRoute = ApiPlatformRouteImport.update({
   id: '/api/platform',
   path: '/api/platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPreviewVersionRoute = ApiPreviewVersionRouteImport.update({
+  id: '/api/preview-version',
+  path: '/api/preview-version',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthConfirmRoute = AuthConfirmRouteImport.update({
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
   '/api/platform': typeof ApiPlatformRoute
+  '/api/preview-version': typeof ApiPreviewVersionRoute
   '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
   '/api/platform': typeof ApiPlatformRoute
+  '/api/preview-version': typeof ApiPreviewVersionRoute
   '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
@@ -372,6 +380,7 @@ export interface FileRoutesById {
   '/api/eksport': typeof ApiEksportRoute
   '/api/isolation': typeof ApiIsolationRoute
   '/api/platform': typeof ApiPlatformRoute
+  '/api/preview-version': typeof ApiPreviewVersionRoute
   '/auth/confirm': typeof AuthConfirmRoute
   '/filer/$key': typeof FilerKeyRoute
   '/kontakt/$department': typeof KontaktDepartmentRoute
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/api/eksport'
     | '/api/isolation'
     | '/api/platform'
+    | '/api/preview-version'
     | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
@@ -461,6 +471,7 @@ export interface FileRouteTypes {
     | '/api/eksport'
     | '/api/isolation'
     | '/api/platform'
+    | '/api/preview-version'
     | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
@@ -505,6 +516,7 @@ export interface FileRouteTypes {
     | '/api/eksport'
     | '/api/isolation'
     | '/api/platform'
+    | '/api/preview-version'
     | '/auth/confirm'
     | '/filer/$key'
     | '/kontakt/$department'
@@ -550,6 +562,7 @@ export interface RootRouteChildren {
   ApiEksportRoute: typeof ApiEksportRoute
   ApiIsolationRoute: typeof ApiIsolationRoute
   ApiPlatformRoute: typeof ApiPlatformRoute
+  ApiPreviewVersionRoute: typeof ApiPreviewVersionRoute
   AuthConfirmRoute: typeof AuthConfirmRoute
   FilerKeyRoute: typeof FilerKeyRoute
   KontaktDepartmentRoute: typeof KontaktDepartmentRoute
@@ -683,6 +696,13 @@ declare module '@tanstack/react-router' {
       path: '/api/platform'
       fullPath: '/api/platform'
       preLoaderRoute: typeof ApiPlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/preview-version': {
+      id: '/api/preview-version'
+      path: '/api/preview-version'
+      fullPath: '/api/preview-version'
+      preLoaderRoute: typeof ApiPreviewVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/confirm': {
@@ -916,6 +936,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEksportRoute: ApiEksportRoute,
   ApiIsolationRoute: ApiIsolationRoute,
   ApiPlatformRoute: ApiPlatformRoute,
+  ApiPreviewVersionRoute: ApiPreviewVersionRoute,
   AuthConfirmRoute: AuthConfirmRoute,
   FilerKeyRoute: FilerKeyRoute,
   KontaktDepartmentRoute: KontaktDepartmentRoute,

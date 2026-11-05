@@ -144,6 +144,28 @@
         "vite-plus": "catalog:",
       },
     },
+    "tools/preview": {
+      "name": "@vektorprogrammet/preview",
+      "version": "0.0.0",
+      "dependencies": {
+        "@alchemy.run/cloudflare": "catalog:",
+        "@distilled.cloud/cloudflare": "catalog:",
+        "@effect/platform-bun": "catalog:",
+        "@effect/platform-node": "catalog:",
+        "@effect/sql-pg": "catalog:",
+        "@playwright/test": "catalog:",
+        "@supabase/supabase-js": "2.118.0",
+        "alchemy": "catalog:",
+        "drizzle-orm": "catalog:",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+        "vite-plus": "catalog:",
+      },
+    },
     "tools/prototype": {
       "name": "@vektorprogrammet/prototype",
       "version": "0.0.0",
@@ -184,6 +206,7 @@
     "@alchemy.run/cloudflare": "2.0.0-beta.85",
     "@cloudflare/vite-plugin": "1.64.0",
     "@cloudflare/workers-types": "5.20261031.1",
+    "@distilled.cloud/cloudflare": "1.0.0-rc.18",
     "@effect/platform-bun": "4.1.2",
     "@effect/platform-node": "4.1.2",
     "@effect/sql-mysql2": "4.1.2",
@@ -971,6 +994,8 @@
     "@vektorprogrammet/import": ["@vektorprogrammet/import@workspace:tools/import"],
 
     "@vektorprogrammet/oxlint": ["@vektorprogrammet/oxlint@workspace:tools/oxlint"],
+
+    "@vektorprogrammet/preview": ["@vektorprogrammet/preview@workspace:tools/preview"],
 
     "@vektorprogrammet/prototype": ["@vektorprogrammet/prototype@workspace:tools/prototype"],
 

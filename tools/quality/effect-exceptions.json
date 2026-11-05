@@ -186,6 +186,30 @@
   ],
   "typeBridges": [
     {
+      "id": "EX-0032",
+      "rules": ["FX012", "unicorn/throw-new-error"],
+      "scope": {
+        "files": ["tools/preview/config.ts", "tools/prototype/seedProvider.ts"],
+        "symbols": ["PreviewError", "SetupFailure"]
+      },
+      "reason": "The lint autofix mistakes the native Schema.TaggedError class factory for an unconstructed thrown error and inserts new, breaking its yieldable typed-error constructor.",
+      "missingCapability": "The installed rule does not distinguish Effect schema class factories from throw sites.",
+      "nativeAlternativesExamined": [
+        "Effect 4.1.2 Schema.TaggedError is the native schema-backed yieldable error class; replacing it with an untyped error loses the preview boundary error channel."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp check",
+        "devenv shell -- bunx vp -C tools/preview test"
+      ],
+      "owner": ".",
+      "versions": {
+        "effect": "4.1.2",
+        "typescript": "7.0.2",
+        "vite-plus": "1.2.0"
+      },
+      "retirementTrigger": "Remove when the installed rule recognizes Schema.TaggedError class declarations; rerun static checks and the preview boundary tests without the override."
+    },
+    {
       "id": "EX-0031",
       "rules": ["FX012", "unicorn/throw-new-error", "max-classes-per-file"],
       "scope": {
@@ -333,6 +357,30 @@
     }
   ],
   "unstableApis": [
+    {
+      "id": "EX-0033",
+      "name": "preview-hmac",
+      "scope": {
+        "files": [
+          "tools/preview/prepare.ts",
+          "tools/preview/prepareSupport.ts",
+          "tools/preview/test/prepareSupport.test.ts"
+        ],
+        "modules": ["effect/crypto/Mac"]
+      },
+      "reason": "Native HMAC-SHA256 derives a stable, branch-scoped runtime password so a new CI runner cannot rotate an existing preview login.",
+      "missingCapability": "The native Mac module is marked unstable in Effect 4.1.2.",
+      "nativeAlternativesExamined": [
+        "Installed effect/src/crypto/Mac.ts marks Mac, key, hmacSha256 and layerWebCrypto unstable; this native implementation avoids a custom MAC or extra crypto dependency."
+      ],
+      "verification": [
+        "devenv shell -- bunx vp -C tools/preview test test/prepareSupport.test.ts",
+        "devenv shell -- bunx vp check"
+      ],
+      "owner": ".",
+      "versions": { "effect": "4.1.2", "@effect/tsgo": "0.53.1" },
+      "retirementTrigger": "Remove this allowance when Mac becomes stable; any upstream API or encoding change must preserve the credential golden vector before rollout."
+    },
     {
       "id": "EX-0005",
       "name": "platform",

@@ -376,6 +376,8 @@ const units: readonly Unit[] = [
       "apps/web/test/domain/support/**",
       "apps/web/test/db/support/**",
       "apps/web/worker.config.ts",
+      "apps/web/e2e/support/panel.ts",
+      "apps/web/e2e/support/platformReport.ts",
     ],
     uses: [],
   },
@@ -384,7 +386,12 @@ const units: readonly Unit[] = [
   { root: "tools/effx-conformance", uses: [] },
   { root: "tools/oxlint", uses: [] },
   { root: "tools/import", uses: [] },
-  { root: "tools/prototype", uses: [] },
+  {
+    root: "tools/prototype",
+    toolPaths: ["tools/prototype/seedProvider.ts"],
+    uses: [],
+  },
+  { root: "tools/preview", uses: [] },
   { root: "tools/db-path-spike", uses: [] },
 ];
 

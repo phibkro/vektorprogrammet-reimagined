@@ -134,6 +134,10 @@ const effectConfig: EffectConfigInput = {
         "tools/import/src/**",
         "tools/prototype/seed.ts",
         "tools/prototype/provisionRuntime.ts",
+        "tools/preview/bootstrap.ts",
+        "tools/preview/build.ts",
+        "tools/preview/prepare.ts",
+        "tools/preview/verify.ts",
       ],
       platform: "node",
       role: "composition-root",
@@ -169,7 +173,14 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
-      files: ["tools/db-path-spike/src/smoke.ts"],
+      files: [
+        "tools/db-path-spike/src/smoke.ts",
+        "tools/preview/alchemy.run.ts",
+        "tools/preview/destroy.ts",
+        "tools/preview/deploy.ts",
+        "tools/preview/admitState.ts",
+        "tools/preview/runtime.ts",
+      ],
       platform: "bun",
       role: "composition-root",
       strictness: "strict",
@@ -226,6 +237,10 @@ const effectConfig: EffectConfigInput = {
         "apps/web/test/db/personalDataAlumni.postgres.test.ts",
         "apps/web/test/db/platformConstructs.test.ts",
         "apps/web/test/support/workerRuntime.ts",
+        // These tests select actual Node file-system and crypto layers.
+        "tools/preview/test/cloudflare.test.ts",
+        "tools/preview/test/prepareSupport.test.ts",
+        "tools/preview/test/contracts.test.ts",
       ],
       platform: "node",
       role: "composition-root",
@@ -704,6 +719,9 @@ export default defineConfig({
           // EX-0031: these Effect error constructors are not throw sites.
           "apps/web/src/core/jobs/runs.ts",
           "apps/web/src/features/workspace/domain/services.ts",
+          // EX-0032: the preview boundary also uses the native Schema.TaggedError class factory.
+          "tools/preview/config.ts",
+          "tools/prototype/seedProvider.ts",
         ],
         rules: { "unicorn/throw-new-error": "off" },
       },
@@ -829,6 +847,38 @@ export default defineConfig({
       },
       e2e: { cache: false, command: "vp run @vektorprogrammet/web#e2e" },
       knip: { cache: false, command: "knip" },
+      "preview:admit-state": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#admit-state",
+      },
+      "preview:bootstrap": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#bootstrap",
+      },
+      "preview:bootstrap-state": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#bootstrap-state",
+      },
+      "preview:build": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#build",
+      },
+      "preview:deploy": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#deploy",
+      },
+      "preview:prepare": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#provision",
+      },
+      "preview:teardown": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#teardown",
+      },
+      "preview:verify": {
+        cache: false,
+        command: "vp run @vektorprogrammet/preview#verify",
+      },
       "prototype:dev": {
         cache: false,
         command: "bash with-env.sh vp -C ../../apps/web dev --port 3000",

@@ -3,6 +3,7 @@ import type { RateLimit, SendEmail } from "@cloudflare/workers-types";
 
 export interface WorkerEnv {
   readonly DEPLOYMENT: string;
+  readonly PREVIEW_HEAD_SHA?: string;
   /** Server-only restricted runtime PostgreSQL connection, never migration authority. */
   readonly DATABASE_URL: string;
   readonly SUPABASE_URL: string;

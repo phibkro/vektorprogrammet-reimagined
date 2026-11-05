@@ -36,6 +36,19 @@
       "entry": ["seed.ts", "provisionRuntime.ts"],
       "project": ["*.ts"]
     },
+    "tools/preview": {
+      "entry": [
+        "admitState.ts",
+        "alchemy.run.ts",
+        "bootstrap.ts",
+        "build.ts",
+        "deploy.ts",
+        "destroy.ts",
+        "prepare.ts",
+        "verify.ts"
+      ],
+      "project": ["*.ts", "test/**/*.ts"]
+    },
     "tools/import": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },

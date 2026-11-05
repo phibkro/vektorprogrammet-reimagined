@@ -4,9 +4,9 @@ A rebuild of the legacy Symfony 3.4 site for Vektorprogrammet, a volunteer organ
 
 ## Current prototype override (2026-11-04)
 
-Spec `docs/specs/0028-supabase-prototype.md` supersedes the historical vendor-specific notes below. Use one Start Worker with Supabase Postgres, Auth and Storage; no Better Auth, EmDash, Cloudflare Queue, R2, Hyperdrive or application Alchemy deployment. Use real synthetic Supabase sessions; preserve the domain invariants and transaction discipline.
+Spec `docs/specs/0028-supabase-prototype.md` supersedes the historical vendor-specific notes below. Use one Start Worker with Supabase Postgres, Auth and Storage; no Better Auth, EmDash, Cloudflare Queue, R2 or Hyperdrive. Preview deployment uses Alchemy for Cloudflare only. Use real synthetic Supabase sessions; preserve domain invariants and transaction discipline.
 
-`prototype:setup` consumes a private local Supabase CLI status env file, migrates/seeds synthetic data and provisions provider identities/private buckets; `prototype:dev` starts the Worker locally. Terraform alone owns the hosted Worker artifact/settings and explicitly selected existing Supabase settings. Do not apply or deploy without operator authority. Keep provider secrets, captured links and Terraform state out of logs and Git. The prototype does not authorize production data/password/file migration or live messages.
+`prototype:setup` and `prototype:dev` remain local-only. Hosted previews use `tools/preview` and the protected GitHub `synthetic-preview` environment; see `apps/web/README.md`. Supabase-native APIs own branch and service configuration, Drizzle owns migrations, and Alchemy owns PR Workers and a dedicated state backend. Terraform configuration is retired. Never deploy without operator authority or publish credentials, receipts, captured links or provider logs. Production migration and real message delivery remain separate gates.
 
 CMS schemas and service contracts live in `apps/web/src/features/cms/domain`; public content uses published snapshots. Preserve unknown CMS codex fields. The historical CMS-client notes below do not describe the current prototype.
 

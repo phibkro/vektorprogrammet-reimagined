@@ -68,6 +68,7 @@
     "oxc-resolver": "11.24.2",
     "alchemy": "2.0.0-beta.85",
     "@alchemy.run/cloudflare": "2.0.0-beta.85",
+    "@distilled.cloud/cloudflare": "1.0.0-rc.18",
     "@effect/platform-bun": "4.1.2",
     "happy-dom": "20.14.6",
     "bcryptjs": "3.0.3",
