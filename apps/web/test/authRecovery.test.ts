@@ -60,7 +60,7 @@ describe("password recovery privacy", () => {
 
 describe("Supabase session failure classification", () => {
   it.effect(
-    "expired refresh credentials become anonymous while provider failures remain visible",
+    "expired credentials and removed users become anonymous while provider failures remain visible",
     () =>
       Effect.gen(function* classifySessionErrors() {
         const invalid = [
@@ -71,6 +71,7 @@ describe("Supabase session failure classification", () => {
           new AuthApiError("malformed refresh", 400, "validation_failed"),
           new AuthApiError("invalid JWT", 401, "bad_jwt"),
           new AuthApiError("missing session", 401, "session_not_found"),
+          new AuthApiError("removed provider user", 403, "user_not_found"),
         ];
 
         const unrelated = [
@@ -78,6 +79,8 @@ describe("Supabase session failure classification", () => {
           new AuthApiError("configuration refused", 401, "no_authorization"),
           new AuthApiError("invalid API key", 403, "invalid_api_key"),
           new AuthApiError("provider failure", 500, "refresh_token_not_found"),
+          new AuthApiError("provider failure", 500, "user_not_found"),
+          new AuthApiError("unexpected status", 399, "user_not_found"),
           new AuthRetryableFetchError("network unavailable", 503),
         ];
 
