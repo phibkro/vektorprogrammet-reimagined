@@ -1,12 +1,3 @@
-import {
-  EmailAddress,
-  SemesterYear,
-  SlackChannel,
-  TargetTable,
-  osloParts,
-  osloWallClock,
-} from "@vektorprogrammet/domain";
-import type { FileKey, TargetRows, Term } from "@vektorprogrammet/domain";
 /**
  * The import plan: a pure function from the legacy snapshot and the resolved
  * files to the target rows and the reconciliation facts. Same input, same plan:
@@ -28,6 +19,17 @@ import type { FileKey, TargetRows, Term } from "@vektorprogrammet/domain";
  */
 import { Array as Arr, DateTime, Match, Order, pipe, Schema } from "effect";
 
+import {
+  osloParts,
+  osloWallClock,
+} from "../../../../apps/web/src/core/clock.ts";
+import type { FileKey } from "../../../../apps/web/src/core/ids.ts";
+import { SlackChannel } from "../../../../apps/web/src/core/outbox/outbox.ts";
+import { EmailAddress } from "../../../../apps/web/src/core/validation.ts";
+import { TargetTable } from "../../../../apps/web/src/features/organisation/domain/legacyImport.ts";
+import type { TargetRows } from "../../../../apps/web/src/features/organisation/domain/legacyImport.ts";
+import { SemesterYear } from "../../../../apps/web/src/features/organisation/domain/semester.ts";
+import type { Term } from "../../../../apps/web/src/features/organisation/domain/semester.ts";
 import type { FileIndex } from "../files.ts";
 import type { LegacySnapshot } from "../legacy/rows.ts";
 import type {

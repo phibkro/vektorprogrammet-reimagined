@@ -8,14 +8,15 @@ const ErasedPage = () => (
     <Card>
       <CardHeader>
         <h1 className="text-base leading-snug font-medium">
-          Opplysningene dine er slettet
+          Sletting av opplysninger
         </h1>
       </CardHeader>
       <CardContent>
         <div className="grid gap-3">
           <p>
-            Navnet, e-postadressene og kontoen din er slettet, og du er logget
-            ut. Historikken om medlemskapet ditt blir stående uten navn og
+            Navn, e-postadresser og konto er slettet lokalt. Sletting hos
+            innloggingsleverandøren behandles separat og kan bli forsøkt på
+            nytt. Medlemshistorikken blir stående uten navn og
             kontaktopplysninger.
           </p>
           <a href="/">Til forsiden</a>

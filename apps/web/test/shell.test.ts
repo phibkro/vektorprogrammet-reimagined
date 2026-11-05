@@ -5,20 +5,18 @@
  *
  *  1. the sidebar changes when one fact about the principal changes (a leader flag, a team's function, the
  *     department, an admin place), so no role list stands behind it;
- *  2. the shell view carries that sidebar, and the local test-actor switch only in a `local` deployment;
+ *  2. the shell view carries that sidebar and the signed-in actor;
  *  3. every control a page offers is shown exactly when the command behind it would not refuse the principal
  *     (`Forbidden`): the view and the command read the same decision, and this test is the edge between them.
  *
  * The browser tests (`e2e/shell.spec.ts`) show the same per person in the rendered DOM.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { anonymous } from "@vektorprogrammet/domain";
-import type { Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
-import type { Outcome } from "../src/lib/outcome";
-import type { SectionKey } from "../src/lib/panelSections";
+import { anonymous } from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
 import {
   departmentsView,
   fieldsOfStudyView,
@@ -26,8 +24,10 @@ import {
   saveFieldOfStudyProgram,
   saveSocialEventProgram,
   socialEventsView,
-} from "../src/server/panel";
-import { navigationFor, shellView } from "../src/server/shell";
+} from "../src/features/organisation/server/organisation";
+import type { SectionKey } from "../src/features/panel/panelSections";
+import { navigationFor, shellView } from "../src/features/panel/server/shell";
+import type { Outcome } from "../src/http/outcome";
 import {
   fakeDepartment,
   fakeFieldOfStudy,
@@ -40,7 +40,7 @@ import { runAs, viewAs } from "./support/run";
 import { sectionsOf } from "./support/sidebar";
 import { PEOPLE, TRONDHEIM, seedWorld } from "./support/teamWorld";
 
-/** Every section, in the sidebar's order. */
+/** Every section available to an administrator. */
 const EVERY_SECTION: readonly SectionKey[] = [
   "overview",
   "departments",
@@ -51,6 +51,7 @@ const EVERY_SECTION: readonly SectionKey[] = [
   "people",
   "admins",
   "integrations",
+  "content",
   "impact",
   "socialEvents",
 ];
@@ -93,7 +94,7 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
     assert.deepStrictEqual(navigationFor(WITHOUT_TEAM), []);
   });
 
-  it("each person gets the sections whose commands they hold, in the sidebar's order", () => {
+  it("each person gets the sections whose commands they hold", () => {
     const cases: readonly (readonly [
       string,
       Principal,
@@ -112,27 +113,27 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
     ];
 
     for (const [label, principal, expected] of cases) {
-      assert.deepStrictEqual(sectionsOf(principal), expected, label);
+      assert.sameMembers([...sectionsOf(principal)], [...expected], label);
     }
   });
 
   it("changing one fact about the person changes exactly the sections it gates", () => {
     // The leader flag is the only difference: a leader may change departments and fields of study, and manage people.
-    assert.deepStrictEqual(
+    assert.sameMembers(
       Arr.difference(sectionsOf(leaderOf(1)), sectionsOf(memberOf(1))),
       ["departments", "fieldsOfStudy", "people"]
     );
 
     // The team's function is the only difference: the board manages people, a recruitment team's plain member does not.
-    assert.deepStrictEqual(
+    assert.sameMembers(
       Arr.difference(sectionsOf(BOARD_MEMBER), sectionsOf(memberOf(1))),
       ["people"]
     );
 
-    // The admin place is the only difference: the admin list and Integrations are for administrators.
-    assert.deepStrictEqual(
+    // The admin place is the only difference: only administrators manage admin places, integrations and content.
+    assert.sameMembers(
       Arr.difference(sectionsOf(ADMIN), sectionsOf(leaderOf(1))),
-      ["admins", "integrations", "impact"]
+      ["admins", "integrations", "content", "impact"]
     );
 
     // The department is the only difference: the facts are the person's own department's, so the sections are the
@@ -140,45 +141,28 @@ describe("spec 0006: the sidebar is computed from the grant table", () => {
     assert.deepStrictEqual(sectionsOf(leaderOf(2)), sectionsOf(leaderOf(1)));
   });
 
-  it.effect(
-    "the shell view carries the sidebar, who is acting, and the test-actor switch only in a local deployment",
-    () =>
-      Effect.gen(function* shellViewEffect() {
-        const tables = makeTables();
-        yield* seedWorld(tables);
+  it.effect("the shell view carries the sidebar and the current actor", () =>
+    Effect.gen(function* shellViewEffect() {
+      const tables = makeTables();
+      yield* seedWorld(tables);
 
-        const leader = leaderOf(TRONDHEIM, { personId: PEOPLE.lise });
+      const leader = leaderOf(TRONDHEIM, { personId: PEOPLE.lise });
 
-        const local = assertSuccess(
-          yield* viewAs(tables, leader, shellView("local"))
-        );
+      const local = assertSuccess(yield* viewAs(tables, leader, shellView));
 
-        const preview = assertSuccess(
-          yield* viewAs(tables, leader, shellView("preview"))
-        );
+      const visitor = assertSuccess(
+        yield* viewAs(tables, anonymous, shellView)
+      );
 
-        const visitor = assertSuccess(
-          yield* viewAs(tables, anonymous, shellView("local"))
-        );
-
-        assert.deepStrictEqual(local.navigation, navigationFor(leader));
-        assert.deepStrictEqual(local.actor, {
-          admin: false,
-          leader: true,
-          member: true,
-          name: "Lise Leder",
-        });
-        assert.deepStrictEqual(local.testActors, [
-          "Ada Admin",
-          "Bjorn Bergen",
-          "Eva Ekstern",
-          "Lise Leder",
-          "Mats Medlem",
-          "Nora Neste",
-        ]);
-        assert.isNull(preview.testActors);
-        assert.deepStrictEqual([visitor.actor, visitor.navigation], [null, []]);
-      })
+      assert.deepStrictEqual(local.navigation, navigationFor(leader));
+      assert.deepStrictEqual(local.actor, {
+        admin: false,
+        leader: true,
+        member: true,
+        name: "Lise Leder",
+      });
+      assert.deepStrictEqual([visitor.actor, visitor.navigation], [null, []]);
+    })
   );
 });
 

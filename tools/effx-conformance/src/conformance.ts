@@ -1,3 +1,5 @@
+import { Array as Arr, DateTime, Option, Schema } from "effect";
+
 /**
  * Spec 0007d, the check: the kernel's own `authorize` and machine tables, asked every row of effx's vectors, answer as
  * the vectors say. The vectors are made by effx from the description that the kernel exports; nothing here reads that
@@ -6,24 +8,22 @@
  */
 import {
   DepartmentId,
-  Machine,
   PersonId,
+  TeamId,
+} from "../../../apps/web/src/core/ids.ts";
+import type { Authorize } from "../../../apps/web/src/core/kernel/authorize.ts";
+import * as Machine from "../../../apps/web/src/core/kernel/machine.ts";
+import {
   Principal,
-  Semester,
   SystemJob,
   TeamFunction,
-  TeamId,
   anonymous,
-  semesterOfOrdinal,
   systemPrincipal,
-} from "@vektorprogrammet/domain";
-import type {
-  Authorize,
-  MembershipFact,
-  Resource,
-} from "@vektorprogrammet/domain";
-import { Array as Arr, DateTime, Option, Schema } from "effect";
-
+} from "../../../apps/web/src/core/kernel/principal.ts";
+import type { MembershipFact } from "../../../apps/web/src/core/kernel/principal.ts";
+import type { Resource } from "../../../apps/web/src/core/kernel/subject.ts";
+import { Semester } from "../../../apps/web/src/features/organisation/domain/semester.ts";
+import { semesterOfOrdinal } from "../../../apps/web/src/features/teams/domain/term.ts";
 import type { VectorsFile, WorldFile } from "./vectors.ts";
 
 /** Where the semesters of an order begin: rank 0 is Vår 2026, and each next atom is the next semester. */

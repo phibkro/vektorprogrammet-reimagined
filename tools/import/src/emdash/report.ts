@@ -43,8 +43,6 @@ export const EmDashReport = Schema.Struct({
     })
   ),
   danglingDepartmentTags: Count,
-  /** Department cities that were not yet options of `news.departments` and now are. */
-  departmentOptionsAdded: Count,
   /** Images the CMS does not get: the legacy files are not copied. */
   droppedImages: Schema.Struct({
     articles: Count,
@@ -80,7 +78,7 @@ const encodeReportJson = Schema.encodeEffect(
 /** Assembles the report from the plan and what the writer did. */
 export const buildEmDashReport = (
   plan: EmDashPlan,
-  { collections, departmentOptionsAdded }: WrittenContent
+  { collections }: WrittenContent
 ): EmDashReport => ({
   collections: Arr.map(CMS_COLLECTIONS, ({ collection, source }) => ({
     collection,
@@ -97,7 +95,6 @@ export const buildEmDashReport = (
     unchanged: collections[collection].unchanged,
   })),
   danglingDepartmentTags: plan.danglingDepartmentTags,
-  departmentOptionsAdded,
   droppedImages: plan.droppedImages,
   formatVersion: 1,
   quarantine: plan.quarantine,
@@ -169,7 +166,7 @@ const renderMarkdown = (report: EmDashReport): string =>
       "",
       "## Department tags",
       "",
-      `Tags that name a department the legacy data does not have: ${report.danglingDepartmentTags}. Department cities added as options of the \`departments\` field of \`news\`: ${report.departmentOptionsAdded}.`,
+      `Tags that name a department the legacy data does not have: ${report.danglingDepartmentTags}.`,
       "",
     ],
     "\n"

@@ -15,7 +15,7 @@ import {
   Stream,
 } from "effect";
 
-export const directory = "../../packages/domain/conformance";
+export const directory = "../../apps/web/conformance";
 
 export const descriptionFile = (domain: string) =>
   `${directory}/${domain}.description.json`;

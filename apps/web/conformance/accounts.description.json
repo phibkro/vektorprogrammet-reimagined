@@ -1,0 +1,101 @@
+{
+  "commands": [
+    {
+      "kind": "Command",
+      "name": "createAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "activateAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "deactivateAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "reactivateAccount"
+    },
+    {
+      "kind": "Command",
+      "name": "updatePerson"
+    }
+  ],
+  "grants": [
+    {
+      "permits": [
+        "createAccount",
+        "updatePerson"
+      ],
+      "scope": "department",
+      "subject": "Leader(d)@department"
+    },
+    {
+      "permits": [
+        "updatePerson"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
+        "activateAccount"
+      ],
+      "scope": "own",
+      "subject": "Self@own"
+    },
+    {
+      "permits": [
+        "createAccount",
+        "activateAccount",
+        "deactivateAccount",
+        "reactivateAccount",
+        "updatePerson"
+      ],
+      "scope": "all",
+      "subject": "Admin@all"
+    }
+  ],
+  "machines": [],
+  "name": "accounts",
+  "orders": [],
+  "principals": {
+    "Anonymous": {},
+    "Person": {},
+    "System": {
+      "jobs": [
+        "semesters",
+        "outboxSweep",
+        "endingSoon",
+        "retention",
+        "alumniConsent",
+        "workspaceSync",
+        "impactClose"
+      ]
+    }
+  },
+  "reads": [],
+  "subjectSets": [
+    {
+      "expression": {
+        "_tag": "Membership",
+        "department": "target",
+        "position": "leader",
+        "term": "active"
+      },
+      "name": "Leader(d)@department"
+    },
+    {
+      "expression": {
+        "_tag": "Self"
+      },
+      "name": "Self@own"
+    },
+    {
+      "expression": {
+        "_tag": "Admin"
+      },
+      "name": "Admin@all"
+    }
+  ]
+}

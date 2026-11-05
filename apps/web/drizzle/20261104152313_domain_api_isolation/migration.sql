@@ -1,0 +1,25 @@
+ALTER TABLE "admission_period" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "audit_log" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "department" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "field_of_study" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "outbox" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "public_file" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "semester" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "social_event" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "admin_grant" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "ending_soon_digest" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "membership" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "person" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "position" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "team" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "account" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "captured_mail" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "code" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "admin_list" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "alumni_request" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "consent" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "captured_slack" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "company_address" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "job_run" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "welcome_ledger" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "workspace_report" ENABLE ROW LEVEL SECURITY;

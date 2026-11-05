@@ -4,13 +4,13 @@
  * that do not depend on a report (an empty 404 on production, the status of a failed request).
  */
 import { assert } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import { Forbidden } from "@vektorprogrammet/domain";
 import { Effect, Layer, Schema } from "effect";
 import type { Option, Redacted } from "effect";
 
-import type { Outcome } from "../../src/lib/outcome";
-import { failureOf } from "../../src/server/errors";
+import { DatabaseLive } from "../../src/adapters/db/databaseLive";
+import { Forbidden } from "../../src/core/errors";
+import type { Outcome } from "../../src/http/outcome";
+import { failureOf } from "../../src/server/http/errors";
 
 export const databaseAt = (url: Redacted.Redacted) =>
   DatabaseLive({ url }).pipe(Layer.orDie);
@@ -21,7 +21,7 @@ export const bodyOf = <S extends Schema.Decoder<unknown>>(
   response: Response
 ) =>
   Effect.flatMap(
-    Effect.promise(async () => await response.text()),
+    Effect.promise(() => response.text()),
     Schema.decodeUnknownEffect(Schema.fromJsonString(body))
   );
 
@@ -29,10 +29,7 @@ export const bodyOf = <S extends Schema.Decoder<unknown>>(
 export const assertEmpty404 = (response: Response) =>
   Effect.gen(function* emptyAnswer() {
     assert.strictEqual(response.status, 404);
-    assert.strictEqual(
-      yield* Effect.promise(async () => await response.text()),
-      ""
-    );
+    assert.strictEqual(yield* Effect.promise(() => response.text()), "");
   });
 
 /** A failed request answers with the status of its own failure (here a refusal: 403). */

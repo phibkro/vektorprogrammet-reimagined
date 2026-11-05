@@ -75,7 +75,7 @@ const makeModule = (
 export const fixture: Declaration = {
   acyclic: ["packages/**/*.ts"],
   baseline: [],
-  governed: `${d}/**`,
+  governed: [`${d}/**`],
   integrationCalls: [],
   modules: [
     makeModule("vocab", "library", []),
@@ -97,7 +97,7 @@ export const fixture: Declaration = {
   units: [
     { root: "packages/domain", uses: [] },
     { root: "packages/db", uses: ["packages/domain"] },
-    { root: "packages/cms-client", uses: [] },
+    { root: "packages/other", uses: [] },
     { root: "apps/web", uses: ["packages/domain", "packages/db"] },
     { root: "apps/cms", uses: [] },
   ],
@@ -113,7 +113,7 @@ export const clean: readonly SourceFile[] = [
   source(`${d}/privacy/a.ts`, "../catalog/a.ts"),
   source(`${d}/index.ts`, "./privacy/a.ts"),
   source("packages/db/src/a.ts", "@vektorprogrammet/domain", "effect"),
-  source("packages/cms-client/src/a.ts", "effect"),
+  source("packages/other/src/a.ts", "effect"),
   source(
     "apps/web/src/server/a.ts",
     "@vektorprogrammet/domain",

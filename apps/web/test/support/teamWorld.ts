@@ -1,3 +1,6 @@
+import { DateTime, Effect, Ref } from "effect";
+import { TestClock } from "effect/testing";
+
 /**
  * A small world for the web tests of spec 0006: two departments with a field of study each, one team in each,
  * and people with memberships in every state the Membership machine knows. The tests run at 2026-10-15 (Høst 2026,
@@ -15,25 +18,22 @@
 import {
   AdminGrantId,
   DepartmentId,
-  EmailAddress,
   FieldOfStudyId,
   MembershipId,
   PersonId,
   TeamId,
-} from "@vektorprogrammet/domain";
+} from "../../src/core/ids";
+import { EmailAddress } from "../../src/core/validation";
+import type { Semester } from "../../src/features/organisation/domain/semester";
 import type {
   Membership,
   Person,
-  Semester,
   Team,
-} from "@vektorprogrammet/domain";
+} from "../../src/features/teams/domain/entities";
 import {
   LEADER_POSITION,
   MEMBER_POSITION,
-} from "@vektorprogrammet/domain/testing";
-import { DateTime, Effect, Ref } from "effect";
-import { TestClock } from "effect/testing";
-
+} from "../domain/support/teamsInMemory";
 import { fakeDepartment, fakeFieldOfStudy } from "./memory";
 import type { MemoryTables } from "./memory";
 

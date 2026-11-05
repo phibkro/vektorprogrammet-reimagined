@@ -1,10 +1,4 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
-import {
-  ImpactMeasures,
-  impactCsv,
-  semesterLabel,
-} from "@vektorprogrammet/domain";
-import type { CsvCell, ImpactReport } from "@vektorprogrammet/domain";
 import { Array as Arr, Option } from "effect";
 
 import { PageHeader } from "@/components/panel/pageHeader";
@@ -19,8 +13,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getImpact } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+
+import { impactCsv } from "../../features/impact/domain/lattice";
+import type { CsvCell } from "../../features/impact/domain/lattice";
+import * as ImpactMeasures from "../../features/impact/domain/measures";
+import type { ImpactReport } from "../../features/impact/domain/services";
+import { semesterLabel } from "../../features/organisation/domain/semester";
+import { getImpact } from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/effekt");
 

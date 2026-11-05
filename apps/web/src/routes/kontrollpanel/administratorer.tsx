@@ -16,13 +16,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { GrantAdminForm, RevokeAdminForm } from "@/forms/teams";
+
 import {
   getAdmins,
   grantAdmin,
   revokeAdmin,
-} from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+} from "../../features/panel/server/functions";
+import {
+  GrantAdminForm,
+  RevokeAdminForm,
+} from "../../features/teams/forms/teams";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/administratorer");
 

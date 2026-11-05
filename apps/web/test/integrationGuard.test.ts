@@ -15,19 +15,6 @@ import type {
 } from "@cloudflare/workers-types";
 import { assert, describe, it } from "@effect/vitest";
 import {
-  CapturedMessageStore,
-  CompanyEmail,
-  EmailAddress,
-  IntegrationCalledInTransaction,
-  OutboxMessage as OutboxMessageSchema,
-  SlackTarget,
-  Transactor,
-  WorkspaceChange,
-  WorkspaceDirectory,
-  WorkspaceWriter,
-} from "@vektorprogrammet/domain";
-import type { TransportMessage } from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Cause,
   Effect,
@@ -44,16 +31,29 @@ import {
   MessageSender,
   captureSenderLayer,
   productionSenderLayer,
-} from "../src/server/senders";
+} from "../src/adapters/messaging/senders";
 import {
   TurnstileVerifier,
   turnstileLiveLayer,
   turnstileTestLayer,
-} from "../src/server/turnstile";
+} from "../src/adapters/turnstile";
 import {
   workspaceDirectoryLayer,
   workspaceWriterLayer,
-} from "../src/server/workspace";
+} from "../src/adapters/workspace";
+import { CapturedMessageStore } from "../src/core/outbox/captured";
+import { OutboxMessage as OutboxMessageSchema } from "../src/core/outbox/messages";
+import { SlackTarget } from "../src/core/outbox/outbox";
+import type { TransportMessage } from "../src/core/outbox/outbox";
+import { IntegrationCalledInTransaction } from "../src/core/transactions/integrationGuard";
+import { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
+import { WorkspaceChange } from "../src/features/workspace/domain/change";
+import { CompanyEmail } from "../src/features/workspace/domain/companyEmail";
+import {
+  WorkspaceDirectory,
+  WorkspaceWriter,
+} from "../src/features/workspace/domain/services";
 import { memoryLayer } from "./support/memory";
 
 const email: TransportMessage = OutboxMessageSchema.cases.Email.make({

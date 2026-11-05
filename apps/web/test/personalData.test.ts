@@ -4,16 +4,16 @@
  * and the answers that the pages show.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { PersonalDataRpcs } from "@vektorprogrammet/domain";
 import { DateTime, Effect, Record as Rec } from "effect";
 
-import { success } from "../src/lib/outcome";
-import { failureOf } from "../src/server/errors";
+import * as PersonalDataRpcs from "../src/features/personal-data/domain/rpc";
 import {
   consentAnswers,
   erasureMessage,
   exportResponse,
-} from "../src/server/personalData";
+} from "../src/features/personal-data/server/personalData";
+import { success } from "../src/http/outcome";
+import { failureOf } from "../src/server/http/errors";
 
 const clicked = (fields: Readonly<Record<string, string>>): FormData => {
   const form = new FormData();
@@ -59,10 +59,17 @@ describe("spec 0007b: one click answers one question", () => {
 
 describe("spec 0007b: what an erasure tells the person", () => {
   it("says that it is done, that there was nothing to do, or what the law keeps and until when", () => {
-    assert.include(erasureMessage({ erased: true, held: [] }), "er slettet");
-    assert.include(erasureMessage({ erased: false, held: [] }), "ingenting");
+    assert.include(
+      erasureMessage({ editorialReview: ["review"], erased: true, held: [] }),
+      "redaktør"
+    );
+    assert.include(
+      erasureMessage({ editorialReview: [], erased: false, held: [] }),
+      "ingenting"
+    );
 
     const kept = erasureMessage({
+      editorialReview: [],
       erased: true,
       held: [
         {

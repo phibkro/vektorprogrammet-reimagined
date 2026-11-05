@@ -1,3 +1,8 @@
+import { isTag, isText } from "domhandler";
+import type { ChildNode, Element } from "domhandler";
+import { Array as Arr, HashMap, Option, Record as Rec } from "effect";
+import { DomUtils, parseDocument } from "htmlparser2";
+
 /**
  * Legacy rich text to the Portable Text EmDash stores.
  *
@@ -12,11 +17,7 @@
  *
  * Pure and deterministic: keys are `k1`, `k2`, … in document order, so the same HTML gives the same value.
  */
-import type { PortableText } from "@vektorprogrammet/cms-client";
-import { isTag, isText } from "domhandler";
-import type { ChildNode, Element } from "domhandler";
-import { Array as Arr, HashMap, Option, Record as Rec } from "effect";
-import { DomUtils, parseDocument } from "htmlparser2";
+import type * as PortableText from "../../../../apps/web/src/features/cms/domain/portableText.ts";
 
 /** The blocks this converter writes; each is a member of `PortableText.PortableTextBlock`. */
 export type Block =

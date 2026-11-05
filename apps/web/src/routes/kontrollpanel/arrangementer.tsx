@@ -18,9 +18,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { SocialEventForm } from "@/forms/organisation";
-import { getSocialEvents, saveSocialEvent } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+
+import { SocialEventForm } from "../../features/organisation/forms/organisation";
+import {
+  getSocialEvents,
+  saveSocialEvent,
+} from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/arrangementer");
 

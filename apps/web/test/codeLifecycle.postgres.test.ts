@@ -22,35 +22,8 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  AccountEndpoints,
-  CapturedMessageStore,
-  CodeToken,
-  CurrentPrincipal,
-  EmailAddress,
-  IntegrationCalledInTransaction,
-  OutboxMessage,
-  OutboxMessageId,
-  anonymous,
-  PasswordHash,
-  PersonId,
-  OutboxDelivery,
-  codePrincipal,
-  refusingInTransaction,
-} from "@vektorprogrammet/domain";
-import type {
-  AggregateLocks,
-  PersonRepository,
-  SiteOrigin,
-  Transactor,
-  AccountRepository,
-  CodePurpose,
-  CodeRepository,
-  TransportMessage,
-} from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Cause,
-  DateTime,
   Deferred,
   Effect,
   Exit,
@@ -64,15 +37,38 @@ import {
 import type { Crypto } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { MessageSender } from "../src/adapters/messaging/senders";
+import type { DeliveryFailed } from "../src/adapters/messaging/senders";
+import { PersonId } from "../src/core/ids";
+import type { OutboxMessageId } from "../src/core/ids";
+import { CapturedMessageStore } from "../src/core/outbox/captured";
+import { OutboxDelivery } from "../src/core/outbox/delivery";
+import { OutboxMessage } from "../src/core/outbox/messages";
+import { Outbox } from "../src/core/outbox/outbox";
+import type { TransportMessage } from "../src/core/outbox/outbox";
+import type { SiteOrigin } from "../src/core/siteOrigin";
+import type { AggregateLocks } from "../src/core/transactions/aggregate";
+import {
+  IntegrationCalledInTransaction,
+  refusingInTransaction,
+} from "../src/core/transactions/integrationGuard";
+import type { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
+import { CodeToken } from "../src/features/accounts/domain/code";
+import type { CodePurpose } from "../src/features/accounts/domain/code";
+import type { CodeRepository } from "../src/features/accounts/domain/codeRepository";
+import { IssueCodeMessage } from "../src/features/accounts/domain/messages";
+import { codePrincipal } from "../src/features/accounts/domain/principal";
+import type { AccountRepository } from "../src/features/accounts/domain/services";
+import type { PersonRepository } from "../src/features/teams/domain/services";
 import {
   AccountDelivery,
   accountDeliveryLayer,
-} from "../src/server/accountDelivery";
-import { Auth } from "../src/server/auth";
-import { deliverOutbox } from "../src/server/outboxDelivery";
-import { MessageSender } from "../src/server/senders";
+} from "../src/server/background/outbox/accountDelivery";
+import { deliverOutbox } from "../src/server/background/outbox/delivery";
+import { Auth } from "../src/server/identity/auth";
+import type { AuthBoundaryFailure } from "../src/server/identity/authError";
 import { liveWith } from "./support/deliveryLive";
-import { leaderOf } from "./support/principals";
 import { transacted } from "./support/transacted";
 
 interface Sent {
@@ -145,24 +141,9 @@ const controlled = Layer.effect(
 const DEPARTMENT = 701;
 const LEADER = 701;
 
-const leader = leaderOf(DEPARTMENT, { personId: LEADER, teamId: DEPARTMENT });
-
-const idRows = Schema.Array(Schema.Struct({ id: Schema.Finite }));
-
 const stateRows = Schema.Array(Schema.Struct({ state: Schema.String }));
 
 const emailOf = (id: number): string => `kodelc${id}@example.org`;
-
-const outboxIds = (personId: number) =>
-  Effect.gen(function* readOutboxIds() {
-    const sql = yield* SqlClient;
-
-    const rows = yield* Schema.decodeUnknownEffect(idRows)(
-      yield* sql`select id from outbox where kind = 'IssueCode' and payload->>'personId' = ${String(personId)} order by id`
-    );
-
-    return Arr.map(rows, (row) => OutboxMessageId.make(String(row.id)));
-  }).pipe(Effect.orDie);
 
 const seedBase = Effect.gen(function* seedBase() {
   const sql = yield* SqlClient;
@@ -178,49 +159,37 @@ const addPerson = (id: number) =>
     yield* sql`insert into person (id, name, email, field_of_study_id) values (${id}, 'Person', ${emailOf(id)}, ${DEPARTMENT})`;
   }).pipe(Effect.orDie);
 
-const exactly = (count: number, ids: readonly OutboxMessageId[]) =>
-  ids.length === count
-    ? Effect.succeed(ids)
-    : Effect.die(`expected ${count} IssueCode rows, found ${ids.length}`);
+/** Queue one or two independent verification requests for a new person. */
+const queueVerifications = (id: number, count: 1 | 2) =>
+  Effect.gen(function* queueVerification() {
+    yield* addPerson(id);
 
-/** A person with an Invited account and the one `IssueCode` message that the invitation committed. */
+    const message = IssueCodeMessage.make({
+      personId: PersonId.make(id),
+      purpose: "verifyApplication",
+    });
+
+    const ids = yield* transacted(
+      Outbox.use((outbox) =>
+        outbox.enqueue(count === 1 ? [message] : [message, message])
+      )
+    );
+
+    assert.lengthOf(ids, count);
+
+    return ids;
+  }).pipe(Effect.orDie);
+
 const invite = (id: number) =>
-  Effect.gen(function* invitePerson() {
-    yield* addPerson(id);
+  Effect.map(queueVerifications(id, 1), (ids) =>
+    Option.getOrThrow(Arr.get(ids, 0))
+  );
 
-    yield* transacted(
-      AccountEndpoints.createAccount({ personId: id }).pipe(
-        Effect.provideService(CurrentPrincipal, leader)
-      )
-    );
-
-    const [only] = yield* exactly(1, yield* outboxIds(id));
-
-    return only ?? OutboxMessageId.make("0");
-  }).pipe(Effect.orDie);
-
-/** A person with an Active account who asks for a reset twice: two `IssueCode` messages, the older first. */
 const askForResetTwice = (id: number) =>
-  Effect.gen(function* askTwice() {
-    const sql = yield* SqlClient;
-    yield* addPerson(id);
-    yield* sql`insert into account (person_id, state) values (${id}, 'Active')`;
-
-    yield* Effect.forEach(Arr.range(1, 2), () =>
-      transacted(
-        AccountEndpoints.requestPasswordReset({
-          email: EmailAddress.make(emailOf(id)),
-        }).pipe(Effect.provideService(CurrentPrincipal, anonymous))
-      )
-    );
-
-    const [older, newer] = yield* exactly(2, yield* outboxIds(id));
-
-    return {
-      newer: newer ?? OutboxMessageId.make("0"),
-      older: older ?? OutboxMessageId.make("0"),
-    };
-  }).pipe(Effect.orDie);
+  Effect.map(queueVerifications(id, 2), (ids) => ({
+    newer: Option.getOrThrow(Arr.get(ids, 1)),
+    older: Option.getOrThrow(Arr.get(ids, 0)),
+  }));
 
 /** The states of the person's codes: at most one per purpose. */
 const codeStates = (personId: number) =>
@@ -303,7 +272,7 @@ const concurrentRound = (round: number) =>
     const states = yield* codeStates(8000 + round);
 
     const works = yield* Effect.forEach(hooks.sent, (sent) =>
-      authenticates(sent.token, "resetPassword")
+      authenticates(sent.token, "verifyApplication")
     );
 
     const linksThatWork = Arr.filter(works, Boolean).length;
@@ -328,6 +297,7 @@ type DeliveryNeeds =
   | CodeRepository
   | Crypto.Crypto
   | MessageSender
+  | Outbox
   | OutboxDelivery
   | PersonRepository
   | SiteOrigin
@@ -348,9 +318,16 @@ const unfencedDelivery = Effect.gen(function* buildUnfenced() {
   );
 
   // `Layer.fresh`: the layer that the stack was built with is shared by reference, and would hand back its own fence.
-  const built = yield* Layer.build(Layer.fresh(accountDeliveryLayer)).pipe(
-    Effect.provide(Layer.succeedContext(unfenced))
-  );
+  const built = yield* Layer.build(
+    Layer.fresh(
+      accountDeliveryLayer({
+        SITE_URL: "https://mail.example",
+        SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+        SUPABASE_SECRET_KEY: "test-secret-key",
+        SUPABASE_URL: "http://127.0.0.1:54321",
+      })
+    )
+  ).pipe(Effect.provide(Layer.succeedContext(unfenced)));
 
   return Context.get(built, AccountDelivery);
 }).pipe(Effect.scoped);
@@ -407,7 +384,10 @@ const staleConsumer = (
 
     return {
       answer: Exit.isSuccess(exit) ? exit.value : "the send died",
-      deliveredCodeWorks: yield* authenticates(deliveredToken, "activation"),
+      deliveredCodeWorks: yield* authenticates(
+        deliveredToken,
+        "verifyApplication"
+      ),
       mails: hooks.sent.length,
       row: (yield* rowStatus(id)).status,
       states: yield* codeStates(personId),
@@ -465,7 +445,10 @@ layer(liveWith(controlled), { excludeTestServices: true })(
             provide(
               Effect.gen(function* observeStore() {
                 seen.push({
-                  authenticates: yield* authenticates(sent.token, "activation"),
+                  authenticates: yield* authenticates(
+                    sent.token,
+                    "verifyApplication"
+                  ),
                   states: yield* codeStates(711),
                 });
               })
@@ -485,7 +468,9 @@ layer(liveWith(controlled), { excludeTestServices: true })(
 
           assert.deepStrictEqual(yield* codeStates(711), ["Usable"]);
           assert.lengthOf(hooks.sent, 1);
-          assert.isTrue(yield* authenticates(yield* tokenAt(0), "activation"));
+          assert.isTrue(
+            yield* authenticates(yield* tokenAt(0), "verifyApplication")
+          );
           assert.strictEqual((yield* rowStatus(id)).status, "delivered");
         })
     );
@@ -506,6 +491,12 @@ layer(liveWith(controlled), { excludeTestServices: true })(
             "delivery defect"
           );
           assert.deepStrictEqual(yield* codeStates(721), ["Unsent"]);
+
+          // The failed claim is not due until its retry delay has elapsed.
+          assert.strictEqual(yield* deliveryTag(row), "Held");
+          assert.lengthOf(hooks.sent, 1);
+          const sql = yield* SqlClient;
+          yield* sql`update outbox set next_attempt_at = now() - interval '1 second' where id = ${Number(row)}`;
 
           // The redelivery is interrupted after its send: no handler sees it, the claim stays held.
           hooks.after = () => Effect.interrupt;
@@ -530,7 +521,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           assert.deepStrictEqual(yield* codeStates(721), ["Usable"]);
 
           const results = yield* Effect.forEach(hooks.sent, (sent) =>
-            authenticates(sent.token, "activation")
+            authenticates(sent.token, "verifyApplication")
           );
 
           assert.deepStrictEqual(results, [false, false, true]);
@@ -538,7 +529,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
     );
 
     it.effect(
-      "F3: an account that changes between the two transactions: the acknowledged code is refused at use",
+      "F3: erasure between delivery transactions leaves the mailed code unusable",
       () =>
         Effect.gen(function* accountChanges() {
           yield* reset;
@@ -546,14 +537,16 @@ layer(liveWith(controlled), { excludeTestServices: true })(
           const row = yield* invite(731);
 
           hooks.after = () =>
-            sql`update account set state = 'Deactivated' where person_id = 731`.pipe(
+            sql`delete from code where subject = 731`.pipe(
               Effect.orDie,
               Effect.asVoid
             );
 
           assert.strictEqual(yield* deliveryTag(row), "Delivered");
-          assert.deepStrictEqual(yield* codeStates(731), ["Usable"]);
-          assert.isFalse(yield* authenticates(yield* tokenAt(0), "activation"));
+          assert.deepStrictEqual(yield* codeStates(731), []);
+          assert.isFalse(
+            yield* authenticates(yield* tokenAt(0), "verifyApplication")
+          );
         })
     );
 
@@ -593,7 +586,7 @@ layer(liveWith(controlled), { excludeTestServices: true })(
 
           assert.deepStrictEqual(yield* codeStates(741), ["Unsent"]);
           assert.isFalse(
-            yield* authenticates(yield* tokenAt(1), "resetPassword"),
+            yield* authenticates(yield* tokenAt(1), "verifyApplication"),
             "the newer mail is not usable before its own acknowledgement"
           );
 
@@ -602,10 +595,10 @@ layer(liveWith(controlled), { excludeTestServices: true })(
 
           assert.deepStrictEqual(yield* codeStates(741), ["Usable"]);
           assert.isFalse(
-            yield* authenticates(yield* tokenAt(0), "resetPassword")
+            yield* authenticates(yield* tokenAt(0), "verifyApplication")
           );
           assert.isTrue(
-            yield* authenticates(yield* tokenAt(1), "resetPassword")
+            yield* authenticates(yield* tokenAt(1), "verifyApplication")
           );
           assert.strictEqual((yield* rowStatus(older)).status, "delivered");
           assert.strictEqual((yield* rowStatus(newer)).status, "delivered");
@@ -642,35 +635,15 @@ layer(liveWith(controlled), { excludeTestServices: true })(
             to: EmailAddress.make("kari@example.org"),
           });
 
-          const personId = PersonId.make(1);
-
           // Each member is asked for inside the transaction with arguments that a real call would take: the guard
-          // refuses before it reads them. `Auth` has four members, and a Layer that wrapped fewer is found by name.
+          // refuses before it reads them, and a Layer that wrapped fewer is found by name.
           const members: readonly (readonly [
             string,
-            Effect.Effect<unknown, unknown>,
+            Effect.Effect<unknown, AuthBoundaryFailure | DeliveryFailed>,
           ])[] = [
             ["MessageSender.send", sender.send(mail, "inside")],
             ["Auth.handle", auth.handle(new Request("https://mail.example/"))],
             ["Auth.session", auth.session(new Headers())],
-            [
-              "Auth.setCredential",
-              auth.setCredential({
-                at: DateTime.makeUnsafe("2026-10-29T12:00:00Z"),
-                passwordHash: PasswordHash.make(`$2b$12$${"a".repeat(53)}`),
-                personId,
-                revokeSessions: false,
-                version: 1,
-              }),
-            ],
-            [
-              "Auth.signInPerson",
-              auth.signInPerson({
-                headers: new Headers(),
-                password: "a password",
-                personId,
-              }),
-            ],
           ];
 
           const refused = yield* Effect.forEach(members, ([, member]) =>
@@ -773,7 +746,9 @@ layer(liveWith(controlled), { excludeTestServices: true })(
 
           assert.strictEqual(yield* deliveryTag(id), "Settled");
           assert.deepStrictEqual(yield* codeStates(781), ["Usable"]);
-          assert.isTrue(yield* authenticates(yield* tokenAt(0), "activation"));
+          assert.isTrue(
+            yield* authenticates(yield* tokenAt(0), "verifyApplication")
+          );
           assert.strictEqual((yield* rowStatus(id)).status, "pending");
         })
     );

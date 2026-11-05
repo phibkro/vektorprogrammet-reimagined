@@ -61,15 +61,21 @@ export const unstablePolicy = {
       ...tools
     ),
     override(["tools/*/test/**", "apps/*/e2e/**"], ...testingTools),
-    override(["packages/db/src/**"], ...base, "sql"),
+    override(["apps/web/src/adapters/db/**"], ...base, "sql"),
     override(["apps/web/src/server/**"], ...base, "sql", "http"),
-    override(["packages/cms-client/src/**"], ...base, "http"),
-    override(["tools/import/src/**"], ...tools, "mysql"),
-    override(["tools/import/test/**"], ...testingTools, "mysql"),
-    override(["packages/cms-client/scripts/**"], ...tools, "openapi"),
     override(
       [
-        "packages/cms-client/test/client.test.ts",
+        "apps/web/src/features/accounts/client.ts",
+        "apps/web/src/adapters/messaging/senders.ts",
+        "apps/web/src/adapters/turnstile.ts",
+      ],
+      ...base,
+      "http"
+    ),
+    override(["tools/import/src/**"], ...tools, "mysql"),
+    override(["tools/import/test/**"], ...testingTools, "mysql"),
+    override(
+      [
         "apps/web/test/sandbox.test.ts",
         "apps/web/test/integrationGuard.test.ts",
       ],
@@ -77,7 +83,7 @@ export const unstablePolicy = {
       "http"
     ),
     override(
-      ["packages/db/test/support/disposableDatabase.ts"],
+      ["apps/web/test/db/support/disposableDatabase.ts"],
       ...testing,
       "reactivity"
     ),
@@ -88,10 +94,7 @@ export const unstablePolicy = {
     ),
     // Mirror the root lint ignores for generated code and local lint plugins.
     {
-      include: paths(
-        "tools/oxlint/anti-slop/**",
-        "packages/cms-client/src/generated.ts"
-      ),
+      include: paths("tools/oxlint/anti-slop/**"),
       options: {
         diagnosticSeverity: {
           preferEffectArray: "off",
@@ -105,6 +108,8 @@ export const unstablePolicy = {
         "apps/web/e2e/**",
         "apps/web/test/contact.test.ts",
         "apps/web/test/errors.test.ts",
+        "apps/web/test/formMessages.test.tsx",
+        "apps/web/test/formRender.test.tsx",
         "apps/web/test/organisationPanel.test.ts",
         "apps/web/test/support/run.ts",
         "apps/web/test/site.test.ts",
@@ -113,13 +118,15 @@ export const unstablePolicy = {
         "apps/web/test/redirects.test.ts",
         "apps/web/test/sandbox.test.ts",
         "apps/web/test/integrationGuard.test.ts",
+        // EX-0027: Vitest owns the asynchronous module re-evaluation.
+        "apps/web/test/domain/personalData/basesApproval.test.ts",
         "tools/db-path-spike/test/**"
       ),
       options: { diagnosticSeverity: { asyncFunction: "off" } },
     },
     // This synchronous function maps an already typed error union.
     {
-      include: paths("apps/web/src/server/errors.ts"),
+      include: paths("apps/web/src/server/http/errors.ts"),
       options: { diagnosticSeverity: { schemaSync: "off" } },
     },
   ],

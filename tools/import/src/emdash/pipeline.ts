@@ -1,3 +1,6 @@
+import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
+import type { Redacted } from "effect";
+
 /**
  * The CMS import program and the Layers it runs on. `cms.ts` (the CLI), `test/support/importFixtureCms.ts` and
  * the tests run the same `runCmsImport`.
@@ -10,11 +13,8 @@
  * It does not touch PostgreSQL: the two targets have their own lifecycles (the PostgreSQL import truncates and
  * reloads; this one only creates what the CMS lacks).
  */
-import { layer as cmsLayer } from "@vektorprogrammet/cms-client";
-import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
-import type { Redacted } from "effect";
-import { FetchHttpClient } from "effect/http";
-
+import { ContentLive } from "../../../../apps/web/src/adapters/db/content.ts";
+import { DatabaseLive } from "../../../../apps/web/src/adapters/db/databaseLive.ts";
 import { LegacySource, legacyMysqlLayer } from "../legacy/source.ts";
 import { planEmDashContent } from "./plan.ts";
 import { buildEmDashReport, writeEmDashReport } from "./report.ts";
@@ -59,14 +59,11 @@ export const runCmsImport = Effect.fn("runCmsImport")(function* runCmsImport(
 /** Legacy source and CMS client, from explicit connection settings. */
 export const cmsImportLayer = (options: {
   readonly legacyMysqlUrl: Redacted.Redacted;
-  readonly cmsUrl: string;
-  readonly cmsToken: Redacted.Redacted;
+  readonly databaseUrl: Redacted.Redacted;
 }) =>
   Layer.mergeAll(
     LegacySource.layer.pipe(
       Layer.provide(legacyMysqlLayer(options.legacyMysqlUrl))
     ),
-    cmsLayer({ token: options.cmsToken, url: options.cmsUrl }).pipe(
-      Layer.provide(FetchHttpClient.layer)
-    )
+    ContentLive.pipe(Layer.provide(DatabaseLive({ url: options.databaseUrl })))
   );

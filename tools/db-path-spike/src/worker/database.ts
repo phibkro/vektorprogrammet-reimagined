@@ -10,10 +10,11 @@ import type {
  * statements do. A Worker cannot reuse I/O objects across requests, so every request builds its own.
  */
 import { PgClient } from "@effect/sql-pg";
-import { DatabaseLive } from "@vektorprogrammet/db";
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
 import { Context, Effect, Layer, Predicate, Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+
+import { DatabaseLive } from "../../../../apps/web/src/adapters/db/databaseLive.ts";
 
 /** The Worker's only database address is Hyperdrive. There is no direct URL binding to fall back on. */
 export interface SpikeEnv {

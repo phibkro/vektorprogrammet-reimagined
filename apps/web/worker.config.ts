@@ -1,10 +1,13 @@
-import { Job, JobRegistry, OutboxSweep } from "@vektorprogrammet/domain";
 import { Config, Duration, Effect, Option } from "effect";
+
+import * as Job from "./src/core/jobs/job.ts";
+import * as JobRegistry from "./src/core/jobs/registry.ts";
+import * as OutboxSweep from "./src/core/outbox/declaration.ts";
 
 /**
  * Worker settings shared by `alchemy.run.ts` (deployed Workers) and
  * `vite.config.ts` (standalone `vp dev` / `vp build`), so the two cannot
- * disagree. Binding NAMES are typed by `src/server/env.ts`.
+ * disagree. Binding NAMES are typed by `src/server/http/env.ts`.
  */
 export const COMPATIBILITY_DATE = "2026-10-01";
 

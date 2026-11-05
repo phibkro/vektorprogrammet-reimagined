@@ -5,17 +5,6 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { isNotFound } from "@tanstack/react-router";
-import { CmsClient, PortableText } from "@vektorprogrammet/cms-client";
-import type { NewsData } from "@vektorprogrammet/cms-client";
-import {
-  AdmissionPeriodId,
-  Catalog,
-  ContactForm,
-  DepartmentId,
-  SemesterId,
-  privacyNotice,
-} from "@vektorprogrammet/domain";
-import type { StoredAdmissionPeriod } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -27,10 +16,15 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import { pageData } from "../src/lib/outcome";
-import type { Outcome } from "../src/lib/outcome";
-import { TEXT_SLOTS } from "../src/lib/textSlots";
-import { runOutcome } from "../src/server/runtime";
+import { AdmissionPeriodId, DepartmentId, SemesterId } from "../src/core/ids";
+import { CmsClient } from "../src/features/cms/domain/client";
+import type { NewsData } from "../src/features/cms/domain/collections";
+import * as PortableText from "../src/features/cms/domain/portableText";
+import { TEXT_SLOTS } from "../src/features/cms/textSlots";
+import { ContactForm } from "../src/features/contact/domain/personalData";
+import type { StoredAdmissionPeriod } from "../src/features/organisation/domain/admission";
+import { Catalog } from "../src/features/personal-data/domain/catalog";
+import { privacyNotice } from "../src/features/personal-data/domain/notice";
 import {
   aboutPage,
   articlePage,
@@ -41,7 +35,10 @@ import {
   homePage,
   newsPage,
   teamPage,
-} from "../src/server/site/pages";
+} from "../src/features/site/server/pages";
+import { pageData } from "../src/http/outcome";
+import type { Outcome } from "../src/http/outcome";
+import { runOutcome } from "../src/server/runtime";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
 import { fakeDepartment, makeTables, memoryLayer } from "./support/memory";
@@ -163,7 +160,7 @@ describe("C5 article page (/nyhet/{slug})", () => {
         assert.deepStrictEqual(article.content, paragraph("Tekst 2"));
         assert.deepStrictEqual(article.image, {
           alt: "Bilde",
-          src: "https://cms.test/_emdash/api/media/file/abc",
+          src: "/_emdash/api/media/file/abc",
         });
         assert.deepStrictEqual(
           Arr.map(article.others, (other) => other.slug),
@@ -639,13 +636,10 @@ describe("the pictures in a text", () => {
 
         assert.deepStrictEqual(
           Arr.map(about.texts["about-header"] ?? [], urlOf),
-          [
-            "https://cms.test/_emdash/api/media/file/m2",
-            "https://elsewhere.example/x.png",
-          ]
+          ["/_emdash/api/media/file/m2", "https://elsewhere.example/x.png"]
         );
         assert.deepStrictEqual(Arr.map(article.content, urlOf), [
-          "https://cms.test/_emdash/api/media/file/m1",
+          "/_emdash/api/media/file/m1",
         ]);
       })
   );

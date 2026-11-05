@@ -9,24 +9,24 @@
  * its credentials exist, and says so with a typed error; it neither guesses an empty directory nor calls Google.
  */
 import { assert, describe, it } from "@effect/vitest";
-import {
-  CompanyEmail,
-  WorkspaceChange,
-  WorkspaceDirectory,
-  WorkspaceModeSetting,
-  WorkspaceNotConfigured,
-  WorkspaceWriteRefused,
-  WorkspaceWriter,
-} from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Layer, Logger, Predicate } from "effect";
 
-import type { Deployment } from "../src/server/deployment";
 import {
   workspaceConfigFromEnv,
   workspaceDirectoryLayer,
   workspaceModeLayer,
   workspaceWriterLayer,
-} from "../src/server/workspace";
+} from "../src/adapters/workspace";
+import { WorkspaceChange } from "../src/features/workspace/domain/change";
+import { CompanyEmail } from "../src/features/workspace/domain/companyEmail";
+import {
+  WorkspaceDirectory,
+  WorkspaceModeSetting,
+  WorkspaceNotConfigured,
+  WorkspaceWriteRefused,
+  WorkspaceWriter,
+} from "../src/features/workspace/domain/services";
+import type { Deployment } from "../src/server/deployment";
 
 const DEPLOYMENTS: readonly Deployment[] = ["local", "preview", "production"];
 
@@ -51,7 +51,10 @@ describe("spec 0008 falsifier 5: the Workspace write gate", () => {
       Arr.map(
         [undefined, "", "WRITE", "writes", "dry-run", "write"],
         (setting) =>
-          workspaceConfigFromEnv("local", { WORKSPACE_MODE: setting }).mode
+          workspaceConfigFromEnv(
+            "local",
+            setting === undefined ? {} : { WORKSPACE_MODE: setting }
+          ).mode
       ),
       ["dry-run", "dry-run", "dry-run", "dry-run", "dry-run", "write"]
     );

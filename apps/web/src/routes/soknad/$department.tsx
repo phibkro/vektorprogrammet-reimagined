@@ -1,11 +1,11 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { ApplicationPageView } from "@/components/site/applicationPage";
-import { getApplicationPage } from "@/functions/public.functions";
-import { validateContactSearch } from "@/lib/contactSearch";
-import type { ContactSearch } from "@/lib/contactSearch";
-import { pageData } from "@/lib/outcome";
-import { handleApplicationPost } from "@/server/admissionPost";
+import { ApplicationPageView } from "../../features/admission/components/applicationPage";
+import { handleApplicationPost } from "../../features/admission/server/admissionPost";
+import { validateContactSearch } from "../../features/contact/contactSearch";
+import type { ContactSearch } from "../../features/contact/contactSearch";
+import { getApplicationPage } from "../../features/site/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/soknad/$department");
 

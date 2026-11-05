@@ -74,11 +74,11 @@ quick_skip='^whatif-replace-through-construct$'
 
 # The tests of the real code that pin what Shapes.tla takes from it (SKILL.md, "What pins the model to the code").
 code_tests=(
-  test/membershipWriteModel.postgres.test.ts
-  test/aggregates.postgres.test.ts
-  test/adminList.postgres.test.ts
-  test/teams.postgres.test.ts
-  test/classifySqlFailure.test.ts
+  test/db/membershipWriteModel.postgres.test.ts
+  test/db/aggregates.postgres.test.ts
+  test/db/adminList.postgres.test.ts
+  test/db/teams.postgres.test.ts
+  test/db/classifySqlFailure.test.ts
 )
 
 touched_base=""
@@ -119,7 +119,7 @@ fi
 # not writers, and neither are the strings of a RuleTester fixture (`*.test.ts`) that name `db.insert(membership)`.
 membership_writers() {
   git -C "$root" grep -liE '(insert|update|delete)\((schema\.)?membership\)|(insert into|update|delete from) +"?membership"?[ (]|owned\.membership([^[:alnum:]_]|$)' \
-    -- packages apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.md' || true
+    -- apps tools ':(exclude).agents' ':(exclude)*/test/*' ':(exclude)*/e2e/*' ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.md' || true
 }
 
 # The files of a list that the coverage block does not cover: an entry covers the file it names, or every file under the
@@ -165,7 +165,10 @@ status=0
 drift=0
 
 # ---------------------------------------------------------------- 1. drift
-head_digest=$(covered_digest HEAD)
+if ! head_digest=$(covered_digest HEAD); then
+  echo "stop   No covered paths found in HEAD; commit the relocated sources before checking model correspondence." >&2
+  exit 2
+fi
 if [ "$head_digest" != "$sync_digest" ]; then
   echo "DRIFT  covered code digest differs from SKILL.md (recorded $sync_digest, HEAD $head_digest)."
   echo "       Read covered-code changes, update model/Shapes.tla, then record \`run.sh --digest\` in the coverage block."
@@ -294,7 +297,7 @@ if [ "$code" = 1 ]; then
     exit 2
   fi
   started=$SECONDS
-  if (cd "$root" && devenv shell -- bash -c 'cd packages/db && exec bunx vp test run "$@"' -- "${code_tests[@]}") >"$out/code-tests.out" 2>&1; then
+  if (cd "$root" && devenv shell -- bash -c 'cd apps/web && exec bunx vp test run --project db --maxWorkers=1 "$@"' -- "${code_tests[@]}") >"$out/code-tests.out" 2>&1; then
     echo "ok     $(grep -E '^ +Tests ' "$out/code-tests.out" | tr -s ' ') in $((SECONDS - started))s"
   else
     echo "FAIL   a test of the real code failed (see $out/code-tests.out). If the change that broke it is intended, the model's fact is stale: update model/Shapes.tla."

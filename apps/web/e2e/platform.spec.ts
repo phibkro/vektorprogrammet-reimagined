@@ -6,8 +6,9 @@
  */
 // oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
-import { requiredChecks } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Schema } from "effect";
+
+import { requiredChecks } from "../src/core/store/platformRequirements";
 
 const Report = Schema.Struct({
   checks: Schema.Array(
@@ -30,7 +31,7 @@ test("spec 0025: the platform report holds every check that the domain asks for"
   );
 
   expect(body.problems).toEqual([]);
-  expect(body.profile).toBe("hyperdrive");
+  expect(body.profile).toBe("supabase");
   expect(body.deployment).toBe("local");
 
   for (const { id } of requiredChecks) {

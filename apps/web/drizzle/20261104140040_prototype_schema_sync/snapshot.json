@@ -1,0 +1,30 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "e4c2257c-d6b7-4ccb-93d1-cd0988199134",
+  "prevIds": ["5488b44b-6919-47e3-ab29-cab9ef4c2876"],
+  "footprints": [
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "site_content"],
+      "writes": ["s|ck|public.site_content.site_content_collection_check"],
+      "reads": [
+        "n|tbl|public.site_content",
+        "n|sch|public",
+        "n|col|public.site_content.collection",
+        "e|col|public.site_content.collection"
+      ],
+      "sqlHash": "7e8134264b6cf408"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"site_content\",\"site_content_collection_check\"]",
+      "set": {
+        "value": "\"collection\" in ('faq', 'news', 'sponsors', 'teams', 'texts')"
+      }
+    }
+  ]
+}

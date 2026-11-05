@@ -6,16 +6,15 @@
  * report: the same deployment and the same rules, only the approval differs.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Catalog, retentionRules } from "@vektorprogrammet/domain";
-import type {
-  PersonalDataDeclaration,
-  RetentionMode,
-  RetentionRule,
-} from "@vektorprogrammet/domain";
 import { Array as Arr, Order } from "effect";
 
+import { Catalog } from "../src/features/personal-data/domain/catalog";
+import type * as PersonalDataDeclaration from "../src/features/personal-data/domain/declaration";
+import { retentionRules } from "../src/features/personal-data/domain/derive";
+import type { RetentionRule } from "../src/features/personal-data/domain/derive";
+import type { RetentionMode } from "../src/features/personal-data/domain/services";
+import { retentionModeFor } from "../src/server/background/retentionMode";
 import { Deployment } from "../src/server/deployment";
-import { retentionModeFor } from "../src/server/retentionMode";
 
 type Approval = PersonalDataDeclaration.Approval;
 

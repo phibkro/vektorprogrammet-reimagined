@@ -8,21 +8,22 @@
 // oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
 import type { Browser, Page } from "@playwright/test";
-import {
-  Catalog,
-  ContactForm,
-  LOCAL_FAKE_PASSWORD,
-  Periods,
-  codePolicy,
-  draftNote,
-  durationWords,
-  lifetimeWords,
-  privacyNotice,
-  privacyText,
-} from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Order, Schema } from "effect";
 
-import { ANONYMOUS_CHOICE } from "../src/lib/testActor.ts";
+import { codePolicy } from "../src/features/accounts/domain/code";
+import { ContactForm } from "../src/features/contact/domain/personalData";
+import { Catalog } from "../src/features/personal-data/domain/catalog";
+import {
+  durationWords,
+  lifetimeWords,
+} from "../src/features/personal-data/domain/duration";
+import {
+  draftNote,
+  privacyNotice,
+} from "../src/features/personal-data/domain/notice";
+import { Periods } from "../src/features/personal-data/domain/periods";
+import { privacyText } from "../src/features/personal-data/domain/texts";
+import { LOCAL_FAKE_PASSWORD } from "../test/fixtures/localPeople";
 import { RETENTION_CRON } from "../worker.config.ts";
 import {
   TEST_ADMIN,
@@ -65,13 +66,9 @@ const decodeExportFile = Schema.decodeEffect(Schema.fromJsonString(ExportFile));
 
 const originOf = () => new URL(test.info().project.use.baseURL ?? "").origin;
 
-/**
- * A page of a browser context of its own whose actor is nobody. Without the cookie the local stack acts as Ada Admin
- * (`ANONYMOUS_CHOICE` chooses nobody), and Ada's grants would hide a code that opened too much.
- */
+/** A fresh browser context has no provider session. */
 const visitorPage = async (browser: Browser) => {
   const context = await browser.newContext();
-  await signInAs(context, ANONYMOUS_CHOICE);
 
   return await context.newPage();
 };

@@ -7,9 +7,8 @@ import type { FieldComponent } from "./field";
 import { useConstructForm } from "./useConstructForm";
 
 /**
- * A form whose valid values go to a client library instead of a server function (spec 0010a): the two Better Auth
- * forms, sign-in and change password. The schema validates the values, the same way as in every other form of the app;
- * `onValid` gets only values that pass, and what the library answers is the page's to show.
+ * A form whose valid values go to a client library instead of a server function.
+ * The schema validates values before the page passes them to the provider.
  */
 export const LocalForm = <
   S extends Schema.ConstraintDecoder<unknown> & { readonly Encoded: FormText },
@@ -35,7 +34,7 @@ export const LocalForm = <
   });
 
   return (
-    <form className={className} noValidate onSubmit={onSubmit}>
+    <form className={className} method="post" noValidate onSubmit={onSubmit}>
       {children(Field)}
     </form>
   );

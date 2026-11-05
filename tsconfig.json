@@ -258,10 +258,10 @@
           },
           {
             "include": [
-              "packages/db/src/**/*.ts",
-              "packages/db/src/**/*.tsx",
-              "../../packages/db/src/**/*.ts",
-              "../../packages/db/src/**/*.tsx"
+              "apps/web/src/adapters/db/**/*.ts",
+              "apps/web/src/adapters/db/**/*.tsx",
+              "../../apps/web/src/adapters/db/**/*.ts",
+              "../../apps/web/src/adapters/db/**/*.tsx"
             ],
             "options": {
               "allowedUnstableApis": [
@@ -310,10 +310,12 @@
           },
           {
             "include": [
-              "packages/cms-client/src/**/*.ts",
-              "packages/cms-client/src/**/*.tsx",
-              "../../packages/cms-client/src/**/*.ts",
-              "../../packages/cms-client/src/**/*.tsx"
+              "apps/web/src/features/accounts/client.ts",
+              "../../apps/web/src/features/accounts/client.ts",
+              "apps/web/src/adapters/messaging/senders.ts",
+              "../../apps/web/src/adapters/messaging/senders.ts",
+              "apps/web/src/adapters/turnstile.ts",
+              "../../apps/web/src/adapters/turnstile.ts"
             ],
             "options": {
               "allowedUnstableApis": [
@@ -413,44 +415,6 @@
           },
           {
             "include": [
-              "packages/cms-client/scripts/**/*.ts",
-              "packages/cms-client/scripts/**/*.tsx",
-              "../../packages/cms-client/scripts/**/*.ts",
-              "../../packages/cms-client/scripts/**/*.tsx"
-            ],
-            "options": {
-              "allowedUnstableApis": [
-                "effect/FileSystem",
-                "effect/Path",
-                "effect/Crypto",
-                "effect/PlatformError",
-                "effect/Stdio",
-                "@effect/platform-bun/BunRuntime",
-                "@effect/platform-bun/BunServices",
-                "@effect/platform-node/NodeRuntime",
-                "@effect/platform-node/NodeServices",
-                "effect/rpc/Rpc",
-                "effect/rpc/RpcGroup",
-                "effect/rpc/RpcClient",
-                "effect/rpc/RpcServer",
-                "effect/sql",
-                "@effect/sql-pg",
-                "effect/http/FetchHttpClient",
-                "effect/http/Headers",
-                "effect/http/HttpClient",
-                "effect/http/HttpClientError",
-                "effect/http/HttpClientRequest",
-                "effect/http/HttpClientResponse",
-                "effect/process",
-                "effect/cli",
-                "effect/http-api/OpenApi"
-              ]
-            }
-          },
-          {
-            "include": [
-              "packages/cms-client/test/client.test.ts",
-              "../../packages/cms-client/test/client.test.ts",
               "apps/web/test/sandbox.test.ts",
               "../../apps/web/test/sandbox.test.ts",
               "apps/web/test/integrationGuard.test.ts",
@@ -488,8 +452,8 @@
           },
           {
             "include": [
-              "packages/db/test/support/disposableDatabase.ts",
-              "../../packages/db/test/support/disposableDatabase.ts"
+              "apps/web/test/db/support/disposableDatabase.ts",
+              "../../apps/web/test/db/support/disposableDatabase.ts"
             ],
             "options": {
               "allowedUnstableApis": [
@@ -559,9 +523,7 @@
               "tools/oxlint/anti-slop/**/*.ts",
               "tools/oxlint/anti-slop/**/*.tsx",
               "../../tools/oxlint/anti-slop/**/*.ts",
-              "../../tools/oxlint/anti-slop/**/*.tsx",
-              "packages/cms-client/src/generated.ts",
-              "../../packages/cms-client/src/generated.ts"
+              "../../tools/oxlint/anti-slop/**/*.tsx"
             ],
             "options": {
               "diagnosticSeverity": {
@@ -580,6 +542,10 @@
               "../../apps/web/test/contact.test.ts",
               "apps/web/test/errors.test.ts",
               "../../apps/web/test/errors.test.ts",
+              "apps/web/test/formMessages.test.tsx",
+              "../../apps/web/test/formMessages.test.tsx",
+              "apps/web/test/formRender.test.tsx",
+              "../../apps/web/test/formRender.test.tsx",
               "apps/web/test/organisationPanel.test.ts",
               "../../apps/web/test/organisationPanel.test.ts",
               "apps/web/test/support/run.ts",
@@ -596,6 +562,8 @@
               "../../apps/web/test/sandbox.test.ts",
               "apps/web/test/integrationGuard.test.ts",
               "../../apps/web/test/integrationGuard.test.ts",
+              "apps/web/test/domain/personalData/basesApproval.test.ts",
+              "../../apps/web/test/domain/personalData/basesApproval.test.ts",
               "tools/db-path-spike/test/**/*.ts",
               "tools/db-path-spike/test/**/*.tsx",
               "../../tools/db-path-spike/test/**/*.ts",
@@ -609,8 +577,8 @@
           },
           {
             "include": [
-              "apps/web/src/server/errors.ts",
-              "../../apps/web/src/server/errors.ts"
+              "apps/web/src/server/http/errors.ts",
+              "../../apps/web/src/server/http/errors.ts"
             ],
             "options": {
               "diagnosticSeverity": {

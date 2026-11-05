@@ -2,6 +2,8 @@
 
 One throwaway Worker and one command that prove or disprove the database path every slice depends on. The contract is [`docs/specs/0000-database-path-spike.md`](../../docs/specs/0000-database-path-spike.md); the outcome is [`docs/specs/0000-results.md`](../../docs/specs/0000-results.md).
 
+This is a historical Neon/Hyperdrive spike, not a current Supabase deployment or preview guide. Its remote commands require separate operator authority; prior teardown and results remain historical evidence.
+
 ```
 smoke (Bun) ── HTTPS ──▶ Worker vp-spike-0000 ── Hyperdrive (cache off) ──▶ Neon `dev`, role vp_app
   src/smoke.ts            src/worker.ts           DatabaseLive + Drizzle effect-postgres

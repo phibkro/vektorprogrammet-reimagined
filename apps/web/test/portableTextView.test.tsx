@@ -5,14 +5,14 @@
  * only for an address the page may link to, and a block type the page does not know is skipped.
  */
 import { assert, describe, it } from "@effect/vitest";
-import type { PortableText } from "@vektorprogrammet/cms-client";
 import { Option } from "effect";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   PortableTextView,
   safeHref,
-} from "../src/components/site/portableTextView";
+} from "../src/features/cms/components/portableTextView";
+import type * as PortableText from "../src/features/cms/domain/portableText";
 
 const render = (
   value: readonly PortableText.PortableTextBlock[] | null,

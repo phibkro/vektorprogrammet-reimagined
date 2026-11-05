@@ -1,15 +1,18 @@
 /** Generate or check the declaration-derived blocks in the system documentation. */
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import {
-  Catalog,
-  Declarations,
-  Forms,
-  GrantTable,
-} from "@vektorprogrammet/domain";
-import type { Domain, Grant } from "@vektorprogrammet/domain";
 import { Console, Effect, FileSystem, Result, Schema } from "effect";
 import { Command, Flag } from "effect/cli";
 
+import {
+  Declarations,
+  GrantTable,
+} from "../../../apps/web/src/core/declarations.ts";
+import type * as Domain from "../../../apps/web/src/core/kernel/domain.ts";
+import type * as Grant from "../../../apps/web/src/core/kernel/grant.ts";
+import {
+  Catalog,
+  Forms,
+} from "../../../apps/web/src/features/personal-data/domain/catalog.ts";
 import {
   checkDatabasePlatformsDocument,
   renderDatabasePlatformsDocument,

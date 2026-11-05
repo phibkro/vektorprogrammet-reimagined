@@ -1,8 +1,8 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { ApplyIndex } from "@/components/site/applicationPage";
-import { getApplyIndex } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+import { ApplyIndex } from "../../features/admission/components/applicationPage";
+import { getApplyIndex } from "../../features/site/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/soknad/");
 

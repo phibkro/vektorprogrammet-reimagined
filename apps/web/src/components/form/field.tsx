@@ -18,9 +18,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { formLevelMessage } from "@/lib/outcome";
-import type { FieldErrors, Outcome } from "@/lib/outcome";
 
+import { formLevelMessage } from "../../http/outcome";
+import type { FieldErrors, Outcome } from "../../http/outcome";
 import { CheckGroup } from "./choice";
 
 /** A `Field` tells the form it is rendered, and gets back the call that tells it the `Field` is gone. */

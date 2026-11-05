@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { servePublicFile } from "@vektorprogrammet/domain";
 
-import { publicFileResponse } from "@/server/publicFiles";
+import { requestScope } from "@/server/http/scope";
 import { runQuery } from "@/server/runtime";
-import { requestScope } from "@/server/scope";
+
+import { servePublicFile } from "../../features/files/domain/commands";
+import { publicFileResponse } from "../../features/files/server/publicFiles";
 
 /** C11 `/filer/{key}`: registered public files only (RULE-290 replacement). */
 export const Route = createFileRoute("/filer/$key")({

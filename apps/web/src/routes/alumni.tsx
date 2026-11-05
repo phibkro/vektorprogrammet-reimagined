@@ -1,9 +1,10 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Schema } from "effect";
 
-import { ConsentQuestions } from "@/components/consentQuestions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { answerConsentByCode } from "@/functions/personalData.functions";
+
+import { ConsentQuestions } from "../features/personal-data/components/consentQuestions";
+import { answerConsentByCode } from "../features/personal-data/server/functions";
 
 const Search = Schema.toStandardSchemaV1(
   Schema.Struct({ kode: Schema.optionalKey(Schema.String) })

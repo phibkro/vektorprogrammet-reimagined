@@ -7,7 +7,7 @@
  */
 import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
 
-import { outcomeStatusMiddleware } from "./server/outcomeStatus";
+import { outcomeStatusMiddleware } from "./server/http/outcomeStatus";
 
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) =>

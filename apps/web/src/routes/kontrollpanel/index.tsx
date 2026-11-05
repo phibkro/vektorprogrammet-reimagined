@@ -1,24 +1,21 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { PageHeader } from "@/components/panel/pageHeader";
-import { TestActorSwitch } from "@/components/panel/testActorSwitch";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getDashboard } from "@/functions/panel.functions";
-import { actorLabel } from "@/lib/actorLabel";
-import { pageData } from "@/lib/outcome";
+
+import { actorLabel } from "../../features/panel/actorLabel";
+import { getDashboard } from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/");
 
-const shellApi = getRouteApi("/kontrollpanel");
-
 const Dashboard = () => {
   const { actor, currentSemester } = routeApi.useLoaderData();
-  const { testActors } = shellApi.useLoaderData();
 
   return (
     <>
@@ -42,7 +39,6 @@ const Dashboard = () => {
           </CardHeader>
         </Card>
       </div>
-      {testActors !== null && <TestActorSwitch people={testActors} />}
     </>
   );
 };

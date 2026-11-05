@@ -1,3 +1,5 @@
+import { Array as Arr, Data, Effect, Result } from "effect";
+
 /**
  * Writes an `EmDashPlan` to the CMS through `CmsClient`, and reads the collections back.
  *
@@ -7,10 +9,11 @@
  * (`CmsRejected`, for example a department city that is not an option of `news.departments`): that is counted
  * with the CMS's error code and the run goes on. A CMS that cannot be reached stops the run.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/cms-client";
-import type { Collection } from "@vektorprogrammet/cms-client";
-import { Array as Arr, Data, Effect, Result } from "effect";
-
+import {
+  CmsClient,
+  CreateOutcome,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
+import type { Collection } from "../../../../apps/web/src/features/cms/domain/client.ts";
 import type { EmDashPlan, ImportedCollection, PlannedEntry } from "./plan.ts";
 
 /** The CMS refused an entry; only the operation and the CMS's error code are kept (never values). */
@@ -116,27 +119,13 @@ const writeCollection = Effect.fn("writeCollection")(function* writeCollection<
 /** What a run did to the CMS. */
 export interface WrittenContent {
   readonly collections: Readonly<Record<ImportedCollection, CollectionResult>>;
-  /** Department cities that were not yet options of `news.departments` and now are. */
-  readonly departmentOptionsAdded: number;
 }
 
-/**
- * Writes news, texts and sponsors, in that order. The department cities the articles are tagged with first
- * become options of `news.departments`, so that every tag is a choice for editors and the CMS accepts it.
- */
+/** Writes news, texts and sponsors without overwriting existing drafts. */
 export const writeContent = Effect.fn("writeContent")(function* writeContent(
   plan: EmDashPlan
 ) {
   const cms = yield* CmsClient;
-
-  const cities = Arr.dedupe(
-    Arr.flatMap(plan.news, (entry) => entry.data.departments ?? [])
-  );
-
-  const departmentOptionsAdded =
-    cities.length === 0
-      ? 0
-      : yield* cms.ensureOptions("news", "departments", cities);
 
   const news = yield* writeCollection("news", cms.news, plan.news);
   const texts = yield* writeCollection("texts", cms.texts, plan.texts);
@@ -149,6 +138,5 @@ export const writeContent = Effect.fn("writeContent")(function* writeContent(
 
   return {
     collections: { news, sponsors, texts },
-    departmentOptionsAdded,
   } satisfies WrittenContent;
 });

@@ -1,8 +1,11 @@
 /** Writing a plan to the CMS: create then publish, a rerun that changes nothing, refusals, and an unreachable CMS. */
 import { assert, describe, it } from "@effect/vitest";
-import { CmsRejected, CmsUnavailable } from "@vektorprogrammet/cms-client";
 import { DateTime, Effect, Option } from "effect";
 
+import {
+  CmsRejected,
+  CmsUnavailable,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
 import { planEmDashContent } from "../../src/emdash/plan.ts";
 import { writeContent } from "../../src/emdash/write.ts";
 import type { LegacySnapshot } from "../../src/legacy/rows.ts";
@@ -95,10 +98,6 @@ describe("writeContent", () => {
           draft: 0,
           published: 1,
         });
-        assert.strictEqual(written.departmentOptionsAdded, 1);
-        assert.deepStrictEqual(cms.options.get("news.departments"), [
-          "Trondheim",
-        ]);
         assert.strictEqual(
           cms.news.stored.get("opptak-apner")?.status,
           "published"

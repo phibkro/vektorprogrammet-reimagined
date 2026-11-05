@@ -1,6 +1,6 @@
 -------------------------------- MODULE Race --------------------------------
 (***************************************************************************)
-(* The race: one person, the commands of packages/domain/src/teams/        *)
+(* The race: one person, the commands of apps/web/src/features/teams/domain/        *)
 (* commands.ts that write memberships, and the commands that lock the      *)
 (* admin list first (createAdminGrant and deleteAdminGrant; the account    *)
 (* commands deactivateAccount and reactivateAccount take the same two      *)

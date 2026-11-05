@@ -1,22 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
-  Catalog,
-  Commands,
-  Contact,
-  Declarations,
-  Domain,
-  Forms,
-  GrantTable,
-  Job,
-  JobRegistry,
-  Teams,
-  approvalWords,
-  codePolicy,
-  personalColumns,
-  recordOfProcessing,
-} from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Effect,
   FileSystem,
@@ -27,6 +11,24 @@ import {
 } from "effect";
 
 import {
+  Declarations,
+  GrantTable,
+} from "../../../apps/web/src/core/declarations.ts";
+import * as Job from "../../../apps/web/src/core/jobs/job.ts";
+import * as JobRegistry from "../../../apps/web/src/core/jobs/registry.ts";
+import * as Commands from "../../../apps/web/src/core/kernel/commands.ts";
+import * as Domain from "../../../apps/web/src/core/kernel/domain.ts";
+import { codePolicy } from "../../../apps/web/src/features/accounts/domain/code.ts";
+import * as Contact from "../../../apps/web/src/features/contact/domain/declaration.ts";
+import {
+  Catalog,
+  Forms,
+} from "../../../apps/web/src/features/personal-data/domain/catalog.ts";
+import { personalColumns } from "../../../apps/web/src/features/personal-data/domain/derive.ts";
+import { recordOfProcessing } from "../../../apps/web/src/features/personal-data/domain/notice.ts";
+import { approvalWords } from "../../../apps/web/src/features/personal-data/domain/texts.ts";
+import * as Teams from "../../../apps/web/src/features/teams/domain/declaration.ts";
+import {
   approvalCell,
   checkAccountsDocument,
   checkAdministrationDocument,
@@ -35,6 +37,7 @@ import {
   renderAdministrationDocument,
   renderCommandsDocument,
   renderDocument,
+  table as renderTable,
 } from "../src/render.ts";
 import type { PersonalDataSources } from "../src/render.ts";
 
@@ -43,6 +46,15 @@ const source = Effect.gen(function* source() {
 
   return yield* fs.readFileString("../../docs/system/teams.md");
 }).pipe(Effect.provide(NodeServices.layer));
+
+describe("reference tables", () => {
+  it("formats an empty table like the Markdown formatter", () => {
+    assert.strictEqual(
+      renderTable(["Client", "Where"], []),
+      "| Client | Where |\n| ------ | ----- |"
+    );
+  });
+});
 
 describe("spec 0006 falsifier 8: generated documentation", () => {
   it.effect(

@@ -1,3 +1,7 @@
+import { Array as Arr, Effect, Layer, Match, Record as Rec, Ref } from "effect";
+import { SqlClient } from "effect/sql/SqlClient";
+
+import type { WorkspaceChange } from "../../src/features/workspace/domain/change";
 /**
  * A small real-PostgreSQL world for the Workspace projection tests (spec 0008): one department, `teams` teams, each
  * with `members` active members this semester (HOST 2026) whose Accounts are Active. The first member of each team has
@@ -5,15 +9,12 @@
  * Names and addresses are fake. Also the directory and writer fixtures: a deterministic directory, and a writer that
  * applies changes to it as statements of state, so a repeated change changes nothing.
  */
+import { CompanyEmail } from "../../src/features/workspace/domain/companyEmail";
 import {
-  CompanyEmail,
   WorkspaceDirectory,
   WorkspaceWriteRefused,
   WorkspaceWriter,
-} from "@vektorprogrammet/domain";
-import type { WorkspaceChange } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Match, Record as Rec, Ref } from "effect";
-import { SqlClient } from "effect/sql/SqlClient";
+} from "../../src/features/workspace/domain/services";
 
 interface Id {
   readonly id: number;

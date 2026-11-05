@@ -1,18 +1,15 @@
+import { Array as Arr, Effect, Layer, Option } from "effect";
+import type { Redacted } from "effect";
+
 /**
  * The command that two delivery test files run through the real request runtime (`runCommandOutcome`): it queues one
  * e-mail in the transaction that the runner opens, as the contact form does, and with `rollback` refuses after queueing.
  */
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  EmailAddress,
-  Outbox,
-  OutboxMessage,
-  Transactor,
-  validationFailed,
-} from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Option } from "effect";
-import type { Redacted } from "effect";
-
+import { DatabaseLive } from "../../src/adapters/db/databaseLive";
+import { validationFailed } from "../../src/core/errors";
+import { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { EmailAddress } from "../../src/core/validation";
 import { runCommandOutcome } from "../../src/server/runtime";
 
 export const email = OutboxMessage.cases.Email.make({
@@ -23,33 +20,25 @@ export const email = OutboxMessage.cases.Email.make({
 });
 
 /** One message queued in the current transaction; its id. */
-export const enqueueEmail = Effect.gen(function* enqueueEmail() {
+const enqueueEmail = Effect.gen(function* enqueueEmail() {
   const ids = yield* (yield* Outbox).enqueue([email]);
 
   return Option.getOrThrow(Arr.head(ids));
 });
 
-/** The same message, committed: what a delivery test starts from. */
-export const commitEmail = Effect.flatMap(Transactor, (transactor) =>
-  transactor.run(enqueueEmail)
-);
-
 /** The command, run as a request runs it, optionally failing after it queues the message. */
 export const requestOutcome = (url: Redacted.Redacted, rollback: boolean) =>
-  Effect.promise(
-    async () =>
-      await runCommandOutcome(
-        DatabaseLive({ maxConnections: 4, url }).pipe(Layer.orDie),
-        Effect.void,
-        () =>
-          rollback
-            ? Effect.andThen(
-                enqueueEmail,
-                Effect.fail(
-                  validationFailed(["name"], "refused after queueing")
-                )
-              )
-            : enqueueEmail,
-        new AbortController().signal
-      )
+  Effect.promise(() =>
+    runCommandOutcome(
+      DatabaseLive({ maxConnections: 4, url }).pipe(Layer.orDie),
+      Effect.void,
+      () =>
+        rollback
+          ? Effect.andThen(
+              enqueueEmail,
+              Effect.fail(validationFailed(["name"], "refused after queueing"))
+            )
+          : enqueueEmail,
+      new AbortController().signal
+    )
   );

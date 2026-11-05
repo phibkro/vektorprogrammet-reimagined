@@ -1,9 +1,9 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { ContactTabs } from "@/components/site/contactTabs";
-import { getContactPage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
-import { handleContactPost } from "@/server/contactPost";
+import { ContactTabs } from "../../features/contact/components/contactTabs";
+import { handleContactPost } from "../../features/contact/server/contactPost";
+import { getContactPage } from "../../features/site/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontakt/");
 

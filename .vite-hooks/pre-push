@@ -4,4 +4,4 @@ set -eu
 if [ -z "${DEVENV_ROOT:-}" ]; then
   exec devenv shell -- sh "$0" "$@"
 fi
-bun run test:all
+bunx vp run test:all

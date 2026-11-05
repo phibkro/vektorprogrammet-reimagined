@@ -86,7 +86,6 @@ layer(Database, { excludeTestServices: true, timeout: "120 seconds" })(
             sponsors: 1,
           });
           assert.strictEqual(report.danglingDepartmentTags, 1);
-          assert.strictEqual(report.departmentOptionsAdded, 2);
         }).pipe(Effect.scoped)
     );
 
@@ -118,14 +117,6 @@ layer(Database, { excludeTestServices: true, timeout: "120 seconds" })(
           const cms = makeFakeCms();
           const first = yield* importOnce(cms);
           const second = yield* importOnce(cms);
-
-          assert.deepStrictEqual(
-            [
-              first.report.departmentOptionsAdded,
-              second.report.departmentOptionsAdded,
-            ],
-            [2, 0]
-          );
 
           assert.deepStrictEqual(
             Arr.map(second.report.collections, (c) => [

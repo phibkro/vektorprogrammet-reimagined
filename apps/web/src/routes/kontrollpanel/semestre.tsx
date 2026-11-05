@@ -13,8 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getSemesters } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+
+import { getSemesters } from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/semestre");
 

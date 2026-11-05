@@ -26,32 +26,35 @@ type Allowances = Readonly<Record<string, Allowance>>;
 
 const ALLOWED = {
   ImpactSnapshots: {
-    "apps/web/src/server/runtime.ts":
-      "the services type of the database layer lists the port; nothing is read",
-    "packages/db/src/repositories/impact.ts":
+    "apps/web/src/adapters/db/repositories/impact.ts":
       "the adapter that stores and reads the snapshot rows",
-    "packages/domain/src/impact/commands.ts":
-      "the handlers: `closeImpact` writes through the port and the report reads the snapshot into `release`",
-    "packages/domain/src/impact/services.ts": "the declaration of the port",
-    "packages/domain/src/shared/guarantees.ts":
+    "apps/web/src/core/store/guarantees.ts":
       "IM1 and CL1 name the port's `close` as their carrier",
-    "packages/domain/src/shared/transactionModes.ts":
+    "apps/web/src/core/store/transactionModes.ts":
       "the mode of each method of the port",
+    "apps/web/src/features/impact/domain/commands.ts":
+      "the handlers: `closeImpact` writes through the port and the report reads the snapshot into `release`",
+    "apps/web/src/features/impact/domain/services.ts":
+      "the declaration of the port",
+    "apps/web/src/server/services.ts":
+      "the services type of the database layer lists the port; nothing is read",
   },
   ImpactSource: {
-    "apps/web/src/server/runtime.ts":
-      "the services type of the database layer lists the port; nothing is read",
-    "packages/db/src/repositories/impact.ts":
+    "apps/web/src/adapters/db/repositories/impact.ts":
       "the adapter that answers a cell from the store (today: Unavailable)",
-    "packages/domain/src/impact/commands.ts":
-      "the handlers read the source into `release` and into the snapshot close",
-    "packages/domain/src/impact/source.ts": "the declaration of the port",
-    "packages/domain/src/shared/transactionModes.ts":
+    "apps/web/src/core/store/transactionModes.ts":
       "the mode of each method of the port",
+    "apps/web/src/features/impact/domain/commands.ts":
+      "the handlers read the source into `release` and into the snapshot close",
+    "apps/web/src/features/impact/domain/source.ts":
+      "the declaration of the port",
+    "apps/web/src/server/services.ts":
+      "the services type of the database layer lists the port; nothing is read",
   },
   releasedCount: {
-    "packages/domain/src/impact/measures.ts": "the maker, and the brand's rule",
-    "packages/domain/src/impact/release.ts":
+    "apps/web/src/features/impact/domain/measures.ts":
+      "the maker, and the brand's rule",
+    "apps/web/src/features/impact/domain/release.ts":
       "the one caller: a count is published only through `release`",
   },
 } satisfies Allowances;
@@ -93,26 +96,26 @@ describe("spec 0027 D5: only release lets a raw count out", () => {
   it("control: a file that reads the snapshots, the source or mints a count is reported, a listed one is not, a comment-free neighbour is not", () => {
     const sources: readonly Source[] = [
       {
-        path: "apps/web/src/server/panelReads.ts",
+        path: "apps/web/src/features/panel/server/reads.ts",
         text: "const rows = yield* ImpactSnapshots; rows.read();",
       },
       {
-        path: "apps/web/src/functions/panel.functions.ts",
+        path: "apps/web/src/features/panel/server/functions.ts",
         text: "const count = releasedCount(3, 1);",
       },
       {
-        path: "packages/domain/src/impact/commands.ts",
+        path: "apps/web/src/features/impact/domain/commands.ts",
         text: "yield* ImpactSource; yield* ImpactSnapshots;",
       },
       {
-        path: "packages/domain/src/impact/lattice.ts",
+        path: "apps/web/src/features/impact/domain/lattice.ts",
         text: "const ImpactSourcesList = [];",
       },
     ];
 
     assert.deepStrictEqual(Arr.sort(unlisted(sources), Order.String), [
-      "apps/web/src/functions/panel.functions.ts names releasedCount",
-      "apps/web/src/server/panelReads.ts names ImpactSnapshots",
+      "apps/web/src/features/panel/server/functions.ts names releasedCount",
+      "apps/web/src/features/panel/server/reads.ts names ImpactSnapshots",
     ]);
   });
 
@@ -120,7 +123,7 @@ describe("spec 0027 D5: only release lets a raw count out", () => {
     assert.isAbove(
       stale([
         {
-          path: "packages/domain/src/impact/release.ts",
+          path: "apps/web/src/features/impact/domain/release.ts",
           text: "export const release = () => undefined;",
         },
       ]).length,

@@ -13,18 +13,6 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import {
-  DepartmentId,
-  PrincipalDirectory,
-  SystemJob,
-  TeamFunction,
-  anonymous,
-  authorize,
-  currentSemester,
-  impactView,
-  systemPrincipal,
-} from "@vektorprogrammet/domain";
-import type { Principal } from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Order,
   DateTime,
@@ -34,28 +22,44 @@ import {
   Record as Rec,
 } from "effect";
 
-import type { Outcome } from "../src/lib/outcome";
-import { PANEL_SECTIONS, sectionOfPath } from "../src/lib/panelSections";
-import type { SectionKey } from "../src/lib/panelSections";
-import { admissionView } from "../src/server/admission";
-import type { RequestError } from "../src/server/errors";
-import { integrationsView } from "../src/server/integrations";
+import { authorize } from "../src/core/declarations";
+import { DepartmentId } from "../src/core/ids";
+import {
+  SystemJob,
+  TeamFunction,
+  anonymous,
+  systemPrincipal,
+} from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
+import { admissionView } from "../src/features/admission/server/admission";
+import { ContentEditor } from "../src/features/cms/domain/client";
+import { impactView } from "../src/features/impact/domain/commands";
+import { currentSemester } from "../src/features/organisation/domain/commands";
 import {
   dashboardView,
   departmentsView,
   fieldsOfStudyView,
   semestersView,
   socialEventsView,
-} from "../src/server/panel";
-import { READ_SECTIONS } from "../src/server/panelAccess";
-import type { PanelRead } from "../src/server/panelAccess";
-import { panelReads } from "../src/server/panelReads";
+} from "../src/features/organisation/server/organisation";
+import {
+  PANEL_SECTIONS,
+  sectionOfPath,
+} from "../src/features/panel/panelSections";
+import type { SectionKey } from "../src/features/panel/panelSections";
+import { READ_SECTIONS } from "../src/features/panel/server/access";
+import type { PanelRead } from "../src/features/panel/server/access";
+import { panelReads } from "../src/features/panel/server/reads";
+import { PrincipalDirectory } from "../src/features/teams/domain/services";
 import {
   adminsView,
   peopleView,
   teamView,
   teamsView,
-} from "../src/server/teams";
+} from "../src/features/teams/server/teams";
+import { integrationsView } from "../src/features/workspace/server/integrations";
+import type { Outcome } from "../src/http/outcome";
+import type { RequestError } from "../src/http/requestError";
 import { makeTables } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
 import { assertRefused, assertSuccess } from "./support/outcomes";
@@ -94,6 +98,7 @@ const GUARDED: Calls = Rec.map(panelReads, asCall);
 const BARE: Calls = {
   getAdmins: () => adminsView,
   getAdmission: () => admissionView,
+  getContent: () => ContentEditor.use((editor) => editor.list),
   getDashboard: () => dashboardView,
   getDepartments: () => departmentsView,
   getFieldsOfStudy: () => fieldsOfStudyView,
@@ -434,7 +439,7 @@ const sectionOfFile = (file: string) => sectionOfPath(pathOfRouteFile(file));
 
 describe("issue 15: every page and read function is under the one declaration", () => {
   it("the GET server functions of the control panel are the shell (the sidebar itself) and exactly the reads of READ_SECTIONS, each run as `panelReads.<name>`", () => {
-    const source = sourceOf("functions/panel.functions.ts");
+    const source = sourceOf("features/panel/server/functions.ts");
 
     const getters = Arr.map(
       Arr.fromIterable(

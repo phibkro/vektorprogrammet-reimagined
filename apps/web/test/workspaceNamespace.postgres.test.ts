@@ -1,21 +1,19 @@
 import { assert, layer } from "@effect/vitest";
-import {
-  AccountRepository,
-  AggregateLocks,
-  CompanyEmail,
-  DepartmentId,
-  EmailAddress,
-  FieldOfStudyId,
-  PersonRepository,
-  TeamId,
-  TeamRepository,
-  Transactor,
-  WorkspaceAssignments,
-} from "@vektorprogrammet/domain";
-import type { DomainError } from "@vektorprogrammet/domain";
 import { Array as Arr, Cause, Effect, Exit, Option, Predicate } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import type { DomainError } from "../src/core/errors";
+import { DepartmentId, FieldOfStudyId, TeamId } from "../src/core/ids";
+import { AggregateLocks } from "../src/core/transactions/aggregate";
+import { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
+import { AccountRepository } from "../src/features/accounts/domain/services";
+import {
+  PersonRepository,
+  TeamRepository,
+} from "../src/features/teams/domain/services";
+import { CompanyEmail } from "../src/features/workspace/domain/companyEmail";
+import { WorkspaceAssignments } from "../src/features/workspace/domain/services";
 import { workspaceDatabase } from "./support/workspaceDatabase";
 import { seedWorld } from "./support/workspaceWorld";
 

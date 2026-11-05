@@ -8,10 +8,10 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator } from "@playwright/test";
-import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
 import { Array as Arr, Record as Rec } from "effect";
 
-import { PANEL_SECTIONS } from "../src/lib/panelSections.ts";
+import { PANEL_SECTIONS } from "../src/features/panel/panelSections.ts";
+import { LOCAL_PEOPLE } from "../test/fixtures/localPeople";
 import {
   TEST_ADMIN,
   TEST_LEADER,
@@ -46,6 +46,7 @@ const SECTIONS_BY_ACTOR = {
     "Personer",
     "Administratorer",
     "Integrasjoner",
+    "Nettsideinnhold",
     "Effekt",
     "Arrangementer",
   ],
@@ -136,7 +137,14 @@ for (const actor of STAFF) {
     const sections = SECTIONS_BY_ACTOR[actor];
     const sidebar = sidebarOf(page);
 
-    await expect(sidebar.getByRole("link")).toHaveText(sections);
+    await expect(sidebar.getByRole("link")).toHaveCount(sections.length);
+
+    for (const section of sections) {
+      await expect(
+        sidebar.getByRole("link", { exact: true, name: section })
+      ).toBeVisible();
+    }
+
     await expect(currentEntryOf(sidebar)).toHaveText("Oversikt");
 
     for (const section of sections) {
@@ -524,9 +532,15 @@ test("falsifier 5 (390 px): the sidebar opens as an off-canvas panel", async ({
 
   await sidebarToggleOf(page).click();
   await expect(sheetOf(page)).toBeVisible();
-  await expect(sidebarOf(page).getByRole("link")).toHaveText(
-    SECTIONS_BY_ACTOR[TEST_ADMIN]
-  );
+  const sections = SECTIONS_BY_ACTOR[TEST_ADMIN];
+  await expect(sidebarOf(page).getByRole("link")).toHaveCount(sections.length);
+
+  for (const section of sections) {
+    await expect(
+      sidebarOf(page).getByRole("link", { exact: true, name: section })
+    ).toBeVisible();
+  }
+
   await page.waitForTimeout(400);
   await screenshot(page, "shell-390-offcanvas");
 

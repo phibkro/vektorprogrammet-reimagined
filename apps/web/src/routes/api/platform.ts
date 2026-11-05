@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { runPlatformRoute } from "@/server/platform";
-import { requestScope } from "@/server/scope";
+import { requestScope } from "@/server/http/scope";
+
+import { runPlatformRoute } from "../../server/diagnostics/platform";
 
 /**
  * What the store shows of the properties that the domain asks of its platform, on this deployment (spec 0025 R5). A

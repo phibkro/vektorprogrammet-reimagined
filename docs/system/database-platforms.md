@@ -15,7 +15,7 @@ The page is generated from two declarations: `packages/domain/src/shared/platfor
 
 <!-- docgen:begin asks -->
 
-### Shown on every Preview by `GET /api/platform`
+### Required checks for `GET /api/platform`
 
 | Capability | Guarantee | Check | The platform must show | Evidence |
 | --- | --- | --- | --- | --- |
@@ -113,11 +113,15 @@ The subset of PostgreSQL that Hyperdrive does not take. No recipe, repository or
 
 | Profile | Pooling | Statements | Multiplex | Pool size | Allows |
 | --- | --- | --- | --- | --- | --- |
+| `supabase` | unknown | unnamed (`prepare: false`) | no | 2 | 12 constructs |
 | `hyperdrive` | transaction | unnamed (`prepare: false`) | no | 2 | 12 constructs |
 | `direct` | none | named | no | 2 | 21 constructs |
 
 | Profile | Setting | Why |
 | --- | --- | --- |
+| `supabase` | `maxConnections` | Each Worker request keeps its pool small. |
+| `supabase` | `multiplex` | A transaction needs its connection to itself. |
+| `supabase` | `prepare` | Unnamed statements do not depend on session affinity at a transaction pooler. |
 | `hyperdrive` | `maxConnections` | A Worker invocation can have six connections waiting at once (Workers limits) and Hyperdrive pools the origin side, so a request asks for few: two, one to hold a transaction and one more for a second transaction of the same request (the platform probe's two-connection checks). |
 | `hyperdrive` | `multiplex` | Pipelining several fibers' statements on one connection is not documented for Hyperdrive (unverified), and a transaction needs the connection to itself. |
 | `hyperdrive` | `prepare` | Hyperdrive documents named prepared statements for `postgres.js` and `node-postgres`, and says that other drivers "may have worse performance or may not be supported". `@effect/sql-pg` is a native wire client, so it is another driver. With `prepare: false` it sends Parse, Bind, Describe, Execute and Sync in one write and names no statement, so nothing depends on how the platform keeps statement names. That this path works through Hyperdrive is measured (every check of spec 0000); that named statements from `@effect/sql-pg` would work is not. |
@@ -128,8 +132,6 @@ The subset of PostgreSQL that Hyperdrive does not take. No recipe, repository or
 Clients that reach Hyperdrive and are not built from a profile:
 
 | Client | Where |
-| --- | --- |
-| Better Auth's `pg` pool | `apps/web/src/server/auth.ts` (`max: 2`, unnamed statements) |
-| EmDash's Hyperdrive adapter | `apps/cms` (a Hyperdrive configuration of its own, as the role `emdash_app`) |
+| ------ | ----- |
 
 <!-- docgen:end profiles -->

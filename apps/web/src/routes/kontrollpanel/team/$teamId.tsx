@@ -4,7 +4,6 @@ import { Array as Arr, Schema } from "effect";
 import { Choice, firstValue, optionsOf } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
-import { TeamFields, teamDefaults } from "@/components/panel/teamForms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,17 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { InviteAccountForm } from "@/forms/people";
-import {
-  AddMemberForm,
-  CancelMembershipForm,
-  ChangeMembershipForm,
-  DeactivateTeamForm,
-  EndMembershipForm,
-  ExtendMembershipForm,
-  UpdateTeamForm,
-} from "@/forms/teams";
-import { inviteAccount } from "@/functions/account.functions";
+
+import { inviteAccount } from "../../../features/accounts/server/functions";
 import {
   addMember,
   cancelMembership,
@@ -37,10 +27,27 @@ import {
   extendMembership,
   getTeam,
   saveTeam,
-} from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
-import { MEMBERSHIP_STATE_LABEL, TEAM_FUNCTION_LABEL } from "@/lib/teamLabels";
-import type { MemberRow } from "@/server/teams";
+} from "../../../features/panel/server/functions";
+import {
+  TeamFields,
+  teamDefaults,
+} from "../../../features/teams/components/teamForms";
+import { InviteAccountForm } from "../../../features/teams/forms/people";
+import {
+  AddMemberForm,
+  CancelMembershipForm,
+  ChangeMembershipForm,
+  DeactivateTeamForm,
+  EndMembershipForm,
+  ExtendMembershipForm,
+  UpdateTeamForm,
+} from "../../../features/teams/forms/teams";
+import type { MemberRow } from "../../../features/teams/server/teams";
+import {
+  MEMBERSHIP_STATE_LABEL,
+  TEAM_FUNCTION_LABEL,
+} from "../../../features/teams/teamLabels";
+import { pageData } from "../../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/team/$teamId");
 

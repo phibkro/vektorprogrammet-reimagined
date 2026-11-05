@@ -1,67 +1,3 @@
-/**
- * In-memory Layers for apps/web tests (Node, `vp test`). Real database
- * behaviour is `packages/db`'s job; these fakes implement the domain's
- * service contracts just far enough for the web runtime, routes and outbox
- * delivery to be exercised. Every value is a fake same-shape value.
- */
-import {
-  AdmissionPeriodId,
-  AdmissionPeriodRepository,
-  AlreadyExists,
-  ApplicationRepository,
-  AuditLog,
-  Conflict,
-  CurrentPrincipal,
-  DepartmentId,
-  DepartmentRepository,
-  EmailAddress,
-  FieldOfStudyId,
-  FieldOfStudyRepository,
-  FileKey,
-  FileStore,
-  ImpactMeasures,
-  ImpactSnapshots,
-  ImpactSource,
-  InTransaction,
-  NotFound,
-  Outbox,
-  OutboxClaim,
-  OutboxClaimToken,
-  OutboxDelivery,
-  OutboxMessageId,
-  OutboxReports,
-  PublicFileRepository,
-  SemesterId,
-  SemesterRepository,
-  SiteOrigin,
-  SocialEventId,
-  SocialEventRepository,
-  Transactor,
-  WorkspaceReports,
-  anonymous,
-  deliveryState,
-  isListed,
-} from "@vektorprogrammet/domain";
-import type {
-  ApplicationView,
-  AuditEntry,
-  ClaimedOutboxMessage,
-  Department,
-  EntityName,
-  FieldOfStudy,
-  OutboxMessage,
-  Principal,
-  PublicFile,
-  SocialEvent,
-  StoredAdmissionPeriod,
-  StoredSemester,
-} from "@vektorprogrammet/domain";
-import {
-  makeTeamTables,
-  snapshotTeamTables,
-  teamsInMemoryOver,
-} from "@vektorprogrammet/domain/testing";
-import type { TeamTableRefs } from "@vektorprogrammet/domain/testing";
 import {
   Array as Arr,
   Context,
@@ -73,6 +9,73 @@ import {
   Stream,
 } from "effect";
 
+import { AlreadyExists, Conflict, NotFound } from "../../src/core/errors";
+import {
+  AdmissionPeriodId,
+  DepartmentId,
+  FieldOfStudyId,
+  FileKey,
+  OutboxMessageId,
+  SemesterId,
+  SocialEventId,
+} from "../../src/core/ids";
+import type { EntityName } from "../../src/core/ids";
+import { CurrentPrincipal, anonymous } from "../../src/core/kernel/principal";
+import type { Principal } from "../../src/core/kernel/principal";
+import * as OutboxSweep from "../../src/core/outbox/declaration";
+import {
+  OutboxClaim,
+  OutboxClaimToken,
+  OutboxDelivery,
+} from "../../src/core/outbox/delivery";
+import type { ClaimedOutboxMessage } from "../../src/core/outbox/delivery";
+import { isListed } from "../../src/core/outbox/messages";
+import type { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { OutboxReports, deliveryState } from "../../src/core/outbox/status";
+import { SiteOrigin } from "../../src/core/siteOrigin";
+import { InTransaction } from "../../src/core/transactions/transaction";
+import { Transactor } from "../../src/core/transactions/transactor";
+import { EmailAddress } from "../../src/core/validation";
+import { ApplicationRepository } from "../../src/features/admission/domain/services";
+import type { ApplicationView } from "../../src/features/admission/domain/services";
+import { AuditLog } from "../../src/features/audit/domain/auditLog";
+import type { AuditEntry } from "../../src/features/audit/domain/auditLog";
+/**
+ * In-memory Layers for apps/web tests (Node, `vp test`). Real database
+ * behaviour belongs to the database adapter; these fakes implement the domain's
+ * service contracts just far enough for the web runtime, routes and outbox
+ * delivery to be exercised. Every value is a fake same-shape value.
+ */
+import { ContentEditor } from "../../src/features/cms/domain/client";
+import { SocialEventRepository } from "../../src/features/events/domain/services";
+import type { SocialEvent } from "../../src/features/events/domain/socialEvent";
+import type { PublicFile } from "../../src/features/files/domain/publicFile";
+import {
+  FileStore,
+  PublicFileRepository,
+} from "../../src/features/files/domain/services";
+import * as ImpactMeasures from "../../src/features/impact/domain/measures";
+import { ImpactSnapshots } from "../../src/features/impact/domain/services";
+import { ImpactSource } from "../../src/features/impact/domain/source";
+import type { StoredAdmissionPeriod } from "../../src/features/organisation/domain/admission";
+import type { Department } from "../../src/features/organisation/domain/department";
+import type { FieldOfStudy } from "../../src/features/organisation/domain/fieldOfStudy";
+import type { StoredSemester } from "../../src/features/organisation/domain/semester";
+import {
+  AdmissionPeriodRepository,
+  DepartmentRepository,
+  FieldOfStudyRepository,
+  SemesterRepository,
+} from "../../src/features/organisation/domain/services";
+import { WorkspaceReports } from "../../src/features/workspace/domain/services";
+import {
+  makeTeamTables,
+  snapshotTeamTables,
+  teamsInMemoryOver,
+} from "../domain/support/teamsInMemory";
+import type { TeamTableRefs } from "../domain/support/teamsInMemory";
+
 interface OutboxRow {
   readonly id: OutboxMessageId;
   readonly message: OutboxMessage;
@@ -80,7 +83,6 @@ interface OutboxRow {
   status: "pending" | "delivered" | "dead";
   claimToken: OutboxClaimToken | null;
   nextAttemptAt: DateTime.Utc | null;
-  queuedAt?: DateTime.Utc | null;
   lastError: string | null;
 }
 
@@ -424,7 +426,11 @@ const repositories = Layer.effectContext(
             return OutboxClaim.cases.Settled.make({});
           }
 
-          if (row.claimToken !== null) {
+          if (
+            row.claimToken !== null ||
+            (row.nextAttemptAt !== null &&
+              DateTime.isGreaterThan(row.nextAttemptAt, now))
+          ) {
             return OutboxClaim.cases.Held.make({});
           }
 
@@ -441,74 +447,12 @@ const repositories = Layer.effectContext(
             } satisfies ClaimedOutboxMessage,
           });
         }),
-      holdClaim: (id, claimToken) =>
-        Effect.sync(() =>
-          rowOf(id)?.claimToken === claimToken
-            ? ("recorded" as const)
-            : ("claimLost" as const)
-        ),
-      markDead: (id) =>
-        Effect.sync(() => {
-          const row = rowOf(id);
-
-          if (row === undefined || row.status !== "pending") {
-            return "settled" as const;
-          }
-
-          if (row.claimToken !== null) {
-            return "held" as const;
-          }
-
-          if (row.lastError === null) {
-            return "settled" as const;
-          }
-
-          row.status = "dead";
-
-          return "failed" as const;
-        }),
-      markDelivered: (id, claimToken) =>
-        updateClaim(id, claimToken, (row) => {
-          row.status = "delivered";
-          row.claimToken = null;
-        }),
-      markFailed: (id, claimToken, error, next) =>
-        updateClaim(id, claimToken, (row) => {
-          row.claimToken = null;
-          row.lastError = error;
-          row.nextAttemptAt = next;
-        }),
-      markQueued: (ids) =>
-        Effect.map(DateTime.now, (now) => {
-          for (const row of db.outbox) {
-            if (row.status === "pending" && ids.includes(row.id)) {
-              row.queuedAt = now;
-            }
-          }
-        }),
-      recordFailure: (id, error, next) =>
-        Effect.sync(() => {
-          const row = rowOf(id);
-
-          if (
-            row === undefined ||
-            row.status !== "pending" ||
-            row.claimToken !== null
-          ) {
-            return "settled" as const;
-          }
-
-          row.lastError = error;
-          row.nextAttemptAt = next;
-
-          return "recorded" as const;
-        }),
-      stale: ({ before, limit }) =>
-        Effect.sync(() =>
+      due: ({ limit }) =>
+        Effect.map(DateTime.now, (before) =>
           Arr.take(
             Arr.map(
               Arr.filter(db.outbox, (row) => {
-                const last = row.queuedAt ?? row.nextAttemptAt;
+                const last = row.nextAttemptAt;
 
                 return (
                   row.status === "pending" &&
@@ -521,6 +465,33 @@ const repositories = Layer.effectContext(
             limit
           )
         ),
+      holdClaim: (id, claimToken) =>
+        Effect.sync(() =>
+          rowOf(id)?.claimToken === claimToken
+            ? ("recorded" as const)
+            : ("claimLost" as const)
+        ),
+      markDelivered: (id, claimToken) =>
+        updateClaim(id, claimToken, (row) => {
+          row.status = "delivered";
+          row.claimToken = null;
+        }),
+      markFailed: (id, claimToken, error, next) =>
+        updateClaim(id, claimToken, (row) => {
+          row.claimToken = null;
+          row.lastError = error;
+          row.nextAttemptAt = next;
+
+          if (
+            row.attempts >= OutboxSweep.DeliveryPolicy.attempts &&
+            !Arr.some(
+              OutboxSweep.DeliveryPolicy.unlimitedKinds,
+              (kind) => kind === row.message._tag
+            )
+          ) {
+            row.status = "dead";
+          }
+        }),
     });
 
     const reports = OutboxReports.of({
@@ -540,10 +511,8 @@ const repositories = Layer.effectContext(
             kind: row.message._tag,
             lastError: row.lastError,
             nextAttemptAt: row.nextAttemptAt ?? now,
-            queuedAt: row.queuedAt ?? null,
             state: deliveryState({
               lastError: row.lastError,
-              queuedAt: row.queuedAt ?? null,
               status: row.status === "dead" ? "dead" : "pending",
             }),
           })
@@ -652,7 +621,7 @@ const repositories = Layer.effectContext(
         }),
     });
 
-    /** The applications' reads over the table. Their writes need the person aggregate, which PostgreSQL's tests cover (`packages/db/test/admission*.postgres.test.ts`). */
+    /** The applications' reads over the table. Their writes need the person aggregate, which the admission PostgreSQL tests cover. */
     const applications = ApplicationRepository.of({
       existsForAddress: (periodId, email) =>
         Effect.sync(() =>
@@ -758,7 +727,7 @@ const SITE_ORIGIN = "https://vektorprogrammet.test";
 
 /**
  * Every in-memory service over `tables` (fresh by default), acting as `principal` (anonymous by default). The teams
- * repositories are the domain's fakes (`@vektorprogrammet/domain/testing`), over their own tables.
+ * repositories are the domain's fakes, over their own tables.
  */
 export const memoryLayer = (
   tables: MemoryTables = makeTables(),
@@ -769,6 +738,7 @@ export const memoryLayer = (
       Layer.mergeAll(
         repositories,
         transactor,
+        Layer.mock(ContentEditor, { list: Effect.succeed([]) }),
         Layer.mock(WorkspaceReports, { latest: Effect.succeedNone }),
         Layer.mock(ImpactSnapshots, {
           close: () => Effect.succeed(0),

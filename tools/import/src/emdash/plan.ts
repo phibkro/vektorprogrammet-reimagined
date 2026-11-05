@@ -1,3 +1,8 @@
+import type { DateTime } from "effect";
+import { Array as Arr, HashMap, Option, Result, Schema } from "effect";
+
+import { HttpUrl } from "../../../../apps/web/src/core/validation.ts";
+import type { NewEntry } from "../../../../apps/web/src/features/cms/domain/client.ts";
 /**
  * The EmDash half of the import (spec 0005, D5): the legacy articles, static texts and sponsors as CMS entries.
  * Pure: no I/O, no clock, no randomness; the same snapshot gives the same plan.
@@ -13,17 +18,14 @@
  * - A row that breaks a rule of its collection is quarantined with its reasons and never repaired by guessing.
  *   Reasons hold column names and ids only, never values: the report must not carry personal data.
  */
-import { SponsorSize } from "@vektorprogrammet/cms-client";
+import { SponsorSize } from "../../../../apps/web/src/features/cms/domain/collections.ts";
 import type {
-  NewEntry,
   NewsData,
   SponsorData,
   TextData,
-} from "@vektorprogrammet/cms-client";
-import { HttpUrl, Slug, sanitizeRichText } from "@vektorprogrammet/domain";
-import type { DateTime } from "effect";
-import { Array as Arr, HashMap, Option, Result, Schema } from "effect";
-
+} from "../../../../apps/web/src/features/cms/domain/collections.ts";
+import { sanitizeRichText } from "../../../../apps/web/src/features/cms/domain/sanitizer.ts";
+import { Slug } from "../../../../apps/web/src/features/cms/domain/slug.ts";
 import type { LegacyArticle, LegacySnapshot } from "../legacy/rows.ts";
 import {
   addEmptyTextReason,

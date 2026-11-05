@@ -1,21 +1,27 @@
+import { Array as Arr, Effect, Layer, Option } from "effect";
+
 /**
  * An in-memory CMS: `CmsClient` over a Map per collection. It behaves like EmDash where the importer depends on
  * it: `create` makes a draft, a slug that exists answers `SlugTaken`, `publish` turns a draft into a published
  * entry, `listings` shows every entry with its status. Tests inspect `stored` afterwards; the real EmDash is
  * exercised by `apps/web/e2e`.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/cms-client";
+import {
+  CmsClient,
+  CreateOutcome,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
 import type {
   CmsFailure,
   Collection,
-  FaqData,
   NewEntry,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
+import type {
+  FaqData,
   NewsData,
   SponsorData,
   TeamData,
   TextData,
-} from "@vektorprogrammet/cms-client";
-import { Array as Arr, Effect, Layer, Option } from "effect";
+} from "../../../../apps/web/src/features/cms/domain/collections.ts";
 
 interface Stored<A> {
   readonly id: string;
@@ -83,28 +89,11 @@ export const makeFakeCms = (
   const sponsors = fakeCollection<SponsorData>();
   const faq = fakeCollection<FaqData>();
   const teams = fakeCollection<TeamData>();
-  /** `collection.field` → its options, in the order they were added. */
-  const options = new Map<string, string[]>();
 
   return {
     layer: Layer.succeed(
       CmsClient,
       CmsClient.of({
-        absoluteUrl: (path) => path,
-        ensureOptions: (collection, field, values) =>
-          Effect.sync(() => {
-            const key = `${collection}.${field}`;
-            const known = options.get(key) ?? [];
-
-            const missing = Arr.filter(
-              Arr.dedupe(values),
-              (value) => !known.includes(value)
-            );
-
-            options.set(key, [...known, ...missing]);
-
-            return missing.length;
-          }),
         faq: faq.collection,
         news: news.collection,
         sponsors: sponsors.collection,
@@ -113,7 +102,6 @@ export const makeFakeCms = (
       })
     ),
     news,
-    options,
     sponsors,
     texts,
   };

@@ -1,20 +1,20 @@
+import { Array as Arr, DateTime, Effect, Layer, Record as Rec } from "effect";
+
 /**
  * An in-memory CMS for apps/web tests: the `CmsClient` over seeded entries. Like the real client it shows a page
  * only the published entries (the real EmDash lets a token that can read also read drafts), and it implements the
  * writes the importer uses, so a test can publish an entry and watch a page program change without a deploy.
- * The HTTP client itself is tested in `packages/cms-client`; every value here is a fake same-shape value.
+ * Every value here is a fake same-shape value.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/cms-client";
+import { CmsClient, CreateOutcome } from "../../src/features/cms/domain/client";
+import type { Collection, Entry } from "../../src/features/cms/domain/client";
 import type {
-  Collection,
-  Entry,
   FaqData,
   NewsData,
   SponsorData,
   TeamData,
   TextData,
-} from "@vektorprogrammet/cms-client";
-import { Array as Arr, DateTime, Effect, Layer, Record as Rec } from "effect";
+} from "../../src/features/cms/domain/collections";
 
 /** A seeded entry; a draft is kept by the CMS but never shown. */
 export interface Seed<A> {
@@ -112,35 +112,24 @@ const memoryCollection = <A>(seed: readonly Seed<A>[]): Collection<A> => {
 };
 
 /** The CMS with `seed` in it; a collection left out is empty. */
-export const memoryCms = (seed: Partial<CmsSeed> = {}) => {
-  const options = new Map<string, Set<string>>();
-
-  return Layer.succeed(CmsClient, {
-    absoluteUrl: (path) => new URL(path, "https://cms.test").toString(),
-    ensureOptions: (collection, field, values) =>
-      Effect.sync(() => {
-        const key = `${collection}.${field}`;
-        const known = options.get(key) ?? new Set<string>();
-        const added = Arr.filter(values, (value) => !known.has(value));
-
-        options.set(key, new Set([...known, ...values]));
-
-        return added.length;
-      }),
+export const memoryCms = (seed: Partial<CmsSeed> = {}) =>
+  Layer.succeed(CmsClient, {
     faq: memoryCollection(seed.faq ?? []),
     news: memoryCollection(seed.news ?? []),
     sponsors: memoryCollection(seed.sponsors ?? []),
     teams: memoryCollection(seed.teams ?? []),
     texts: memoryCollection(seed.texts ?? []),
   });
-};
 
 /** The seeded texts by slot: `{ "home-tagline": [block] }` as published text entries. */
 export const textsOf = (
   slots: Readonly<Record<string, TextData["content"]>>
 ): readonly Seed<TextData>[] =>
   Arr.map(Rec.toEntries(slots), ([slug, content]) =>
-    published(slug, { content, title: slug })
+    published<TextData>(
+      slug,
+      content === undefined ? { title: slug } : { content, title: slug }
+    )
   );
 
 /** A Portable Text block of one paragraph, for asserting what a page shows. */

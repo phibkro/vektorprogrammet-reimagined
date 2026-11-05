@@ -1,11 +1,3 @@
-/**
- * What every form of the app is built from (spec 0010a). A form reads the record that its inputs hold (every value is
- * text; a checkbox is `"on"` or absent, as in a `FormData`) and makes the typed payload of the domain command, by the
- * command's own payload schema after a text step: the rules and the Norwegian messages are the domain's. The browser
- * validates a form's values with `clientValidator`, and the server reads a posted `FormData` with the form's `read`;
- * both go through the same text step and the same payload schema, so the issues are the same.
- */
-import { osloWallClock } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -14,6 +6,15 @@ import {
   Schema,
   SchemaGetter,
 } from "effect";
+
+/**
+ * What every form of the app is built from (spec 0010a). A form reads the record that its inputs hold (every value is
+ * text; a checkbox is `"on"` or absent, as in a `FormData`) and makes the typed payload of the domain command, by the
+ * command's own payload schema after a text step: the rules and the Norwegian messages are the domain's. The browser
+ * validates a form's values with `clientValidator`, and the server reads a posted `FormData` with the form's `read`;
+ * both go through the same text step and the same payload schema, so the issues are the same.
+ */
+import { osloWallClock } from "../core/clock";
 
 /** What a form's inputs hold: text, or nothing (an unchecked checkbox, a field a form does not render). */
 export type FormText = Readonly<Record<string, string | undefined>>;
@@ -145,11 +146,26 @@ export const osloLocalToIso = (value: string | undefined): string => {
   const text = (value ?? "").trim();
   const match = LOCAL_TIME.exec(text);
 
-  if (match === null) {
+  const groups = match?.groups;
+
+  if (
+    groups === undefined ||
+    groups.year === undefined ||
+    groups.month === undefined ||
+    groups.day === undefined ||
+    groups.hour === undefined ||
+    groups.minute === undefined
+  ) {
     return text;
   }
 
-  const [, year, month, day, hour, minute] = Arr.map(match, Number);
-
-  return DateTime.formatIso(osloWallClock({ day, hour, minute, month, year }));
+  return DateTime.formatIso(
+    osloWallClock({
+      day: Number(groups.day),
+      hour: Number(groups.hour),
+      minute: Number(groups.minute),
+      month: Number(groups.month),
+      year: Number(groups.year),
+    })
+  );
 };

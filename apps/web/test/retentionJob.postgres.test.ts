@@ -11,25 +11,26 @@ import type {
   EmailMessageBuilder,
 } from "@cloudflare/workers-types";
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import {
-  Catalog,
-  JobRegistry,
-  retentionIsProposed,
-  retentionRules,
-} from "@vektorprogrammet/domain";
-import type { RetentionMode } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Layer, Redacted, Ref } from "effect";
 import { flow } from "effect/Function";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
+import * as JobRegistry from "../src/core/jobs/registry";
+import { Catalog } from "../src/features/personal-data/domain/catalog";
+import {
+  retentionIsProposed,
+  retentionRules,
+} from "../src/features/personal-data/domain/derive";
+import type { RetentionMode } from "../src/features/personal-data/domain/services";
 import { Deployment } from "../src/server/deployment";
 import { runTick } from "../src/server/runtime";
 import type { TickEnv } from "../src/server/runtime";
+import { TestDatabaseUrl } from "./db/support/disposableDatabase";
+import {
+  runtimeTestDatabase,
+  RuntimeDatabaseUrl,
+} from "./db/support/runtimeRole";
 
 const PERSON = 701;
 
@@ -38,7 +39,7 @@ const owner = Layer.unwrap(
   Effect.map(Effect.service(TestDatabaseUrl), (url) =>
     DatabaseLive({ maxConnections: 2, url })
   )
-).pipe(Layer.provideMerge(migratedTestDatabase), Layer.orDie);
+).pipe(Layer.provideMerge(runtimeTestDatabase), Layer.orDie);
 
 /** What each mode leaves behind: whether the person is anonymised, and the actions that the run audited. */
 const LEFT_BEHIND: Record<
@@ -90,9 +91,8 @@ const bindings = (
   connectionString: string,
   sent: Ref.Ref<readonly (EmailMessage | EmailMessageBuilder)[]>
 ): TickEnv => ({
-  BETTER_AUTH_SECRET: "retention-test-signing-key-not-a-secret",
+  DATABASE_URL: connectionString,
   DEPLOYMENT: deployment,
-  HYPERDRIVE: { connectionString },
   MAIL_FROM: "noreply@retention.example",
   SEND_EMAIL: {
     send: flow(
@@ -105,6 +105,9 @@ const bindings = (
   },
   SITE_URL: "https://retention.example",
   SLACK_WEBHOOK_URL: "https://hooks.example.invalid/fake",
+  SUPABASE_PUBLISHABLE_KEY: "local-test-publishable-key",
+  SUPABASE_SECRET_KEY: "local-test-secret-key",
+  SUPABASE_URL: "http://127.0.0.1:1",
 });
 
 const whatTheRunLeft = Effect.gen(function* whatTheRunLeft() {
@@ -140,7 +143,7 @@ for (const deployment of Deployment.literals) {
         `${deployment} runs in the mode that its approvals allow: ${modeIn(deployment)}`,
         () =>
           Effect.gen(function* nightlyRun() {
-            const url = yield* TestDatabaseUrl;
+            const url = yield* RuntimeDatabaseUrl;
             yield* seedDuePerson;
 
             const sent = yield* Ref.make<

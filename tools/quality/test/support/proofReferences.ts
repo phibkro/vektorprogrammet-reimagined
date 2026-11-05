@@ -1,3 +1,12 @@
+import { Array as Arr, Predicate, Record as Rec } from "effect";
+import { Visitor, parseSync, visitorKeys } from "oxc-parser";
+import type {
+  Expression,
+  ModuleExportName,
+  PropertyKey,
+  VisitorObject,
+} from "oxc-parser";
+
 /**
  * Every place of a source text that holds the domain's `InTransaction` as a value, or its key as a string (spec 0018,
  * falsifier 6, guarantee TX5; reframed by spec 0019).
@@ -8,7 +17,7 @@
  * and no scan of the source can close that. What the scan does is make the careless and the convenient spellings fail
  * the test at review time: a second provider written by someone who did not know the rule, in whatever clothes. The
  * proof itself is checked at run time: every adapter method that requires it verifies that the proof is the live
- * transaction's own (`packages/db/src/live.ts`), and a forged one dies as `TransactionNotLive` at first use.
+ * transaction's own (`apps/web/src/adapters/db/live.ts`), and a forged one dies as `TransactionNotLive` at first use.
  *
  * The scan does not list the ways to provide (`provideService`, `Layer.succeed`, `provideServiceEffect`, ...). It flags
  * every reference to the service as a value, except the ones that only read it. A reference is an identifier that
@@ -36,15 +45,7 @@
  *   proof, used late, and it needs no reference to the service;
  * - a cast object that has the key (`{ key } as unknown as typeof InTransaction`) when the key is not a whole literal.
  */
-import { InTransaction } from "@vektorprogrammet/domain";
-import { Array as Arr, Predicate, Record as Rec } from "effect";
-import { Visitor, parseSync, visitorKeys } from "oxc-parser";
-import type {
-  Expression,
-  ModuleExportName,
-  PropertyKey,
-  VisitorObject,
-} from "oxc-parser";
+import { InTransaction } from "../../../../apps/web/src/core/transactions/transaction.ts";
 
 const SERVICE = "InTransaction";
 

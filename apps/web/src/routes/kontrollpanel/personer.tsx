@@ -3,8 +3,6 @@ import { Array as Arr } from "effect";
 
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
-import { EraseSheet, MergeSheet } from "@/components/panel/personalDataSheets";
-import { ProfileFields, profileDefaults } from "@/components/profileFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -15,21 +13,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
-  DeactivateAccountForm,
-  InviteAccountForm,
-  ReactivateAccountForm,
-  UpdateProfileForm,
-} from "@/forms/people";
-import { RegisterPersonForm } from "@/forms/teams";
+  ProfileFields,
+  profileDefaults,
+} from "../../features/accounts/components/profileFields";
 import {
   deactivateAccount,
   inviteAccount,
   reactivateAccount,
   updateProfile,
-} from "@/functions/account.functions";
-import { getPeople, registerPerson } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+} from "../../features/accounts/server/functions";
+import {
+  getPeople,
+  registerPerson,
+} from "../../features/panel/server/functions";
+import {
+  EraseSheet,
+  MergeSheet,
+} from "../../features/personal-data/components/personalDataSheets";
+import {
+  DeactivateAccountForm,
+  InviteAccountForm,
+  ReactivateAccountForm,
+  UpdateProfileForm,
+} from "../../features/teams/forms/people";
+import { RegisterPersonForm } from "../../features/teams/forms/teams";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/personer");
 

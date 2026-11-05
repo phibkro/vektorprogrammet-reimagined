@@ -4,12 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bunx vp test",
+    "test": "vp test",
     "check": "vp check"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@vektorprogrammet/domain": "workspace:*",
     "effect": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-resolver": "catalog:"

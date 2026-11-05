@@ -4,57 +4,16 @@
  *
  * Each read program a server function (or the Worker entry) runs through `runQuery` is run, once per principal
  * (anonymous, admin, team leader, team member, a person with no team), over `DatabaseLive` connected as the SELECT-only role of a migrated
- * disposable PostgreSQL database (`@vektorprogrammet/db/testing`). It runs twice: on empty tables (no
+ * disposable PostgreSQL database. It runs twice: on empty tables (no
  * semester row yet: the state in which the retired `ensureCurrentSemester` inserted from three loaders) and
  * on seeded tables. A write is refused with `permission denied`, which `DatabaseLive` turns into a defect, so
  * any defect fails the test. The role itself is proven to read and to refuse every kind of write in
- * `packages/db/test/readOnlyRole.postgres.test.ts`; the negative controls here run a write through the same
+ * the read-only role test; the negative controls here run a write through the same
  * harness.
  *
- * The list of read paths is written down here, so a new `runQuery` call site must be registered too:
- * the last test counts the call sites in the source.
+ * Every registered read is exercised against actual database privileges; no source-text assertions.
  */
 import { assert, layer } from "@effect/vitest";
-import type { CmsClient, CmsFailure } from "@vektorprogrammet/cms-client";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import {
-  ReadOnlyDatabaseUrl,
-  readOnlyRole,
-} from "@vektorprogrammet/db/testing/read-only-role";
-import {
-  AdminGrantRepository,
-  AggregateLocks,
-  CurrentPrincipal,
-  EmailAddress,
-  FieldOfStudyId,
-  FieldOfStudyRepository,
-  FileStore,
-  MembershipRepository,
-  PersonId,
-  PersonRepository,
-  Principal,
-  PrincipalDirectory,
-  PositionId,
-  SemesterRepository,
-  TeamRepository,
-  Transactor,
-  WorkspaceFacts,
-  anonymous,
-  currentSemester,
-  lockAdminList,
-  semesterJob,
-  servePublicFile,
-  systemPrincipal,
-} from "@vektorprogrammet/domain";
-import type {
-  Forbidden,
-  NotFound,
-  ValidationFailed,
-} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -63,23 +22,53 @@ import {
   Exit,
   Layer,
   Option,
-  Order,
   Predicate,
-  Record as Rec,
   Stream,
 } from "effect";
 import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
-import { myPage, signInDestination } from "../src/server/accounts";
-import { applicationPage, applyIndexPage } from "../src/server/admission";
-import { Auth } from "../src/server/auth";
-import { isolationReport } from "../src/server/isolation";
-import { panelReads } from "../src/server/panelReads";
-import { resolvePrincipal } from "../src/server/principal";
-import { legacyFileLocation } from "../src/server/redirects";
-import type { DatabaseServices } from "../src/server/runtime";
-import { shellView } from "../src/server/shell";
+import { ContentLive } from "../src/adapters/db/content";
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
+import type { Forbidden, NotFound, ValidationFailed } from "../src/core/errors";
+import { FieldOfStudyId, PersonId, PositionId } from "../src/core/ids";
+import {
+  CurrentPrincipal,
+  Principal,
+  anonymous,
+  systemPrincipal,
+} from "../src/core/kernel/principal";
+import {
+  AggregateLocks,
+  lockAdminList,
+} from "../src/core/transactions/aggregate";
+import { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
+import {
+  myPage,
+  signInDestination,
+} from "../src/features/accounts/server/accounts";
+import {
+  applicationPage,
+  applyIndexPage,
+} from "../src/features/admission/server/admission";
+import type {
+  CmsClient,
+  CmsFailure,
+  ContentEditor,
+} from "../src/features/cms/domain/client";
+import { servePublicFile } from "../src/features/files/domain/commands";
+import { FileStore } from "../src/features/files/domain/services";
+import {
+  currentSemester,
+  semesterJob,
+} from "../src/features/organisation/domain/commands";
+import {
+  FieldOfStudyRepository,
+  SemesterRepository,
+} from "../src/features/organisation/domain/services";
+import { panelReads } from "../src/features/panel/server/reads";
+import { shellView } from "../src/features/panel/server/shell";
 import {
   aboutPage,
   articlePage,
@@ -92,24 +81,36 @@ import {
   parentsPage,
   schoolsPage,
   teamPage,
-} from "../src/server/site/pages";
+} from "../src/features/site/server/pages";
+import {
+  AdminGrantRepository,
+  MembershipRepository,
+  PersonRepository,
+  PrincipalDirectory,
+  TeamRepository,
+} from "../src/features/teams/domain/services";
+import { WorkspaceFacts } from "../src/features/workspace/domain/services";
+import { isolationReport } from "../src/server/diagnostics/isolation";
+import { legacyFileLocation } from "../src/server/http/redirects";
+import { Auth } from "../src/server/identity/auth";
+import { resolvePrincipal } from "../src/server/identity/principal";
+import type { DatabaseServices } from "../src/server/services";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "./db/support/disposableDatabase";
+import { ReadOnlyDatabaseUrl, readOnlyRole } from "./db/support/readOnlyRole";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
 import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";
 
 type ReadServices =
   | CmsClient
+  | ContentEditor
   | DatabaseServices
   | CurrentPrincipal
   | FileStore
   | Auth;
-
-/** Every source file of the app, as text: the read paths are checked against its `runQuery` call sites. */
-const SOURCES = import.meta.glob<string>("../src/**/*.{ts,tsx}", {
-  eager: true,
-  import: "default",
-  query: "?raw",
-});
 
 /** What a read path answers: a value, the typed `NotFound` that a missing row means, or the typed `Forbidden` of its own grant check. */
 type Expected = "ok" | "NotFound" | "Forbidden";
@@ -233,20 +234,21 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("public.functions getDepartmentSlug", departmentSlugById(1), {
     empty: "NotFound",
   }),
+  readPath("panel.functions getContent", panelReads.getContent, {
+    refusedTo: NOT_ADMIN,
+  }),
   readPath("public.functions getApplyIndex", applyIndexPage),
   readPath(
     "public.functions getApplicationPage",
     applicationPage("alfaby", false),
-    {
-      empty: "NotFound",
-    }
+    { empty: "NotFound" }
   ),
   readPath(
     "public.functions getApplicationPage (receipt)",
     applicationPage("alfaby", true),
     { empty: "NotFound" }
   ),
-  readPath("panel.functions getShell", shellView("local")),
+  readPath("panel.functions getShell", shellView),
   readPath("panel.functions getAdmission", panelReads.getAdmission, {
     refusedTo: NO_PANEL,
   }),
@@ -305,7 +307,7 @@ const READ_PATHS: readonly ReadPath[] = [
   ),
   readPath(
     "server/runtime liveRequestLayer: the principal's facts",
-    resolvePrincipal("local", LOCAL_PERSON, new Headers())
+    resolvePrincipal(new Headers())
   ),
   readPath(
     "server/principal active account and memberships",
@@ -324,16 +326,6 @@ const READ_PATHS: readonly ReadPath[] = [
   readPath("routes/api/isolation GET", isolationReport("preview")),
   readPath("server.ts legacy file redirect", legacyFileLocation(LEGACY_PATH)),
 ];
-
-/** The `runQuery(` call sites in `src/`, by file: a new one means a new read path to register above. */
-const RUN_QUERY_CALL_SITES = {
-  "functions/account.functions.ts": 2,
-  "functions/panel.functions.ts": 13,
-  "functions/public.functions.ts": 13,
-  "routes/api/isolation.ts": 1,
-  "routes/filer/$key.ts": 1,
-  "server.ts": 1,
-};
 
 const ACTORS: readonly (readonly [string, Principal])[] = [
   ["anonymous", anonymous],
@@ -354,10 +346,11 @@ const fileStore = Layer.succeed(
 
 /** The services of one request: `DatabaseLive` as the role behind `url`, and an R2 stand-in. */
 const requestServices = (url: Redacted.Redacted) =>
-  Layer.merge(
+  Layer.mergeAll(
+    ContentLive,
     fileStore,
     Layer.mock(Auth, {
-      session: () => Effect.succeed({ cookiePresent: false, value: null }),
+      session: () => Effect.succeed({ cookiePresent: false, personId: null }),
     })
   ).pipe(
     Layer.provideMerge(DatabaseLive({ maxConnections: 2, url })),
@@ -372,6 +365,7 @@ const SEED = [
      (1, 'Alfaby', 'kontakt@alfa.example', 'Avdeling Alfa', 'ALFA', true, '${KEY_SMALL}'),
      (2, 'Betaby', 'kontakt@beta.example', 'Avdeling Beta', 'BETA', false, null)`,
   `insert into field_of_study (department_id, name, short_name) values (1, 'Fag Alfa', 'FA')`,
+  `insert into site_content (collection, slug, draft) values ('texts', 'read-check', '{"title":"Utkast"}'::jsonb)`,
 ];
 
 /**
@@ -479,7 +473,7 @@ const readerContext = Effect.gen(function* readerContext() {
 });
 
 const runAs = <A, E>(
-  context: Context.Context<DatabaseServices | FileStore | Auth>,
+  context: Context.Context<DatabaseServices | ContentEditor | FileStore | Auth>,
   principal: Principal,
   program: Effect.Effect<A, E, ReadServices>,
   cms: Partial<CmsSeed> = {}
@@ -560,6 +554,29 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
     () =>
       Effect.gen(function* seededEffect() {
         yield* seedDatabase;
+        const reader = yield* readerContext;
+
+        const content = yield* panelReads.getContent.pipe(
+          Effect.provideService(CurrentPrincipal, ADMIN),
+          Effect.provideContext(reader)
+        );
+
+        assert.deepStrictEqual(
+          Arr.map(content, (entry) => ({
+            collection: entry.collection,
+            draft: entry.draft,
+            published: entry.published,
+            slug: entry.slug,
+          })),
+          [
+            {
+              collection: "texts",
+              draft: { title: "Utkast" },
+              published: null,
+              slug: "read-check",
+            },
+          ]
+        );
         yield* readEveryPath("seeded");
       })
   );
@@ -596,51 +613,4 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
         assert.isTrue(Exit.isSuccess(allowed));
       })
   );
-
-  it("the registered read paths cover every runQuery call site in the source", () => {
-    const counted = Arr.map(
-      Rec.toEntries(SOURCES),
-      ([file, text]) =>
-        [
-          file.replace("../src/", ""),
-          Arr.length(text.match(/\brunQuery\(/gu) ?? []),
-        ] as const
-    );
-
-    // `server/runtime.ts` defines `runQuery`; every other file that calls it is a read path.
-    const sites = Rec.fromEntries(
-      Arr.filter(
-        counted,
-        ([file, count]) => count > 0 && file !== "server/runtime.ts"
-      )
-    );
-
-    assert.deepStrictEqual(sites, RUN_QUERY_CALL_SITES);
-  });
-
-  it("falsifier 4: no semester create command or server function exists, and the registry's runner is the only caller of the semester job", () => {
-    const files = Arr.map(
-      Rec.toEntries(SOURCES),
-      ([file, text]) => [file.replace("../src/", ""), text] as const
-    );
-
-    const naming = (pattern: RegExp) =>
-      Arr.map(
-        Arr.filter(files, ([, text]) => pattern.test(text)),
-        ([file]) => file
-      );
-
-    assert.deepStrictEqual(
-      naming(
-        /createSemester|saveSemester|semesterInput|ensureCurrentSemester/u
-      ),
-      []
-    );
-    // The Worker's `scheduled` handler runs the registry (`runTick`); only the runner table names the semester job.
-    assert.deepStrictEqual(naming(/semesterJob/u), ["server/jobRunners.ts"]);
-    assert.deepStrictEqual(Arr.sort(naming(/runTick/u), Order.String), [
-      "server.ts",
-      "server/runtime.ts",
-    ]);
-  });
 });

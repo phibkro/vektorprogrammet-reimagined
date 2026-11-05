@@ -3,8 +3,7 @@
  * The conformance test fails for a machine that a description exports and that is not here, and for one that is here and
  * that no description exports, so a machine cannot be left unchecked by being forgotten.
  */
-import { Teams } from "@vektorprogrammet/domain";
-
+import * as Teams from "../../../apps/web/src/features/teams/domain/declaration.ts";
 import { machineUnderTest } from "./conformance.ts";
 
 export const machines = [

@@ -13,7 +13,7 @@ import { renderToString } from "react-dom/server";
 
 import { PostForm } from "../src/components/form/postForm";
 import { Input } from "../src/components/ui/input";
-import { ContactForm } from "../src/forms/contact";
+import { ContactForm } from "../src/features/contact/forms/contact";
 import { typeInto } from "./support/typeInto";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);

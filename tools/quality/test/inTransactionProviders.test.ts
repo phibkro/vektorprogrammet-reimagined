@@ -1,8 +1,8 @@
 /**
  * A lint against accidental provision of `InTransaction` (spec 0018, falsifier 6; reframed by spec 0019). It is not what
  * makes the proof unforgeable: the adapter does. Every adapter method that requires `InTransaction` checks at run time,
- * before its first statement, that the proof the program holds is the live transaction's own (`packages/db/src/live.ts`,
- * guarantee TX5), and a forged or leaked proof dies as `TransactionNotLive`. `packages/db/test/liveProof.postgres.test.ts`
+ * before its first statement, that the proof the program holds is the live transaction's own (`apps/web/src/adapters/db/live.ts`,
+ * guarantee TX5), and a forged or leaked proof dies as `TransactionNotLive`. `apps/web/test/db/liveProof.postgres.test.ts`
  * shows it, with the forgeries that three rounds of review beat this scan with.
  *
  * What this test is for is the cheap, early signal: a file that holds `InTransaction` as a value, or writes its key as a
@@ -20,7 +20,6 @@
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { InTransaction } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Effect,
@@ -31,6 +30,7 @@ import {
 } from "effect";
 import { ChildProcessSpawner } from "effect/process";
 
+import { InTransaction } from "../../../apps/web/src/core/transactions/transaction.ts";
 import { gitIn } from "../workingTree.ts";
 import { proofReferences } from "./support/proofReferences.ts";
 import { workingTreeSources } from "./support/sources.ts";
@@ -50,13 +50,13 @@ interface Allowance {
 const allowances: readonly Allowance[] = [
   {
     calls: 4,
-    path: "packages/db/src/live.ts",
+    path: "apps/web/src/adapters/db/live.ts",
     reason:
       "the one production provider (`liveLevel`, which `transactional` runs each level in: the proof of each level, made once, provided in one place and read from the context to admit a nested level from its own level) and the check of the proof that every `Requires` method of an adapter makes (`verify`); it holds the proofs in a private stack of levels",
   },
   {
     calls: 1,
-    path: "packages/domain/test/support/inMemory.ts",
+    path: "apps/web/test/domain/support/inMemory.ts",
     reason: "the in-memory test composition of the domain's tests",
   },
   {
@@ -66,31 +66,31 @@ const allowances: readonly Allowance[] = [
   },
   {
     calls: 2,
-    path: "packages/db/test/aggregates.postgres.test.ts",
+    path: "apps/web/test/db/aggregates.postgres.test.ts",
     reason:
       "the case that shows a forged proof is refused where a lock is asked for (spec 0019 and LK3)",
   },
   {
     calls: 12,
-    path: "packages/db/test/liveProof.postgres.test.ts",
+    path: "apps/web/test/db/liveProof.postgres.test.ts",
     reason:
       "the forgeries and the leaked proofs that the adapters' check refuses (spec 0019), and the sweep that calls every `Requires` method under a forged proof",
   },
   {
     calls: 2,
-    path: "packages/domain/src/shared/guarantees.ts",
+    path: "apps/web/src/core/store/guarantees.ts",
     reason:
       "the declaration of TX3 and TX5 hands the service to `wholePort`, which reads its key and provides nothing",
   },
   {
     calls: 1,
-    path: "packages/domain/src/shared/transaction.ts",
+    path: "apps/web/src/core/transactions/transaction.ts",
     reason:
       "the declaration of the service: its key, written once, as every service declares its own",
   },
   {
     calls: 1,
-    path: "packages/domain/src/shared/integrationGuard.ts",
+    path: "apps/web/src/core/transactions/integrationGuard.ts",
     reason:
       "the runtime guard of the integration ports reads the proof with `Effect.serviceOption` to refuse a call made while it is held (spec 0024 R6); it provides nothing",
   },
@@ -115,28 +115,28 @@ const referencesIn = (source: string) => proofReferences("x.ts", source).length;
 
 /** The forgeries that the reviewers of round 1 and round 2 wrote, each of which type-checks (`/tmp/r2conf/forgery{A..F}.ts`). */
 const FORGERIES = {
-  "A: an aliased import, provideService": `import { InTransaction as Proof } from "@vektorprogrammet/domain";
+  "A: an aliased import, provideService": `import { InTransaction as Proof } from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeA = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, Proof, { kind: "database-transaction" });`,
-  "B: provideServiceEffect": `import { InTransaction } from "@vektorprogrammet/domain";
+  "B: provideServiceEffect": `import { InTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeB = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideServiceEffect(program, InTransaction, Effect.succeed({ kind: "database-transaction" as const }));`,
-  "C: InTransaction as typeof InTransaction": `import { InTransaction } from "@vektorprogrammet/domain";
+  "C: InTransaction as typeof InTransaction": `import { InTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeC = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, InTransaction as typeof InTransaction, { kind: "database-transaction" });`,
-  "D: a container, then a member": `import { InTransaction } from "@vektorprogrammet/domain";
+  "D: a container, then a member": `import { InTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 const services = { proof: InTransaction };
 export const forgeD = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, services.proof, { kind: "database-transaction" });`,
-  "E: parentheses": `import { InTransaction } from "@vektorprogrammet/domain";
+  "E: parentheses": `import { InTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeE = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, (InTransaction), { kind: "database-transaction" });`,
-  "F: a tuple destructuring": `import { InTransaction } from "@vektorprogrammet/domain";
+  "F: a tuple destructuring": `import { InTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 const [Proof] = [InTransaction] as const;
 export const forgeF = <A, E, R>(program: Effect.Effect<A, E, R>) =>
@@ -180,8 +180,8 @@ const HOLDING = [
   "const { InTransaction: Proof } = Domain;",
   "const { InTransaction } = Domain;",
   "const { InTransaction: Proof = fallback } = Domain;",
-  "const { InTransaction: Proof } = await import('@vektorprogrammet/domain');",
-  "export { InTransaction as Proof } from '@vektorprogrammet/domain';",
+  "const { InTransaction: Proof } = await import('./transaction.ts');",
+  "export { InTransaction as Proof } from './transaction.ts';",
   "import { InTransaction as Proof } from 'x'; export { Proof };",
   "import * as D from 'x'; type T = typeof D.InTransaction; import P = D.InTransaction;",
   "import { InTransaction as Proof } from 'x'; anything(Proof);",
@@ -229,28 +229,28 @@ const READING = [
  * `Context.addUnsafe`, a cast object), and the three that write the name with a Unicode escape. Each type-checks.
  */
 const ROUND_THREE = {
-  "G: an escaped import alias": `import { \\u0049nTransaction as Proof } from "@vektorprogrammet/domain";
+  "G: an escaped import alias": `import { \\u0049nTransaction as Proof } from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeG = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, Proof, { kind: "database-transaction" });`,
-  "H: an escaped identifier": `import { \\u{49}nTransaction } from "@vektorprogrammet/domain";
+  "H: an escaped identifier": `import { \\u{49}nTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeH = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, \\u{49}nTransaction, { kind: "database-transaction" });`,
-  "I: an escaped member string": `import * as D from "@vektorprogrammet/domain";
+  "I: an escaped member string": `import * as D from "./transaction.ts";
 import { Effect } from "effect";
 export const forgeI = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, D["\\u0049nTransaction"], { kind: "database-transaction" });`,
-  "O: Context.makeUnsafe with the key": `import type { InTransaction } from "@vektorprogrammet/domain";
+  "O: Context.makeUnsafe with the key": `import type { InTransaction } from "./transaction.ts";
 import { Context, Effect } from "effect";
 const forged = Context.makeUnsafe<InTransaction>(new Map([["${KEY}", { kind: "database-transaction" }]]));
 export const forgeO = <A, E, R>(program: Effect.Effect<A, E, R>) => Effect.provideContext(program, forged);`,
-  "P: a cast object that has the key": `import type { InTransaction } from "@vektorprogrammet/domain";
+  "P: a cast object that has the key": `import type { InTransaction } from "./transaction.ts";
 import { Effect } from "effect";
 const key = { key: "${KEY}" } as unknown as typeof InTransaction;
 export const forgeP = <A, E, R>(program: Effect.Effect<A, E, R>) =>
   Effect.provideService(program, key, { kind: "database-transaction" });`,
-  "S: Context.addUnsafe and Layer.succeedContext with the key": `import type { InTransaction } from "@vektorprogrammet/domain";
+  "S: Context.addUnsafe and Layer.succeedContext with the key": `import type { InTransaction } from "./transaction.ts";
 import { Context, Effect, Layer } from "effect";
 export const ForgedLayer = Layer.succeedContext(
   Context.addUnsafe<never, InTransaction, { readonly kind: "database-transaction" }>(Context.empty(), "${KEY}", { kind: "database-transaction" })
@@ -260,16 +260,16 @@ export const ForgedLayer = Layer.succeedContext(
 
 /** What the header of `support/proofReferences.ts` lists as not seen. A reviewer reads these; the scan does not. */
 const BLIND_SPOTS = {
-  "Q: a plain generator's yield*": `import { InTransaction } from "@vektorprogrammet/domain";
+  "Q: a plain generator's yield*": `import { InTransaction } from "./transaction.ts";
 function* leak() { yield* InTransaction; }
 const key = leak().next().value;`,
   "a context captured inside a transaction and provided later": `const capture = Effect.context();
 const later = (program) => Effect.provide(program, captured);`,
   "a key built from parts": `const key = "@vektorprogrammet/domain/" + "shared/InTran" + "saction";`,
-  "a runtime-built member name": `import * as D from "@vektorprogrammet/domain";
+  "a runtime-built member name": `import * as D from "./transaction.ts";
 const name = ["In", "Transaction"].join("");
 const proof = D[name as keyof typeof D];`,
-  "the namespace read under a runtime key": `import * as D from "@vektorprogrammet/domain";
+  "the namespace read under a runtime key": `import * as D from "./transaction.ts";
 const all = Object.values(D);`,
 } as const;
 

@@ -5,7 +5,6 @@
  * schema refuses sends nothing.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { ValidationFailed } from "@vektorprogrammet/domain";
 import { Array as Arr, Schema } from "effect";
 import { act } from "react";
 import type { ReactNode } from "react";
@@ -15,15 +14,16 @@ import { CommandFormView } from "../src/components/form/commandForm";
 import type { FieldComponent } from "../src/components/form/field";
 import { Input } from "../src/components/ui/input";
 import { Switch } from "../src/components/ui/switch";
+import { ValidationFailed } from "../src/core/errors";
 import {
   Text,
   formSchema,
   isChecked,
   wholeNumber,
 } from "../src/forms/formSchema";
-import { success } from "../src/lib/outcome";
-import type { Outcome } from "../src/lib/outcome";
-import { failureOf } from "../src/server/errors";
+import { success } from "../src/http/outcome";
+import type { Outcome } from "../src/http/outcome";
+import { failureOf } from "../src/server/http/errors";
 import { typeInto } from "./support/typeInto";
 
 const REFUSAL = "Plassen kan ikke fjernes.";

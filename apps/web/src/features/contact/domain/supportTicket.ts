@@ -1,0 +1,138 @@
+/**
+ * C10 contact form (RULE-156) and its notifications (RULE-249).
+ *
+ * RULE-327 replacement (Checkpoint 1): the visitor picks the department; no IP
+ * geolocation. Spam protection (RULE-167, Turnstile) is verified by `apps/web`
+ * before `submitContact` runs, because siteverify is provider I/O.
+ */
+import { Array as Arr, Schema } from "effect";
+import type { NonEmptyReadonlyArray } from "effect/Array";
+
+import { DepartmentId } from "../../../core/ids.ts";
+import {
+  EmailMessage,
+  SlackPostMessage,
+  SlackTarget,
+} from "../../../core/outbox/outbox.ts";
+import type { DeclaredMessage } from "../../../core/outbox/outbox.ts";
+import {
+  EmailAddressInput,
+  REQUIRED_FIELD_MESSAGE,
+  requiredText,
+} from "../../../core/validation.ts";
+import type { Department } from "../../organisation/domain/department.ts";
+
+export const DEPARTMENT_UNAVAILABLE_MESSAGE =
+  "Klarte ikke sende melding til denne avdelingen. Send oss en mail isteden.";
+
+const required = (maxLength: number) =>
+  requiredText({ maxLength }).annotateKey({
+    messageMissingKey: REQUIRED_FIELD_MESSAGE,
+  });
+
+/** RULE-156: name, a valid e-mail, subject, message and the chosen department. */
+export const SupportTicket = Schema.Struct({
+  departmentId: DepartmentId.annotate({
+    message: DEPARTMENT_UNAVAILABLE_MESSAGE,
+  }).annotateKey({
+    messageMissingKey: DEPARTMENT_UNAVAILABLE_MESSAGE,
+  }),
+  email: EmailAddressInput.annotateKey({
+    messageMissingKey: REQUIRED_FIELD_MESSAGE,
+  }),
+  message: required(10_000),
+  name: required(255),
+  subject: required(255),
+});
+
+export type SupportTicket = typeof SupportTicket.Type;
+
+/** Flash text after a successful submit (legacy wording). */
+export const contactReceiptNotice = (department: {
+  readonly email: string;
+}): string =>
+  `Kontaktforespørsel sendt til ${department.email}, takk for henvendelsen!`;
+
+/**
+ * RULE-249: the notifications for one ticket, in delivery order:
+ * department e-mail, receipt e-mail, the department's Slack channel when it has
+ * one, then #notifications.
+ *
+ * The #notifications line starts with the department's city, because legacy
+ * `Department::__toString()` returns the city (verified F43). The department
+ * channel message closes its code block directly after the text, with no
+ * newline before the closing fence (verified F44). Legacy left a trailing
+ * space after "vektorprogrammet.no."; that is not product meaning, so it is
+ * not reproduced.
+ */
+export const supportTicketMessages = (
+  ticket: SupportTicket,
+  department: Pick<Department, "city" | "email" | "slackChannel">
+): NonEmptyReadonlyArray<DeclaredMessage> => {
+  const departmentEmail: DeclaredMessage = EmailMessage.make({
+    replyTo: ticket.email,
+    subject: `Henvendelse fra kontaktskjema: ${ticket.subject}`,
+    text: Arr.join(
+      [
+        `Ny henvendelse fra ${ticket.name} (${ticket.email}).`,
+        `Emne: ${ticket.subject}`,
+        "",
+        ticket.message,
+      ],
+      "\n"
+    ),
+    to: department.email,
+  });
+
+  const receipt: DeclaredMessage = EmailMessage.make({
+    replyTo: department.email,
+    subject: `Kvittering: ${ticket.subject}`,
+    text: Arr.join(
+      [
+        `Hei ${ticket.name},`,
+        "",
+        `Vi har mottatt henvendelsen din og videresendt den til ${department.email}.`,
+        "",
+        `Emne: ${ticket.subject}`,
+        "",
+        ticket.message,
+      ],
+      "\n"
+    ),
+    to: ticket.email,
+  });
+
+  const notifications: DeclaredMessage = SlackPostMessage.make({
+    target: SlackTarget.cases.Notifications.make({}),
+    text: Arr.join(
+      [
+        // Legacy ends this line with a space (SupportTicketSubscriber); kept byte-equal by operator decision (F43).
+        `${department.city}: Ny melding mottatt fra *${ticket.name}*. Meldingen ble sendt fra et kontaktskjema på vektorprogrammet.no. `,
+        `Emne: \`${ticket.subject}\``,
+        `Meldingen har blitt videresendt til ${department.email}`,
+      ],
+      "\n"
+    ),
+  });
+
+  if (department.slackChannel === null) {
+    return [departmentEmail, receipt, notifications];
+  }
+
+  const departmentSlack: DeclaredMessage = SlackPostMessage.make({
+    target: SlackTarget.cases.DepartmentChannel.make({
+      channel: department.slackChannel,
+    }),
+    text: Arr.join(
+      [
+        `Ny henvendelse fra ${ticket.name} (${ticket.email}).`,
+        `Emne: \`${ticket.subject}\``,
+        "```",
+        `${ticket.message}\`\`\``,
+      ],
+      "\n"
+    ),
+  });
+
+  return [departmentEmail, receipt, departmentSlack, notifications];
+};

@@ -1,4 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
+import { Cause, Effect, Exit, Layer, Predicate, Schema } from "effect";
+
 import {
   AlreadyExists,
   Conflict,
@@ -6,11 +8,10 @@ import {
   NotFound,
   ValidationFailed,
   validationFailed,
-} from "@vektorprogrammet/domain";
-import { Cause, Effect, Exit, Layer, Predicate, Schema } from "effect";
-
-import { success } from "../src/lib/outcome";
-import { ERROR_TABLE, RateLimited, failureOf } from "../src/server/errors";
+} from "../src/core/errors";
+import { success } from "../src/http/outcome";
+import { RateLimited } from "../src/http/requestError";
+import { ERROR_TABLE, failureOf } from "../src/server/http/errors";
 import { runOutcome } from "../src/server/runtime";
 
 const { signal } = new AbortController();

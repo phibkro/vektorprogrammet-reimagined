@@ -10,35 +10,50 @@
  * - The failure of the request answers with its own status.
  */
 import { assert, layer } from "@effect/vitest";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import { PlatformProbe, requiredChecks } from "@vektorprogrammet/domain";
-import type { PlatformReport } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Option, Redacted, Schema } from "effect";
 
-import { success } from "../src/lib/outcome";
+import { PlatformProbe } from "../src/core/store/platformProbe";
+import type { PlatformReport } from "../src/core/store/platformProbe";
+import { requiredChecks } from "../src/core/store/platformRequirements";
+import { success } from "../src/http/outcome";
 import {
   platformReport,
   platformResponse,
   runPlatformRoute,
-} from "../src/server/platform";
+} from "../src/server/diagnostics/platform";
 import type { RequestScope } from "../src/server/runtime";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "./db/support/disposableDatabase";
+import {
+  runtimeTestDatabase,
+  RuntimeDatabaseUrl,
+} from "./db/support/runtimeRole";
 import {
   assertEmpty404,
   assertFailureStatus,
   bodyOf,
   databaseAt,
 } from "./support/diagnosticRoute";
-import { workerEnv } from "./support/workerEnv";
+
+const workerEnv = (DATABASE_URL: string): RequestScope["env"] => ({
+  CONTACT_RATE_LIMIT: { limit: () => Promise.resolve({ success: true }) },
+  DATABASE_URL,
+  DEPLOYMENT: "local",
+  SITE_URL: "https://scope.example",
+  SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+  SUPABASE_SECRET_KEY: "test-secret-key",
+  SUPABASE_URL: "http://127.0.0.1:1",
+  TURNSTILE_SECRET_KEY: "test-secret",
+  TURNSTILE_SITE_KEY: "test-site",
+});
 
 const scopeOf = (env: RequestScope["env"]): RequestScope => ({
   ctx: { waitUntil: () => {} },
   env,
   headers: new Headers(),
   signal: new AbortController().signal,
-  testActor: undefined,
 });
 
 const Body = Schema.Struct({
@@ -73,7 +88,7 @@ const holding: PlatformReport = {
 const answerFor = (report: PlatformReport) =>
   platformResponse(success(Option.some({ deployment: "preview", report })));
 
-layer(migratedTestDatabase, { excludeTestServices: true })(
+layer(runtimeTestDatabase, { excludeTestServices: true })(
   "GET /api/platform (spec 0025 R5)",
   (it) => {
     it.effect(
@@ -93,7 +108,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
             assert.strictEqual(response.status, 200);
             assert.deepStrictEqual(body.problems, []);
             assert.strictEqual(body.deployment, deployment);
-            assert.strictEqual(body.profile, "hyperdrive");
+            assert.strictEqual(body.profile, "supabase");
 
             for (const { id } of requiredChecks) {
               assert.isTrue(
@@ -127,7 +142,7 @@ layer(migratedTestDatabase, { excludeTestServices: true })(
       "F1: what the route runs: production answers an empty 404, a preview answers 200",
       () =>
         Effect.gen(function* theRoute() {
-          const url = yield* TestDatabaseUrl;
+          const url = yield* RuntimeDatabaseUrl;
 
           // A report is a 200 or a 500 with a body, so an empty 404 is an answer that ran no probe. (The request still
           // resolves its principal, which reads the session: that is the database, and it is not the probe.)

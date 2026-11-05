@@ -6,15 +6,20 @@
 import { Link } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { PortableTextView } from "@/components/site/portableTextView";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { cn } from "@/lib/utils";
-import type { DepartmentView, FaqView, TextView } from "@/server/site/pages";
+
+import { PortableTextView } from "../../features/cms/components/portableTextView";
+import type {
+  DepartmentView,
+  FaqView,
+  TextView,
+} from "../../features/site/server/pages";
+import { cn } from "../../utils/cn";
 
 /** The logo and a rule between sections on narrow screens. */
 export const Divider = () => (

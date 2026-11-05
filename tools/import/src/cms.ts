@@ -39,7 +39,7 @@ const command = Command.make(
   })
 ).pipe(
   Command.withDescription(
-    "Create the legacy articles, texts and sponsors in the CMS (EmDash)"
+    "Create legacy articles, texts and sponsors in PostgreSQL content"
   )
 );
 

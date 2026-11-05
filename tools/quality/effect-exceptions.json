@@ -34,8 +34,8 @@
         "Throwing a native error or using an untyped failure would lose the command's typed error channel."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run check:docs"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run check:docs"
       ],
       "owner": "tools/docgen",
       "versions": {
@@ -80,8 +80,8 @@
         "An Effect runtime inside each individual browser callback would not remove the framework's Promise ABI or the conflicting rules."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": "apps/web",
       "versions": {
@@ -93,108 +93,9 @@
       "retirementTrigger": "Remove the exception when the diagnostics accept Playwright's Promise callbacks without contradicting promise-function-async, then run the browser journey."
     },
     {
-      "id": "EX-0016",
-      "rules": ["FX002", "FX012", "effect/no-native-promise-control-flow"],
-      "scope": {
-        "files": ["apps/web/src/server/password.ts"],
-        "symbols": ["hashPassword", "verifyPassword"],
-        "directives": ["oxlint-disable-next-line"]
-      },
-      "reason": "Spec 0007 requires Worker-compatible bcrypt and verification of legacy PHP hashes. Better Auth owns the Promise callback ABI.",
-      "missingCapability": "Effect 4.0.6 Crypto provides digests and random bytes, not bcrypt password hashing.",
-      "nativeAlternativesExamined": [
-        "Effect Crypto.digest provides SHA digests but not bcrypt password hashing.",
-        "Better Auth's default verifier uses scrypt and cannot verify PHP bcrypt hashes."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp -C apps/web test test/password.test.ts test/password.worker.test.ts",
-        "devenv shell -- bun run ready"
-      ],
-      "owner": "apps/web",
-      "versions": {
-        "effect": "4.0.6",
-        "better-auth": "1.7.14",
-        "bcryptjs": "3.0.3"
-      },
-      "retirementTrigger": "Retire when Better Auth or Effect supplies Worker-compatible bcrypt with equivalent legacy-hash and byte-limit semantics."
-    },
-    {
-      "id": "EX-0017",
-      "rules": [
-        "FX002",
-        "FX003",
-        "FX006",
-        "FX012",
-        "effect/no-native-promise-control-flow"
-      ],
-      "scope": {
-        "files": ["apps/web/src/server/auth.ts"],
-        "symbols": [
-          "Auth",
-          "authLayer",
-          "Auth.setCredential",
-          "makeAuth",
-          "RunDomain",
-          "holdsActiveAccount"
-        ],
-        "directives": ["oxlint-disable-next-line"]
-      },
-      "reason": "Spec 0007 embeds Better Auth and its pg adapter. The library owns Promise callbacks and foreign calls finish before interruption is reported. Spec 0017 moved the library's reads of domain tables behind domain ports, which its Promise callbacks call through one runner that the layer's scope owns.",
-      "missingCapability": "Better Auth 1.7.14's pg/Kysely adapter and transaction callback accept neither Effect nor AbortSignal.",
-      "nativeAlternativesExamined": [
-        "Effect acquireRelease owns the request-local pool but cannot interrupt a Promise whose library ignores cancellation.",
-        "Effect tryPromise exposes a signal; Better Auth has no signal parameter to receive it.",
-        "Effect SQL transactions cannot own the library's separate adapter transaction.",
-        "FiberSet.makeRuntimePromise runs the domain reads that two Better Auth Promise callbacks make (AccountRepository, SignInDirectory), in fibers that the layer's scope owns; it does not change the library's own calls, which still run to completion."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp -C apps/web test test/auth.postgres.test.ts test/deliveryScope.postgres.test.ts",
-        "devenv shell -- bunx vp -C tools/quality test test/authPool.test.ts",
-        "devenv shell -- bun run e2e"
-      ],
-      "owner": "apps/web",
-      "versions": {
-        "effect": "4.0.6",
-        "better-auth": "1.7.14",
-        "pg": "8.23.1",
-        "@effect/tsgo": "0.53.1"
-      },
-      "retirementTrigger": "Retire when Better Auth forwards cancellation to its pg adapter and supports an equivalent cancellable transaction."
-    },
-    {
-      "id": "EX-0023",
-      "rules": [
-        "FX003",
-        "FX012",
-        "effecttsgo/async-function",
-        "typescript/promise-function-async"
-      ],
-      "scope": {
-        "files": ["apps/web/e2e/support/publicFile.ts"],
-        "directives": ["oxlint-disable-next-line"]
-      },
-      "reason": "The disposable e2e seed accesses Wrangler's local R2 binding through getPlatformProxy and the R2Bucket Promise API.",
-      "missingCapability": "Wrangler exposes no Effect client, while the configured Promise lint requires async thunks and the default Effect diagnostic rejects them.",
-      "nativeAlternativesExamined": [
-        "Effect.tryPromise and Effect.promise preserve the Promise boundary; the owned Effect scope disposes the Wrangler proxy.",
-        "Effect's callback constructor would require a custom Promise bridge and duplicate cancellation and late-result handling."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp check",
-        "devenv shell -- bun run e2e"
-      ],
-      "owner": "apps/web",
-      "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1",
-        "wrangler": "4.151.0"
-      },
-      "retirementTrigger": "Remove the local Promise-boundary suppressions when Wrangler exposes an Effect API or the lint rules accept Effect Promise thunks."
-    },
-    {
       "id": "EX-0024",
       "scope": {
-        "files": ["packages/db/test/aggregate.types.test.ts"],
+        "files": ["apps/web/test/db/aggregate.types.test.ts"],
         "directives": ["@ts-expect-error"]
       },
       "reason": "Spec 0006b falsifier 1: each statement must not type-check, and the directive fails the type check itself the day one starts to compile.",
@@ -202,14 +103,14 @@
         "Vitest expectTypeOf asserts the shape of a type, not that a particular call is rejected, and the spec names the directive.",
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
-      "owner": "packages/db",
+      "owner": "apps/web",
       "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
       "id": "EX-0026",
       "scope": {
-        "files": ["packages/domain/test/kernel/machine.types.test.ts"],
+        "files": ["apps/web/test/domain/kernel/machine.types.test.ts"],
         "directives": ["@ts-expect-error"]
       },
       "reason": "Spec 0007c: a machine query that names a command its group does not have must not type-check, and the directive fails the type check itself the day it starts to compile.",
@@ -217,7 +118,7 @@
         "Vitest expectTypeOf asserts the shape of a type, and the instantiated signature of a generic function does not show what a call infers, so it cannot show that a call is rejected.",
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
-      "owner": "packages/domain",
+      "owner": "apps/web",
       "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
@@ -236,7 +137,7 @@
         "Throwing a native error or using an untyped failure would lose the tool's typed error channel."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
+        "devenv shell -- bunx vp run ready",
         "devenv shell -- bunx vp -C tools/effx-conformance test"
       ],
       "owner": "tools/effx-conformance",
@@ -249,11 +150,11 @@
     },
     {
       "id": "EX-0027",
-      "rules": ["anti-slop/no-module-mocking"],
+      "rules": ["anti-slop/no-module-mocking", "effecttsgo/async-function"],
       "scope": {
         "files": [
-          "packages/domain/test/personalData/periodsInText.test.ts",
-          "packages/domain/test/personalData/basesApproval.test.ts"
+          "apps/web/test/domain/personalData/periodsInText.test.ts",
+          "apps/web/test/domain/personalData/basesApproval.test.ts"
         ],
         "directives": ["oxlint-disable"]
       },
@@ -265,10 +166,10 @@
         "A test project with module aliases needs one project for each variant (periods moved, bases decided, bases proposed), and the two graphs would live in two processes, with no way to compare their strings."
       ],
       "verification": [
-        "devenv shell -- bunx vp -C packages/domain test test/personalData/periodsInText.test.ts test/personalData/basesApproval.test.ts",
+        "devenv shell -- bunx vp -C apps/web test --project domain test/domain/personalData/periodsInText.test.ts test/domain/personalData/basesApproval.test.ts",
         "Put a period back into a reason as a number: periodsInText.test.ts fails and names the text (spec 0007b R3 item 28)."
       ],
-      "owner": "packages/domain",
+      "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
         "typescript": "7.0.2",
@@ -283,8 +184,8 @@
       "rules": ["FX012", "unicorn/throw-new-error", "max-classes-per-file"],
       "scope": {
         "files": [
-          "packages/domain/src/jobs/runs.ts",
-          "packages/domain/src/workspace/services.ts"
+          "apps/web/src/core/jobs/runs.ts",
+          "apps/web/src/features/workspace/domain/services.ts"
         ],
         "symbols": [
           "LeaseLost",
@@ -300,8 +201,8 @@
         "Schema.TaggedError and Context.Service are the native Effect constructs used here.",
         "Throwing untyped errors would lose the typed error channel; splitting related ports would not change their ownership."
       ],
-      "verification": ["devenv shell -- bun run ready"],
-      "owner": "packages/domain",
+      "verification": ["devenv shell -- bunx vp run ready"],
+      "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
         "vite-plus": "1.2.0",
@@ -321,10 +222,7 @@
         "files": [
           "apps/web/test/admission.postgres.test.ts",
           "apps/web/test/deliveryBoundary.postgres.test.ts",
-          "apps/web/test/deliveryScope.postgres.test.ts",
-          "apps/web/test/outboxQueue.postgres.test.ts",
-          "apps/web/test/support/commandOutcome.ts",
-          "apps/web/test/support/workerEnv.ts"
+          "apps/web/test/support/commandOutcome.ts"
         ],
         "symbols": [
           "runCommandOutcome Promise boundary",
@@ -339,7 +237,7 @@
         "Effect.promise wraps the real runtime boundary and retains its Promise contract.",
         "Replacing the runtime with a mock would not test the real post-commit boundary."
       ],
-      "verification": ["devenv shell -- bun run ready"],
+      "verification": ["devenv shell -- bunx vp run ready"],
       "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
@@ -349,61 +247,17 @@
       "retirementTrigger": "Remove the override when diagnostics accept the Effect Promise thunk for this runtime boundary."
     },
     {
-      "id": "EX-0015",
-      "rules": ["FX002", "FX012"],
-      "scope": {
-        "files": ["packages/cms-client/scripts/finiteNumbers.ts"],
-        "symbols": ["finiteNumbers"]
-      },
-      "reason": "Replace emitted schema identifiers without changing string literals or comments.",
-      "missingCapability": "Effect does not provide a TypeScript syntax parser.",
-      "nativeAlternativesExamined": [
-        "The Effect Schema modules model data schemas, not TypeScript source syntax.",
-        "Text replacement cannot distinguish code from string literals."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp -C packages/cms-client test test/finiteNumbers.test.ts"
-      ],
-      "owner": "packages/cms-client",
-      "versions": {
-        "effect": "4.0.6",
-        "oxc-parser": "0.153.0"
-      },
-      "retirementTrigger": "Retire when the upstream generator emits finite schemas directly or Effect provides a suitable TypeScript parser."
-    },
-    {
-      "id": "EX-0018",
-      "rules": ["FX002", "FX012"],
-      "scope": {
-        "files": ["packages/db/test/support/localSeed.ts"],
-        "symbols": ["seedFakeAccounts"]
-      },
-      "reason": "Fake browser and Preview accounts must use the same bcrypt algorithm and cost as real credentials.",
-      "missingCapability": "Effect Crypto does not implement bcrypt.",
-      "nativeAlternativesExamined": [
-        "Effect Crypto supplies random bytes and SHA digests, not bcrypt.",
-        "Better Auth's default password hashing is scrypt, which cannot seed the required bcrypt credentials."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp -C packages/db test test/localSeed.pglite.test.ts",
-        "devenv shell -- bun run e2e"
-      ],
-      "owner": "packages/db",
-      "versions": { "effect": "4.0.6", "bcryptjs": "3.0.3" },
-      "retirementTrigger": "Retire when a native Worker-compatible bcrypt implementation replaces bcryptjs for both live and fake credentials."
-    },
-    {
       "id": "EX-0020",
       "rules": ["FX012", "unicorn/throw-new-error"],
       "scope": {
         "files": [
-          "apps/web/src/server/authError.ts",
-          "apps/web/src/server/queueSendFailed.ts",
-          "packages/db/src/aggregate/defects.ts"
+          "apps/web/src/server/identity/authError.ts",
+          "apps/web/src/server/background/outbox/deliveryClaimLost.ts",
+          "apps/web/src/adapters/db/aggregate/defects.ts"
         ],
         "symbols": [
           "AuthBoundaryFailure",
-          "QueueSendFailed",
+          "DeliveryClaimLost",
           "LockOrderViolation",
           "LockNotHeld",
           "TransitionNotApplicable",
@@ -416,76 +270,24 @@
       "nativeAlternativesExamined": [
         "Schema.TaggedError is the native typed failure; using an untyped thrown error would lose the failure channel."
       ],
-      "verification": ["devenv shell -- bun run ready"],
+      "verification": ["devenv shell -- bunx vp run ready"],
       "owner": "apps/web",
       "versions": { "effect": "4.0.6", "vite-plus": "1.2.0" },
       "retirementTrigger": "Remove the narrow lint override when the rule recognizes Schema.TaggedError declarations."
-    },
-    {
-      "id": "EX-0021",
-      "rules": ["FX003", "FX012", "typescript/promise-function-async"],
-      "scope": {
-        "files": [
-          "apps/web/test/auth.postgres.test.ts",
-          "apps/web/test/password.test.ts",
-          "apps/web/test/password.worker.test.ts",
-          "apps/web/test/support/password.worker.ts",
-          "apps/web/test/support/workerRuntime.ts",
-          "apps/web/test/authStartup.worker.test.ts"
-        ],
-        "symbols": ["Effect Promise thunks", "Worker fetch callback"]
-      },
-      "reason": "The test boundaries pass the Better Auth, bcrypt and Miniflare Promise APIs to Effect or return the Worker's Promise ABI.",
-      "missingCapability": "The configured Promise lint requires async functions while the default-on Effect diagnostic rejects them.",
-      "nativeAlternativesExamined": [
-        "Effect.promise and Effect.tryPromise are used for the foreign calls, but their thunks must still return the foreign Promise.",
-        "Adding async wrappers conflicts with effecttsgo/async-function and changes the callback unnecessarily."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp -C apps/web test",
-        "devenv shell -- bun run ready"
-      ],
-      "owner": "apps/web",
-      "versions": { "effect": "4.0.6", "@effect/tsgo": "0.53.1" },
-      "retirementTrigger": "Remove the scoped override when the Promise rule accepts Effect's foreign-call thunks and Worker callbacks."
-    },
-    {
-      "id": "EX-0022",
-      "rules": ["FX002", "FX012", "knip/unlisted"],
-      "scope": {
-        "files": ["apps/web/src/cloudflareWorkers.d.ts", "knip.json"],
-        "symbols": ["cloudflare:workers env"]
-      },
-      "reason": "The Worker entry reads its startup binding from Cloudflare's virtual module. Knip treats the module scheme as an npm dependency.",
-      "missingCapability": "The app tsconfig loads DOM and Node globals but does not load Cloudflare's global ambient module declarations.",
-      "nativeAlternativesExamined": [
-        "The installed @cloudflare/workers-types declares cloudflare:workers in its global Worker environment, while this mixed client/server project selects DOM and Node types.",
-        "The narrow declaration types only the startup binding and does not replace the runtime module."
-      ],
-      "verification": [
-        "devenv shell -- bunx vp -C apps/web test test/authStartup.worker.test.ts",
-        "devenv shell -- bun run ready"
-      ],
-      "owner": "apps/web",
-      "versions": {
-        "effect": "4.0.6",
-        "@cloudflare/workers-types": "5.20261015.1"
-      },
-      "retirementTrigger": "Remove the bridge when Cloudflare publishes a module-scoped env type compatible with the app's DOM and Node type configuration."
     },
     {
       "id": "EX-0025",
       "rules": ["typescript/no-unsafe-type-assertion"],
       "scope": {
         "files": [
-          "packages/db/src/aggregate/aggregates.ts",
-          "packages/db/src/aggregate/locks.ts",
-          "packages/db/src/aggregate/model.ts",
-          "packages/db/src/live.ts",
-          "packages/db/test/aggregates.postgres.test.ts",
-          "packages/db/test/liveProof.postgres.test.ts",
-          "packages/domain/src/shared/integrationGuard.ts",
-          "packages/domain/test/support/teamsInMemory.ts"
+          "apps/web/src/adapters/db/aggregate/aggregates.ts",
+          "apps/web/src/adapters/db/aggregate/locks.ts",
+          "apps/web/src/adapters/db/aggregate/model.ts",
+          "apps/web/src/adapters/db/live.ts",
+          "apps/web/test/db/aggregates.postgres.test.ts",
+          "apps/web/test/db/liveProof.postgres.test.ts",
+          "apps/web/src/core/transactions/integrationGuard.ts",
+          "apps/web/test/domain/support/teamsInMemory.ts"
         ],
         "symbols": [
           "asRows",
@@ -501,17 +303,17 @@
       "missingCapability": "TypeScript cannot build a value of an opaque type with an unexported brand from a plain object, and Drizzle 1.0.0-rc.5 has no generic form of insert, update, delete and select on a table type parameter whose rows follow that parameter.",
       "nativeAlternativesExamined": [
         "`verified` maps the members of whichever port it is given, and TypeScript has no mapped-type form that is also a runtime map over a generic service shape, so the object that it builds is stated to have the service's type with one Function.cast at each end of the map.",
-        "`refusingInTransaction` (spec 0024, `packages/domain/src/shared/integrationGuard.ts`) is the same map over an integration port: its bound says that every member of the service is a method or an effect, and the two casts only read the members by name and give the object back as the service's own type. Each shipped Layer of a port is called member by member inside `Transactor.run` by `integrationGuard.test.ts`, so a Layer that wraps fewer members than it has fails.",
+        "`refusingInTransaction` (spec 0024, `apps/web/src/core/transactions/integrationGuard.ts`) is the same map over an integration port: its bound says that every member of the service is a method or an effect, and the two casts only read the members by name and give the object back as the service's own type. Each shipped Layer of a port is called member by member inside `Transactor.run` by `integrationGuard.test.ts`, so a Layer that wraps fewer members than it has fails.",
         "Effect Brand.nominal makes a token without a cast, but its brand key is Effect's public type id, so a hand-made literal with that key would type-check. The spec asks for an unexported brand.",
-        "A class with a private constructor needs a factory that packages/db can call, and anything that can call it can make a token.",
+        "A class with a private constructor needs a factory that the database adapter can call, and anything that can call it can make a token.",
         "Decoding every returned row through a schema would check at run time what the statement already guarantees, for every write of every repository.",
         "A type assertion is flagged by typescript/no-unsafe-type-assertion, which the repository keeps on, so each narrowing is one Function.cast with a SAFETY comment at the site."
       ],
       "verification": [
-        "devenv shell -- bunx vp -C packages/db test test/aggregate.types.test.ts test/aggregates.postgres.test.ts",
-        "devenv shell -- bunx vp -C apps/web test test/integrationGuard.test.ts test/codeLifecycle.postgres.test.ts"
+        "devenv shell -- bunx vp -C apps/web test --project db --maxWorkers 1 test/db/aggregate.types.test.ts test/db/aggregates.postgres.test.ts",
+        "devenv shell -- bunx vp -C apps/web test --project web test/integrationGuard.test.ts test/codeLifecycle.postgres.test.ts"
       ],
-      "owner": "packages/db",
+      "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
         "drizzle-orm": "1.0.0-rc.5",
@@ -540,8 +342,8 @@
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
@@ -575,8 +377,8 @@
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
@@ -603,8 +405,8 @@
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
@@ -631,8 +433,8 @@
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
@@ -646,7 +448,7 @@
       "name": "sql",
       "scope": {
         "files": [
-          "packages/db/**",
+          "apps/web/src/adapters/db/**",
           "apps/web/src/server/**",
           "**/test/**",
           "tools/**",
@@ -701,9 +503,10 @@
       "name": "http",
       "scope": {
         "files": [
-          "packages/cms-client/src/**",
           "apps/web/src/server/**",
-          "packages/cms-client/test/client.test.ts",
+          "apps/web/src/features/accounts/client.ts",
+          "apps/web/src/adapters/messaging/senders.ts",
+          "apps/web/src/adapters/turnstile.ts",
           "apps/web/test/sandbox.test.ts",
           "apps/web/test/integrationGuard.test.ts",
           "tools/**",
@@ -719,7 +522,7 @@
           "effect/http/HttpClientResponse"
         ]
       },
-      "reason": "Outbound HTTP for the CMS and Turnstile.",
+      "reason": "Outbound HTTP for the CMS, Turnstile, and same-origin authentication.",
       "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
@@ -769,35 +572,12 @@
       "name": "reactivity",
       "scope": {
         "files": [
-          "packages/db/test/support/disposableDatabase.ts",
+          "apps/web/test/db/support/disposableDatabase.ts",
           "tools/db-path-spike/test/support/localWorker.ts"
         ],
         "modules": ["effect/reactivity/Reactivity"]
       },
       "reason": "Derived reactivity keys (ADR 0009).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
-      "nativeAlternativesExamined": [
-        "The native module is the required Effect capability; no stable equivalent provides the same contract."
-      ],
-      "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
-      ],
-      "owner": ".",
-      "versions": {
-        "effect": "4.0.6",
-        "@effect/tsgo": "0.53.1"
-      },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
-    },
-    {
-      "id": "EX-0014",
-      "name": "openapi",
-      "scope": {
-        "files": ["packages/cms-client/scripts/**"],
-        "modules": ["effect/http-api/OpenApi"]
-      },
-      "reason": "CMS client generation from EmDash OpenAPI (spec 0005).",
       "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
       "nativeAlternativesExamined": [
         "The native module is the required Effect capability; no stable equivalent provides the same contract."

@@ -1,11 +1,11 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { ContactTabs } from "@/components/site/contactTabs";
-import { getContactPage } from "@/functions/public.functions";
-import { validateContactSearch } from "@/lib/contactSearch";
-import type { ContactSearch } from "@/lib/contactSearch";
-import { pageData } from "@/lib/outcome";
-import { handleContactPost } from "@/server/contactPost";
+import { ContactTabs } from "../../features/contact/components/contactTabs";
+import { validateContactSearch } from "../../features/contact/contactSearch";
+import type { ContactSearch } from "../../features/contact/contactSearch";
+import { handleContactPost } from "../../features/contact/server/contactPost";
+import { getContactPage } from "../../features/site/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontakt/$department");
 

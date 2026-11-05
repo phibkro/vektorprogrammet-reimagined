@@ -4,7 +4,6 @@ import { Array as Arr } from "effect";
 import { Choice, firstValue, optionsOf } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
-import { TeamFields, teamDefaults } from "@/components/panel/teamForms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,10 +15,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CreateTeamForm } from "@/forms/teams";
-import { getTeams, saveTeam } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
-import { TEAM_FUNCTION_LABEL } from "@/lib/teamLabels";
+
+import { getTeams, saveTeam } from "../../../features/panel/server/functions";
+import {
+  TeamFields,
+  teamDefaults,
+} from "../../../features/teams/components/teamForms";
+import { CreateTeamForm } from "../../../features/teams/forms/teams";
+import { TEAM_FUNCTION_LABEL } from "../../../features/teams/teamLabels";
+import { pageData } from "../../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/team/");
 

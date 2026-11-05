@@ -3,8 +3,8 @@ import { useRef } from "react";
 import type { ReactNode } from "react";
 
 import type { FormText } from "@/forms/formSchema";
-import type { FieldErrors } from "@/lib/outcome";
 
+import type { FieldErrors } from "../../http/outcome";
 import { ServerIssuesContext } from "./field";
 import type { FieldComponent } from "./field";
 import { useConstructForm } from "./useConstructForm";

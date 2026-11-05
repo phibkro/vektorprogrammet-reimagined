@@ -3,9 +3,9 @@
  * `PostForm`, `LocalForm`, over `useConstructForm`), from a schema of `forms/`; nothing else builds a `<form>` that has
  * inputs, reads one by name, or touches TanStack Form. The scan reads the source of `apps/web` for the three signs of a
  * second construct: a `<form` element, a read of a field by name from a `FormData` (`.get("…")`), and an import of
- * `@tanstack/react-form`. A file that has one and is not listed fails, and so does a listing that no file needs, so the
- * list can only shrink. The allowed `<form` is a form that has no input but a button (the export of one's own data posts
- * to `/api/eksport`), and the allowed reads are `textOf` itself and the Turnstile token of an account post.
+ * `@tanstack/react-form`. A file with an unlisted sign fails, as does a stale listing.
+ * Native Supabase invitation and recovery forms handle credentials outside the domain form construct.
+ * The inventory also names their text reader and the button-only export form.
  *
  * What it does not see: a form built by `React.createElement("form")`, or a field read through a variable. It is the
  * early signal at review time, as the other scans of this directory are.
@@ -15,6 +15,7 @@ import { Array as Arr, Order } from "effect";
 
 import {
   assertCleanScan,
+  isWebSource,
   repositoryRoot,
   signFindings,
 } from "./support/sources.ts";
@@ -30,8 +31,12 @@ const SIGNS = {
         "the form for a client library",
       "apps/web/src/components/form/postForm.tsx":
         "the form that the browser posts",
-      "apps/web/src/components/ownData.tsx":
+      "apps/web/src/features/personal-data/components/ownData.tsx":
         "the export of one's own data: a button, posted to /api/eksport, with no input",
+      "apps/web/src/routes/aktiver.tsx":
+        "native POST for a Supabase invitation session; it works without JavaScript",
+      "apps/web/src/routes/tilbakestill-passord.tsx":
+        "Supabase recovery-token password update; the native POST prevents pre-hydration URL leakage",
     },
     pattern: /<form[\s>]/u,
   },
@@ -39,8 +44,8 @@ const SIGNS = {
     allowed: {
       "apps/web/src/forms/formSchema.ts":
         "`textOf` is the one reader of a posted FormData",
-      "apps/web/src/server/accountPost.ts":
-        "the Turnstile token of an account post, which is the widget's field and no value of a form",
+      "apps/web/src/utils/formText.ts":
+        "text reader for the Supabase recovery password form; files and missing values are refused as empty",
     },
     pattern: /\b(?:form|data)\.get\(/u,
   },
@@ -52,10 +57,6 @@ const SIGNS = {
     pattern: /from "@tanstack\/react-form"/u,
   },
 } satisfies Readonly<Record<string, Sign>>;
-
-/** The source that the scan reads: the `src` of the web app. */
-const isSource = (path: string): boolean =>
-  /^apps\/web\/src\/.*\.tsx?$/u.test(path);
 
 const { stale, unlisted } = signFindings(SIGNS);
 
@@ -93,14 +94,18 @@ describe("spec 0010a F1: one form construct", () => {
 
   it("control: an allowance whose file no longer has the sign is reported", () => {
     assert.isAbove(
-      stale([{ path: "apps/web/src/components/ownData.tsx", text: "<div />" }])
-        .length,
+      stale([
+        {
+          path: "apps/web/src/features/personal-data/components/ownData.tsx",
+          text: "<div />",
+        },
+      ]).length,
       0
     );
   });
 
   it.effect(
     "the real tree: every sign is in a listed file, and every listing is used",
-    () => assertCleanScan(repositoryRoot, isSource, { stale, unlisted })
+    () => assertCleanScan(repositoryRoot, isWebSource, { stale, unlisted })
   );
 });

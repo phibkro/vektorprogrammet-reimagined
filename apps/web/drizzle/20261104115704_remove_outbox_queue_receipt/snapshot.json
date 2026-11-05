@@ -1,0 +1,25 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "3bce482f-ee30-4923-ac1e-0f9eda0e04e9",
+  "prevIds": ["430ae868-aa43-4e9a-9a10-c2f7ab285d05"],
+  "footprints": [
+    {
+      "statementType": "drop_column",
+      "statementTarget": ["column", "public", "outbox", "queued_at"],
+      "writes": [
+        "s|col|public.outbox.queued_at",
+        "n|col|public.outbox.queued_at",
+        "e|col|public.outbox.queued_at"
+      ],
+      "reads": ["n|tbl|public.outbox", "n|sch|public"]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"outbox\",\"queued_at\"]"
+    }
+  ]
+}

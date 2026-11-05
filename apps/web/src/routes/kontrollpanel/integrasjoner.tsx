@@ -1,5 +1,4 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
-import type { WorkspacePlan } from "@vektorprogrammet/domain";
 import { Array as Arr, Match } from "effect";
 
 import { PageHeader } from "@/components/panel/pageHeader";
@@ -16,12 +15,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { NoFieldsForm } from "@/forms/organisation";
+
+import { NoFieldsForm } from "../../features/organisation/forms/organisation";
 import {
   getIntegrations,
   requestWorkspaceReport,
-} from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+} from "../../features/panel/server/functions";
+import type * as WorkspacePlan from "../../features/workspace/domain/plan";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/integrasjoner");
 
@@ -87,9 +88,8 @@ const accountStatus = (present: boolean | null): string => {
 /** What each state of an undelivered message says to an administrator (spec 0008b). */
 const DELIVERY_STATE_TEXT = {
   failed: "Mislyktes",
-  queued: "I kø",
   retrying: "Prøver igjen",
-  waiting: "Venter på kø",
+  waiting: "Venter",
 } as const;
 
 const IntegrationsPage = () => {

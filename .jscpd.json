@@ -3,11 +3,13 @@
   "threshold": 0,
   "format": ["typescript"],
   "reporters": ["console"],
+  "ignorePattern": [
+    "(?m)^[\\t ]*import[\\t ]+(?:type[\\t ]+)?[\\w\\s{},*$]+[\\t ]+from[\\t ]+[\"'][^\"'\\n]+[\"'];"
+  ],
   "ignore": [
     "apps/web/src/components/ui/**",
     "**/routeTree.gen.ts",
-    "packages/cms-client/src/generated.ts",
-    "packages/db/drizzle/**",
+    "apps/web/drizzle/**",
     "tools/db-path-spike/drizzle/**",
     "tools/oxlint/anti-slop/**"
   ]

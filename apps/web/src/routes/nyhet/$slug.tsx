@@ -1,10 +1,10 @@
 import { Link, createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { PortableTextView } from "@/components/site/portableTextView";
-import { getArticlePage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
-import type { ArticleView } from "@/server/site/pages";
+import { PortableTextView } from "../../features/cms/components/portableTextView";
+import { getArticlePage } from "../../features/site/server/functions";
+import type { ArticleView } from "../../features/site/server/pages";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/nyhet/$slug");
 
@@ -12,7 +12,7 @@ const routeApi = getRouteApi("/nyhet/$slug");
 const articleHead = ({
   loaderData,
 }: {
-  readonly loaderData?: ArticleView;
+  readonly loaderData?: ArticleView | undefined;
 }) => ({
   meta:
     loaderData === undefined

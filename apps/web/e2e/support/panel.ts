@@ -1,27 +1,28 @@
 import { expect } from "@playwright/test";
 import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
+import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
+
 /**
- * Helpers the specs share: the local test actor, the Sheet every control-panel form opens in, the server
+ * Helpers for provider sign-in, the Sheet every control-panel form opens in, the server
  * function call a click makes, the sidebar, and the semester labels a page lists. Locators go by role and
  * visible label, as a person reads the page.
  */
-import { LOCAL_PEOPLE } from "@vektorprogrammet/domain";
-import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
-
-import { TEST_ACTOR_COOKIE } from "../../src/lib/testActor.ts";
+import {
+  LOCAL_FAKE_PASSWORD,
+  LOCAL_PEOPLE,
+} from "../../test/fixtures/localPeople";
 
 /** The seeded people the organisation and shell journeys use. */
-export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "@vektorprogrammet/domain";
+export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "../../test/fixtures/localPeople.ts";
 
 /** The leader, and a plain member of the same team: the member holds no `viewPeople`. */
 export const [, TEST_LEADER, TEST_MEMBER] = LOCAL_PEOPLE;
 
-/** Select a local person for every page of localhost the context opens. */
-export const signInAs = async (context: BrowserContext, person: string) => {
-  await context.addCookies([
-    { domain: "localhost", name: TEST_ACTOR_COOKIE, path: "/", value: person },
-  ]);
-};
+// Cache real provider sessions within one Playwright worker, so role checks do not exhaust sign-in limits.
+const sessions = new Map<
+  string,
+  Awaited<ReturnType<BrowserContext["cookies"]>>
+>();
 
 const screenshotDirectory = Effect.runSync(
   Config.option(Config.String("E2E_SCREENSHOT_DIRECTORY"))
@@ -53,7 +54,7 @@ export const openPage = async (page: Page, path: string) => {
   await page.waitForFunction(INTERACTIVE_CONTENT_IS_HYDRATED);
 };
 
-/** Signs in with Better Auth's form, as a person does, and waits for the page that the sign-in leads to. */
+/** Signs in through the provider-backed form and waits for the destination. */
 export const signIn = async (
   page: Page,
   origin: string,
@@ -65,6 +66,50 @@ export const signIn = async (
   await page.getByLabel("Passord", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Logg inn" }).click();
   await page.waitForURL(/\/(?:kontrollpanel|min-side)(?:\/|$)/u);
+
+  const person = Arr.findFirst(
+    LOCAL_PEOPLE,
+    (name) => `${name.toLowerCase().replaceAll(" ", ".")}@example.org` === email
+  );
+
+  if (Option.isSome(person)) {
+    sessions.set(person.value, await page.context().cookies());
+  }
+};
+
+/** Authenticate through the provider-backed form. */
+export const signInAs = async (context: BrowserContext, person: string) => {
+  await context.clearCookies();
+
+  if (person === "anonymous") {
+    return;
+  }
+
+  const existing = sessions.get(person);
+
+  if (existing !== undefined) {
+    await context.addCookies(existing);
+
+    return;
+  }
+
+  if (!Arr.some(LOCAL_PEOPLE, (name) => name === person)) {
+    throw new Error(`Unknown local person: ${person}`);
+  }
+
+  const email = `${person.toLowerCase().replaceAll(" ", ".")}@example.org`;
+  const page = await context.newPage();
+
+  try {
+    await signIn(
+      page,
+      Effect.runSync(Config.String("E2E_BASE_URL")),
+      email,
+      LOCAL_FAKE_PASSWORD
+    );
+  } finally {
+    await page.close();
+  }
 };
 
 /** The Sheet that is open (a form, a record's details, or the phone's sidebar). */

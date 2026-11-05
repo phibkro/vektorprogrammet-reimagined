@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { exportOwnFile, exportResponse } from "@/server/personalData";
+import { requestScope } from "@/server/http/scope";
 import { runCommand } from "@/server/runtime";
-import { requestScope } from "@/server/scope";
+
+import {
+  exportOwnFile,
+  exportResponse,
+} from "../../features/personal-data/server/personalData";
 
 /**
  * Min side's download (spec 0007b, GDPR Art. 15 and 20): a form post, because the export is audited and so is a command,

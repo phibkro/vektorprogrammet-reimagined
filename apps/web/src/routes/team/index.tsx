@@ -1,8 +1,8 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { TeamPage } from "@/components/site/teamPage";
-import { getTeamPage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+import { getTeamPage } from "../../features/site/server/functions";
+import { TeamPage } from "../../features/teams/components/teamPage";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/team/");
 

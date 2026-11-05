@@ -1,101 +1,64 @@
-import type { R2Bucket } from "@cloudflare/workers-types";
 import { PgClient } from "@effect/sql-pg";
-/** Seeds one disposable public-file row and object in the local R2 store used by vp dev. */
-import { fileKeyFor } from "@vektorprogrammet/domain";
-import type { Redacted } from "effect";
-import { Array as Arr, Crypto, Effect, FileSystem, Path } from "effect";
+import { createClient } from "@supabase/supabase-js";
+import { Config, Crypto, Effect, Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
-import { getPlatformProxy } from "wrangler";
 
-import { COMPATIBILITY_DATE, publicFilesBucket } from "../../worker.config.ts";
+import { fileKeyFor } from "../../src/features/files/domain/fileType";
 
 export const PUBLIC_FILE_FIXTURE_TEXT =
   "Vektorprogrammet local public-file fixture.\n";
 
-const PUBLIC_FILE_NAME = "vektorprogrammet-e2e-fixture.bin";
+const FILE_NAME = "vektorprogrammet-e2e-fixture.bin";
 const FILE_BYTES = new TextEncoder().encode(PUBLIC_FILE_FIXTURE_TEXT);
 
-interface SeedBindings {
-  readonly PUBLIC_FILES: R2Bucket;
-}
-
+/** Seed the fixture in the same private Storage bucket and database used by the Worker. */
 export const seedPublicFile = Effect.fn("seedPublicFile")(
-  function* seedPublicFile(
-    databaseUrl: Redacted.Redacted,
-    webDirectory: string
-  ) {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
+  function* seedPublicFile(databaseUrl: Redacted.Redacted) {
     const crypto = yield* Crypto.Crypto;
 
     const digest = yield* crypto
       .digest("SHA-256", FILE_BYTES)
       .pipe(Effect.orDie);
 
-    const publicFileKey = fileKeyFor(digest, "application/octet-stream");
+    const key = fileKeyFor(digest, "application/octet-stream");
+    const origin = yield* Config.String("SUPABASE_URL");
+    const secret = yield* Config.Redacted("SUPABASE_SECRET_KEY");
 
-    // Outside the worktree: a stack stopped without finalizers must not leave an untracked file in it.
-    const configDirectory = yield* fs.makeTempDirectoryScoped({
-      prefix: "vk-r2-seed-",
+    const client = createClient(origin, Redacted.value(secret), {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const configPath = path.join(configDirectory, "wrangler.json");
+    const bucket = client.storage.from("public-files");
 
-    const configContents = Arr.join(
-      [
-        "{",
-        `  "compatibility_date": "${COMPATIBILITY_DATE}",`,
-        `  "main": "${path.join(webDirectory, "e2e", "support", "r2SeedWorker.ts")}",`,
-        '  "name": "vektorprogrammet-e2e-r2-seed",',
-        '  "r2_buckets": [{',
-        '    "binding": "PUBLIC_FILES",',
-        `    "bucket_name": "${publicFilesBucket("local")}"`,
-        "  }]",
-        "}",
-      ],
-      "\n"
-    );
-
-    yield* fs.writeFileString(configPath, configContents);
-
-    const platform = yield* Effect.acquireRelease(
-      Effect.tryPromise(
-        // oxlint-disable-next-line effecttsgo/async-function -- EX-0023: Wrangler exposes only a Promise API.
-        async () =>
-          await getPlatformProxy<SeedBindings>({
-            configPath,
-            persist: {
-              path: path.join(webDirectory, ".wrangler", "state", "v3"),
-            },
-            remoteBindings: false,
-          })
-      ).pipe(Effect.orDie),
-      (proxy) =>
-        // oxlint-disable-next-line effecttsgo/async-function -- EX-0023: Wrangler exposes only a Promise API.
-        Effect.promise(async () => {
-          await proxy.dispose();
+    const result = yield* Effect.callback<
+      Awaited<ReturnType<typeof bucket.upload>>
+    >((resume) => {
+      void bucket
+        .upload(key, FILE_BYTES, {
+          contentType: "application/octet-stream",
+          upsert: true,
         })
-    );
+        .then(
+          (value) => {
+            resume(Effect.succeed(value));
+          },
+          () => {
+            resume(Effect.die("Local storage upload failed"));
+          }
+        );
+    });
 
-    yield* Effect.promise(
-      // oxlint-disable-next-line effecttsgo/async-function -- EX-0023: R2Bucket exposes only a Promise API.
-      async () =>
-        await platform.env.PUBLIC_FILES.put(publicFileKey, FILE_BYTES, {
-          httpMetadata: { contentType: "application/octet-stream" },
-        })
-    );
+    if (result.error) {
+      return yield* Effect.die(result.error);
+    }
 
     yield* Effect.gen(function* insertFileRecord() {
       const sql = yield* SqlClient;
-      yield* sql`insert into public_file
-        (key, sha256, content_type, name, size, uploaded_at)
-        values (${publicFileKey}, ${publicFileKey.slice(0, 64)},
-          'application/octet-stream', ${PUBLIC_FILE_NAME}, ${FILE_BYTES.byteLength}, now())
-        on conflict (key) do nothing`;
+      yield* sql`insert into public_file (key, sha256, content_type, name, size, uploaded_at) values (${key}, ${key.slice(0, 64)}, 'application/octet-stream', ${FILE_NAME}, ${FILE_BYTES.byteLength}, now()) on conflict (key) do nothing`;
     }).pipe(
       Effect.provide(PgClient.layer({ maxConnections: 1, url: databaseUrl }))
     );
 
-    return publicFileKey;
+    return key;
   }
 );

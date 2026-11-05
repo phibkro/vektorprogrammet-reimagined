@@ -1,0 +1,328 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5488b44b-6919-47e3-ab29-cab9ef4c2876",
+  "prevIds": ["ee5c5a59-0464-4fd7-9bfb-07c4a5d2b23c"],
+  "footprints": [
+    {
+      "statementType": "drop_fk",
+      "statementTarget": ["table", "public", "auth_account"],
+      "writes": [
+        "s|fk|public.auth_account.auth_account_user_id_auth_user_id_fkey",
+        "n|fk|public.auth_account.auth_account_user_id_auth_user_id_fkey",
+        "e|fk|public.auth_account.auth_account_user_id_auth_user_id_fkey",
+        "n|con|public.auth_account.auth_account_user_id_auth_user_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.auth_account",
+        "n|sch|public",
+        "e|col|public.auth_account.user_id"
+      ]
+    },
+    {
+      "statementType": "drop_fk",
+      "statementTarget": ["table", "public", "auth_session"],
+      "writes": [
+        "s|fk|public.auth_session.auth_session_user_id_auth_user_id_fkey",
+        "n|fk|public.auth_session.auth_session_user_id_auth_user_id_fkey",
+        "e|fk|public.auth_session.auth_session_user_id_auth_user_id_fkey",
+        "n|con|public.auth_session.auth_session_user_id_auth_user_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.auth_session",
+        "n|sch|public",
+        "e|col|public.auth_session.user_id"
+      ]
+    },
+    {
+      "statementType": "drop_table",
+      "statementTarget": ["table", "public", "auth_account"],
+      "writes": [
+        "s|tbl|public.auth_account",
+        "n|tbl|public.auth_account",
+        "e|tbl|public.auth_account",
+        "n|rel|public.auth_account",
+        "n|type|public.auth_account"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "drop_table",
+      "statementTarget": ["table", "public", "auth_session"],
+      "writes": [
+        "s|tbl|public.auth_session",
+        "n|tbl|public.auth_session",
+        "e|tbl|public.auth_session",
+        "n|rel|public.auth_session",
+        "n|type|public.auth_session"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "drop_table",
+      "statementTarget": ["table", "public", "auth_user"],
+      "writes": [
+        "s|tbl|public.auth_user",
+        "n|tbl|public.auth_user",
+        "e|tbl|public.auth_user",
+        "n|rel|public.auth_user",
+        "n|type|public.auth_user"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "drop_table",
+      "statementTarget": ["table", "public", "auth_verification"],
+      "writes": [
+        "s|tbl|public.auth_verification",
+        "n|tbl|public.auth_verification",
+        "e|tbl|public.auth_verification",
+        "n|rel|public.auth_verification",
+        "n|type|public.auth_verification"
+      ],
+      "reads": ["n|sch|public"]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": ["table", "public", "outbox"],
+      "writes": ["s|ck|public.outbox.outbox_kind"],
+      "reads": [
+        "n|tbl|public.outbox",
+        "n|sch|public",
+        "n|col|public.outbox.kind",
+        "e|col|public.outbox.kind"
+      ],
+      "sqlHash": "dafed0440067bc3d"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "drop",
+      "key": "tables\u0000[\"public\",\"auth_account\"]"
+    },
+    {
+      "op": "drop",
+      "key": "tables\u0000[\"public\",\"auth_session\"]"
+    },
+    {
+      "op": "drop",
+      "key": "tables\u0000[\"public\",\"auth_user\"]"
+    },
+    {
+      "op": "drop",
+      "key": "tables\u0000[\"public\",\"auth_verification\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"account_id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"provider_id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"user_id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"password\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"access_token\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"refresh_token\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"id_token\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"access_token_expires_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"refresh_token_expires_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"scope\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"created_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"updated_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_account\",\"credential_version\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"user_id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"token\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"expires_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"created_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"updated_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"ip_address\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_session\",\"user_agent\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"person_id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"name\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"email\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"email_verified\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"image\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"created_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_user\",\"updated_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_verification\",\"id\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_verification\",\"identifier\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_verification\",\"value\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_verification\",\"expires_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_verification\",\"created_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "columns\u0000[\"public\",\"auth_verification\",\"updated_at\"]"
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"auth_account_user_idx\"]"
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"auth_session_user_idx\"]"
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"auth_verification_identifier_idx\"]"
+    },
+    {
+      "op": "drop",
+      "key": "fks\u0000[\"public\",\"auth_account\",\"auth_account_user_id_auth_user_id_fkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "fks\u0000[\"public\",\"auth_session\",\"auth_session_user_id_auth_user_id_fkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "fks\u0000[\"public\",\"auth_user\",\"auth_user_person_id_person_id_fkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "pks\u0000[\"public\",\"auth_account\",\"auth_account_pkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "pks\u0000[\"public\",\"auth_session\",\"auth_session_pkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "pks\u0000[\"public\",\"auth_user\",\"auth_user_pkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "pks\u0000[\"public\",\"auth_verification\",\"auth_verification_pkey\"]"
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"auth_account\",\"auth_account_provider_account_unique\"]"
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"auth_session\",\"auth_session_token_unique\"]"
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"auth_user\",\"auth_user_person_unique\"]"
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"auth_user\",\"auth_user_email_unique\"]"
+    },
+    {
+      "op": "drop",
+      "key": "checks\u0000[\"public\",\"auth_session\",\"auth_session_no_ip\"]"
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"outbox\",\"outbox_kind\"]",
+      "set": {
+        "value": "\"kind\" in ('DeleteAuthUser', 'RelinkAuthUser', 'Email', 'IssueCode', 'InviteAccount', 'SlackPost', 'WorkspaceChange')"
+      }
+    }
+  ]
+}

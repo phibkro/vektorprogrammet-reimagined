@@ -80,7 +80,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | LS2 | An acknowledgement, a release or a hold (`holdClaim`, the fence of a write that depends on the claim) that carries a claim token other than the record's current one changes nothing and reports `claimLost`; a hold that succeeds keeps the record locked, so another consumer's claim waits, until the caller's transaction ends. | port-enforced | no | `OutboxDelivery.holdClaim`, `OutboxDelivery.markDelivered`, `OutboxDelivery.markFailed` | overwrites the claim token: a stale claimant's acknowledgement then succeeds |
 | LS3 | Delivery is at least once, with no order across records; a provider can hear of a record twice when its send succeeded and the acknowledgement did not commit. | port-enforced | no | `OutboxDelivery` | no writer can make this false: it is a promise to callers |
 | LS4 | `markDelivered` is one conditional write that joins the caller's transaction when there is one (the acknowledgement then commits or rolls back with the caller's writes) and commits alone otherwise. Which of the two holds is the caller's, and the port neither requires nor reports it. | port-enforced | no | `OutboxDelivery.markDelivered` | acknowledges outside the caller's transaction: the acknowledgement survives the caller's rollback |
-| LS5 | The queue's receipt (`markQueued`) is recorded only for pending records; `stale` lists pending records with no live claim whose last receipt or next attempt is not after the cut-off; a dead ending is recorded only after a failure class was recorded. | port-enforced | no | `OutboxDelivery.markQueued`, `OutboxDelivery.stale`, `OutboxDelivery.markDead`, `OutboxDelivery.recordFailure` | ends a record that has no recorded failure: it ends, and the sweep no longer finds it |
+| LS5 | Only due pending records without a live lease are selected or claimed; failures stop after the configured attempt limit. | port-enforced | no | `OutboxDelivery.due`, `OutboxDelivery.claim`, `OutboxDelivery.markFailed` | changes a retry date directly: the record becomes eligible earlier or later |
 
 ### Leases
 
@@ -121,11 +121,13 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 
 ## Transaction mode of every port method
 
+`CmsClient.*` lists the shared operations of each content collection. `CmsClient` groups those collections; it has no direct store methods.
+
 <!-- docgen:begin modes -->
 
 | Port | Requires | Standalone | Joins | Read | Outside | Opens |
 | --- | --- | --- | --- | --- | --- | --- |
-| `AccountRepository` | `emailOf`, `findLocked`, `invite`, `isLastActiveAdmin`, `transition`, `updateProfile`, `verifyEmail` |  |  | `find`, `findActiveByPrivateEmail`, `list`, `verifiedHolderOf` |  |  |
+| `AccountRepository` | `emailOf`, `findLocked`, `invite`, `isLastActiveAdmin`, `transition`, `updateProfile`, `verifyEmail` |  |  | `find`, `findAuthIdentitiesByPersonId`, `findAuthIdentity`, `list`, `verifiedHolderOf` |  |  |
 | `AdminGrantRepository` | `create`, `revoke` |  |  | `findById`, `list` |  |  |
 | `AdmissionPeriodRepository` |  | `create`, `extend`, `remove` |  | `findById`, `list`, `listStored` |  |  |
 | `AggregateLocks` | `lock`, `lockAll` |  |  |  |  |  |
@@ -135,6 +137,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `CapturedMessageStore` |  | `record` |  |  |  |  |
 | `CodeRepository` | `acknowledge`, `consume`, `issue` |  |  | `findUsable` |  |  |
 | `ConsentRepository` | `ofLocked`, `record` |  |  | `of` |  |  |
+| `ContentEditor` |  |  | `create`, `publish`, `save` | `list` |  |  |
 | `DepartmentRepository` |  | `create`, `update` |  | `findById`, `list` |  |  |
 | `DigestLedger` | `claim` |  |  |  |  |  |
 | `FieldOfStudyRepository` |  | `create`, `rename` |  | `findById`, `listByDepartment` |  |  |
@@ -147,7 +150,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `LegalHolds` | `of` |  |  |  |  |  |
 | `MembershipRepository` | `findLocked`, `insert`, `listLocked`, `remove`, `setEnd` |  |  | `activeIn`, `findById`, `listByPerson`, `listByTeam` |  |  |
 | `Outbox` | `enqueue` |  |  |  |  |  |
-| `OutboxDelivery` | `holdClaim` | `claim`, `markDead`, `markFailed`, `markQueued`, `recordFailure` | `markDelivered` | `stale` |  |  |
+| `OutboxDelivery` | `holdClaim` | `claim`, `markFailed` | `markDelivered` | `due` |  |  |
 | `OutboxReports` |  |  |  | `overview` |  |  |
 | `PersonRepository` | `create`, `findLocked` |  |  | `findById`, `list` |  |  |
 | `PersonalDataStore` | `erase`, `merge`, `setPhoto` |  |  | `exportOf` |  |  |
@@ -157,7 +160,6 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `PublicFileRepository` |  | `register` |  | `findByKey`, `findByLegacyPath` |  |  |
 | `RetentionRun` | `run` |  |  |  |  |  |
 | `SemesterRepository` |  | `ensure` |  | `find`, `list` |  |  |
-| `SessionDirectory` |  |  |  | `byPerson` |  |  |
 | `SignInDirectory` |  |  |  | `match`, `personOfUser`, `profileOf`, `signInEmailOf` |  |  |
 | `SocialEventRepository` |  | `create` |  | `list` |  |  |
 | `TeamRepository` | `create`, `update` | `deactivate` |  | `findById`, `list` |  |  |
@@ -168,5 +170,6 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `WorkspaceFacts` |  |  |  | `configuredGroupAddresses`, `departmentEngagements`, `departments`, `people`, `storedAddresses`, `teamsAfter` |  |  |
 | `WorkspaceReports` | `append`, `complete`, `open` |  |  | `latest`, `read` |  |  |
 | `WorkspaceWriter` |  |  |  |  | `apply` |  |
+| `CmsClient.*` |  |  | `create`, `publish` | `listings`, `published`, `publishedBySlug` |  |  |
 
 <!-- docgen:end modes -->

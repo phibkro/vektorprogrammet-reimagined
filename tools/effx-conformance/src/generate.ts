@@ -1,10 +1,12 @@
+import { Array as Arr, Effect, Option, Schema } from "effect";
+
 /**
  * The derived half of the artefacts: the description of each domain that effx can be given, and the register of what it
  * cannot. Both are pure functions of the kernel's declarations; `regenerate` hands the descriptions to effx, and the
  * test compares what is committed with what this returns.
  */
-import { Declarations, Effx } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Option, Schema } from "effect";
+import { Declarations } from "../../../apps/web/src/core/declarations.ts";
+import * as Effx from "../../../apps/web/src/core/kernel/effx.ts";
 
 const GapRegister = Schema.Array(Effx.Gap);
 

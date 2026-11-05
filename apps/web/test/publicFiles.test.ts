@@ -1,9 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
-import { servePublicFile } from "@vektorprogrammet/domain";
-import type { FileKey, PublicFile } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect } from "effect";
 
-import { publicFileResponse } from "../src/server/publicFiles";
+import type { FileKey } from "../src/core/ids";
+import { servePublicFile } from "../src/features/files/domain/commands";
+import type { PublicFile } from "../src/features/files/domain/publicFile";
+import { publicFileResponse } from "../src/features/files/server/publicFiles";
 import { runOutcome } from "../src/server/runtime";
 import { fakeKey, makeTables, memoryLayer } from "./support/memory";
 
