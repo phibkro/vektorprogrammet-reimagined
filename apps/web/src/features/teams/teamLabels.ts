@@ -1,4 +1,4 @@
-import type { TeamFunction } from "../../domain/kernel/principal";
+import type { TeamFunction } from "../../core/kernel/principal";
 /**
  * The Norwegian words the control panel uses for the teams domain (client-safe: the browser imports it). The
  * domain's own names are English (GLOSSARY.md); these are what a person reads.

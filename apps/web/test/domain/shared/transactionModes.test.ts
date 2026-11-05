@@ -9,15 +9,15 @@ import { Array as Arr, Order, Record as Rec } from "effect";
 import type { Effect } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import { TransactionModes } from "../../../src/domain/store/transactionModes.ts";
+import { TransactionModes } from "../../../src/core/store/transactionModes.ts";
 import type {
   ModesOf,
   StorePorts,
   TransactionMode,
   CmsCollectionModes,
-} from "../../../src/domain/store/transactionModes.ts";
-import type { Locked } from "../../../src/domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../src/domain/transactions/transaction.ts";
+} from "../../../src/core/store/transactionModes.ts";
+import type { Locked } from "../../../src/core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../src/core/transactions/transaction.ts";
 import type { Collection } from "../../../src/features/cms/domain/client.ts";
 
 /** What a method (a function that returns an Effect, or an Effect) requires. */

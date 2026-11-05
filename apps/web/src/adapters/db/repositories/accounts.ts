@@ -3,11 +3,11 @@ import { Array as Arr, Effect, Layer, Option, Schema } from "effect";
 import type { DateTime } from "effect";
 import { SqlClient } from "effect/sql";
 
-import { AlreadyExists } from "../../../domain/errors.ts";
-import { PersonId } from "../../../domain/ids.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
-import { EmailAddress } from "../../../domain/validation.ts";
+import { AlreadyExists } from "../../../core/errors.ts";
+import { PersonId } from "../../../core/ids.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
+import { EmailAddress } from "../../../core/validation.ts";
 import { AccountState } from "../../../features/accounts/domain/entities.ts";
 import type { Account } from "../../../features/accounts/domain/entities.ts";
 /**

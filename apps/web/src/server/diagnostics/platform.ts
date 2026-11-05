@@ -13,9 +13,9 @@ import type { Option } from "effect";
  * surely as one that did not hold. A production Worker answers an empty 404 and asks the store nothing, as
  * `/api/isolation` does.
  */
-import { PlatformProbe } from "../../domain/store/platformProbe";
-import type { PlatformReport } from "../../domain/store/platformProbe";
-import { platformProblems } from "../../domain/store/platformRequirements";
+import { PlatformProbe } from "../../core/store/platformProbe";
+import type { PlatformReport } from "../../core/store/platformProbe";
+import { platformProblems } from "../../core/store/platformRequirements";
 import type { Outcome } from "../../http/outcome";
 import {
   diagnosticReport,

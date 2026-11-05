@@ -8,13 +8,13 @@ import { assert, describe, it } from "@effect/vitest";
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../src/domain/errors.ts";
-import { PersonId } from "../../../src/domain/ids.ts";
-import * as Commands from "../../../src/domain/kernel/commands.ts";
-import * as Domain from "../../../src/domain/kernel/domain.ts";
-import * as Grant from "../../../src/domain/kernel/grant.ts";
-import { Principal } from "../../../src/domain/kernel/principal.ts";
-import * as Subject from "../../../src/domain/kernel/subject.ts";
+import { DomainErrorSchema } from "../../../src/core/errors.ts";
+import { PersonId } from "../../../src/core/ids.ts";
+import * as Commands from "../../../src/core/kernel/commands.ts";
+import * as Domain from "../../../src/core/kernel/domain.ts";
+import * as Grant from "../../../src/core/kernel/grant.ts";
+import { Principal } from "../../../src/core/kernel/principal.ts";
+import * as Subject from "../../../src/core/kernel/subject.ts";
 import {
   CodePurpose,
   codeHolder,

@@ -5,12 +5,12 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
 import {
   Info,
   info,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { AuditEntry } from "./auditLog.ts";
 
 export const listAuditEntries = Rpc.make("listAuditEntries", {

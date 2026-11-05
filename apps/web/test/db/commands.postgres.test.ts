@@ -22,8 +22,8 @@ import {
   CurrentPrincipal,
   anonymous,
   systemPrincipal,
-} from "../../src/domain/kernel/principal";
-import { OutboxMessage } from "../../src/domain/outbox/messages";
+} from "../../src/core/kernel/principal";
+import { OutboxMessage } from "../../src/core/outbox/messages";
 import { ContactEndpoints } from "../../src/features/contact/domain/commands";
 import { semesterJob } from "../../src/features/organisation/domain/commands";
 import { DepartmentRepository } from "../../src/features/organisation/domain/services";

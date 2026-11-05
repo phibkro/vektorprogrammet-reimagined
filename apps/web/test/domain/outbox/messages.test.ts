@@ -3,20 +3,17 @@ import { assert, describe, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import { PersonId } from "../../../src/domain/ids.ts";
-import {
-  isListed,
-  OutboxMessage,
-} from "../../../src/domain/outbox/messages.ts";
+import { PersonId } from "../../../src/core/ids.ts";
+import { isListed, OutboxMessage } from "../../../src/core/outbox/messages.ts";
 import {
   SlackPostMessage,
   SlackTarget,
   declareMessage,
-} from "../../../src/domain/outbox/outbox.ts";
+} from "../../../src/core/outbox/outbox.ts";
 import type {
   DeclaredMessage,
   EmailMessage,
-} from "../../../src/domain/outbox/outbox.ts";
+} from "../../../src/core/outbox/outbox.ts";
 import {
   DeleteAuthUserMessage,
   RelinkAuthUserMessage,

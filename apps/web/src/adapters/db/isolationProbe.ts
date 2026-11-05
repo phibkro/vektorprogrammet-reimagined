@@ -14,8 +14,8 @@ import { BeginTransaction, SqlClient } from "effect/sql/SqlClient";
  *
  * A failing statement is a defect, as in `transactional`: a store that cannot answer is not a store that reports a level.
  */
-import { IsolationProbe } from "../../domain/store/isolationProbe.ts";
-import { Transactor } from "../../domain/transactions/transactor.ts";
+import { IsolationProbe } from "../../core/store/isolationProbe.ts";
+import { Transactor } from "../../core/transactions/transactor.ts";
 
 /** The probe's own `BEGIN`: the same mechanism as `atReadCommitted`, at the one level that is not the floor. */
 const BEGIN_SERIALIZABLE = "BEGIN ISOLATION LEVEL SERIALIZABLE";

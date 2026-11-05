@@ -9,11 +9,11 @@ import {
   SchemaRepresentation,
 } from "effect";
 
-import { Declarations, authorize } from "../../../src/domain/declarations.ts";
-import { PersonId } from "../../../src/domain/ids.ts";
-import * as Domain from "../../../src/domain/kernel/domain.ts";
-import * as Machine from "../../../src/domain/kernel/machine.ts";
-import { Principal } from "../../../src/domain/kernel/principal.ts";
+import { Declarations, authorize } from "../../../src/core/declarations.ts";
+import { PersonId } from "../../../src/core/ids.ts";
+import * as Domain from "../../../src/core/kernel/domain.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
+import { Principal } from "../../../src/core/kernel/principal.ts";
 import * as Accounts from "../../../src/features/accounts/domain/declaration.ts";
 import { AccountState } from "../../../src/features/accounts/domain/entities.ts";
 

@@ -10,12 +10,12 @@
 import { Array as Arr, DateTime, Effect, Order, Record as Rec } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import type { DepartmentId, PersonId } from "../../../domain/ids.ts";
-import type { Principal } from "../../../domain/kernel/principal.ts";
-import { EmailMessage, Outbox } from "../../../domain/outbox/outbox.ts";
-import type { DeclaredMessage } from "../../../domain/outbox/outbox.ts";
-import { SiteOrigin } from "../../../domain/siteOrigin.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import type { DepartmentId, PersonId } from "../../../core/ids.ts";
+import type { Principal } from "../../../core/kernel/principal.ts";
+import { EmailMessage, Outbox } from "../../../core/outbox/outbox.ts";
+import type { DeclaredMessage } from "../../../core/outbox/outbox.ts";
+import { SiteOrigin } from "../../../core/siteOrigin.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import {
   inLastWeeksOf,

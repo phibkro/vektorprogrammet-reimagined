@@ -16,7 +16,7 @@ import {
   TransactorLive,
   transactional,
 } from "../../src/adapters/db/transactional.ts";
-import { Transactor } from "../../src/domain/transactions/transactor";
+import { Transactor } from "../../src/core/transactions/transactor";
 import { postgresDatabase } from "./support/database.ts";
 import {
   serializableByDefault,

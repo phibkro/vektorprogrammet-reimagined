@@ -28,9 +28,9 @@ const ALLOWED = {
   ImpactSnapshots: {
     "apps/web/src/adapters/db/repositories/impact.ts":
       "the adapter that stores and reads the snapshot rows",
-    "apps/web/src/domain/store/guarantees.ts":
+    "apps/web/src/core/store/guarantees.ts":
       "IM1 and CL1 name the port's `close` as their carrier",
-    "apps/web/src/domain/store/transactionModes.ts":
+    "apps/web/src/core/store/transactionModes.ts":
       "the mode of each method of the port",
     "apps/web/src/features/impact/domain/commands.ts":
       "the handlers: `closeImpact` writes through the port and the report reads the snapshot into `release`",
@@ -42,7 +42,7 @@ const ALLOWED = {
   ImpactSource: {
     "apps/web/src/adapters/db/repositories/impact.ts":
       "the adapter that answers a cell from the store (today: Unavailable)",
-    "apps/web/src/domain/store/transactionModes.ts":
+    "apps/web/src/core/store/transactionModes.ts":
       "the mode of each method of the port",
     "apps/web/src/features/impact/domain/commands.ts":
       "the handlers read the source into `release` and into the snapshot close",

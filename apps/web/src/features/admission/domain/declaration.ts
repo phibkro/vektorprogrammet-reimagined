@@ -7,13 +7,13 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { isBefore } from "../../../domain/clock.ts";
-import { DomainErrorSchema } from "../../../domain/errors.ts";
+import { isBefore } from "../../../core/clock.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
 import {
   AdmissionPeriodId,
   ApplicationId,
   DepartmentId,
-} from "../../../domain/ids.ts";
+} from "../../../core/ids.ts";
 import {
   Info,
   anyone,
@@ -22,9 +22,9 @@ import {
   leader,
   make as declareDomain,
   self,
-} from "../../../domain/kernel/domain.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
-import { fn } from "../../../domain/kernel/subject.ts";
+} from "../../../core/kernel/domain.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
+import { fn } from "../../../core/kernel/subject.ts";
 import { StoredAdmissionPeriod } from "../../organisation/domain/admission.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
 import {

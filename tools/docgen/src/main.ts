@@ -6,9 +6,9 @@ import { Command, Flag } from "effect/cli";
 import {
   Declarations,
   GrantTable,
-} from "../../../apps/web/src/domain/declarations.ts";
-import type * as Domain from "../../../apps/web/src/domain/kernel/domain.ts";
-import type * as Grant from "../../../apps/web/src/domain/kernel/grant.ts";
+} from "../../../apps/web/src/core/declarations.ts";
+import type * as Domain from "../../../apps/web/src/core/kernel/domain.ts";
+import type * as Grant from "../../../apps/web/src/core/kernel/grant.ts";
 import {
   Catalog,
   Forms,

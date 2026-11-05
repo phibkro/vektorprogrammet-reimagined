@@ -22,14 +22,14 @@ import { Aggregates } from "../../src/adapters/db/aggregate/aggregates.ts";
 import { Person } from "../../src/adapters/db/aggregate/declaration.ts";
 import * as schema from "../../src/adapters/db/schema.ts";
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { PersonId } from "../../src/domain/ids";
-import * as Machine from "../../src/domain/kernel/machine";
+import { PersonId } from "../../src/core/ids";
+import * as Machine from "../../src/core/kernel/machine";
 import {
   AggregateLocks,
   lockAdminList,
-} from "../../src/domain/transactions/aggregate";
-import type { Locked } from "../../src/domain/transactions/aggregate";
-import { InTransaction } from "../../src/domain/transactions/transaction";
+} from "../../src/core/transactions/aggregate";
+import type { Locked } from "../../src/core/transactions/aggregate";
+import { InTransaction } from "../../src/core/transactions/transaction";
 import * as Accounts from "../../src/features/accounts/domain/declaration";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import { activateAccount } from "./support/accountsWorld.ts";

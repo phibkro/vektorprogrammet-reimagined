@@ -7,10 +7,10 @@
 import { Array as Arr, Match, Result, Schema } from "effect";
 import { encode as hexEncode } from "effect/encoding/Hex";
 
-import { validationFailed } from "../../../domain/errors.ts";
-import type { ValidationFailed } from "../../../domain/errors.ts";
-import { FileKey } from "../../../domain/ids.ts";
-import type { FileExtension } from "../../../domain/ids.ts";
+import { validationFailed } from "../../../core/errors.ts";
+import type { ValidationFailed } from "../../../core/errors.ts";
+import { FileKey } from "../../../core/ids.ts";
+import type { FileExtension } from "../../../core/ids.ts";
 
 const ImageContentType = Schema.Literals([
   "image/jpeg",

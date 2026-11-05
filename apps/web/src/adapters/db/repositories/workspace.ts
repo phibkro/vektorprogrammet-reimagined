@@ -12,12 +12,12 @@ import {
 } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 
-import { Conflict } from "../../../domain/errors.ts";
-import { DepartmentId, PersonId, TeamId } from "../../../domain/ids.ts";
-import type * as Job from "../../../domain/jobs/job.ts";
-import type * as JobRun from "../../../domain/jobs/runs.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { Conflict } from "../../../core/errors.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../core/ids.ts";
+import type * as Job from "../../../core/jobs/job.ts";
+import type * as JobRun from "../../../core/jobs/runs.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import type { Semester } from "../../../features/organisation/domain/semester.ts";
 import { semesterOrdinal } from "../../../features/teams/domain/term.ts";
 /**

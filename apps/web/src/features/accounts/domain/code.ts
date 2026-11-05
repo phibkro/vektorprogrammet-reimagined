@@ -3,9 +3,9 @@ import { Crypto, Effect, Schema } from "effect";
 import { encode as encodeBase64Url } from "effect/encoding/Base64Url";
 import { encode as encodeHex } from "effect/encoding/Hex";
 
-import { PersonId } from "../../../domain/ids.ts";
-import { holder } from "../../../domain/kernel/subject.ts";
-import type { Personal } from "../../../domain/kernel/subject.ts";
+import { PersonId } from "../../../core/ids.ts";
+import { holder } from "../../../core/kernel/subject.ts";
+import type { Personal } from "../../../core/kernel/subject.ts";
 
 export const CodePurpose = Schema.Literals([
   "alumniConsent",

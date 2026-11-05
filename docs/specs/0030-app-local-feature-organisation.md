@@ -1,6 +1,6 @@
 # 0030 — App-local feature organisation
 
-**Status:** Implemented and verified locally; organisation decisions await operator approval. No hosted release.
+**Status at c95ce8d:** Implemented and verified locally; organisation decisions then awaited operator approval. No hosted release.
 
 ## Goal
 
@@ -55,3 +55,20 @@ The local journey and model do not establish hosted provider lifecycle, deployme
 - 2026-11-05: Recorded the precise generated registration-edge exception, app-wide compiler strictness and formal test concurrency.
 - 2026-11-05: Recorded serial workspace test tasks to prevent quality probes racing app scanners.
 - 2026-11-05: Recorded the lead's local verification at the named source checkpoint; approval remains pending.
+
+## Follow-up: core and native Vite+ workflow (2026-11-05)
+
+The operator’s proceed authorizes this cutover. The prior proposal and the evidence at `c95ce8d0c95f535fb84b0f1afcc13a4ecd7cd245` remain historical records, not evidence for this new tree.
+
+The app-shared foundation now lives in `apps/web/src/core`. It is not a reusable package. Portable assembly registries remain in core, not server. Feature-owned rules remain in `features/<feature>/domain`; domain tests and the domain test project retain their names. All tools remain in `tools/`. This relocation does not authorize changes to behavior, SQL, service identities, modeled predicates or unknown CMS codex fields.
+
+Native Vite+ tasks replace duplicated root scripts. Bun retains root lifecycle `prepare` and `commitlint`. `vp run ready` runs static dependencies, then serial `test:all` and a fresh build. `vp run @vektorprogrammet/web#test` gates domain, db and web tasks in order. `vp test --project <name>` runs a direct scope; bare `vp test` can continue later groups after failure. Live, probe, generator and security tasks disable caching. The cached app build fingerprints `SITE_URL`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; release uses the built-in fresh build.
+
+The existing formal digest and confirmed commit remain historical until the lead reviews and confirms a new committed tree. No cutover verification is asserted by this follow-up.
+
+### Cutover evidence
+
+- Native CLI discovery found 137 app test files: 47 domain, 52 db and 38 web. The groups were disjoint and exhaustive. An injected domain failure ran 419 passing tests and one intentional failure, and prevented the db and web tasks. The probe was removed.
+- An outside-repository graph with the exact ready → serial test-all recipe showed no workspace overlap at outer concurrency 2. Its final build-stage probe ran after both workspaces.
+- Native build cache testing exposed a deploy-pointer read/write issue and parent-directory tracking. The configuration now excludes generated `.wrangler/**` inputs and explicitly preserves `.wrangler/deploy/config.json` as output. A warmed hit restored deleted client JS and the deploy pointer byte-for-byte. Changing `SITE_URL` missed and produced the new binding; restoring it hit the baseline. A fake private environment change caused a conservative miss, not a hit; manifest private bindings stayed empty. A cache database literal audit found no actual SDK secret or runtime URL.
+- The first full ready run passed seven of eight static dependencies and failed lint on key ordering. No tests or build ran in that attempt. The ordering was corrected with native suggestions. A new full ready run has not yet completed; this is not full acceptance.

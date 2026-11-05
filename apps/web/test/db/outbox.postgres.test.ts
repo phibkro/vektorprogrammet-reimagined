@@ -18,16 +18,16 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { OutboxMessageId } from "../../src/domain/ids";
+import { OutboxMessageId } from "../../src/core/ids";
 import {
   OutboxClaimToken,
   OutboxDelivery,
-} from "../../src/domain/outbox/delivery";
-import type { ClaimedOutboxMessage } from "../../src/domain/outbox/delivery";
-import { OutboxMessage } from "../../src/domain/outbox/messages";
-import { Outbox } from "../../src/domain/outbox/outbox";
-import { OutboxReports } from "../../src/domain/outbox/status";
-import { Transactor } from "../../src/domain/transactions/transactor";
+} from "../../src/core/outbox/delivery";
+import type { ClaimedOutboxMessage } from "../../src/core/outbox/delivery";
+import { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { OutboxReports } from "../../src/core/outbox/status";
+import { Transactor } from "../../src/core/transactions/transactor";
 import { postgresDatabase } from "./support/database.ts";
 import { TestDatabaseUrl, withClient } from "./support/disposableDatabase.ts";
 import { AT, slack } from "./support/fixtures.ts";

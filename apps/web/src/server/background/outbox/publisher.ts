@@ -1,14 +1,14 @@
 import { Cause, Context, Effect, Layer, Predicate, Ref } from "effect";
 
 import type { MessageSender } from "../../../adapters/messaging/senders";
-import type { OutboxMessageId } from "../../../domain/ids";
+import type { OutboxMessageId } from "../../../core/ids";
 /** Deliver committed outbox intents immediately; the scheduled sweep recovers unfinished rows. */
 import {
   CurrentPrincipal,
   systemPrincipal,
-} from "../../../domain/kernel/principal";
-import type { OutboxDelivery } from "../../../domain/outbox/delivery";
-import { Outbox } from "../../../domain/outbox/outbox";
+} from "../../../core/kernel/principal";
+import type { OutboxDelivery } from "../../../core/outbox/delivery";
+import { Outbox } from "../../../core/outbox/outbox";
 import type { WorkspaceWriter } from "../../../features/workspace/domain/services";
 import type { AccountDelivery } from "./accountDelivery";
 import { withOutbox } from "./sweep";

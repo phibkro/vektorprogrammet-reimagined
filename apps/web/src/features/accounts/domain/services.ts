@@ -8,11 +8,11 @@
 import { Context } from "effect";
 import type { DateTime, Effect, Option } from "effect";
 
-import type { AlreadyExists, Conflict } from "../../../domain/errors.ts";
-import type { PersonId } from "../../../domain/ids.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
-import type { EmailAddress } from "../../../domain/validation.ts";
+import type { AlreadyExists, Conflict } from "../../../core/errors.ts";
+import type { PersonId } from "../../../core/ids.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
+import type { EmailAddress } from "../../../core/validation.ts";
 import type { Person, PersonDraft } from "../../teams/domain/entities.ts";
 import type { AccountMachineTransition } from "./declaration.ts";
 import type { Account } from "./entities.ts";

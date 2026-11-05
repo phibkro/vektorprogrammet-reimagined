@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import type { Locked } from "../../../src/domain/transactions/aggregate";
+import type { Locked } from "../../../src/core/transactions/aggregate";
 import type { Code } from "../../../src/features/accounts/domain/code";
 /** What the delivery of a code mail does to the store, in the two transactions that it uses (spec 0024). */
 import { CodeRepository } from "../../../src/features/accounts/domain/codeRepository";

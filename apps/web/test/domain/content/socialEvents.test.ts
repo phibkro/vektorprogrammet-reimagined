@@ -1,12 +1,9 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect, Predicate } from "effect";
 
-import type {
-  DomainError,
-  ValidationIssue,
-} from "../../../src/domain/errors.ts";
-import { SemesterId } from "../../../src/domain/ids.ts";
-import { REQUIRED_FIELD_MESSAGE } from "../../../src/domain/validation.ts";
+import type { DomainError, ValidationIssue } from "../../../src/core/errors.ts";
+import { SemesterId } from "../../../src/core/ids.ts";
+import { REQUIRED_FIELD_MESSAGE } from "../../../src/core/validation.ts";
 import { ContentEndpoints } from "../../../src/features/events/domain/commands.ts";
 import {
   END_BEFORE_START_MESSAGE,

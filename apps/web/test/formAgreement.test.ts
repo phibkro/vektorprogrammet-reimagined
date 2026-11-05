@@ -16,8 +16,8 @@ import {
   Schema,
 } from "effect";
 
-import type { ValidationFailed } from "../src/domain/errors";
-import { EmailAddressInput, decodeInput } from "../src/domain/validation";
+import type { ValidationFailed } from "../src/core/errors";
+import { EmailAddressInput, decodeInput } from "../src/core/validation";
 import * as Accounts from "../src/features/accounts/domain/declaration";
 import * as AccountForms from "../src/features/accounts/forms/account";
 import * as Admission from "../src/features/admission/domain/declaration";

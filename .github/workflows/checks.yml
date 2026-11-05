@@ -50,10 +50,10 @@ jobs:
           export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
           export SYNTHETIC_SUPABASE_OWNED=1 E2E_DISPOSABLE=1
           devenv shell -- bash tools/prototype/with-env.sh --bootstrap bash -euo pipefail -c '
-            (cd apps/web && bun run db:migrate)
-            (cd tools/import && IMPORT_TARGET_DATABASE_URL="$MIGRATION_DATABASE_URL" env -u DATABASE_URL bun run import:fixture)
+            (cd apps/web && bunx vp run db:migrate)
+            (cd tools/import && IMPORT_TARGET_DATABASE_URL="$MIGRATION_DATABASE_URL" env -u DATABASE_URL bunx vp run import:fixture)
           '
-          devenv shell -- bun run prototype:setup
+          devenv shell -- bunx vp run prototype:setup
           devenv shell -- bash tools/prototype/with-env.sh bash -euo pipefail -c '
             bun apps/web/e2e/seedExtra.ts
             bun tools/prototype/seed.ts
@@ -63,19 +63,19 @@ jobs:
         run: devenv shell -- bunx vp check
       - name: Effect exception registry
         shell: bash
-        run: devenv shell -- bun run check:exceptions
+        run: devenv shell -- bunx vp run check:exceptions
       - name: Module graph
         shell: bash
-        run: devenv shell -- bun run check:module-graph
+        run: devenv shell -- bunx vp run check:module-graph
       - name: Generated documentation
         shell: bash
-        run: devenv shell -- bun run check:docs
+        run: devenv shell -- bunx vp run check:docs
       - name: Workspace tests
         shell: bash
         run: |
           export SUPABASE_ENV_FILE="$RUNNER_TEMP/supabase.env"
           export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
-          devenv shell -- bash tools/prototype/with-env.sh bun run test:all
+          devenv shell -- bash tools/prototype/with-env.sh bunx vp run test:all
       - name: Browser tests
         id: browser
         shell: bash
@@ -88,7 +88,7 @@ jobs:
           export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
           export E2E_MAILPIT_URL="http://127.0.0.1:55434"
           export E2E_DISPOSABLE=1
-          devenv shell -- bash tools/prototype/with-env.sh bun run e2e
+          devenv shell -- bash tools/prototype/with-env.sh bunx vp run e2e
       # Playwright keeps a trace and a screenshot only for a failing test (e2e/playwright.config.ts). They contain only
       # the disposable stack's test data and links. Retain them briefly for diagnosis (issues #39, #40).
       - name: Upload browser failure evidence
@@ -101,10 +101,10 @@ jobs:
           retention-days: 7
       - name: Knip
         shell: bash
-        run: devenv shell -- bun run knip
+        run: devenv shell -- bunx vp run knip
       - name: Copy-paste detection
         shell: bash
-        run: devenv shell -- bun run cpd
+        run: devenv shell -- bunx vp run cpd
       - name: Full-history secret and personal-data scan
         shell: bash
         run: devenv shell -- gitleaks git --config .gitleaks.toml --redact

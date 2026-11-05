@@ -10,9 +10,9 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Effect, Option, Ref, Schema } from "effect";
 
-import { authorize } from "../src/domain/declarations";
-import { anonymous } from "../src/domain/kernel/principal";
-import type { Principal } from "../src/domain/kernel/principal";
+import { authorize } from "../src/core/declarations";
+import { anonymous } from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
 import { Semester } from "../src/features/organisation/domain/semester";
 import { semesterOfChoice } from "../src/features/organisation/forms/semester";
 import { SAVED } from "../src/features/organisation/server/organisation";

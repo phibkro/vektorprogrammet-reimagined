@@ -7,13 +7,13 @@ import {
   Predicate,
 } from "effect";
 
-import { authorize } from "../../../domain/declarations";
-import { TeamId } from "../../../domain/ids";
-import type { DepartmentId } from "../../../domain/ids";
-import * as Machine from "../../../domain/kernel/machine";
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
-import type { Principal } from "../../../domain/kernel/principal";
-import { decodeInput } from "../../../domain/validation";
+import { authorize } from "../../../core/declarations";
+import { TeamId } from "../../../core/ids";
+import type { DepartmentId } from "../../../core/ids";
+import * as Machine from "../../../core/kernel/machine";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
+import type { Principal } from "../../../core/kernel/principal";
+import { decodeInput } from "../../../core/validation";
 import { hasValue } from "../../../forms/formSchema";
 import * as Accounts from "../../accounts/domain/declaration";
 import type { Account } from "../../accounts/domain/entities";

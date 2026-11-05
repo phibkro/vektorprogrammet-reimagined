@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Option, Predicate, Schema } from "effect";
 
-import { DepartmentId } from "../../../src/domain/ids.ts";
+import { DepartmentId } from "../../../src/core/ids.ts";
 import {
   AdmissionPeriod,
   currentOrLatestAdmissionPeriod,

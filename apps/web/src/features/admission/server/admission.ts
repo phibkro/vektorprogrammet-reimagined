@@ -8,10 +8,10 @@ import {
   Record as Rec,
 } from "effect";
 
-import { authorize } from "../../../domain/declarations";
-import { NotFound } from "../../../domain/errors";
-import type { DepartmentId } from "../../../domain/ids";
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
+import { authorize } from "../../../core/declarations";
+import { NotFound } from "../../../core/errors";
+import type { DepartmentId } from "../../../core/ids";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
 import { admissionState } from "../../organisation/domain/admission";
 import type { AdmissionState } from "../../organisation/domain/admission";
 import {

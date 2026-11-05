@@ -12,13 +12,13 @@ import { expectTypeOf } from "vite-plus/test";
 
 import type { MessageSender } from "../src/adapters/messaging/senders";
 import type { TurnstileVerifier } from "../src/adapters/turnstile";
-import type { Outbox } from "../src/domain/outbox/outbox";
+import type { Outbox } from "../src/core/outbox/outbox";
 import type {
   InTransaction,
   IntegrationPort,
   NotAnIntegration,
-} from "../src/domain/transactions/transaction";
-import type { Transactor } from "../src/domain/transactions/transactor";
+} from "../src/core/transactions/transaction";
+import type { Transactor } from "../src/core/transactions/transactor";
 import type { Auth } from "../src/server/identity/auth";
 
 type Run = Transactor["Service"];

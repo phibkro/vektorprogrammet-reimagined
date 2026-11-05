@@ -10,12 +10,12 @@ import type { SqlClient } from "effect/sql/SqlClient";
 
 import * as schema from "../../src/adapters/db/schema.ts";
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { validationFailed } from "../../src/domain/errors";
-import { OutboxMessage } from "../../src/domain/outbox/messages";
-import { Outbox, SlackTarget } from "../../src/domain/outbox/outbox";
-import { InTransaction } from "../../src/domain/transactions/transaction";
-import type { NotAnIntegration } from "../../src/domain/transactions/transaction";
-import { Transactor } from "../../src/domain/transactions/transactor";
+import { validationFailed } from "../../src/core/errors";
+import { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox, SlackTarget } from "../../src/core/outbox/outbox";
+import { InTransaction } from "../../src/core/transactions/transaction";
+import type { NotAnIntegration } from "../../src/core/transactions/transaction";
+import { Transactor } from "../../src/core/transactions/transactor";
 import {
   AuditLog,
   AuditPrincipal,

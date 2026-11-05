@@ -10,7 +10,7 @@
  */
 import { Array as Arr, DateTime, Option, Order } from "effect";
 
-import { OSLO, osloParts, osloWallClock } from "../../../domain/clock.ts";
+import { OSLO, osloParts, osloWallClock } from "../../../core/clock.ts";
 import { semesterWindow } from "../../organisation/domain/semester.ts";
 import type { Semester, Term } from "../../organisation/domain/semester.ts";
 import { Duration } from "./declaration.ts";

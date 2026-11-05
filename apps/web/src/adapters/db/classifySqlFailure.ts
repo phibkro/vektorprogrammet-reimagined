@@ -21,8 +21,8 @@ import type { SqlError } from "effect/sql/SqlError";
  * The result is an `Exit`, which is an `Effect`, so a repository can write
  * `Effect.catch((failure) => classifySqlFailure(failure, key))`.
  */
-import { AlreadyExists } from "../../domain/errors.ts";
-import type { EntityName } from "../../domain/ids.ts";
+import { AlreadyExists } from "../../core/errors.ts";
+import type { EntityName } from "../../core/ids.ts";
 import {
   MEMBERSHIP_OVERLAPS,
   PERSON_EXISTS,

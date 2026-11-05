@@ -6,8 +6,8 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
-import { DepartmentId, FieldOfStudyId } from "../../../domain/ids.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
+import { DepartmentId, FieldOfStudyId } from "../../../core/ids.ts";
 import {
   Info,
   grant,
@@ -16,7 +16,7 @@ import {
   member,
   system,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { Department, DepartmentInput } from "./department.ts";
 import {
   FieldOfStudy,

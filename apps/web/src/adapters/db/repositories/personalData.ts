@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Match, Schema } from "effect";
 
-import { PersonId } from "../../../domain/ids.ts";
-import type { FileKey } from "../../../domain/ids.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
-import { AggregateLocks } from "../../../domain/transactions/aggregate.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
+import { PersonId } from "../../../core/ids.ts";
+import type { FileKey } from "../../../core/ids.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
+import { AggregateLocks } from "../../../core/transactions/aggregate.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
 /**
  * The Layers of the personal data domain (spec 0007b): the consent records, the alumni requests, the legal holds and
  * the store that interprets the catalog (the export, the erasure and the merge) and the nightly run in its two forms: one

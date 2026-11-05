@@ -21,15 +21,15 @@ import {
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { Array as Arr, pipe, Record as Rec } from "effect";
 
-import { EntityName, FileExtension } from "../../domain/ids.ts";
-import * as JobRun from "../../domain/jobs/runs.ts";
+import { EntityName, FileExtension } from "../../core/ids.ts";
+import * as JobRun from "../../core/jobs/runs.ts";
 import {
   AuditClient,
   SystemJob,
   TeamFunction,
-} from "../../domain/kernel/principal.ts";
-import { OutboxMessage } from "../../domain/outbox/messages.ts";
-import { ADMIN_LIST_ID } from "../../domain/transactions/aggregate.ts";
+} from "../../core/kernel/principal.ts";
+import { OutboxMessage } from "../../core/outbox/messages.ts";
+import { ADMIN_LIST_ID } from "../../core/transactions/aggregate.ts";
 import { CodePurpose, CodeState } from "../../features/accounts/domain/code.ts";
 import { AccountState } from "../../features/accounts/domain/entities.ts";
 import {

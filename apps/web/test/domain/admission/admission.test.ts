@@ -7,10 +7,10 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Option, Schema } from "effect";
 
-import { authorize } from "../../../src/domain/declarations.ts";
-import { DepartmentId, PersonId, TeamId } from "../../../src/domain/ids.ts";
-import * as Machine from "../../../src/domain/kernel/machine.ts";
-import { Principal, anonymous } from "../../../src/domain/kernel/principal.ts";
+import { authorize } from "../../../src/core/declarations.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../src/core/ids.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
+import { Principal, anonymous } from "../../../src/core/kernel/principal.ts";
 import { codePolicy } from "../../../src/features/accounts/domain/code.ts";
 import { CodeMachine } from "../../../src/features/accounts/domain/codeMachine.ts";
 import * as Admission from "../../../src/features/admission/domain/declaration.ts";

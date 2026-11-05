@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect } from "effect";
 
-import type { FileKey } from "../src/domain/ids";
+import type { FileKey } from "../src/core/ids";
 import { servePublicFile } from "../src/features/files/domain/commands";
 import type { PublicFile } from "../src/features/files/domain/publicFile";
 import { publicFileResponse } from "../src/features/files/server/publicFiles";

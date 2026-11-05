@@ -1,17 +1,17 @@
 import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
 
-import * as Job from "../../../apps/web/src/domain/jobs/job.ts";
-import { jobProblems } from "../../../apps/web/src/domain/jobs/problems.ts";
-import * as JobRegistry from "../../../apps/web/src/domain/jobs/registry.ts";
+import * as Job from "../../../apps/web/src/core/jobs/job.ts";
+import { jobProblems } from "../../../apps/web/src/core/jobs/problems.ts";
+import * as JobRegistry from "../../../apps/web/src/core/jobs/registry.ts";
 /**
  * Pure renderers for the declaration-derived teams, accounts, commands-by-resource, scheduled-jobs and personal data
  * references.
  */
-import * as Commands from "../../../apps/web/src/domain/kernel/commands.ts";
-import * as Domain from "../../../apps/web/src/domain/kernel/domain.ts";
-import type * as Grant from "../../../apps/web/src/domain/kernel/grant.ts";
-import type * as Machine from "../../../apps/web/src/domain/kernel/machine.ts";
-import * as Subject from "../../../apps/web/src/domain/kernel/subject.ts";
+import * as Commands from "../../../apps/web/src/core/kernel/commands.ts";
+import * as Domain from "../../../apps/web/src/core/kernel/domain.ts";
+import type * as Grant from "../../../apps/web/src/core/kernel/grant.ts";
+import type * as Machine from "../../../apps/web/src/core/kernel/machine.ts";
+import * as Subject from "../../../apps/web/src/core/kernel/subject.ts";
 import { codePolicy } from "../../../apps/web/src/features/accounts/domain/code.ts";
 import { CodeMachine } from "../../../apps/web/src/features/accounts/domain/codeMachine.ts";
 import type { CatalogOf } from "../../../apps/web/src/features/personal-data/domain/catalog.ts";
@@ -404,7 +404,7 @@ export const checkRendered = (
   Result.flatMap(output, (generated) =>
     document === generated
       ? Result.void
-      : Result.fail("Generated documentation differs. Run bun run docs.")
+      : Result.fail("Generated documentation differs. Run bunx vp run docs.")
   );
 
 /** Refuse incomplete declarations and preserve all text outside the four generated blocks. */

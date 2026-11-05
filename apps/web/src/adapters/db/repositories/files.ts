@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { DateTime, Effect, Layer, Schema } from "effect";
 
-import type { FileKey } from "../../../domain/ids.ts";
+import type { FileKey } from "../../../core/ids.ts";
 /** C11 public-file registry (RULE-290 replacement): only registered, undeleted keys resolve. */
 import { PublicFile } from "../../../features/files/domain/publicFile.ts";
 import { PublicFileRepository } from "../../../features/files/domain/services.ts";

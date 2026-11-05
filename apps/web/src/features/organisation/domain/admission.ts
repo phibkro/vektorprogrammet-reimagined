@@ -7,12 +7,12 @@
 import type { DateTime } from "effect";
 import { Array as Arr, Data, Option, pipe, Predicate, Schema } from "effect";
 
-import { isBefore } from "../../../domain/clock.ts";
+import { isBefore } from "../../../core/clock.ts";
 import {
   AdmissionPeriodId,
   DepartmentId,
   SemesterId,
-} from "../../../domain/ids.ts";
+} from "../../../core/ids.ts";
 import { Semester, windowContains } from "./semester.ts";
 import type { Window } from "./semester.ts";
 

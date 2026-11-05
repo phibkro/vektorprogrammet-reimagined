@@ -12,12 +12,12 @@ import {
   FieldOfStudyId,
   PersonId,
   TeamId,
-} from "../../../domain/ids.ts";
+} from "../../../core/ids.ts";
 import {
   EmailAddressInput,
   REQUIRED_FIELD_MESSAGE,
   requiredText,
-} from "../../../domain/validation.ts";
+} from "../../../core/validation.ts";
 
 /** RULE-027: the days that suit the applicant, not the days that do not. */
 export const Weekday = Schema.Literals([

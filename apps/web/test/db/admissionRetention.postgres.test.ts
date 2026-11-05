@@ -9,7 +9,7 @@ import { Array as Arr, DateTime, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import type { AdmissionPeriodId } from "../../src/domain/ids";
+import type { AdmissionPeriodId } from "../../src/core/ids";
 import { AdmissionEndpoints } from "../../src/features/admission/domain/commands";
 import { ApplicationRepository } from "../../src/features/admission/domain/services";
 import { SemesterRepository } from "../../src/features/organisation/domain/services";

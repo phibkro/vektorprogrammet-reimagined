@@ -1,6 +1,6 @@
 import { Array as Arr, DateTime, Effect, Option } from "effect";
 
-import { OutboxReports } from "../../../domain/outbox/status";
+import { OutboxReports } from "../../../core/outbox/status";
 import { requestWorkspaceReport } from "../domain/commands";
 import { WorkspaceModeSetting, WorkspaceReports } from "../domain/services";
 

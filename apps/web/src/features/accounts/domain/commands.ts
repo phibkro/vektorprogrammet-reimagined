@@ -8,18 +8,18 @@
  */
 import { DateTime, Effect, Option } from "effect";
 
-import { Conflict } from "../../../domain/errors.ts";
-import type { PersonId } from "../../../domain/ids.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
-import type { Principal } from "../../../domain/kernel/principal.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
+import { Conflict } from "../../../core/errors.ts";
+import type { PersonId } from "../../../core/ids.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
+import type { Principal } from "../../../core/kernel/principal.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
 import {
   AggregateLocks,
   lockAdminList,
-} from "../../../domain/transactions/aggregate.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+} from "../../../core/transactions/aggregate.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import { personResource } from "../../teams/domain/personResource.ts";
 import { PersonRepository } from "../../teams/domain/services.ts";

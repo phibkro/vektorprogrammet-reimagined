@@ -8,8 +8,8 @@ import { Array as Arr, Schema } from "effect";
 import type { Rpc } from "effect/rpc";
 import { expectTypeOf } from "vite-plus/test";
 
-import * as Guard from "../../../src/domain/kernel/guard.ts";
-import * as Machine from "../../../src/domain/kernel/machine.ts";
+import * as Guard from "../../../src/core/kernel/guard.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
 import { Semester } from "../../../src/features/organisation/domain/semester.ts";
 import * as SemesterGuard from "../../../src/features/organisation/domain/semesterGuard.ts";
 import * as Teams from "../../../src/features/teams/domain/declaration.ts";

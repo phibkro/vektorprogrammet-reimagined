@@ -7,21 +7,21 @@ import { Array as Arr, Effect, Exit, Option, Ref, Schema } from "effect";
 import { Rpc } from "effect/rpc";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Forbidden } from "../../../src/domain/errors.ts";
-import { DepartmentId, PersonId, TeamId } from "../../../src/domain/ids.ts";
-import * as Commands from "../../../src/domain/kernel/commands.ts";
-import * as Domain from "../../../src/domain/kernel/domain.ts";
-import type { Declaration } from "../../../src/domain/kernel/domain.ts";
-import * as Grant from "../../../src/domain/kernel/grant.ts";
-import * as Machine from "../../../src/domain/kernel/machine.ts";
+import { Forbidden } from "../../../src/core/errors.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../src/core/ids.ts";
+import * as Commands from "../../../src/core/kernel/commands.ts";
+import * as Domain from "../../../src/core/kernel/domain.ts";
+import type { Declaration } from "../../../src/core/kernel/domain.ts";
+import * as Grant from "../../../src/core/kernel/grant.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
 import {
   CurrentPrincipal,
   Principal,
   anonymous,
   systemPrincipal,
-} from "../../../src/domain/kernel/principal.ts";
-import type { MembershipFact } from "../../../src/domain/kernel/principal.ts";
-import * as Subject from "../../../src/domain/kernel/subject.ts";
+} from "../../../src/core/kernel/principal.ts";
+import type { MembershipFact } from "../../../src/core/kernel/principal.ts";
+import * as Subject from "../../../src/core/kernel/subject.ts";
 import type { NoteStates } from "./sample.ts";
 import {
   NoteMachine,

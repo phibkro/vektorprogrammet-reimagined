@@ -5,7 +5,7 @@
  */
 import { Array as Arr, Option } from "effect";
 
-import type { DepartmentId } from "../../../domain/ids.ts";
+import type { DepartmentId } from "../../../core/ids.ts";
 import type { Semester } from "../../organisation/domain/semester.ts";
 import { semesterLabel } from "../../organisation/domain/semester.ts";
 import {

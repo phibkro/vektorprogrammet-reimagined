@@ -75,7 +75,7 @@ vars == << plan, pc, status, outcome, err, blocked, holder, versions, seen,
            pending, replaced, backed >>
 
 \* The admin list's one row is a lock key of its own. It comes before every
-\* person (shared/aggregate.ts, AggregateRoots), and persons are 1, 2, ..., so
+\* person (apps/web/src/core/transactions/aggregate.ts, AggregateRoots), and persons are 1, 2, ..., so
 \* the keys sort in lock order.
 AdminList == 0
 LockKeys == Persons \cup {AdminList}

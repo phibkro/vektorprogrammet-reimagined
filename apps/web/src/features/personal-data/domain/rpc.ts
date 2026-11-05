@@ -6,8 +6,8 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
-import { FileKey, PersonId } from "../../../domain/ids.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
+import { FileKey, PersonId } from "../../../core/ids.ts";
 import {
   Info,
   grant,
@@ -16,7 +16,7 @@ import {
   self,
   system,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import {
   CodeToken,
   codeHolder,

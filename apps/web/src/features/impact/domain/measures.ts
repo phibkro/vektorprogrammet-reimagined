@@ -8,7 +8,7 @@
  */
 import { Array as Arr, Hash, Option, Schema } from "effect";
 
-import { DepartmentId } from "../../../domain/ids.ts";
+import { DepartmentId } from "../../../core/ids.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
 
 export const MeasureId = Schema.Literals([

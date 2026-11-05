@@ -4,7 +4,7 @@
  */
 import { Array as Arr, DateTime, Option } from "effect";
 
-import { isBefore } from "../../../domain/clock.ts";
+import { isBefore } from "../../../core/clock.ts";
 import { semesterWindow } from "../../organisation/domain/semester.ts";
 import type { Membership } from "../../teams/domain/entities.ts";
 import { Periods } from "./periods.ts";

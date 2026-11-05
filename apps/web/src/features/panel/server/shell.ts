@@ -7,8 +7,8 @@ import { Array as Arr, Effect, Predicate } from "effect";
  * 15). There is no second who-may-do-what list: the declaration names what a page exercises, never the role that
  * holds it (ADR 0001). Hiding is presentation; the data and the commands refuse a forged request with 403.
  */
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
-import type { Principal } from "../../../domain/kernel/principal";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
+import type { Principal } from "../../../core/kernel/principal";
 import { PersonRepository } from "../../teams/domain/services";
 import { PANEL_SECTIONS } from "../panelSections";
 import type { NavigationGroup } from "../panelSections";

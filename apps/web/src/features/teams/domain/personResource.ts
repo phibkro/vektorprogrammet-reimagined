@@ -6,10 +6,10 @@
  */
 import { Array as Arr, Effect, Option } from "effect";
 
-import type { PersonId } from "../../../domain/ids.ts";
-import type { Authorize } from "../../../domain/kernel/authorize.ts";
-import { CurrentPrincipal } from "../../../domain/kernel/principal.ts";
-import { AggregateLocks } from "../../../domain/transactions/aggregate.ts";
+import type { PersonId } from "../../../core/ids.ts";
+import type { Authorize } from "../../../core/kernel/authorize.ts";
+import { CurrentPrincipal } from "../../../core/kernel/principal.ts";
+import { AggregateLocks } from "../../../core/transactions/aggregate.ts";
 import {
   MembershipRepository,
   PersonRepository,

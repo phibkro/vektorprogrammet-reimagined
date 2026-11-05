@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, pipe } from "effect";
 
-import { OSLO } from "../../../src/domain/clock.ts";
+import { OSLO } from "../../../src/core/clock.ts";
 import {
   isBetween,
   nextSemester,

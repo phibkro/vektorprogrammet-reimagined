@@ -20,8 +20,8 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { PersonId } from "../../../domain/ids.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
+import { PersonId } from "../../../core/ids.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
 import { CodePurpose, CodeState } from "./code.ts";
 
 /** Mint a code for a purpose and store it unusable: transaction 1 of the delivery. */

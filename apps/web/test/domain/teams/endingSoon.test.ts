@@ -14,9 +14,9 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import { DepartmentId, FieldOfStudyId } from "../../../src/domain/ids.ts";
-import type { PersonId, TeamId } from "../../../src/domain/ids.ts";
-import { systemPrincipal } from "../../../src/domain/kernel/principal.ts";
+import { DepartmentId, FieldOfStudyId } from "../../../src/core/ids.ts";
+import type { PersonId, TeamId } from "../../../src/core/ids.ts";
+import { systemPrincipal } from "../../../src/core/kernel/principal.ts";
 import { AuditPrincipal } from "../../../src/features/audit/domain/auditLog.ts";
 import type { Semester } from "../../../src/features/organisation/domain/semester.ts";
 import {

@@ -8,13 +8,13 @@ import type {
   PersonId,
   PositionId,
   TeamId,
-} from "../../../src/domain/ids";
+} from "../../../src/core/ids";
 import {
   AggregateLocks,
   lockAdminList,
-} from "../../../src/domain/transactions/aggregate";
-import type { Locked } from "../../../src/domain/transactions/aggregate";
-import { EmailAddress } from "../../../src/domain/validation";
+} from "../../../src/core/transactions/aggregate";
+import type { Locked } from "../../../src/core/transactions/aggregate";
+import { EmailAddress } from "../../../src/core/validation";
 import type { Semester } from "../../../src/features/organisation/domain/semester";
 import {
   DepartmentRepository,

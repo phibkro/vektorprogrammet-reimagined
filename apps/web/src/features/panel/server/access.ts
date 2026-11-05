@@ -1,9 +1,9 @@
 import { Array as Arr, Effect, Predicate } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import { canAnywhere } from "../../../domain/declarations";
-import type { Command } from "../../../domain/declarations";
-import { Forbidden } from "../../../domain/errors";
+import { canAnywhere } from "../../../core/declarations";
+import type { Command } from "../../../core/declarations";
+import { Forbidden } from "../../../core/errors";
 /**
  * Who may open a control-panel section: the one declaration (issue 15). The sidebar (`shell.ts`) and the guard of
  * every page's data (`panelReads.ts`) both read it, so a section the sidebar hides is a section whose data answers
@@ -13,8 +13,8 @@ import { Forbidden } from "../../../domain/errors";
  * A principal opens a section when it holds one of the section's commands or reads for some department it belongs
  * to, or for everything. What a page then lists is filtered row by row with `authorize`, underneath.
  */
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
-import type { Principal } from "../../../domain/kernel/principal";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
+import type { Principal } from "../../../core/kernel/principal";
 import type { SectionKey } from "../panelSections";
 
 /** The commands and reads each section's page exercises. */

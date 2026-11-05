@@ -12,7 +12,7 @@
 import { Context, Schema } from "effect";
 import type { Effect, Option } from "effect";
 
-import { PersonId } from "../../../domain/ids.ts";
+import { PersonId } from "../../../core/ids.ts";
 
 /**
  * Which sign-in identity answers to an address a person typed: the one identity whose person has that private or

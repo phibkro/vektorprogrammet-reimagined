@@ -22,15 +22,15 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { DatabaseLive } from "../src/adapters/db/databaseLive";
-import { validationFailed } from "../src/domain/errors";
-import { OutboxMessageId } from "../src/domain/ids";
-import * as Job from "../src/domain/jobs/job";
-import * as JobRun from "../src/domain/jobs/runs";
-import type { SystemJob } from "../src/domain/kernel/principal";
-import { OutboxMessage } from "../src/domain/outbox/messages";
-import { Outbox } from "../src/domain/outbox/outbox";
-import { Transactor } from "../src/domain/transactions/transactor";
-import { EmailAddress } from "../src/domain/validation";
+import { validationFailed } from "../src/core/errors";
+import { OutboxMessageId } from "../src/core/ids";
+import * as Job from "../src/core/jobs/job";
+import * as JobRun from "../src/core/jobs/runs";
+import type { SystemJob } from "../src/core/kernel/principal";
+import { OutboxMessage } from "../src/core/outbox/messages";
+import { Outbox } from "../src/core/outbox/outbox";
+import { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
 import { dispatchTick } from "../src/server/background/scheduler";
 import type { Runner } from "../src/server/background/scheduler";
 import {

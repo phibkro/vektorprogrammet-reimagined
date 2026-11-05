@@ -2,7 +2,7 @@ import { eq, or, sql } from "drizzle-orm";
 import { Effect, Layer, Option, Schema } from "effect";
 
 /** Authentication identity lookups use Supabase administrator-owned app metadata. */
-import { PersonId } from "../../../domain/ids.ts";
+import { PersonId } from "../../../core/ids.ts";
 import {
   SignInDirectory,
   SignInMatch,

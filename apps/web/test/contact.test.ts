@@ -7,7 +7,7 @@ import {
   TURNSTILE_RESPONSE_FIELD,
   turnstileTestLayer,
 } from "../src/adapters/turnstile";
-import { SlackChannel } from "../src/domain/outbox/outbox";
+import { SlackChannel } from "../src/core/outbox/outbox";
 import {
   contactCommand,
   prepareHuman,

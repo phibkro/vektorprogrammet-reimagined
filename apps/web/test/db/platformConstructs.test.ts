@@ -37,7 +37,7 @@ import {
   forbiddenConstructsOf,
   sqlWords,
 } from "../../src/adapters/db/platform/statements.ts";
-import { Capability } from "../../src/domain/store/guarantees";
+import { Capability } from "../../src/core/store/guarantees";
 import { sourcesOfTheAdapter } from "./support/platformSources.ts";
 import { findingsIn, textsIn } from "./support/sqlLiterals.ts";
 

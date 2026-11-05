@@ -5,15 +5,15 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
-import { DepartmentId, OutboxMessageId } from "../../../domain/ids.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
+import { DepartmentId, OutboxMessageId } from "../../../core/ids.ts";
 import {
   Info,
   anyone,
   grant,
   info,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { SupportTicket } from "./supportTicket.ts";
 
 export const submitContact = Rpc.make("submitContact", {

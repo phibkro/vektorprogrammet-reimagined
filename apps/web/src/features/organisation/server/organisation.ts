@@ -1,8 +1,8 @@
 import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
 
-import { authorize } from "../../../domain/declarations";
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
-import type { Principal } from "../../../domain/kernel/principal";
+import { authorize } from "../../../core/declarations";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
+import type { Principal } from "../../../core/kernel/principal";
 import { hasValue } from "../../../forms/formSchema";
 /**
  * `/kontrollpanel` (C1, C2, C8): view programs over the domain's queries and services, the command programs a

@@ -23,10 +23,10 @@ import {
   FieldOfStudyId,
   SemesterId,
   PersonId,
-} from "../../src/domain/ids";
-import { OutboxDelivery } from "../../src/domain/outbox/delivery";
-import { OutboxMessage } from "../../src/domain/outbox/messages";
-import { Outbox, SlackTarget } from "../../src/domain/outbox/outbox";
+} from "../../src/core/ids";
+import { OutboxDelivery } from "../../src/core/outbox/delivery";
+import { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox, SlackTarget } from "../../src/core/outbox/outbox";
 import {
   AuditLog,
   AuditPrincipal,

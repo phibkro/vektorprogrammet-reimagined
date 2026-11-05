@@ -5,10 +5,10 @@
  */
 import { Context, DateTime, Effect, Match, Predicate, Schema } from "effect";
 
-import { EntityName, PersonId } from "../../../domain/ids.ts";
-import { AuditClient, SystemJob } from "../../../domain/kernel/principal.ts";
-import type { Principal } from "../../../domain/kernel/principal.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { EntityName, PersonId } from "../../../core/ids.ts";
+import { AuditClient, SystemJob } from "../../../core/kernel/principal.ts";
+import type { Principal } from "../../../core/kernel/principal.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
 
 export const AuditAction = Schema.Literals([
   "department.created",

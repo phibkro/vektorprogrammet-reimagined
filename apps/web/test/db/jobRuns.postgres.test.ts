@@ -12,8 +12,8 @@ import { TestClock } from "effect/testing";
 
 import * as schema from "../../src/adapters/db/schema.ts";
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import * as Job from "../../src/domain/jobs/job";
-import * as JobRun from "../../src/domain/jobs/runs";
+import * as Job from "../../src/core/jobs/job";
+import * as JobRun from "../../src/core/jobs/runs";
 import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { AT } from "./support/fixtures.ts";
 import { race } from "./support/race.ts";

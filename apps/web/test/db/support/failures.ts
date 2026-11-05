@@ -2,7 +2,7 @@
 import { assert } from "@effect/vitest";
 import { Array as Arr, Cause, Exit, Option, Schema } from "effect";
 
-import { Conflict } from "../../../src/domain/errors";
+import { Conflict } from "../../../src/core/errors";
 import { describeExit } from "./race.ts";
 
 /** Whether a command failed with this typed error, and not with a defect or another error. */

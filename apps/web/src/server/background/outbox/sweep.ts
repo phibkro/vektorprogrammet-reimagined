@@ -2,9 +2,9 @@ import { Effect } from "effect";
 import { RpcGroup } from "effect/rpc";
 
 /** Authorized outbox delivery and due-row discovery. */
-import * as Commands from "../../../domain/kernel/commands";
-import * as OutboxSweep from "../../../domain/outbox/declaration";
-import { OutboxDelivery } from "../../../domain/outbox/delivery";
+import * as Commands from "../../../core/kernel/commands";
+import * as OutboxSweep from "../../../core/outbox/declaration";
+import { OutboxDelivery } from "../../../core/outbox/delivery";
 import { deliverOutbox } from "./delivery";
 
 const DeliveryRpc = RpcGroup.make(

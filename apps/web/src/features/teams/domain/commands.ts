@@ -10,17 +10,17 @@
  */
 import { DateTime, Effect, Predicate } from "effect";
 
-import { Conflict, validationFailed } from "../../../domain/errors.ts";
-import type { MembershipId, TeamId } from "../../../domain/ids.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
-import { departmentResource } from "../../../domain/kernel/domain.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
+import { Conflict, validationFailed } from "../../../core/errors.ts";
+import type { MembershipId, TeamId } from "../../../core/ids.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import { departmentResource } from "../../../core/kernel/domain.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
 import {
   AggregateLocks,
   lockAdminList,
-} from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+} from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import { currentSemester } from "../../organisation/domain/commands.ts";
 import { semesterWindow } from "../../organisation/domain/semester.ts";

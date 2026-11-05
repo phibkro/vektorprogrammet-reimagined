@@ -9,7 +9,7 @@ import { transactional } from "../../../src/adapters/db/transactional.ts";
 import {
   CurrentPrincipal,
   systemPrincipal,
-} from "../../../src/domain/kernel/principal";
+} from "../../../src/core/kernel/principal";
 import { retentionJob } from "../../../src/features/personal-data/domain/commands";
 import { RetentionRun } from "../../../src/features/personal-data/domain/services";
 

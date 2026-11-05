@@ -1,9 +1,9 @@
 import { DateTime, Effect, Layer, Match } from "effect";
 
 /** The adapter of `CapturedMessageStore` (declared by the domain): one insert per message, kept once per key. */
-import { CapturedMessageStore } from "../../../domain/outbox/captured.ts";
-import { slackChannelOf } from "../../../domain/outbox/outbox.ts";
-import type { TransportMessage } from "../../../domain/outbox/outbox.ts";
+import { CapturedMessageStore } from "../../../core/outbox/captured.ts";
+import { slackChannelOf } from "../../../core/outbox/outbox.ts";
+import type { TransportMessage } from "../../../core/outbox/outbox.ts";
 import { Drizzle } from "../internal/drizzle.ts";
 import { capturedMail, capturedSlack } from "../schema.ts";
 

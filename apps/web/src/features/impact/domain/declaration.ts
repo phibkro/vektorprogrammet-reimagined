@@ -5,14 +5,14 @@
  */
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema, Forbidden } from "../../../domain/errors.ts";
+import { DomainErrorSchema, Forbidden } from "../../../core/errors.ts";
 import {
   Info,
   grant,
   info,
   system,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { CloseOutcome, ImpactReport } from "./services.ts";
 
 export const listImpact = Rpc.make("listImpact", {

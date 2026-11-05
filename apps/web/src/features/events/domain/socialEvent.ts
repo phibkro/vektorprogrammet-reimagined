@@ -6,16 +6,12 @@
 import type { DateTime } from "effect";
 import { Schema } from "effect";
 
-import { addOsloCalendar, isBefore } from "../../../domain/clock.ts";
-import {
-  DepartmentId,
-  SemesterId,
-  SocialEventId,
-} from "../../../domain/ids.ts";
+import { addOsloCalendar, isBefore } from "../../../core/clock.ts";
+import { DepartmentId, SemesterId, SocialEventId } from "../../../core/ids.ts";
 import {
   REQUIRED_FIELD_MESSAGE,
   requiredText,
-} from "../../../domain/validation.ts";
+} from "../../../core/validation.ts";
 
 const eventFields = {
   departmentId: DepartmentId,

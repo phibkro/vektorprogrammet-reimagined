@@ -5,7 +5,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { personalDataRetentionReport } from "../../src/adapters/db/personalData/retention.ts";
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { PersonId } from "../../src/domain/ids";
+import { PersonId } from "../../src/core/ids";
 import {
   DeleteAuthUserMessage,
   RelinkAuthUserMessage,

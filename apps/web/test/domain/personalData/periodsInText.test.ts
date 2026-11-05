@@ -25,8 +25,8 @@ import {
 } from "effect";
 import { vi } from "vite-plus/test";
 
-import * as RealDeclarations from "../../../src/domain/declarations.ts";
-import * as RealCommands from "../../../src/domain/kernel/commands.ts";
+import * as RealDeclarations from "../../../src/core/declarations.ts";
+import * as RealCommands from "../../../src/core/kernel/commands.ts";
 import * as RealCode from "../../../src/features/accounts/domain/code.ts";
 import * as RealCatalog from "../../../src/features/personal-data/domain/catalog.ts";
 import { durationWords } from "../../../src/features/personal-data/domain/duration.ts";
@@ -225,9 +225,9 @@ const movedTexts =
 const periods =
   await import("../../../src/features/personal-data/domain/periods.ts");
 
-const declarations = await import("../../../src/domain/declarations.ts");
+const declarations = await import("../../../src/core/declarations.ts");
 const Moved = { ...catalog, ...movedTexts, ...periods, ...declarations };
-const MovedCommands = await import("../../../src/domain/kernel/commands.ts");
+const MovedCommands = await import("../../../src/core/kernel/commands.ts");
 
 // ------------------------------------------------------------------ the tests
 

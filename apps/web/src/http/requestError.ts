@@ -7,8 +7,8 @@ import {
   Forbidden,
   NotFound,
   ValidationFailed,
-} from "../domain/errors";
-import type { DomainError } from "../domain/errors";
+} from "../core/errors";
+import type { DomainError } from "../core/errors";
 import {
   CmsInvalidContent,
   CmsRejected,

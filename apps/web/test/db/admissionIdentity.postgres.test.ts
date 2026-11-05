@@ -11,10 +11,10 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { Forbidden } from "../../src/domain/errors";
-import { PersonId } from "../../src/domain/ids";
-import { anonymous } from "../../src/domain/kernel/principal";
-import { EmailAddress } from "../../src/domain/validation";
+import { Forbidden } from "../../src/core/errors";
+import { PersonId } from "../../src/core/ids";
+import { anonymous } from "../../src/core/kernel/principal";
+import { EmailAddress } from "../../src/core/validation";
 import { mintCode } from "../../src/features/accounts/domain/code";
 import { AdmissionEndpoints } from "../../src/features/admission/domain/commands";
 import { PersonalDataEndpoints } from "../../src/features/personal-data/domain/commands";

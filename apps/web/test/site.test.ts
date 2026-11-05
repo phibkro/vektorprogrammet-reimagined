@@ -16,7 +16,7 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import { AdmissionPeriodId, DepartmentId, SemesterId } from "../src/domain/ids";
+import { AdmissionPeriodId, DepartmentId, SemesterId } from "../src/core/ids";
 import { CmsClient } from "../src/features/cms/domain/client";
 import type { NewsData } from "../src/features/cms/domain/collections";
 import * as PortableText from "../src/features/cms/domain/portableText";

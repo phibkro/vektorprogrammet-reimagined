@@ -17,7 +17,7 @@
 import { Context, Schema } from "effect";
 import type { DateTime, Effect } from "effect";
 
-import type { FileKey } from "../../../domain/ids.ts";
+import type { FileKey } from "../../../core/ids.ts";
 import type { StoredContentType } from "../../files/domain/fileType.ts";
 import type { Term } from "./semester.ts";
 

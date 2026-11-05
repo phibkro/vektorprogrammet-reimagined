@@ -5,9 +5,9 @@
  */
 import { Effect } from "effect";
 
-import * as Commands from "../../../domain/kernel/commands.ts";
-import { departmentResource } from "../../../domain/kernel/domain.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import { departmentResource } from "../../../core/kernel/domain.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import { ContentDomain, ContentRpc, createSocialEvent } from "./declaration.ts";
 import { SocialEventRepository } from "./services.ts";

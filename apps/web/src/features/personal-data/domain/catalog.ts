@@ -1,5 +1,5 @@
-import { JobTables } from "../../../domain/jobs/personalData.ts";
-import { OutboxTables } from "../../../domain/outbox/personalData.ts";
+import { JobTables } from "../../../core/jobs/personalData.ts";
+import { OutboxTables } from "../../../core/outbox/personalData.ts";
 /**
  * The catalog: every stored table's declaration, gathered from the domains that own them (spec 0007b). The tests close it
  * over the migrated schema, `derive.ts` reads it for the retention rules, the export, the erasure and the merge, and

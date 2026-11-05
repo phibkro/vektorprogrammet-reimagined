@@ -2,7 +2,7 @@
  * The close of the ended semesters, declared by the service that owns it (spec 0027 D8, ADR 0015 stage 2). The registry
  * (`jobs/registry.ts`) lists it with the other jobs, so `impact` imports no catalog.
  */
-import { DueWhen, TICK_CRON, make } from "../../../domain/jobs/job.ts";
+import { DueWhen, TICK_CRON, make } from "../../../core/jobs/job.ts";
 
 /**
  * Freezes the cells of a semester that has ended, once: from the first tick after the semester's end, `closeImpact`

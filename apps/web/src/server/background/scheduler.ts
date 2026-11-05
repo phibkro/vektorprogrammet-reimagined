@@ -1,9 +1,9 @@
 import type { DateTime, Schema } from "effect";
 import { Array as Arr, Cause, Effect, Exit, Predicate } from "effect";
 
-import type { DomainError } from "../../domain/errors";
-import * as Job from "../../domain/jobs/job";
-import * as JobRun from "../../domain/jobs/runs";
+import type { DomainError } from "../../core/errors";
+import * as Job from "../../core/jobs/job";
+import * as JobRun from "../../core/jobs/runs";
 /**
  * The scheduler (spec 0008): one `scheduled` tick runs every job of the registry that is due, in declaration order,
  * each as its own `System` principal, each isolated from the others' failures.
@@ -18,13 +18,13 @@ import * as JobRun from "../../domain/jobs/runs";
  * program and the cursor write (`JobRuns.advance`, or `finish` for the last chunk) in ONE transaction, so a chunk and
  * its cursor commit together or not at all.
  */
-import { CurrentPrincipal } from "../../domain/kernel/principal";
-import type { SystemJob } from "../../domain/kernel/principal";
+import { CurrentPrincipal } from "../../core/kernel/principal";
+import type { SystemJob } from "../../core/kernel/principal";
 import type {
   InTransaction,
   NotAnIntegration,
-} from "../../domain/transactions/transaction";
-import { Transactor } from "../../domain/transactions/transactor";
+} from "../../core/transactions/transaction";
+import { Transactor } from "../../core/transactions/transactor";
 import type { WorkspaceProviderFailed } from "../../features/workspace/domain/services";
 import { publishingAfterCommit } from "./outbox/publisher";
 

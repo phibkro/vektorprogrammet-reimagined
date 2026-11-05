@@ -5,8 +5,8 @@ The generator reads the domain declarations, code policy and root grant table. I
 From the repository root, run:
 
 ```sh
-devenv shell -- bun run docs        # update the blocks
-devenv shell -- bun run check:docs  # fail when the blocks differ
+devenv shell -- bunx vp run docs        # update the blocks
+devenv shell -- bunx vp run check:docs  # fail when the blocks differ
 ```
 
 The generator refuses incomplete declarations (`Domain.allProblems`: a command without its resource and method, a name or a transition that contradicts them, a tag or a pair that two commands share) and invalid markers. The check runs in `ready` and CI. Its tests change one generated character, remove one grant row and move one command to another resource without regenerating as negative controls.

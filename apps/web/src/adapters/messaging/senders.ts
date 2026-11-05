@@ -17,14 +17,14 @@ import type { SendEmail } from "@cloudflare/workers-types";
 import { Context, Effect, Layer, Match, Redacted, Schema } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/http";
 
-import { CapturedMessageStore } from "../../domain/outbox/captured";
-import { slackChannelOf } from "../../domain/outbox/outbox";
-import type { TransportMessage } from "../../domain/outbox/outbox";
-import { refusingInTransaction } from "../../domain/transactions/integrationGuard";
+import { CapturedMessageStore } from "../../core/outbox/captured";
+import { slackChannelOf } from "../../core/outbox/outbox";
+import type { TransportMessage } from "../../core/outbox/outbox";
+import { refusingInTransaction } from "../../core/transactions/integrationGuard";
 import type {
   IntegrationPort,
   IntegrationTypeId,
-} from "../../domain/transactions/transaction";
+} from "../../core/transactions/transaction";
 import type { Deployment } from "../../server/deployment";
 import type { WorkerEnv } from "../../server/http/env";
 

@@ -3,7 +3,7 @@ import type { SQL } from "drizzle-orm";
 import { Array as Arr, Effect, Record as Rec, Schema } from "effect";
 import type { DateTime } from "effect";
 
-import type { PersonId } from "../../../domain/ids.ts";
+import type { PersonId } from "../../../core/ids.ts";
 /**
  * The export of one person's data (spec 0007b): the rows of every table whose person relation declares `Rows`, minus
  * the columns that the declaration leaves out (a credential), as JSON. It is one statement, so it is one snapshot: a

@@ -32,11 +32,11 @@ import type { SqlError } from "effect/sql/SqlError";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { PersonId } from "../../src/domain/ids";
-import type { MembershipId, PositionId, TeamId } from "../../src/domain/ids";
-import { CurrentPrincipal, Principal } from "../../src/domain/kernel/principal";
-import { SiteOrigin } from "../../src/domain/siteOrigin";
-import { AggregateLocks } from "../../src/domain/transactions/aggregate";
+import { PersonId } from "../../src/core/ids";
+import type { MembershipId, PositionId, TeamId } from "../../src/core/ids";
+import { CurrentPrincipal, Principal } from "../../src/core/kernel/principal";
+import { SiteOrigin } from "../../src/core/siteOrigin";
+import { AggregateLocks } from "../../src/core/transactions/aggregate";
 import type { Semester } from "../../src/features/organisation/domain/semester";
 import { TeamsEndpoints } from "../../src/features/teams/domain/commands";
 import {

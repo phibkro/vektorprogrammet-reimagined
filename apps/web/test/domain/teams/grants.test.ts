@@ -17,15 +17,15 @@ import {
   Declarations,
   GrantTable,
   authorize,
-} from "../../../src/domain/declarations.ts";
-import type { Command } from "../../../src/domain/declarations.ts";
-import { authorizeWith } from "../../../src/domain/kernel/authorize.ts";
-import * as Domain from "../../../src/domain/kernel/domain.ts";
-import type { Declaration } from "../../../src/domain/kernel/domain.ts";
-import { systemPrincipal } from "../../../src/domain/kernel/principal.ts";
-import type { Principal } from "../../../src/domain/kernel/principal.ts";
-import * as Subject from "../../../src/domain/kernel/subject.ts";
-import type { Resource } from "../../../src/domain/kernel/subject.ts";
+} from "../../../src/core/declarations.ts";
+import type { Command } from "../../../src/core/declarations.ts";
+import { authorizeWith } from "../../../src/core/kernel/authorize.ts";
+import * as Domain from "../../../src/core/kernel/domain.ts";
+import type { Declaration } from "../../../src/core/kernel/domain.ts";
+import { systemPrincipal } from "../../../src/core/kernel/principal.ts";
+import type { Principal } from "../../../src/core/kernel/principal.ts";
+import * as Subject from "../../../src/core/kernel/subject.ts";
+import type { Resource } from "../../../src/core/kernel/subject.ts";
 import { agreement, cases, passes, without } from "../support/grantLaws.ts";
 import { TRONDHEIM, admin, teamLeaderTrondheim } from "../support/inMemory.ts";
 

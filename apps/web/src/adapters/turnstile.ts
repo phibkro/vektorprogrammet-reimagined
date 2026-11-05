@@ -1,8 +1,8 @@
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
-import { validationFailed } from "../domain/errors";
-import type { ValidationFailed } from "../domain/errors";
+import { validationFailed } from "../core/errors";
+import type { ValidationFailed } from "../core/errors";
 /**
  * RULE-167 (provider changed to Turnstile at Checkpoint 2): the contact form
  * must pass spam protection before `submitContact` runs. Verification is
@@ -10,11 +10,11 @@ import type { ValidationFailed } from "../domain/errors";
  * `ValidationFailed` on the `captcha` field: the form is shown again and
  * nothing is enqueued.
  */
-import { refusingInTransaction } from "../domain/transactions/integrationGuard";
+import { refusingInTransaction } from "../core/transactions/integrationGuard";
 import type {
   IntegrationPort,
   IntegrationTypeId,
-} from "../domain/transactions/transaction";
+} from "../core/transactions/transaction";
 
 export const CAPTCHA_FIELD = "captcha";
 

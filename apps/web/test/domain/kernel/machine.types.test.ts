@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 
-import * as Machine from "../../../src/domain/kernel/machine.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
 import { NoteMachine } from "./sample.ts";
 
 const words = { words: 4 };

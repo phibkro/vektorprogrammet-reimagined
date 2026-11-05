@@ -7,9 +7,9 @@ import { describe, it } from "@effect/vitest";
 import type { Effect } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import type { Outbox } from "../../../src/domain/outbox/outbox.ts";
-import type { InTransaction } from "../../../src/domain/transactions/transaction.ts";
-import type { Transactor } from "../../../src/domain/transactions/transactor.ts";
+import type { Outbox } from "../../../src/core/outbox/outbox.ts";
+import type { InTransaction } from "../../../src/core/transactions/transaction.ts";
+import type { Transactor } from "../../../src/core/transactions/transactor.ts";
 
 const run = (
   transactor: Transactor["Service"],

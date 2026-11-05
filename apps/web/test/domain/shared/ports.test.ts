@@ -5,9 +5,9 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Record as Rec } from "effect";
 
-import { CapturedMessageStore } from "../../../src/domain/outbox/captured.ts";
-import { OutboxDelivery } from "../../../src/domain/outbox/delivery.ts";
-import { Transactor } from "../../../src/domain/transactions/transactor.ts";
+import { CapturedMessageStore } from "../../../src/core/outbox/captured.ts";
+import { OutboxDelivery } from "../../../src/core/outbox/delivery.ts";
+import { Transactor } from "../../../src/core/transactions/transactor.ts";
 import { SignInDirectory } from "../../../src/features/accounts/domain/signInDirectory.ts";
 import { ImportTarget } from "../../../src/features/organisation/domain/legacyImport.ts";
 

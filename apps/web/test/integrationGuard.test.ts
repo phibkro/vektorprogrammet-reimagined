@@ -41,13 +41,13 @@ import {
   workspaceDirectoryLayer,
   workspaceWriterLayer,
 } from "../src/adapters/workspace";
-import { CapturedMessageStore } from "../src/domain/outbox/captured";
-import { OutboxMessage as OutboxMessageSchema } from "../src/domain/outbox/messages";
-import { SlackTarget } from "../src/domain/outbox/outbox";
-import type { TransportMessage } from "../src/domain/outbox/outbox";
-import { IntegrationCalledInTransaction } from "../src/domain/transactions/integrationGuard";
-import { Transactor } from "../src/domain/transactions/transactor";
-import { EmailAddress } from "../src/domain/validation";
+import { CapturedMessageStore } from "../src/core/outbox/captured";
+import { OutboxMessage as OutboxMessageSchema } from "../src/core/outbox/messages";
+import { SlackTarget } from "../src/core/outbox/outbox";
+import type { TransportMessage } from "../src/core/outbox/outbox";
+import { IntegrationCalledInTransaction } from "../src/core/transactions/integrationGuard";
+import { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
 import { WorkspaceChange } from "../src/features/workspace/domain/change";
 import { CompanyEmail } from "../src/features/workspace/domain/companyEmail";
 import {

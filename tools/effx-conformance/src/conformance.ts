@@ -10,18 +10,18 @@ import {
   DepartmentId,
   PersonId,
   TeamId,
-} from "../../../apps/web/src/domain/ids.ts";
-import type { Authorize } from "../../../apps/web/src/domain/kernel/authorize.ts";
-import * as Machine from "../../../apps/web/src/domain/kernel/machine.ts";
+} from "../../../apps/web/src/core/ids.ts";
+import type { Authorize } from "../../../apps/web/src/core/kernel/authorize.ts";
+import * as Machine from "../../../apps/web/src/core/kernel/machine.ts";
 import {
   Principal,
   SystemJob,
   TeamFunction,
   anonymous,
   systemPrincipal,
-} from "../../../apps/web/src/domain/kernel/principal.ts";
-import type { MembershipFact } from "../../../apps/web/src/domain/kernel/principal.ts";
-import type { Resource } from "../../../apps/web/src/domain/kernel/subject.ts";
+} from "../../../apps/web/src/core/kernel/principal.ts";
+import type { MembershipFact } from "../../../apps/web/src/core/kernel/principal.ts";
+import type { Resource } from "../../../apps/web/src/core/kernel/subject.ts";
 import { Semester } from "../../../apps/web/src/features/organisation/domain/semester.ts";
 import { semesterOfOrdinal } from "../../../apps/web/src/features/teams/domain/term.ts";
 import type { VectorsFile, WorldFile } from "./vectors.ts";

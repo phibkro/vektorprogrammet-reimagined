@@ -16,7 +16,7 @@ import { flow } from "effect/Function";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { DatabaseLive } from "../src/adapters/db/databaseLive";
-import * as JobRegistry from "../src/domain/jobs/registry";
+import * as JobRegistry from "../src/core/jobs/registry";
 import { Catalog } from "../src/features/personal-data/domain/catalog";
 import {
   retentionIsProposed,

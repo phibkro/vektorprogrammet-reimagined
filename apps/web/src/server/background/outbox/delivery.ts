@@ -13,14 +13,14 @@ import {
   DeliveryFailed,
   MessageSender,
 } from "../../../adapters/messaging/senders";
-import type { OutboxMessageId } from "../../../domain/ids";
-import * as OutboxSweep from "../../../domain/outbox/declaration";
+import type { OutboxMessageId } from "../../../core/ids";
+import * as OutboxSweep from "../../../core/outbox/declaration";
 /** Due-safe, lease-fenced delivery after commit and from the scheduled sweep. */
-import { OutboxDelivery } from "../../../domain/outbox/delivery";
+import { OutboxDelivery } from "../../../core/outbox/delivery";
 import type {
   ClaimedOutboxMessage,
   OutboxClaimToken,
-} from "../../../domain/outbox/delivery";
+} from "../../../core/outbox/delivery";
 import { WorkspaceWriter } from "../../../features/workspace/domain/services";
 import { AccountDelivery } from "./accountDelivery";
 

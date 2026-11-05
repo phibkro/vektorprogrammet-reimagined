@@ -7,7 +7,7 @@
 import { Array as Arr, Option, Schema } from "effect";
 import type { DateTime } from "effect";
 
-import { PersonId } from "../../../domain/ids.ts";
+import { PersonId } from "../../../core/ids.ts";
 import {
   Rules,
   columns,

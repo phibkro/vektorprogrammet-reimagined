@@ -1,14 +1,14 @@
 import type { SqlClient } from "effect/sql";
 
-import type * as JobRun from "../domain/jobs/runs";
-import type { CapturedMessageStore } from "../domain/outbox/captured";
-import type { OutboxDelivery } from "../domain/outbox/delivery";
-import type { Outbox } from "../domain/outbox/outbox";
-import type { OutboxReports } from "../domain/outbox/status";
-import type { IsolationProbe } from "../domain/store/isolationProbe";
-import type { PlatformProbe } from "../domain/store/platformProbe";
-import type { AggregateLocks } from "../domain/transactions/aggregate";
-import type { Transactor } from "../domain/transactions/transactor";
+import type * as JobRun from "../core/jobs/runs";
+import type { CapturedMessageStore } from "../core/outbox/captured";
+import type { OutboxDelivery } from "../core/outbox/delivery";
+import type { Outbox } from "../core/outbox/outbox";
+import type { OutboxReports } from "../core/outbox/status";
+import type { IsolationProbe } from "../core/store/isolationProbe";
+import type { PlatformProbe } from "../core/store/platformProbe";
+import type { AggregateLocks } from "../core/transactions/aggregate";
+import type { Transactor } from "../core/transactions/transactor";
 import type { CodeRepository } from "../features/accounts/domain/codeRepository";
 import type { AccountRepository } from "../features/accounts/domain/services";
 import type { SignInDirectory } from "../features/accounts/domain/signInDirectory";

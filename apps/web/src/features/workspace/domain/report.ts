@@ -6,8 +6,8 @@
  */
 import { Array as Arr, Schema } from "effect";
 
-import { JobPeriod } from "../../../domain/jobs/job.ts";
-import { Counts } from "../../../domain/jobs/runs.ts";
+import { JobPeriod } from "../../../core/jobs/job.ts";
+import { Counts } from "../../../core/jobs/runs.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
 import {
   AccountLine,

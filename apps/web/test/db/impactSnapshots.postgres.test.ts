@@ -9,7 +9,7 @@ import { assert, layer } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import type { DepartmentId } from "../../src/domain/ids";
+import type { DepartmentId } from "../../src/core/ids";
 import {
   closeEndedSemesters,
   impactReport,

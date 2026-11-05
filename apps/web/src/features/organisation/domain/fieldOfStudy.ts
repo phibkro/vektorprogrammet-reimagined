@@ -1,8 +1,8 @@
 /** C1 fields of study (linjer). Every field of study belongs to exactly one department. */
 import { Schema } from "effect";
 
-import { DepartmentId, FieldOfStudyId } from "../../../domain/ids.ts";
-import { requiredText } from "../../../domain/validation.ts";
+import { DepartmentId, FieldOfStudyId } from "../../../core/ids.ts";
+import { requiredText } from "../../../core/validation.ts";
 
 const NonBlank = Schema.String.check(Schema.isNonEmpty());
 

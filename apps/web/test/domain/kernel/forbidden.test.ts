@@ -10,7 +10,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Forbidden } from "../../../src/domain/errors.ts";
+import { Forbidden } from "../../../src/core/errors.ts";
 import type {
   CodePurpose,
   codePolicy,

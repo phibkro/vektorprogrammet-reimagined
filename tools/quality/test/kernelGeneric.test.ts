@@ -61,11 +61,11 @@ describe("spec 0022 F1: the kernel is generic", () => {
 
         assert.isAbove(
           Arr.filter(files, (file) =>
-            file.path.startsWith("apps/web/src/domain/kernel/")
+            file.path.startsWith("apps/web/src/core/kernel/")
           ).length,
           5
         );
-        assert.deepStrictEqual(kernelLeaks(files, "apps/web/src/domain"), []);
+        assert.deepStrictEqual(kernelLeaks(files, "apps/web/src/core"), []);
       })
   );
 });

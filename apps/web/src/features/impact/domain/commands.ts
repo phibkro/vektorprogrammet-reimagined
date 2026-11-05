@@ -12,8 +12,8 @@ import {
   Record as Rec,
 } from "effect";
 
-import type { DepartmentId } from "../../../domain/ids.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
+import type { DepartmentId } from "../../../core/ids.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
 import {
   semesterWindow,
   sortNewestFirst,

@@ -2,21 +2,21 @@ import { Effect, Match } from "effect";
 import type { Crypto } from "effect";
 
 import type { MessageSender } from "../../adapters/messaging/senders";
-import type { DomainError } from "../../domain/errors";
+import type { DomainError } from "../../core/errors";
 /**
  * The runner of every registered job (spec 0008). The table is typed over exactly the names of the registry
  * (`RegisteredJob`), so a job that is declared and has no runner does not type-check, and a runner without a
  * declaration does not either. Each runner is the job's own System command, run by the scheduler as that principal
  * through `authorize`; the registry adds the schedule, the budget and the record of runs, and no second way to write.
  */
-import * as JobRegistry from "../../domain/jobs/registry";
-import type * as JobRun from "../../domain/jobs/runs";
-import type { CurrentPrincipal } from "../../domain/kernel/principal";
-import type { SiteOrigin } from "../../domain/siteOrigin";
+import * as JobRegistry from "../../core/jobs/registry";
+import type * as JobRun from "../../core/jobs/runs";
+import type { CurrentPrincipal } from "../../core/kernel/principal";
+import type { SiteOrigin } from "../../core/siteOrigin";
 import type {
   InTransaction,
   NotAnIntegration,
-} from "../../domain/transactions/transaction";
+} from "../../core/transactions/transaction";
 import { impactCloseJob } from "../../features/impact/domain/commands";
 import { semesterJob } from "../../features/organisation/domain/commands";
 import { semesterLabel } from "../../features/organisation/domain/semester";

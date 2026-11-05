@@ -13,7 +13,7 @@
  * - `state` names the column that a stored state machine owns; a row is created in a state, and afterwards only
  *   `Aggregates.apply` changes it.
  */
-import type { AggregateRoot } from "../../../domain/transactions/aggregate.ts";
+import type { AggregateRoot } from "../../../core/transactions/aggregate.ts";
 
 export interface OwnedTable {
   /** The property that holds the owner's id: a foreign key to the key of the root's table. */

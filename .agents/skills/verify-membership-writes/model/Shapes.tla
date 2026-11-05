@@ -63,7 +63,7 @@ CurrentCode == [
         \* that the transaction holds sends no statement (91-94).
         lock     |-> <<"lockPerson">>,
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
-        \* (domain/transactions/aggregate.ts:90-91): the same statement on admin_list.
+        \* (core/transactions/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
         insert   |-> <<"insertRow">>,                  \* teams.ts:574-593, Aggregates.insert (aggregates.ts:308-347)
         setEnd   |-> <<"updateEnd">>,                   \* teams.ts:600-630, Aggregates.update (aggregates.ts:374-394, onHeld :148-165)
@@ -72,7 +72,7 @@ CurrentCode == [
     \* A lock that would come before one that the transaction holds is a defect
     \* before any statement is sent (db/aggregate/locks.ts:99-107,
     \* lockScope.ts:36-44). The order: the admin list, then persons by id
-    \* (domain/transactions/aggregate.ts:36-39).
+    \* (core/transactions/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
     \* row is `lostRace`, the typed Conflict (teams.ts:429-434, 627-629, 660-662).
@@ -171,7 +171,7 @@ ReplaceThroughConstruct == [CurrentCode EXCEPT !.compose =
 (***************************************************************************)
 
 \* lockAll("Person", [a, b]) is one statement, SELECT ... WHERE id IN (a, b)
-\* ORDER BY id FOR NO KEY UPDATE (locks.ts:106-118). PostgreSQL takes the rows
+\* ORDER BY id FOR NO KEY UPDATE (locks.ts:109-122). PostgreSQL takes the rows
 \* one at a time in ORDER BY order, and a row that another transaction holds
 \* makes the statement wait while the rows before it stay locked: two
 \* acquisitions, the lower id first, whatever the order of the arguments

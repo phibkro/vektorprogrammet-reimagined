@@ -14,14 +14,14 @@ import {
 } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Declarations } from "../../../src/domain/declarations.ts";
-import * as Domain from "../../../src/domain/kernel/domain.ts";
-import type { Declaration } from "../../../src/domain/kernel/domain.ts";
-import * as Effx from "../../../src/domain/kernel/effx.ts";
-import * as Grant from "../../../src/domain/kernel/grant.ts";
-import * as Machine from "../../../src/domain/kernel/machine.ts";
-import { SystemJob } from "../../../src/domain/kernel/principal.ts";
-import * as Subject from "../../../src/domain/kernel/subject.ts";
+import { Declarations } from "../../../src/core/declarations.ts";
+import * as Domain from "../../../src/core/kernel/domain.ts";
+import type { Declaration } from "../../../src/core/kernel/domain.ts";
+import * as Effx from "../../../src/core/kernel/effx.ts";
+import * as Grant from "../../../src/core/kernel/grant.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
+import { SystemJob } from "../../../src/core/kernel/principal.ts";
+import * as Subject from "../../../src/core/kernel/subject.ts";
 import * as Accounts from "../../../src/features/accounts/domain/declaration.ts";
 import * as Contact from "../../../src/features/contact/domain/declaration.ts";
 import * as SemesterGuard from "../../../src/features/organisation/domain/semesterGuard.ts";

@@ -13,9 +13,9 @@ import {
   PersonId,
   PositionId,
   TeamId,
-} from "../../../domain/ids.ts";
-import { TeamFunction } from "../../../domain/kernel/principal.ts";
-import { EmailAddress, requiredText } from "../../../domain/validation.ts";
+} from "../../../core/ids.ts";
+import { TeamFunction } from "../../../core/kernel/principal.ts";
+import { EmailAddress, requiredText } from "../../../core/validation.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
 import { CompanyEmail } from "../../workspace/domain/companyEmail.ts";
 

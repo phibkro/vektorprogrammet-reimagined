@@ -2,18 +2,14 @@ import { and, asc, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
 
-import { Conflict, NotFound } from "../../../domain/errors.ts";
-import { DepartmentId, PersonId } from "../../../domain/ids.ts";
-import type {
-  AdminGrantId,
-  MembershipId,
-  TeamId,
-} from "../../../domain/ids.ts";
-import { MembershipFact } from "../../../domain/kernel/principal.ts";
-import { AggregateLocks } from "../../../domain/transactions/aggregate.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
-import { EmailAddress } from "../../../domain/validation.ts";
+import { Conflict, NotFound } from "../../../core/errors.ts";
+import { DepartmentId, PersonId } from "../../../core/ids.ts";
+import type { AdminGrantId, MembershipId, TeamId } from "../../../core/ids.ts";
+import { MembershipFact } from "../../../core/kernel/principal.ts";
+import { AggregateLocks } from "../../../core/transactions/aggregate.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
+import { EmailAddress } from "../../../core/validation.ts";
 import type { Semester } from "../../../features/organisation/domain/semester.ts";
 /**
  * Spec 0006: people, teams, memberships, the admin list, the digest ledger and the principal directory.

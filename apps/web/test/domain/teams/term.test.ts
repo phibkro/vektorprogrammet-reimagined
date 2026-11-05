@@ -6,7 +6,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Order, Result, Schema } from "effect";
 
-import * as Machine from "../../../src/domain/kernel/machine.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
 import type { Semester } from "../../../src/features/organisation/domain/semester.ts";
 import * as Teams from "../../../src/features/teams/domain/declaration.ts";
 import type { MembershipMoment } from "../../../src/features/teams/domain/declaration.ts";

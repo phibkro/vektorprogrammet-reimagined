@@ -19,28 +19,24 @@ import {
 } from "effect";
 import { cast } from "effect/Function";
 
-import {
-  AlreadyExists,
-  Conflict,
-  NotFound,
-} from "../../../src/domain/errors.ts";
+import { AlreadyExists, Conflict, NotFound } from "../../../src/core/errors.ts";
 import {
   AdminGrantId,
   MembershipId,
   PersonId,
   PositionId,
   TeamId,
-} from "../../../src/domain/ids.ts";
-import type { EntityName } from "../../../src/domain/ids.ts";
-import type { MembershipFact } from "../../../src/domain/kernel/principal.ts";
+} from "../../../src/core/ids.ts";
+import type { EntityName } from "../../../src/core/ids.ts";
+import type { MembershipFact } from "../../../src/core/kernel/principal.ts";
 import {
   ADMIN_LIST_ID,
   AggregateLocks,
-} from "../../../src/domain/transactions/aggregate.ts";
+} from "../../../src/core/transactions/aggregate.ts";
 import type {
   AggregateRoot,
   Locked,
-} from "../../../src/domain/transactions/aggregate.ts";
+} from "../../../src/core/transactions/aggregate.ts";
 import { AccountState } from "../../../src/features/accounts/domain/entities.ts";
 import type { Account } from "../../../src/features/accounts/domain/entities.ts";
 import { AccountRepository } from "../../../src/features/accounts/domain/services.ts";

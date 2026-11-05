@@ -25,12 +25,12 @@ import {
 } from "../../../apps/web/src/adapters/db/platform/profiles.ts";
 import type { ConnectionProfile } from "../../../apps/web/src/adapters/db/platform/profiles.ts";
 import { recipes } from "../../../apps/web/src/adapters/db/platform/recipes.ts";
-import type { Capability } from "../../../apps/web/src/domain/store/guarantees.ts";
+import type { Capability } from "../../../apps/web/src/core/store/guarantees.ts";
 import {
   PlatformRequirements,
   isProbed,
-} from "../../../apps/web/src/domain/store/platformRequirements.ts";
-import type { CapabilityRequirement } from "../../../apps/web/src/domain/store/platformRequirements.ts";
+} from "../../../apps/web/src/core/store/platformRequirements.ts";
+import type { CapabilityRequirement } from "../../../apps/web/src/core/store/platformRequirements.ts";
 import { checkRendered, replaceBlocks, table } from "./render.ts";
 
 /** What the page is made of: the real declarations, or changed ones in the tests that show a changed declaration changes it. */

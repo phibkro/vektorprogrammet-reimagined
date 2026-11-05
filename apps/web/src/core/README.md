@@ -1,8 +1,8 @@
-# Domain contracts and kernel
+# App-shared core
 
-Feature-specific domain code lives in `../../features/<feature>/domain`. The shared kernel and declaration assembly live here. Transaction, aggregate and integration-guard contracts live in `transactions/`; store guarantees, modes and platform contracts live in `store/`; shared outbox contracts live in `outbox/outbox.ts`. IDs, errors, validation, clock and site origin live at the domain root. There is no shared catchall. Use direct concrete-module imports.
+Feature-specific domain code lives in `../features/<feature>/domain`. Core is the app-shared foundation, not a reusable package. The portable kernel and assembly registries live here, not in server. Transaction, aggregate and integration-guard contracts live in `transactions/`; store guarantees, modes and platform contracts live in `store/`; shared outbox contracts live in `outbox/outbox.ts`. IDs, errors, validation, clock and site origin live at the core root. There is no shared catchall. Use direct concrete-module imports.
 
-Domain tests are in `../../test/domain` relative to the app root as `apps/web/test/domain`; conformance artefacts are in `apps/web/conformance`. See [spec 0030](../../../../docs/specs/0030-app-local-feature-organisation.md) for boundaries and approval status and [the web guide](../../README.md) for current commands. Transaction proofs, ordered aggregate locks and service identities retain their existing semantics.
+Domain tests are in `apps/web/test/domain`; conformance artefacts are in `apps/web/conformance`. See [spec 0030](../../../../docs/specs/0030-app-local-feature-organisation.md) for boundary history and [the web guide](../../README.md) for current commands. Transaction proofs, ordered aggregate locks and service identities retain their existing semantics.
 
 ## Historical package references
 

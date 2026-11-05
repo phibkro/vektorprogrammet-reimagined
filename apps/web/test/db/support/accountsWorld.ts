@@ -2,9 +2,9 @@ import { Array as Arr, Effect } from "effect";
 import type { DateTime } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { PersonId } from "../../../src/domain/ids";
-import * as Machine from "../../../src/domain/kernel/machine";
-import type { Locked } from "../../../src/domain/transactions/aggregate";
+import { PersonId } from "../../../src/core/ids";
+import * as Machine from "../../../src/core/kernel/machine";
+import type { Locked } from "../../../src/core/transactions/aggregate";
 import * as Accounts from "../../../src/features/accounts/domain/declaration";
 /**
  * Account fixtures (spec 0007) written the way a command writes them: under the person's lock, and a state change only

@@ -10,12 +10,12 @@ import type {
   AlreadyExists,
   Conflict,
   NotFound,
-} from "../../../domain/errors.ts";
+} from "../../../core/errors.ts";
 import type {
   AdmissionPeriodId,
   DepartmentId,
   FieldOfStudyId,
-} from "../../../domain/ids.ts";
+} from "../../../core/ids.ts";
 import type {
   AdmissionPeriod,
   AdmissionPeriodDraft,

@@ -12,13 +12,13 @@ import {
   createWorkerClient,
 } from "../../adapters/supabase/clients";
 import type { SupabaseConfig } from "../../adapters/supabase/clients";
-import { PersonId } from "../../domain/ids";
-import { refusingInTransaction } from "../../domain/transactions/integrationGuard";
+import { PersonId } from "../../core/ids";
+import { refusingInTransaction } from "../../core/transactions/integrationGuard";
 import type {
   IntegrationPort,
   IntegrationTypeId as IntegrationType,
   IntegrationTypeId,
-} from "../../domain/transactions/transaction";
+} from "../../core/transactions/transaction";
 import { passwordAllowed } from "../../features/accounts/domain/entities";
 import { AccountRepository } from "../../features/accounts/domain/services";
 import { SignInDirectory } from "../../features/accounts/domain/signInDirectory";

@@ -19,8 +19,8 @@ import {
   isBefore,
   osloParts,
   osloWallClock,
-} from "../../../domain/clock.ts";
-import { SemesterId } from "../../../domain/ids.ts";
+} from "../../../core/clock.ts";
+import { SemesterId } from "../../../core/ids.ts";
 
 export const Term = Schema.Literals(["VAR", "HOST"]);
 

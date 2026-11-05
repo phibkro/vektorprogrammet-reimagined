@@ -16,10 +16,10 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { authorize } from "../../src/domain/declarations";
-import { PersonId } from "../../src/domain/ids";
-import { CurrentPrincipal, Principal } from "../../src/domain/kernel/principal";
-import { EmailAddress } from "../../src/domain/validation";
+import { authorize } from "../../src/core/declarations";
+import { PersonId } from "../../src/core/ids";
+import { CurrentPrincipal, Principal } from "../../src/core/kernel/principal";
+import { EmailAddress } from "../../src/core/validation";
 import { mintCode } from "../../src/features/accounts/domain/code";
 import { CodeRepository } from "../../src/features/accounts/domain/codeRepository";
 import { AccountEndpoints } from "../../src/features/accounts/domain/commands";

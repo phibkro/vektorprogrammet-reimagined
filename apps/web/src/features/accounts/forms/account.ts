@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import {
   EmailAddressInput,
   REQUIRED_FIELD_MESSAGE,
-} from "../../../domain/validation";
+} from "../../../core/validation";
 import { Text, formSchema } from "../../../forms/formSchema";
 import { Password } from "../domain/entities";
 

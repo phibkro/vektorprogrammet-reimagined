@@ -19,7 +19,6 @@ import {
 const environment = Effect.runSync(
   Config.all({
     database: Config.String("DATABASE_URL").pipe(Config.withDefault("")),
-    domainTests: Config.option(Config.String("DOMAIN_TESTS")),
     publishableKey: Config.String("SUPABASE_PUBLISHABLE_KEY").pipe(
       Config.withDefault("")
     ),
@@ -101,12 +100,63 @@ export default defineConfig(({ command }) => ({
         viteReact(),
       ],
   resolve: { tsconfigPaths: true },
+  run: {
+    tasks: {
+      build: {
+        cache: {
+          env: ["SITE_URL", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"],
+          // Cloudflare state is generated; its deploy pointer must still be restored as output.
+          input: [{ auto: true }, "!.wrangler/**"],
+          output: [{ auto: true }, ".wrangler/deploy/config.json"],
+        },
+        command: "vp build",
+      },
+      test: {
+        cache: false,
+        command: "vp test --project web",
+        dependsOn: ["test:db"],
+      },
+      "test:db": {
+        cache: false,
+        command: "vp test --project db",
+        dependsOn: ["test:domain"],
+      },
+      "test:domain": { cache: false, command: "vp test --project domain" },
+    },
+  },
   test: {
-    hookTimeout: 60_000,
-    include: ["test/**/*.test.{ts,tsx}"],
-    maxWorkers: Option.isSome(environment.domainTests)
-      ? Math.max(availableParallelism() - 1, 1)
-      : Math.min(2, Math.max(availableParallelism() - 1, 1)),
-    testTimeout: 60_000,
+    projects: [
+      {
+        test: {
+          hookTimeout: 10_000,
+          include: ["test/domain/**/*.test.{ts,tsx}"],
+          maxWorkers: Math.max(availableParallelism() - 1, 1),
+          name: "domain",
+          sequence: { groupOrder: 1 },
+          testTimeout: 10_000,
+        },
+      },
+      {
+        test: {
+          hookTimeout: 60_000,
+          include: ["test/db/**/*.test.{ts,tsx}"],
+          maxWorkers: 1,
+          name: "db",
+          sequence: { groupOrder: 2 },
+          testTimeout: 60_000,
+        },
+      },
+      {
+        test: {
+          exclude: ["test/domain/**", "test/db/**"],
+          hookTimeout: 60_000,
+          include: ["test/**/*.test.{ts,tsx}"],
+          maxWorkers: Math.min(2, Math.max(availableParallelism() - 1, 1)),
+          name: "web",
+          sequence: { groupOrder: 3 },
+          testTimeout: 60_000,
+        },
+      },
+    ],
   },
 }));

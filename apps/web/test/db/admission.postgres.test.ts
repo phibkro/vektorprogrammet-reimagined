@@ -14,8 +14,8 @@ import {
   Conflict,
   Forbidden,
   ValidationFailed,
-} from "../../src/domain/errors";
-import { anonymous } from "../../src/domain/kernel/principal";
+} from "../../src/core/errors";
+import { anonymous } from "../../src/core/kernel/principal";
 import { AdmissionEndpoints } from "../../src/features/admission/domain/commands";
 import { ApplicationRepository } from "../../src/features/admission/domain/services";
 import {

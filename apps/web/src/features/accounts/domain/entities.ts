@@ -1,7 +1,7 @@
 /** Account state is a domain fact; Better Auth owns credentials and sessions. */
 import { Schema } from "effect";
 
-import { PersonId } from "../../../domain/ids.ts";
+import { PersonId } from "../../../core/ids.ts";
 
 export const AccountState = Schema.TaggedUnion({
   Active: {},

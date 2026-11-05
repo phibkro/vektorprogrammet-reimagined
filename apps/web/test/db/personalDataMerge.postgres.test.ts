@@ -17,8 +17,8 @@ import {
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { AlreadyExists, Conflict } from "../../src/domain/errors";
-import { PersonId } from "../../src/domain/ids";
+import { AlreadyExists, Conflict } from "../../src/core/errors";
+import { PersonId } from "../../src/core/ids";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import { PersonRepository } from "../../src/features/teams/domain/services";
 import { postgresDatabase } from "./support/database.ts";

@@ -9,14 +9,11 @@ import {
   pipe,
 } from "effect";
 
-import type {
-  DomainError,
-  ValidationIssue,
-} from "../../../src/domain/errors.ts";
-import { DepartmentId } from "../../../src/domain/ids.ts";
-import { anonymous } from "../../../src/domain/kernel/principal.ts";
-import { SlackPostMessage } from "../../../src/domain/outbox/outbox.ts";
-import { INVALID_EMAIL_MESSAGE } from "../../../src/domain/validation.ts";
+import type { DomainError, ValidationIssue } from "../../../src/core/errors.ts";
+import { DepartmentId } from "../../../src/core/ids.ts";
+import { anonymous } from "../../../src/core/kernel/principal.ts";
+import { SlackPostMessage } from "../../../src/core/outbox/outbox.ts";
+import { INVALID_EMAIL_MESSAGE } from "../../../src/core/validation.ts";
 import { ContactEndpoints } from "../../../src/features/contact/domain/commands.ts";
 import {
   DEPARTMENT_UNAVAILABLE_MESSAGE,

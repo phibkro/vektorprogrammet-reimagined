@@ -11,8 +11,8 @@ import type { DateTime } from "effect";
 import type { Aggregates } from "../../src/adapters/db/aggregate/aggregates.ts";
 import { Person } from "../../src/adapters/db/aggregate/declaration.ts";
 import type * as Schema from "../../src/adapters/db/schema.ts";
-import type { AdminGrantId, PersonId } from "../../src/domain/ids";
-import type { Locked } from "../../src/domain/transactions/aggregate";
+import type { AdminGrantId, PersonId } from "../../src/core/ids";
+import type { Locked } from "../../src/core/transactions/aggregate";
 import type * as Accounts from "../../src/features/accounts/domain/declaration";
 import type { AccountRepository } from "../../src/features/accounts/domain/services";
 import type {

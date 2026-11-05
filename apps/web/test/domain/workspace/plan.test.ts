@@ -5,7 +5,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Option, Predicate } from "effect";
 
-import { DepartmentId, PersonId, TeamId } from "../../../src/domain/ids.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../src/core/ids.ts";
 import { WorkspaceChange } from "../../../src/features/workspace/domain/change.ts";
 import {
   CompanyEmail,

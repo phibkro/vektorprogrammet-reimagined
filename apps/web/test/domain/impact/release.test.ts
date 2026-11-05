@@ -19,7 +19,7 @@ import {
   Schema,
 } from "effect";
 
-import { DepartmentId } from "../../../src/domain/ids.ts";
+import { DepartmentId } from "../../../src/core/ids.ts";
 import {
   impactCsv,
   releaseLattice,

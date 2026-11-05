@@ -20,13 +20,13 @@ import {
   Schema,
 } from "effect";
 
-import { requestPeriod } from "../../../domain/jobs/job.ts";
-import type { JobPeriod } from "../../../domain/jobs/job.ts";
-import { JobRuns } from "../../../domain/jobs/runs.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
-import { AggregateLocks } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { requestPeriod } from "../../../core/jobs/job.ts";
+import type { JobPeriod } from "../../../core/jobs/job.ts";
+import { JobRuns } from "../../../core/jobs/runs.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
+import { AggregateLocks } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import { semesterForDate } from "../../organisation/domain/semester.ts";
 import type { Semester } from "../../organisation/domain/semester.ts";

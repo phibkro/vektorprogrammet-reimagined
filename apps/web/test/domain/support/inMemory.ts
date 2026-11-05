@@ -15,7 +15,7 @@ import {
   Stream,
 } from "effect";
 
-import { AlreadyExists, NotFound } from "../../../src/domain/errors.ts";
+import { AlreadyExists, NotFound } from "../../../src/core/errors.ts";
 import {
   DepartmentId,
   FieldOfStudyId,
@@ -24,18 +24,18 @@ import {
   SemesterId,
   SocialEventId,
   TeamId,
-} from "../../../src/domain/ids.ts";
-import type { FileKey } from "../../../src/domain/ids.ts";
+} from "../../../src/core/ids.ts";
+import type { FileKey } from "../../../src/core/ids.ts";
 import {
   CurrentPrincipal,
   Principal,
-} from "../../../src/domain/kernel/principal.ts";
-import { isListed } from "../../../src/domain/outbox/messages.ts";
-import type { OutboxMessage } from "../../../src/domain/outbox/messages.ts";
-import { Outbox, SlackChannel } from "../../../src/domain/outbox/outbox.ts";
-import { SiteOrigin } from "../../../src/domain/siteOrigin.ts";
-import { InTransaction } from "../../../src/domain/transactions/transaction.ts";
-import { EmailAddress } from "../../../src/domain/validation.ts";
+} from "../../../src/core/kernel/principal.ts";
+import { isListed } from "../../../src/core/outbox/messages.ts";
+import type { OutboxMessage } from "../../../src/core/outbox/messages.ts";
+import { Outbox, SlackChannel } from "../../../src/core/outbox/outbox.ts";
+import { SiteOrigin } from "../../../src/core/siteOrigin.ts";
+import { InTransaction } from "../../../src/core/transactions/transaction.ts";
+import { EmailAddress } from "../../../src/core/validation.ts";
 import { AuditLog } from "../../../src/features/audit/domain/auditLog.ts";
 import type { AuditEntry } from "../../../src/features/audit/domain/auditLog.ts";
 import { SocialEventRepository } from "../../../src/features/events/domain/services.ts";

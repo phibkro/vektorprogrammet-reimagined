@@ -1,6 +1,6 @@
 # @vektorprogrammet/effx-conformance
 
-Spec 0007d (ADR 0009). The kernel exports each domain as an effx `DomainDescription` (`Effx.describe`, `apps/web/src/domain/kernel/effx.ts`, a pure function of the declarations). effx turns each description into conformance vectors: for every world up to its scope, which principal may run which command about which target, and which transition of each machine is enabled in which state. The tests here ask the kernel's own `authorize` and machine tables every row of those vectors. effx is not a dependency (its packages are not published, ADR 0009); what crosses is files.
+Spec 0007d (ADR 0009). The kernel exports each domain as an effx `DomainDescription` (`Effx.describe`, `apps/web/src/core/kernel/effx.ts`, a pure function of the declarations). effx turns each description into conformance vectors: for every world up to its scope, which principal may run which command about which target, and which transition of each machine is enabled in which state. The tests here ask the kernel's own `authorize` and machine tables every row of those vectors. effx is not a dependency (its packages are not published, ADR 0009); what crosses is files.
 
 ## What is committed
 
@@ -8,10 +8,10 @@ Spec 0007d (ADR 0009). The kernel exports each domain as an effx `DomainDescript
 
 | File | What it is | Made by |
 | --- | --- | --- |
-| `<domain>.description.json` | the export of a domain's declarations; a domain with nothing effx can state (`contact`) has none | `bun run description` |
-| `gaps.json` | what effx cannot state, as typed values (`Effx.Gap`) | `bun run description` |
-| `<domain>.vectors.json.gz` | effx's vectors of that description (`teams` is the large one: over 100 MB of JSON, a few MB compressed; every other domain is under 100 KB compressed) | `bun run description:regenerate` |
-| `provenance.json` | the effx commit, Alloy's version and executable, per domain the digest of its description and of its vectors, scope, steps, the rows compared, and effx's assertion results | `bun run description:regenerate` |
+| `<domain>.description.json` | the export of a domain's declarations; a domain with nothing effx can state (`contact`) has none | `bunx vp run description` |
+| `gaps.json` | what effx cannot state, as typed values (`Effx.Gap`) | `vp run description` |
+| `<domain>.vectors.json.gz` | effx's vectors of that description (`teams` is the large one: over 100 MB of JSON, a few MB compressed; every other domain is under 100 KB compressed) | `vp run description:regenerate` |
+| `provenance.json` | the effx commit, Alloy's version and executable, per domain the digest of its description and of its vectors, scope, steps, the rows compared, and effx's assertion results | `vp run description:regenerate` |
 | `effx.pin.json` | the effx commit and the Alloy version that the vectors are made with | by hand: moving it is a decision |
 
 The files are generated: the formatter leaves them alone (`vite.config.ts`), and nobody edits one.
@@ -19,8 +19,8 @@ The files are generated: the formatter leaves them alone (`vite.config.ts`), and
 ## When a grant, a subject set or a machine changes
 
 ```sh
-devenv shell -- bun run description                 # the descriptions and the register of gaps; no effx, a few seconds
-EFFX_DIR=… devenv shell -- bun run description:regenerate   # the vectors and the provenance; effx, Nix, 1.5 to 2.5 minutes
+devenv shell -- bunx vp run description                 # the descriptions and the register of gaps; no effx, a few seconds
+EFFX_DIR=… devenv shell -- bunx vp run description:regenerate   # the vectors and the provenance; effx, Nix, 1.5 to 2.5 minutes
 ```
 
 `EFFX_DIR` is a clean checkout of `phibkro/effx` at the commit of `effx.pin.json`, with its dependencies installed:
@@ -34,9 +34,9 @@ git clone https://github.com/phibkro/effx "$EFFX_DIR" && git -C "$EFFX_DIR" chec
 
 ## Does effx still make these vectors? (gate G2)
 
-effx moves on its own. `bun run description:drift` makes the vectors again with the checkout that `EFFX_DIR` names, which may be any commit (effx's `main`, say), writes nothing, and fails when anything in the provenance of a domain differs: the vectors' digest, the instances, the assertion results. It names the first differing line per domain. `.github/workflows/effx-drift.yml` runs it every Monday against `phibkro/effx` `main`, and by hand from the Actions tab. When it fails, set the commit of `effx.pin.json` to effx's `main`, run `description:regenerate` with `EFFX_DIR` at it, read the diff and commit the files; or leave the pin where it is and let the check go red.
+effx moves on its own. `vp run description:drift` makes the vectors again with the checkout that `EFFX_DIR` names, which may be any commit (effx's `main`, say), writes nothing, and fails when anything in the provenance of a domain differs: the vectors' digest, the instances, the assertion results. It names the first differing line per domain. `.github/workflows/effx-drift.yml` runs it every Monday against `phibkro/effx` `main`, and by hand from the Actions tab. When it fails, set the commit of `effx.pin.json` to effx's `main`, run `description:regenerate` with `EFFX_DIR` at it, read the diff and commit the files; or leave the pin where it is and let the check go red.
 
-## What the tests check (`vp run -r test`)
+## What the tests check (`bunx vp run test:all`)
 
 `test/conformance.test.ts`, spec 0007d falsifiers 1 to 4. No Nix, no JVM and no network: they read files.
 

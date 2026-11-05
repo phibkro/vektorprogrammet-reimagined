@@ -4,11 +4,11 @@ import { Array as Arr, Cause, DateTime, Effect, Exit, Layer } from "effect";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { PersonId } from "../../src/domain/ids";
-import type { PositionId } from "../../src/domain/ids";
-import { CurrentPrincipal, Principal } from "../../src/domain/kernel/principal";
-import { SiteOrigin } from "../../src/domain/siteOrigin";
-import { EmailAddress } from "../../src/domain/validation";
+import { PersonId } from "../../src/core/ids";
+import type { PositionId } from "../../src/core/ids";
+import { CurrentPrincipal, Principal } from "../../src/core/kernel/principal";
+import { SiteOrigin } from "../../src/core/siteOrigin";
+import { EmailAddress } from "../../src/core/validation";
 import { TeamsEndpoints } from "../../src/features/teams/domain/commands";
 import type { Person, Team } from "../../src/features/teams/domain/entities";
 import {

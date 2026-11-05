@@ -8,7 +8,7 @@
 import { expect, test } from "@playwright/test";
 import { Array as Arr, Effect, Schema } from "effect";
 
-import { requiredChecks } from "../src/domain/store/platformRequirements";
+import { requiredChecks } from "../src/core/store/platformRequirements";
 
 const Report = Schema.Struct({
   checks: Schema.Array(

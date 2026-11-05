@@ -14,14 +14,14 @@ import {
   DeliveryFailed,
   MessageSender,
 } from "../src/adapters/messaging/senders";
-import { OutboxMessageId } from "../src/domain/ids";
-import { anonymous, systemPrincipal } from "../src/domain/kernel/principal";
-import type { Principal } from "../src/domain/kernel/principal";
-import * as OutboxSweep from "../src/domain/outbox/declaration";
-import { OutboxClaimToken } from "../src/domain/outbox/delivery";
-import { OutboxMessage as OutboxMessageSchema } from "../src/domain/outbox/messages";
-import type { OutboxMessage } from "../src/domain/outbox/messages";
-import { EmailAddress } from "../src/domain/validation";
+import { OutboxMessageId } from "../src/core/ids";
+import { anonymous, systemPrincipal } from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
+import * as OutboxSweep from "../src/core/outbox/declaration";
+import { OutboxClaimToken } from "../src/core/outbox/delivery";
+import { OutboxMessage as OutboxMessageSchema } from "../src/core/outbox/messages";
+import type { OutboxMessage } from "../src/core/outbox/messages";
+import { EmailAddress } from "../src/core/validation";
 import { WorkspaceWriter } from "../src/features/workspace/domain/services";
 import { AccountDelivery } from "../src/server/background/outbox/accountDelivery";
 import { deliverOutbox } from "../src/server/background/outbox/delivery";

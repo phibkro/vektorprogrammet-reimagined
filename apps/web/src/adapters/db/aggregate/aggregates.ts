@@ -20,12 +20,12 @@ import { cast } from "effect/Function";
  * A token is checked against the locks that the transaction holds each time it is used, so a token from another
  * transaction, or from a savepoint that was rolled back, never reads or writes.
  */
-import { Conflict } from "../../../domain/errors.ts";
-import * as Declared from "../../../domain/kernel/machine.ts";
+import { Conflict } from "../../../core/errors.ts";
+import * as Declared from "../../../core/kernel/machine.ts";
 import type {
   AggregateRoot,
   Locked,
-} from "../../../domain/transactions/aggregate.ts";
+} from "../../../core/transactions/aggregate.ts";
 import { Drizzle } from "../internal/drizzle.ts";
 import { ProtectedColumn, TransitionNotApplicable } from "./defects.ts";
 import { assertHeld } from "./locks.ts";

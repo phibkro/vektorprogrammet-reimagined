@@ -2,7 +2,7 @@ import { and, asc, inArray, isNull, sql } from "drizzle-orm";
 import { Array as Arr, Effect, Layer, Option, Order, Ref } from "effect";
 import { cast } from "effect/Function";
 
-import { NotFound } from "../../../domain/errors.ts";
+import { NotFound } from "../../../core/errors.ts";
 /**
  * Taking the lock of an aggregate root (spec 0006b, contracts 1 and 2): the implementation of the domain's
  * `AggregateLocks`, and the check that a token is used only while this transaction holds its lock.
@@ -11,11 +11,11 @@ import { NotFound } from "../../../domain/errors.ts";
  * only refers to the person (a membership, an admin place) never waits for the lock, and writes of the person's own
  * rows do. It is a row lock, not an advisory lock: it lives and dies with the transaction (Hyperdrive).
  */
-import { AggregateLocks } from "../../../domain/transactions/aggregate.ts";
+import { AggregateLocks } from "../../../core/transactions/aggregate.ts";
 import type {
   AggregateRoot,
   Locked,
-} from "../../../domain/transactions/aggregate.ts";
+} from "../../../core/transactions/aggregate.ts";
 import { Drizzle } from "../internal/drizzle.ts";
 import { verified } from "../live.ts";
 import { LockNotHeld, LockOrderViolation } from "./defects.ts";

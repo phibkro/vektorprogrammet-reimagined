@@ -6,15 +6,15 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Arbitrary, Array as Arr, Effect, Predicate } from "effect";
 
-import { DepartmentId, PersonId, TeamId } from "../../../src/domain/ids.ts";
-import { authorizeWith } from "../../../src/domain/kernel/authorize.ts";
-import * as Grant from "../../../src/domain/kernel/grant.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../src/core/ids.ts";
+import { authorizeWith } from "../../../src/core/kernel/authorize.ts";
+import * as Grant from "../../../src/core/kernel/grant.ts";
 import {
   anonymous,
   systemPrincipal,
-} from "../../../src/domain/kernel/principal.ts";
-import type { MembershipFact } from "../../../src/domain/kernel/principal.ts";
-import * as Subject from "../../../src/domain/kernel/subject.ts";
+} from "../../../src/core/kernel/principal.ts";
+import type { MembershipFact } from "../../../src/core/kernel/principal.ts";
+import * as Subject from "../../../src/core/kernel/subject.ts";
 import {
   agreement,
   cases,

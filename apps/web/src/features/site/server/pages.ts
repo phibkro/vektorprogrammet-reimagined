@@ -8,8 +8,8 @@ import {
   Result,
 } from "effect";
 
-import { osloParts } from "../../../domain/clock";
-import { NotFound } from "../../../domain/errors";
+import { osloParts } from "../../../core/clock";
+import { NotFound } from "../../../core/errors";
 import { paginate, selectFrontPageNews } from "../../cms/domain/article";
 /**
  * Page data of the public site (spec 0005): Effect programs that read the texts, news, sponsors, FAQ and teams

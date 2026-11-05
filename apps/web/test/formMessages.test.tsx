@@ -14,7 +14,7 @@ import { CommandFormView } from "../src/components/form/commandForm";
 import type { FieldComponent } from "../src/components/form/field";
 import { Input } from "../src/components/ui/input";
 import { Switch } from "../src/components/ui/switch";
-import { ValidationFailed } from "../src/domain/errors";
+import { ValidationFailed } from "../src/core/errors";
 import {
   Text,
   formSchema,

@@ -2,7 +2,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Order, Record as Rec } from "effect";
 
-import * as Machine from "../../../src/domain/kernel/machine.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
 import {
   CodeState,
   codePolicy,

@@ -17,8 +17,8 @@ import type { Option } from "effect";
  * `None` before the store is asked. So nothing asserts the role's default on production yet: STATE.md names the
  * follow-up, to be done when production is deployed (spec 0018 R18).
  */
-import { IsolationProbe } from "../../domain/store/isolationProbe";
-import type { IsolationReport } from "../../domain/store/isolationProbe";
+import { IsolationProbe } from "../../core/store/isolationProbe";
+import type { IsolationReport } from "../../core/store/isolationProbe";
 import type { Outcome } from "../../http/outcome";
 import {
   diagnosticReport,

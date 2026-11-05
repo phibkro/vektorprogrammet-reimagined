@@ -10,9 +10,9 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import type { DepartmentId } from "../../../src/domain/ids.ts";
-import { FieldOfStudyId } from "../../../src/domain/ids.ts";
-import { systemPrincipal } from "../../../src/domain/kernel/principal.ts";
+import type { DepartmentId } from "../../../src/core/ids.ts";
+import { FieldOfStudyId } from "../../../src/core/ids.ts";
+import { systemPrincipal } from "../../../src/core/kernel/principal.ts";
 import {
   OrganisationEndpoints,
   currentSemester,

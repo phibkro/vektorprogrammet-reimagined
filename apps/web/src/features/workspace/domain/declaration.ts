@@ -8,17 +8,17 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
-import { TeamId } from "../../../domain/ids.ts";
-import { JobPeriod } from "../../../domain/jobs/job.ts";
-import { Counts } from "../../../domain/jobs/runs.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
+import { TeamId } from "../../../core/ids.ts";
+import { JobPeriod } from "../../../core/jobs/job.ts";
+import { Counts } from "../../../core/jobs/runs.ts";
 import {
   Info,
   grant,
   info,
   make as declareDomain,
   system,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { CompanyEmail } from "./companyEmail.ts";
 
 /** Where a run is: the accounts come first (one chunk), then the teams in id order, a chunk at a time. */

@@ -9,14 +9,14 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Record as Rec } from "effect";
 
-import { StoreGuarantees } from "../../../src/domain/store/guarantees.ts";
-import type { PlatformReport } from "../../../src/domain/store/platformProbe.ts";
+import { StoreGuarantees } from "../../../src/core/store/guarantees.ts";
+import type { PlatformReport } from "../../../src/core/store/platformProbe.ts";
 import {
   PlatformRequirements,
   isProbed,
   platformProblems,
   requiredChecks,
-} from "../../../src/domain/store/platformRequirements.ts";
+} from "../../../src/core/store/platformRequirements.ts";
 
 const holding = (): PlatformReport => ({
   checks: Arr.map(requiredChecks, ({ id }) => ({

@@ -10,8 +10,8 @@ import {
   NonGuarantees,
   StoreGuarantees,
   problemsOf,
-} from "../../../src/domain/store/guarantees.ts";
-import { TransactionModes } from "../../../src/domain/store/transactionModes.ts";
+} from "../../../src/core/store/guarantees.ts";
+import { TransactionModes } from "../../../src/core/store/transactionModes.ts";
 
 const base: Guarantee = {
   capability: "UniqueKeys",

@@ -9,11 +9,11 @@ import { Array as Arr, Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { authorize } from "../src/domain/declarations";
-import { PersonId } from "../src/domain/ids";
-import { CurrentPrincipal, Principal } from "../src/domain/kernel/principal";
-import { OutboxMessage } from "../src/domain/outbox/messages";
-import { Outbox } from "../src/domain/outbox/outbox";
+import { authorize } from "../src/core/declarations";
+import { PersonId } from "../src/core/ids";
+import { CurrentPrincipal, Principal } from "../src/core/kernel/principal";
+import { OutboxMessage } from "../src/core/outbox/messages";
+import { Outbox } from "../src/core/outbox/outbox";
 import { CodeToken, codePolicy } from "../src/features/accounts/domain/code";
 import { codePrincipal } from "../src/features/accounts/domain/principal";
 import { PersonalDataEndpoints } from "../src/features/personal-data/domain/commands";

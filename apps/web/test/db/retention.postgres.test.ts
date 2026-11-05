@@ -24,8 +24,8 @@ import {
   personalDataRetentionReport,
 } from "../../src/adapters/db/personalData/retention.ts";
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { Outbox } from "../../src/domain/outbox/outbox";
-import { AggregateLocks } from "../../src/domain/transactions/aggregate";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { AggregateLocks } from "../../src/core/transactions/aggregate";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import { Catalog } from "../../src/features/personal-data/domain/catalog";
 import {

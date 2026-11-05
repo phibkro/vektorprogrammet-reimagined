@@ -12,9 +12,9 @@
 import { assert, layer } from "@effect/vitest";
 import { Array as Arr, Effect, Option, Redacted, Schema } from "effect";
 
-import { PlatformProbe } from "../src/domain/store/platformProbe";
-import type { PlatformReport } from "../src/domain/store/platformProbe";
-import { requiredChecks } from "../src/domain/store/platformRequirements";
+import { PlatformProbe } from "../src/core/store/platformProbe";
+import type { PlatformReport } from "../src/core/store/platformProbe";
+import { requiredChecks } from "../src/core/store/platformRequirements";
 import { success } from "../src/http/outcome";
 import {
   platformReport,

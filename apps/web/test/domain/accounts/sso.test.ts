@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime } from "effect";
 
-import { PersonId } from "../../../src/domain/ids.ts";
+import { PersonId } from "../../../src/core/ids.ts";
 import { AccountState } from "../../../src/features/accounts/domain/entities.ts";
 import { ssoAllowed } from "../../../src/features/accounts/domain/sso.ts";
 import { oslo, vaar } from "../support/calendar.ts";

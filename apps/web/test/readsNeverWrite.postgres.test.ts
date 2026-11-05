@@ -30,24 +30,20 @@ import { SqlClient } from "effect/sql";
 
 import { ContentLive } from "../src/adapters/db/content";
 import { DatabaseLive } from "../src/adapters/db/databaseLive";
-import type {
-  Forbidden,
-  NotFound,
-  ValidationFailed,
-} from "../src/domain/errors";
-import { FieldOfStudyId, PersonId, PositionId } from "../src/domain/ids";
+import type { Forbidden, NotFound, ValidationFailed } from "../src/core/errors";
+import { FieldOfStudyId, PersonId, PositionId } from "../src/core/ids";
 import {
   CurrentPrincipal,
   Principal,
   anonymous,
   systemPrincipal,
-} from "../src/domain/kernel/principal";
+} from "../src/core/kernel/principal";
 import {
   AggregateLocks,
   lockAdminList,
-} from "../src/domain/transactions/aggregate";
-import { Transactor } from "../src/domain/transactions/transactor";
-import { EmailAddress } from "../src/domain/validation";
+} from "../src/core/transactions/aggregate";
+import { Transactor } from "../src/core/transactions/transactor";
+import { EmailAddress } from "../src/core/validation";
 import {
   myPage,
   signInDestination,

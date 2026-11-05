@@ -14,7 +14,7 @@ import {
  * validates a form's values with `clientValidator`, and the server reads a posted `FormData` with the form's `read`;
  * both go through the same text step and the same payload schema, so the issues are the same.
  */
-import { osloWallClock } from "../domain/clock";
+import { osloWallClock } from "../core/clock";
 
 /** What a form's inputs hold: text, or nothing (an unchecked checkbox, a field a form does not render). */
 export type FormText = Readonly<Record<string, string | undefined>>;

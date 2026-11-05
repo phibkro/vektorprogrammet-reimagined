@@ -10,7 +10,7 @@
  */
 import { Array as Arr, Option, Order, Schema } from "effect";
 
-import { DepartmentId, PersonId, TeamId } from "../../../domain/ids.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../core/ids.ts";
 import { WorkspaceChange } from "./change.ts";
 import { CompanyEmail, companyEmailFor } from "./companyEmail.ts";
 

@@ -15,19 +15,19 @@ import {
   Schema,
 } from "effect";
 
-import { DepartmentId, PersonId, TeamId } from "../../../src/domain/ids.ts";
-import type * as Grant from "../../../src/domain/kernel/grant.ts";
+import { DepartmentId, PersonId, TeamId } from "../../../src/core/ids.ts";
+import type * as Grant from "../../../src/core/kernel/grant.ts";
 import {
   Principal,
   SystemJob,
   TeamFunction,
-} from "../../../src/domain/kernel/principal.ts";
+} from "../../../src/core/kernel/principal.ts";
 import type {
   MembershipFact,
   PersonPrincipal,
-} from "../../../src/domain/kernel/principal.ts";
-import * as Subject from "../../../src/domain/kernel/subject.ts";
-import type { Resource } from "../../../src/domain/kernel/subject.ts";
+} from "../../../src/core/kernel/principal.ts";
+import * as Subject from "../../../src/core/kernel/subject.ts";
+import type { Resource } from "../../../src/core/kernel/subject.ts";
 import {
   CodePurpose,
   codePolicy,

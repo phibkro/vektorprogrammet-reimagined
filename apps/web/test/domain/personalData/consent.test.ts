@@ -6,7 +6,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Option } from "effect";
 
-import { PersonId } from "../../../src/domain/ids.ts";
+import { PersonId } from "../../../src/core/ids.ts";
 import {
   leftAt,
   stillAsked,

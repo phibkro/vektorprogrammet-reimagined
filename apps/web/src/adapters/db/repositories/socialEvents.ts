@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { DateTime, Effect, Layer, Schema } from "effect";
 
-import type { DepartmentId, SemesterId } from "../../../domain/ids.ts";
+import type { DepartmentId, SemesterId } from "../../../core/ids.ts";
 import { SocialEventRepository } from "../../../features/events/domain/services.ts";
 /**
  * C8 social events (RULE-188). The news, static texts and sponsors of the public site are the CMS's (spec 0005),

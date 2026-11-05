@@ -93,5 +93,5 @@ export const signFindings = (signs: Readonly<Record<string, Sign>>) => ({
 
 /** Domain code lives in the shared domain and in feature-owned domain directories. */
 export const domainSources = workingTreeSources(repositoryRoot, (path) =>
-  /^apps\/web\/src\/(?:domain\/|features\/[^/]+\/domain\/).*\.ts$/u.test(path)
+  /^apps\/web\/src\/(?:core\/|features\/[^/]+\/domain\/).*\.ts$/u.test(path)
 );

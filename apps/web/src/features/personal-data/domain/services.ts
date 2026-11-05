@@ -6,10 +6,10 @@
 import { Context, Schema } from "effect";
 import type { DateTime, Effect } from "effect";
 
-import type { Conflict } from "../../../domain/errors.ts";
-import type { FileKey, PersonId } from "../../../domain/ids.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
+import type { Conflict } from "../../../core/errors.ts";
+import type { FileKey, PersonId } from "../../../core/ids.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
 import type { ConsentRecord, StoredConsent } from "./consents.ts";
 import type { ConsentKind } from "./declaration.ts";
 

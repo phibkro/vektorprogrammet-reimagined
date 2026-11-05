@@ -13,8 +13,8 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { isSqlError } from "effect/sql/SqlError";
 
-import { PlatformProbe } from "../../../domain/store/platformProbe.ts";
-import type { PlatformCheckResult } from "../../../domain/store/platformProbe.ts";
+import { PlatformProbe } from "../../../core/store/platformProbe.ts";
+import type { PlatformCheckResult } from "../../../core/store/platformProbe.ts";
 /**
  * The adapter of `PlatformProbe` (spec 0025): the properties that the domain asks of a platform (`PlatformRequirements`),
  * shown on the platform this adapter runs on, with the constructs the adapter really uses, plus the one check that is the
@@ -35,7 +35,7 @@ import type { PlatformCheckResult } from "../../../domain/store/platformProbe.ts
  * production deployment does not run it. A step that cannot run is `held: false` with the reason, so the other checks are
  * still reported.
  */
-import { ADMIN_LIST_ID } from "../../../domain/transactions/aggregate.ts";
+import { ADMIN_LIST_ID } from "../../../core/transactions/aggregate.ts";
 import type { Construct } from "./constructs.ts";
 import type { ConnectionProfile } from "./profiles.ts";
 

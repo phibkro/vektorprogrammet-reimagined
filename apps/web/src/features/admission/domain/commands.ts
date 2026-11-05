@@ -7,13 +7,13 @@
  */
 import { Array as Arr, DateTime, Effect, Option } from "effect";
 
-import { Conflict, validationFailed } from "../../../domain/errors.ts";
-import type { AdmissionPeriodId, ApplicationId } from "../../../domain/ids.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
-import { AggregateLocks } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { Conflict, validationFailed } from "../../../core/errors.ts";
+import type { AdmissionPeriodId, ApplicationId } from "../../../core/ids.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
+import { AggregateLocks } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { IssueCodeMessage } from "../../accounts/domain/messages.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import {

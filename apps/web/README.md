@@ -11,8 +11,8 @@ devenv shell -- bun install
 export SUPABASE_ENV_FILE=/path/to/private-local-status.env
 export RUNTIME_DATABASE_URL_FILE=/path/outside/repository/runtime-url
 export SYNTHETIC_SUPABASE_OWNED=1
-devenv shell -- bun run prototype:setup
-devenv shell -- bun run prototype:dev
+devenv shell -- bunx vp run prototype:setup
+devenv shell -- bunx vp run prototype:dev
 ```
 
 Open http://localhost:3000/logg-inn. Synthetic accounts are declared in [`localPeople.ts`](test/fixtures/localPeople.ts). Use a fresh synthetic Supabase database for the hybrid migration chain. Upgrading an existing prototype database has not been rehearsed and is not supported; do not reset the interactive prototype. Setup refuses remote database/API targets.
@@ -36,12 +36,12 @@ Secret values are local runtime variables, never Vite browser variables. Standal
 
 ## Request and data boundaries
 
-The app-local organisation is described in [spec 0030](../../docs/specs/0030-app-local-feature-organisation.md). Its decisions are provisional pending operator approval.
+The app-local organisation is described in [spec 0030](../../docs/specs/0030-app-local-feature-organisation.md). Its decision history is recorded there.
 
 | Location | Responsibility |
 | --- | --- |
 | `src/features/<feature>/` | Feature domain, functions, forms and components |
-| `src/domain/` | Shared kernel, declarations, outbox and jobs |
+| `src/core/` | App-shared foundation: portable kernel, assembly registries, outbox and jobs, not a reusable package |
 | `src/adapters/db/` | Database implementation; migrations in `drizzle/` and tests in `test/db/` |
 | `src/adapters/` | Provider integrations, including Supabase, storage, messaging, Turnstile, rate limiting, Workspace and Web Crypto |
 | `src/server/` | Composition, request identity, background execution and diagnostics |
@@ -66,10 +66,15 @@ Business rules and grant declarations remain in the domain. Provider adapters do
 [`infra/terraform`](../../infra/terraform/README.md) is the sole owner of the hosted Worker artifact, assets, bindings and cron configuration, plus selected settings on an existing dedicated Supabase project. It derives Worker settings/modules from the actual Vite build output. No Alchemy application deployment or automatic legacy Neon/EmDash preview pipeline remains. Import, plan and apply require operator authority; local validation does not prove a hosted deployment.
 
 ```sh
-devenv shell -- bunx vp -C apps/web build
+devenv shell -- bunx vp run @vektorprogrammet/web#build
 devenv shell -- bunx vp check
+devenv shell -- bunx vp run ready
 ```
 
 Tests requiring Auth/Storage need the real local Supabase environment. SQL adapter tests use disposable databases and a minimal observed provider-schema fixture where they exercise SQL rather than the provider API. Browser tests must own their Supabase project/database, fixture users and app process; never reset the interactive prototype to run them. Turnstile test-key verification requires outbound access to Cloudflare's documented public test endpoint.
+
+In an active devenv shell, use `bunx vp`; the `vp` shorthand below assumes local binaries are on PATH. Package scripts run uncached by default. Native Vite+ tasks retain their standard cache default; live, probe, generator and security tasks declare `cache: false`. File tracking cannot establish that external service state is unchanged. Do not use `--cache` for live verification scripts. Use `vp run test:all` for the uncached workspace run. The app task `vp run @vektorprogrammet/web#test` gates domain → db → web tasks on success. For a direct scoped run, use `vp test --project <name>` from the app. Bare `vp test` can continue later groups after a failure.
+
+Root `vp run ready` runs static dependencies first, then serial `test:all` and a fresh build. The cached app build keys `SITE_URL`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Use the built-in fresh build for a release. A warmed cache hit restored deleted client JS and `.wrangler/deploy/config.json` byte-for-byte. Changing `SITE_URL` caused a miss and changed the binding; restoring it hit the baseline. A fake private environment change caused a conservative miss, not a hit, and manifest private bindings stayed empty. The configuration excludes generated `.wrangler/**` inputs and preserves the deploy pointer as output. Root Bun lifecycle scripts retain `prepare` and `commitlint`; tasks are not duplicated as scripts.
 
 Spec [`0028`](../../docs/specs/0028-supabase-prototype.md) records the earlier prototype contract and evidence. Historical specs describe previous infrastructure, not deployment instructions. Production migration, real delivery integrations and a hosted release remain separate gates.

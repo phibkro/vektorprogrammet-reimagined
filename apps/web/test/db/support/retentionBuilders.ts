@@ -3,7 +3,7 @@ import { DateTime, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { SqlError } from "effect/sql/SqlError";
 
-import { OutboxMessage } from "../../../src/domain/outbox/messages";
+import { OutboxMessage } from "../../../src/core/outbox/messages";
 /**
  * One row per declared retention rule (spec 0007b, falsifier 2). `builders` is keyed by the rule's id (its table and the
  * columns that share its retention), so a rule that the catalog gains has no builder until one is written here, and the
@@ -14,7 +14,7 @@ import { OutboxMessage } from "../../../src/domain/outbox/messages";
  * The rows are written with SQL, as a fixture writes outside a command: the instants are the point, and no command
  * lets a caller choose them.
  */
-import { EmailAddress } from "../../../src/domain/validation";
+import { EmailAddress } from "../../../src/core/validation";
 import { encodeJson } from "./json.ts";
 
 /** The rows that a builder may attach to: a person, a team and a position. The person is already created. */

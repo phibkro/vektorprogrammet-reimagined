@@ -4,7 +4,7 @@
  */
 import { SchemaRepresentation } from "effect";
 
-import * as Guard from "../../../domain/kernel/guard.ts";
+import * as Guard from "../../../core/kernel/guard.ts";
 import { Semester, SemesterOrder } from "./semester.ts";
 
 const semesterChecks = Guard.ordered({

@@ -5,14 +5,14 @@
  */
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
 import {
   Info,
   grant,
   info,
   member,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { SocialEvent, SocialEventInput } from "./socialEvent.ts";
 
 export const createSocialEvent = Rpc.make("createSocialEvent", {

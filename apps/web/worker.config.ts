@@ -1,8 +1,8 @@
 import { Config, Duration, Effect, Option } from "effect";
 
-import * as Job from "./src/domain/jobs/job.ts";
-import * as JobRegistry from "./src/domain/jobs/registry.ts";
-import * as OutboxSweep from "./src/domain/outbox/declaration.ts";
+import * as Job from "./src/core/jobs/job.ts";
+import * as JobRegistry from "./src/core/jobs/registry.ts";
+import * as OutboxSweep from "./src/core/outbox/declaration.ts";
 
 /**
  * Worker settings shared by `alchemy.run.ts` (deployed Workers) and

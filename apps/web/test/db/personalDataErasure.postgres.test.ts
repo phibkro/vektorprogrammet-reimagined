@@ -11,10 +11,10 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { Aggregates } from "../../src/adapters/db/aggregate/aggregates.ts";
 import { personalDataRetention } from "../../src/adapters/db/personalData/retention.ts";
-import { PersonId } from "../../src/domain/ids";
-import type { Principal } from "../../src/domain/kernel/principal";
-import { Outbox } from "../../src/domain/outbox/outbox";
-import { AggregateLocks } from "../../src/domain/transactions/aggregate";
+import { PersonId } from "../../src/core/ids";
+import type { Principal } from "../../src/core/kernel/principal";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { AggregateLocks } from "../../src/core/transactions/aggregate";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import { Catalog } from "../../src/features/personal-data/domain/catalog";
 import { PersonalDataEndpoints } from "../../src/features/personal-data/domain/commands";

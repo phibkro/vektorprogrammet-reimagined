@@ -45,7 +45,7 @@ import type {
  *   proof, used late, and it needs no reference to the service;
  * - a cast object that has the key (`{ key } as unknown as typeof InTransaction`) when the key is not a whole literal.
  */
-import { InTransaction } from "../../../../apps/web/src/domain/transactions/transaction.ts";
+import { InTransaction } from "../../../../apps/web/src/core/transactions/transaction.ts";
 
 const SERVICE = "InTransaction";
 

@@ -17,8 +17,8 @@ import {
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { Forbidden } from "../../src/domain/errors";
-import { PersonId } from "../../src/domain/ids";
+import { Forbidden } from "../../src/core/errors";
+import { PersonId } from "../../src/core/ids";
 import { Catalog } from "../../src/features/personal-data/domain/catalog";
 import { PersonalDataEndpoints } from "../../src/features/personal-data/domain/commands";
 import {

@@ -22,7 +22,7 @@ import {
 } from "effect";
 import { encode as hexEncode } from "effect/encoding/Hex";
 
-import type { FileKey } from "../../../apps/web/src/domain/ids.ts";
+import type { FileKey } from "../../../apps/web/src/core/ids.ts";
 import {
   detectContentType,
   fileKeyFor,

@@ -13,7 +13,7 @@ import {
 } from "../../src/adapters/db/aggregate/ownership.ts";
 import type { RootOwnership } from "../../src/adapters/db/aggregate/ownership.ts";
 import * as schema from "../../src/adapters/db/schema.ts";
-import { AggregateRoots } from "../../src/domain/transactions/aggregate";
+import { AggregateRoots } from "../../src/core/transactions/aggregate";
 import { closureProblems, tablesOf } from "./support/ownershipClosure.ts";
 import type { SchemaTables } from "./support/ownershipClosure.ts";
 

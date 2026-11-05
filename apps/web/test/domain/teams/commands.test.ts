@@ -7,20 +7,20 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";
 import { TestClock } from "effect/testing";
 
-import type { DomainError } from "../../../src/domain/errors.ts";
-import { FieldOfStudyId, PersonId, TeamId } from "../../../src/domain/ids.ts";
+import type { DomainError } from "../../../src/core/errors.ts";
+import { FieldOfStudyId, PersonId, TeamId } from "../../../src/core/ids.ts";
 import type {
   DepartmentId,
   MembershipId,
   PositionId,
-} from "../../../src/domain/ids.ts";
-import * as Commands from "../../../src/domain/kernel/commands.ts";
-import { Principal, anonymous } from "../../../src/domain/kernel/principal.ts";
-import type { PersonPrincipal } from "../../../src/domain/kernel/principal.ts";
+} from "../../../src/core/ids.ts";
+import * as Commands from "../../../src/core/kernel/commands.ts";
+import { Principal, anonymous } from "../../../src/core/kernel/principal.ts";
+import type { PersonPrincipal } from "../../../src/core/kernel/principal.ts";
 import {
   AggregateLocks,
   lockAdminList,
-} from "../../../src/domain/transactions/aggregate.ts";
+} from "../../../src/core/transactions/aggregate.ts";
 import { AuditPrincipal } from "../../../src/features/audit/domain/auditLog.ts";
 import type { Semester } from "../../../src/features/organisation/domain/semester.ts";
 import { TeamsEndpoints } from "../../../src/features/teams/domain/commands.ts";

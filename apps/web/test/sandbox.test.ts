@@ -17,11 +17,11 @@ import type {
   SenderConfig,
   SenderConfigRejected,
 } from "../src/adapters/messaging/senders";
-import { CapturedMessageStore } from "../src/domain/outbox/captured";
-import { OutboxMessage as OutboxMessageSchema } from "../src/domain/outbox/messages";
-import { SlackTarget } from "../src/domain/outbox/outbox";
-import type { TransportMessage } from "../src/domain/outbox/outbox";
-import { EmailAddress } from "../src/domain/validation";
+import { CapturedMessageStore } from "../src/core/outbox/captured";
+import { OutboxMessage as OutboxMessageSchema } from "../src/core/outbox/messages";
+import { SlackTarget } from "../src/core/outbox/outbox";
+import type { TransportMessage } from "../src/core/outbox/outbox";
+import { EmailAddress } from "../src/core/validation";
 import { decodeDeployment } from "../src/server/deployment";
 import type { Deployment } from "../src/server/deployment";
 

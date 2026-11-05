@@ -1,7 +1,7 @@
 /** C11 registered public files. Only registered keys are reachable (RULE-290 replacement). */
 import { Schema } from "effect";
 
-import { FileKey, PersonId } from "../../../domain/ids.ts";
+import { FileKey, PersonId } from "../../../core/ids.ts";
 import { StoredContentType } from "./fileType.ts";
 
 export const PublicFile = Schema.Struct({

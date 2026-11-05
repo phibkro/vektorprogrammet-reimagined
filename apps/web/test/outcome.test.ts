@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 
-import { Forbidden, ValidationFailed } from "../src/domain/errors";
+import { Forbidden, ValidationFailed } from "../src/core/errors";
 import { fieldErrors, formLevelMessage, success } from "../src/http/outcome";
 import { failureOf } from "../src/server/http/errors";
 

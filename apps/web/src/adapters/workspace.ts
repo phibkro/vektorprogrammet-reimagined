@@ -13,7 +13,7 @@
  */
 import { Effect, Layer, Match } from "effect";
 
-import { refusingInTransaction } from "../domain/transactions/integrationGuard";
+import { refusingInTransaction } from "../core/transactions/integrationGuard";
 import type { WorkspaceMode } from "../features/workspace/domain/report";
 import {
   WorkspaceDirectory,

@@ -15,8 +15,8 @@
 import { assert, describe, it as plain, layer } from "@effect/vitest";
 import { Effect, Option, Schema } from "effect";
 
-import { IsolationProbe } from "../src/domain/store/isolationProbe";
-import type { IsolationReport } from "../src/domain/store/isolationProbe";
+import { IsolationProbe } from "../src/core/store/isolationProbe";
+import type { IsolationReport } from "../src/core/store/isolationProbe";
 import { success } from "../src/http/outcome";
 import {
   isolationProblems,

@@ -4,13 +4,13 @@
  */
 import { Schema } from "effect";
 
-import { DepartmentId, FileKey } from "../../../domain/ids.ts";
-import { SlackChannel } from "../../../domain/outbox/outbox.ts";
+import { DepartmentId, FileKey } from "../../../core/ids.ts";
+import { SlackChannel } from "../../../core/outbox/outbox.ts";
 import {
   EmailAddress,
   EmailAddressInput,
   requiredText,
-} from "../../../domain/validation.ts";
+} from "../../../core/validation.ts";
 
 const NonBlank = Schema.String.check(Schema.isNonEmpty());
 

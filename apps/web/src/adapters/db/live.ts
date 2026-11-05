@@ -3,11 +3,11 @@ import { cast } from "effect/Function";
 import { SqlClient } from "effect/sql/SqlClient";
 import type { Connection } from "effect/sql/SqlConnection";
 
-import { TransactionModes } from "../../domain/store/transactionModes.ts";
+import { TransactionModes } from "../../core/store/transactionModes.ts";
 import type {
   StorePorts,
   TransactionMode,
-} from "../../domain/store/transactionModes.ts";
+} from "../../core/store/transactionModes.ts";
 /**
  * The proof of a transaction is the live transaction's own (spec 0019, guarantee TX5).
  *
@@ -65,7 +65,7 @@ import type {
  * declared. The cost of a call is two context lookups, one `WeakMap` read and a few field reads; a level that ends
  * polls once a millisecond only while a method of it is still running.
  */
-import { InTransaction } from "../../domain/transactions/transaction.ts";
+import { InTransaction } from "../../core/transactions/transaction.ts";
 import { TransactionNotLive } from "./aggregate/defects.ts";
 
 type Proof = InTransaction["Service"];

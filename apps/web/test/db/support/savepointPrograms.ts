@@ -36,8 +36,8 @@ import { transactional } from "../../../src/adapters/db/transactional.ts";
  * level and every level around it reported success; a write that was refused must not be there at all; a write that was
  * interrupted may be there only if its levels reported success.
  */
-import { Outbox } from "../../../src/domain/outbox/outbox";
-import type { InTransaction } from "../../../src/domain/transactions/transaction";
+import { Outbox } from "../../../src/core/outbox/outbox";
+import type { InTransaction } from "../../../src/core/transactions/transaction";
 import { slack } from "./fixtures.ts";
 
 type Ending = "commit" | "fail" | "die" | "interrupt" | "timeout";

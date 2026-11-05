@@ -9,8 +9,8 @@ supabase status -o env > /tmp/vektor-supabase.env
 export SUPABASE_ENV_FILE=/tmp/vektor-supabase.env
 export RUNTIME_DATABASE_URL_FILE=/tmp/vektor-supabase-runtime-url
 export SYNTHETIC_SUPABASE_OWNED=1
-devenv shell -- bun run prototype:setup
-devenv shell -- bun run prototype:dev
+devenv shell -- bunx vp run prototype:setup
+devenv shell -- bunx vp run prototype:dev
 ```
 
 The status file contains administrator credentials; the separate runtime URL file is generated privately and must remain outside Git and logs. Set SYNTHETIC_SUPABASE_OWNED=1 only for a local isolated target you own. Setup never rotates an existing runtime password: a mismatch fails. The application gets only the restricted runtime URL, never the migration URL. Both targets must be direct loopback URLs. Bootstrap creates private, security-barrier, owner-read Auth projections exposing only the fields used by the server. It revokes database TEMPORARY from PUBLIC to prevent runtime DDL, preserving it explicitly for existing login roles other than runtime. New roles need explicit TEMPORARY grants.
@@ -30,7 +30,7 @@ Supply `E2E_MAILPIT_URL` for that project's local capture API. If port 3000 belo
 ```sh
 E2E_DISPOSABLE=1 E2E_MAILPIT_URL=http://127.0.0.1:56434 E2E_BASE_URL=http://localhost:3100 \
   SUPABASE_ENV_FILE=/path/to/private-isolated-status.env \
-  devenv shell -- bash tools/prototype/with-env.sh bun run e2e
+  devenv shell -- bash tools/prototype/with-env.sh bunx vp run e2e
 ```
 
 All actors use real Supabase sessions. There is no actor-switch cookie, CMS process or simulated R2 fixture. Turnstile test-key verification still needs outbound access to Cloudflare's documented public test endpoint. Keep captured links and browser traces private; they can contain synthetic bearer tokens. Stop only the app/project owned by the test run, preserving the interactive stack. The older repository browser-verification skill describes retired infrastructure; use this guide and the current CI sequence rather than its old launch/actor scripts until that user-authored skill is separately migrated.
@@ -39,5 +39,5 @@ Workspace tests that exercise the real provider also need the status mapping:
 
 ```sh
 SUPABASE_ENV_FILE=/path/to/private-local-status.env \
-  devenv shell -- bash tools/prototype/with-env.sh bun run test:all
+  devenv shell -- bash tools/prototype/with-env.sh bunx vp run test:all
 ```

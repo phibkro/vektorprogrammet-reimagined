@@ -9,11 +9,11 @@
  */
 import { Crypto, DateTime, Effect, Option, Predicate, Schema } from "effect";
 
-import { NotFound } from "../../../domain/errors.ts";
-import { FileKey } from "../../../domain/ids.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
-import { decodeInput, requiredText } from "../../../domain/validation.ts";
+import { NotFound } from "../../../core/errors.ts";
+import { FileKey } from "../../../core/ids.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
+import { decodeInput, requiredText } from "../../../core/validation.ts";
 import { recordAudit } from "../../audit/domain/auditLog.ts";
 import { FilesDomain, FilesRpc, createPublicFile } from "./declaration.ts";
 import type { StoredUpload } from "./declaration.ts";

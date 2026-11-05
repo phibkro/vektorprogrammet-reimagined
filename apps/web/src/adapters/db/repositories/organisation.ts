@@ -1,9 +1,9 @@
 import { and, desc, eq, gt, lt, notExists, sql } from "drizzle-orm";
 import { DateTime, Effect, Layer, Schema } from "effect";
 
-import { Conflict, NotFound } from "../../../domain/errors.ts";
-import { AdmissionPeriodId } from "../../../domain/ids.ts";
-import type { DepartmentId, FieldOfStudyId } from "../../../domain/ids.ts";
+import { Conflict, NotFound } from "../../../core/errors.ts";
+import { AdmissionPeriodId } from "../../../core/ids.ts";
+import type { DepartmentId, FieldOfStudyId } from "../../../core/ids.ts";
 /**
  * C1/C2 repositories: departments, semesters (RULE-144, RULE-237), fields of study and the read-only admission periods.
  * Rows decode through the domain schemas; infrastructure failures are defects.

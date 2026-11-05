@@ -1,13 +1,10 @@
 /** A code opens a request-scoped, narrowed principal, never a Better Auth login session (spec 0007 R2). */
 import { DateTime, Effect, Option, Predicate } from "effect";
 
-import type { Forbidden } from "../../../domain/errors.ts";
-import type { PersonId } from "../../../domain/ids.ts";
-import {
-  CurrentPrincipal,
-  Principal,
-} from "../../../domain/kernel/principal.ts";
-import type { Principal as PrincipalValue } from "../../../domain/kernel/principal.ts";
+import type { Forbidden } from "../../../core/errors.ts";
+import type { PersonId } from "../../../core/ids.ts";
+import { CurrentPrincipal, Principal } from "../../../core/kernel/principal.ts";
+import type { Principal as PrincipalValue } from "../../../core/kernel/principal.ts";
 import { codePolicy, hashCode } from "./code.ts";
 import type { CodePurpose, CodeToken } from "./code.ts";
 import { CodeRepository } from "./codeRepository.ts";

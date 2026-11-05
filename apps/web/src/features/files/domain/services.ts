@@ -2,7 +2,7 @@
 import { Context } from "effect";
 import type { Effect, Option, Stream } from "effect";
 
-import type { FileKey } from "../../../domain/ids.ts";
+import type { FileKey } from "../../../core/ids.ts";
 import type { StoredContentType } from "./fileType.ts";
 import type { PublicFile } from "./publicFile.ts";
 

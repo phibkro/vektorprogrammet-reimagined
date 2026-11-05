@@ -6,7 +6,7 @@
  * An empty recipe is a capability that this adapter gives with no construct of its own: one statement (a snapshot), a role
  * (read-only reads), another system (the object store) or no adapter yet (analytics).
  */
-import type { Capability } from "../../../domain/store/guarantees.ts";
+import type { Capability } from "../../../core/store/guarantees.ts";
 import type { PooledSafeConstruct } from "./constructs.ts";
 
 export type Recipe = readonly PooledSafeConstruct[];

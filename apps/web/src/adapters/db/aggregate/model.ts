@@ -13,8 +13,8 @@ import { cast } from "effect/Function";
  * the same root, so a token of another root does not type-check. The owner column is never a value of a write: the
  * writer fills it from the token, so a write cannot reach another owner's row.
  */
-import { AggregateRoots } from "../../../domain/transactions/aggregate.ts";
-import type { AggregateRoot } from "../../../domain/transactions/aggregate.ts";
+import { AggregateRoots } from "../../../core/transactions/aggregate.ts";
+import type { AggregateRoot } from "../../../core/transactions/aggregate.ts";
 import { OwnershipDeclarationError } from "./defects.ts";
 import type { OwnedTable, RootOwnership } from "./ownership.ts";
 

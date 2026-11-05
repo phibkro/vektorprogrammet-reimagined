@@ -26,7 +26,7 @@ const root = new URL("../../../", import.meta.url).pathname;
 
 const checkRealBoundaries = (files: readonly SourceFile[]): void => {
   for (const path of [
-    "apps/web/src/domain/new/unknown.ts",
+    "apps/web/src/core/new/unknown.ts",
     "apps/web/src/features/new/domain/unknown.ts",
   ]) {
     assert.lengthOf(
@@ -39,7 +39,7 @@ const checkRealBoundaries = (files: readonly SourceFile[]): void => {
   }
 
   for (const path of [
-    "apps/web/src/domain/new/unknown.tsx",
+    "apps/web/src/core/new/unknown.tsx",
     "apps/web/src/features/new/domain/unknown.tsx",
   ]) {
     assert.lengthOf(
@@ -53,7 +53,7 @@ const checkRealBoundaries = (files: readonly SourceFile[]): void => {
 
   // Both shared and feature domains must reject paths into the application adapters and web.
   for (const from of [
-    "apps/web/src/domain/outbox/outbox.ts",
+    "apps/web/src/core/outbox/outbox.ts",
     "apps/web/src/features/contact/domain/commands.ts",
   ]) {
     for (const to of [
@@ -660,7 +660,7 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
             Arr.filter(
               yield* scanImports(root),
               ({ path }) =>
-                (path.startsWith("apps/web/src/domain/") ||
+                (path.startsWith("apps/web/src/core/") ||
                   /^apps\/web\/src\/features\/[^/]+\/domain\//u.test(path)) &&
                 path.endsWith(".ts")
             ),
@@ -753,16 +753,16 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           // Restored upward imports still fail at their actual relocated paths.
           const retired = [
             [
-              "apps/web/src/domain/outbox/outbox.ts",
+              "apps/web/src/core/outbox/outbox.ts",
               "apps/web/src/features/accounts/domain/services.ts",
             ],
             [
-              "apps/web/src/domain/outbox/outbox.ts",
+              "apps/web/src/core/outbox/outbox.ts",
               "apps/web/src/features/workspace/domain/change.ts",
             ],
             [
               "apps/web/src/features/workspace/domain/commands.ts",
-              "apps/web/src/domain/jobs/registry.ts",
+              "apps/web/src/core/jobs/registry.ts",
             ],
           ] as const;
 

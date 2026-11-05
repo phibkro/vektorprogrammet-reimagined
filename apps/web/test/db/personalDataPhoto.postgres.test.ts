@@ -10,9 +10,9 @@ import { assert, layer } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { Conflict, ValidationFailed } from "../../src/domain/errors";
-import { DepartmentId, PersonId, TeamId } from "../../src/domain/ids";
-import { Principal } from "../../src/domain/kernel/principal";
+import { Conflict, ValidationFailed } from "../../src/core/errors";
+import { DepartmentId, PersonId, TeamId } from "../../src/core/ids";
+import { Principal } from "../../src/core/kernel/principal";
 import { PersonalDataEndpoints } from "../../src/features/personal-data/domain/commands";
 import { postgresDatabase } from "./support/database.ts";
 import { assertFailedWith, refusalOf } from "./support/failures.ts";

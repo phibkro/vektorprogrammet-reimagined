@@ -9,7 +9,7 @@ import {
   Stream,
 } from "effect";
 
-import { AlreadyExists, Conflict, NotFound } from "../../src/domain/errors";
+import { AlreadyExists, Conflict, NotFound } from "../../src/core/errors";
 import {
   AdmissionPeriodId,
   DepartmentId,
@@ -18,25 +18,25 @@ import {
   OutboxMessageId,
   SemesterId,
   SocialEventId,
-} from "../../src/domain/ids";
-import type { EntityName } from "../../src/domain/ids";
-import { CurrentPrincipal, anonymous } from "../../src/domain/kernel/principal";
-import type { Principal } from "../../src/domain/kernel/principal";
-import * as OutboxSweep from "../../src/domain/outbox/declaration";
+} from "../../src/core/ids";
+import type { EntityName } from "../../src/core/ids";
+import { CurrentPrincipal, anonymous } from "../../src/core/kernel/principal";
+import type { Principal } from "../../src/core/kernel/principal";
+import * as OutboxSweep from "../../src/core/outbox/declaration";
 import {
   OutboxClaim,
   OutboxClaimToken,
   OutboxDelivery,
-} from "../../src/domain/outbox/delivery";
-import type { ClaimedOutboxMessage } from "../../src/domain/outbox/delivery";
-import { isListed } from "../../src/domain/outbox/messages";
-import type { OutboxMessage } from "../../src/domain/outbox/messages";
-import { Outbox } from "../../src/domain/outbox/outbox";
-import { OutboxReports, deliveryState } from "../../src/domain/outbox/status";
-import { SiteOrigin } from "../../src/domain/siteOrigin";
-import { InTransaction } from "../../src/domain/transactions/transaction";
-import { Transactor } from "../../src/domain/transactions/transactor";
-import { EmailAddress } from "../../src/domain/validation";
+} from "../../src/core/outbox/delivery";
+import type { ClaimedOutboxMessage } from "../../src/core/outbox/delivery";
+import { isListed } from "../../src/core/outbox/messages";
+import type { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { OutboxReports, deliveryState } from "../../src/core/outbox/status";
+import { SiteOrigin } from "../../src/core/siteOrigin";
+import { InTransaction } from "../../src/core/transactions/transaction";
+import { Transactor } from "../../src/core/transactions/transactor";
+import { EmailAddress } from "../../src/core/validation";
 import { ApplicationRepository } from "../../src/features/admission/domain/services";
 import type { ApplicationView } from "../../src/features/admission/domain/services";
 import { AuditLog } from "../../src/features/audit/domain/auditLog";

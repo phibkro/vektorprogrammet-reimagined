@@ -1,13 +1,13 @@
 import { DateTime } from "effect";
 
-import { FileKey } from "../../../src/domain/ids";
-import { OutboxMessage } from "../../../src/domain/outbox/messages";
-import { SlackChannel, SlackTarget } from "../../../src/domain/outbox/outbox";
+import { FileKey } from "../../../src/core/ids";
+import { OutboxMessage } from "../../../src/core/outbox/messages";
+import { SlackChannel, SlackTarget } from "../../../src/core/outbox/outbox";
 /**
  * Fake, same-shape fixtures. No real names, e-mail addresses or credentials:
  * e-mail domains are `.example`, ids are arbitrary.
  */
-import { EmailAddress } from "../../../src/domain/validation";
+import { EmailAddress } from "../../../src/core/validation";
 import type { PublicFile } from "../../../src/features/files/domain/publicFile";
 import type { DepartmentDraft } from "../../../src/features/organisation/domain/department";
 

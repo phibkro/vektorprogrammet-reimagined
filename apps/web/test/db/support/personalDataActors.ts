@@ -2,7 +2,7 @@ import { Array as Arr, DateTime, Effect, Record as Rec, Struct } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../../src/adapters/db/transactional.ts";
-import { PersonId } from "../../../src/domain/ids";
+import { PersonId } from "../../../src/core/ids";
 /**
  * What the personal data tests of spec 0007b share: who acts (a person for themselves, an administrator), a program run as
  * an actor in a transaction of its own, the merge as an administrator's command, and which rows still name a person.
@@ -10,7 +10,7 @@ import { PersonId } from "../../../src/domain/ids";
 import {
   CurrentPrincipal,
   Principal,
-} from "../../../src/domain/kernel/principal";
+} from "../../../src/core/kernel/principal";
 import { PersonalDataEndpoints } from "../../../src/features/personal-data/domain/commands";
 
 /** An administrator's place that never ends, as far as a test can tell. */

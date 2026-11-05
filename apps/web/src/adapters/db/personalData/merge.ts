@@ -9,11 +9,11 @@ import {
   Record as Rec,
 } from "effect";
 
-import { Conflict } from "../../../domain/errors.ts";
-import { PersonId } from "../../../domain/ids.ts";
-import type { Outbox } from "../../../domain/outbox/outbox.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { Conflict } from "../../../core/errors.ts";
+import { PersonId } from "../../../core/ids.ts";
+import type { Outbox } from "../../../core/outbox/outbox.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
 import { RelinkAuthUserMessage } from "../../../features/accounts/domain/messages.ts";
 import type { AccountRepository } from "../../../features/accounts/domain/services.ts";
 /**

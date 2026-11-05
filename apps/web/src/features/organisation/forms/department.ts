@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-import { DepartmentId } from "../../../domain/ids";
+import { DepartmentId } from "../../../core/ids";
 import {
   Text,
   blankToNull,

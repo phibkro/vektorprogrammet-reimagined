@@ -5,7 +5,7 @@ name: effx drift
 # vectors again with the main branch of phibkro/effx (a public repository: no secret) and fails when they are not the
 # committed ones: the first line that differs, per domain, is in the log. When main is still at the pin it checks that the
 # pin makes the committed files. Remedy for a failure: set the commit of effx.pin.json to effx's main, run
-# `bun run description:regenerate` with EFFX_DIR at it, and commit the files (tools/effx-conformance/README.md).
+# `bunx vp run description:regenerate` with EFFX_DIR at it, and commit the files (tools/effx-conformance/README.md).
 #
 # The schedule is the operator's to approve (G2): delete the `schedule` lines to keep the check, run by hand from the
 # Actions tab (`workflow_dispatch`). GitHub runs a schedule only from the default branch, and stops it after 60 days
@@ -50,4 +50,4 @@ jobs:
         run: devenv shell -- bash -c 'cd effx-main && bun install --frozen-lockfile --ignore-scripts'
       - name: Make the vectors with effx's main and compare them with the committed ones
         shell: bash
-        run: devenv shell -- env EFFX_DIR="$GITHUB_WORKSPACE/effx-main" bun run description:drift
+        run: devenv shell -- env EFFX_DIR="$GITHUB_WORKSPACE/effx-main" bunx vp run description:drift

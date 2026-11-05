@@ -2,7 +2,7 @@
 import { Context } from "effect";
 import type { Effect } from "effect";
 
-import type { DepartmentId, SemesterId } from "../../../domain/ids.ts";
+import type { DepartmentId, SemesterId } from "../../../core/ids.ts";
 import type { SocialEvent, SocialEventDraft } from "./socialEvent.ts";
 
 export class SocialEventRepository extends Context.Service<

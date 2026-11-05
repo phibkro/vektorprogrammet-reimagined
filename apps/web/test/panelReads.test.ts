@@ -22,15 +22,15 @@ import {
   Record as Rec,
 } from "effect";
 
-import { authorize } from "../src/domain/declarations";
-import { DepartmentId } from "../src/domain/ids";
+import { authorize } from "../src/core/declarations";
+import { DepartmentId } from "../src/core/ids";
 import {
   SystemJob,
   TeamFunction,
   anonymous,
   systemPrincipal,
-} from "../src/domain/kernel/principal";
-import type { Principal } from "../src/domain/kernel/principal";
+} from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
 import { admissionView } from "../src/features/admission/server/admission";
 import { ContentEditor } from "../src/features/cms/domain/client";
 import { impactView } from "../src/features/impact/domain/commands";

@@ -9,16 +9,16 @@
 import { Context, Schema } from "effect";
 import type { Effect, Option } from "effect";
 
-import type { AlreadyExists, Conflict } from "../../../domain/errors.ts";
-import type { TeamId } from "../../../domain/ids.ts";
-import type { JobPeriod } from "../../../domain/jobs/job.ts";
-import type { Counts } from "../../../domain/jobs/runs.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
+import type { AlreadyExists, Conflict } from "../../../core/errors.ts";
+import type { TeamId } from "../../../core/ids.ts";
+import type { JobPeriod } from "../../../core/jobs/job.ts";
+import type { Counts } from "../../../core/jobs/runs.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
 import type {
   IntegrationTypeId,
   InTransaction,
   IntegrationPort,
-} from "../../../domain/transactions/transaction.ts";
+} from "../../../core/transactions/transaction.ts";
 import type { Semester } from "../../organisation/domain/semester.ts";
 import type { WorkspaceChange } from "./change.ts";
 import type { CompanyEmail } from "./companyEmail.ts";

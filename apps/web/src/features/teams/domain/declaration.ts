@@ -6,7 +6,7 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
 import {
   AdminGrantId,
   DepartmentId,
@@ -14,7 +14,7 @@ import {
   PersonId,
   PositionId,
   TeamId,
-} from "../../../domain/ids.ts";
+} from "../../../core/ids.ts";
 import {
   Info,
   board,
@@ -25,8 +25,8 @@ import {
   self,
   system,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
+} from "../../../core/kernel/domain.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
 import { semesters } from "../../organisation/domain/semesterGuard.ts";
 import {

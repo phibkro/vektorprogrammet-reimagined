@@ -13,11 +13,11 @@ import {
 import {
   Declarations,
   GrantTable,
-} from "../../../apps/web/src/domain/declarations.ts";
-import * as Job from "../../../apps/web/src/domain/jobs/job.ts";
-import * as JobRegistry from "../../../apps/web/src/domain/jobs/registry.ts";
-import * as Commands from "../../../apps/web/src/domain/kernel/commands.ts";
-import * as Domain from "../../../apps/web/src/domain/kernel/domain.ts";
+} from "../../../apps/web/src/core/declarations.ts";
+import * as Job from "../../../apps/web/src/core/jobs/job.ts";
+import * as JobRegistry from "../../../apps/web/src/core/jobs/registry.ts";
+import * as Commands from "../../../apps/web/src/core/kernel/commands.ts";
+import * as Domain from "../../../apps/web/src/core/kernel/domain.ts";
 import { codePolicy } from "../../../apps/web/src/features/accounts/domain/code.ts";
 import * as Contact from "../../../apps/web/src/features/contact/domain/declaration.ts";
 import {

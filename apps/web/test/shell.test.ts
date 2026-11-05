@@ -15,8 +15,8 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
-import { anonymous } from "../src/domain/kernel/principal";
-import type { Principal } from "../src/domain/kernel/principal";
+import { anonymous } from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
 import {
   departmentsView,
   fieldsOfStudyView,

@@ -5,8 +5,8 @@ import { Array as Arr, Effect, Option, Schema } from "effect";
  * cannot. Both are pure functions of the kernel's declarations; `regenerate` hands the descriptions to effx, and the
  * test compares what is committed with what this returns.
  */
-import { Declarations } from "../../../apps/web/src/domain/declarations.ts";
-import * as Effx from "../../../apps/web/src/domain/kernel/effx.ts";
+import { Declarations } from "../../../apps/web/src/core/declarations.ts";
+import * as Effx from "../../../apps/web/src/core/kernel/effx.ts";
 
 const GapRegister = Schema.Array(Effx.Gap);
 

@@ -7,7 +7,7 @@
  */
 import { Array as Arr, DateTime, Order } from "effect";
 
-import { addOsloCalendar, isBefore } from "../../../domain/clock.ts";
+import { addOsloCalendar, isBefore } from "../../../core/clock.ts";
 
 interface FrontPageSortFields {
   readonly sticky: boolean;

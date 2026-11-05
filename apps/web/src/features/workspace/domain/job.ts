@@ -3,7 +3,7 @@
  * (`jobs/registry.ts`) lists it with the other jobs; the handlers in `commands.ts` read its chunk size and limits here,
  * so `workspace` imports no catalog.
  */
-import { DueWhen, TICK_CRON, make } from "../../../domain/jobs/job.ts";
+import { DueWhen, TICK_CRON, make } from "../../../core/jobs/job.ts";
 
 /**
  * The Google Workspace projection (spec 0008): the intended account and group changes, recorded as a report, and

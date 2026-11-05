@@ -12,13 +12,13 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { Forbidden } from "../../src/domain/errors";
-import { PersonId } from "../../src/domain/ids";
+import { Forbidden } from "../../src/core/errors";
+import { PersonId } from "../../src/core/ids";
 import {
   CurrentPrincipal,
   systemPrincipal,
-} from "../../src/domain/kernel/principal";
-import type { Principal } from "../../src/domain/kernel/principal";
+} from "../../src/core/kernel/principal";
+import type { Principal } from "../../src/core/kernel/principal";
 import { mintCode } from "../../src/features/accounts/domain/code";
 import { codePrincipal } from "../../src/features/accounts/domain/principal";
 import {

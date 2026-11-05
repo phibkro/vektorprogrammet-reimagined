@@ -6,10 +6,10 @@ import type { Redacted } from "effect";
  * e-mail in the transaction that the runner opens, as the contact form does, and with `rollback` refuses after queueing.
  */
 import { DatabaseLive } from "../../src/adapters/db/databaseLive";
-import { validationFailed } from "../../src/domain/errors";
-import { OutboxMessage } from "../../src/domain/outbox/messages";
-import { Outbox } from "../../src/domain/outbox/outbox";
-import { EmailAddress } from "../../src/domain/validation";
+import { validationFailed } from "../../src/core/errors";
+import { OutboxMessage } from "../../src/core/outbox/messages";
+import { Outbox } from "../../src/core/outbox/outbox";
+import { EmailAddress } from "../../src/core/validation";
 import { runCommandOutcome } from "../../src/server/runtime";
 
 export const email = OutboxMessage.cases.Email.make({

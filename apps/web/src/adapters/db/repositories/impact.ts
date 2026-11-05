@@ -7,7 +7,7 @@ import { Array as Arr, DateTime, Effect, Layer, Option, Schema } from "effect";
  * that placement would fill do not exist (spec 0011 is not built), so it answers every cell Unavailable, with the reason.
  * When placement lands, this is the one adapter that changes.
  */
-import { DepartmentId } from "../../../domain/ids.ts";
+import { DepartmentId } from "../../../core/ids.ts";
 import * as ImpactMeasures from "../../../features/impact/domain/measures.ts";
 import { ImpactSnapshots } from "../../../features/impact/domain/services.ts";
 import type { Snapshot } from "../../../features/impact/domain/services.ts";

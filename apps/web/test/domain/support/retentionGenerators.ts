@@ -8,7 +8,7 @@
  */
 import { Arbitrary, Array as Arr, DateTime, Match, Schema } from "effect";
 
-import { addOsloCalendar } from "../../../src/domain/clock.ts";
+import { addOsloCalendar } from "../../../src/core/clock.ts";
 import { Duration } from "../../../src/features/personal-data/domain/declaration.ts";
 import { afterDuration } from "../../../src/features/personal-data/domain/retentionEnd.ts";
 

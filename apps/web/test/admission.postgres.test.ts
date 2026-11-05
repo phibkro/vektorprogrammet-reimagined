@@ -29,8 +29,8 @@ import {
   turnstileTestLayer,
 } from "../src/adapters/turnstile";
 import { webCryptoLayer } from "../src/adapters/webCrypto";
-import { CurrentPrincipal, anonymous } from "../src/domain/kernel/principal";
-import type { Principal } from "../src/domain/kernel/principal";
+import { CurrentPrincipal, anonymous } from "../src/core/kernel/principal";
+import type { Principal } from "../src/core/kernel/principal";
 import { CodeToken } from "../src/features/accounts/domain/code";
 import { codePrincipal } from "../src/features/accounts/domain/principal";
 import { AdmissionEndpoints } from "../src/features/admission/domain/commands";

@@ -18,12 +18,12 @@ import { SqlClient } from "effect/sql/SqlClient";
 import { PlatformProbeLive } from "../../src/adapters/db/platform/probe.ts";
 import type { PlatformProbeOptions } from "../../src/adapters/db/platform/probe.ts";
 import { direct, hyperdrive } from "../../src/adapters/db/platform/profiles.ts";
-import { PlatformProbe } from "../../src/domain/store/platformProbe";
+import { PlatformProbe } from "../../src/core/store/platformProbe";
 import {
   platformProblems,
   requiredChecks,
-} from "../../src/domain/store/platformRequirements";
-import { ADMIN_LIST_ID } from "../../src/domain/transactions/aggregate";
+} from "../../src/core/store/platformRequirements";
+import { ADMIN_LIST_ID } from "../../src/core/transactions/aggregate";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,

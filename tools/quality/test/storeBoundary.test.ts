@@ -136,12 +136,12 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
 
   it("resolves relative specifiers into the adapter", () => {
     assert.deepStrictEqual(
-      groupsIn("apps/web/src/domain/a.ts", "../adapters/db/schema.ts"),
+      groupsIn("apps/web/src/core/a.ts", "../adapters/db/schema.ts"),
       ["db"]
     );
 
     assert.deepStrictEqual(
-      groupsIn("apps/web/src/domain/deep/a.ts", "../../adapters/db/live.ts"),
+      groupsIn("apps/web/src/core/deep/a.ts", "../../adapters/db/live.ts"),
       ["db"]
     );
 

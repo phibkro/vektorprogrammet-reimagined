@@ -12,7 +12,7 @@ import { Record as Rec } from "effect";
 export const storeBoundaryProbes = {
   adapterTest: "apps/web/test/storeBoundaryProbe.postgres.test.ts",
   clean: "apps/web/src/server/storeBoundaryProbeClean.ts",
-  domainSibling: "apps/web/src/domain/storeBoundaryProbe.ts",
+  domainSibling: "apps/web/src/core/storeBoundaryProbe.ts",
   harness: "tools/db-path-spike/storeBoundaryProbe.ts",
   restricted: "apps/web/src/server/storeBoundaryProbe.ts",
 } as const;

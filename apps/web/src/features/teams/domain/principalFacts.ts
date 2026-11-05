@@ -5,12 +5,12 @@
  */
 import { Array as Arr, DateTime, Option } from "effect";
 
-import type { PersonId } from "../../../domain/ids.ts";
-import { Principal } from "../../../domain/kernel/principal.ts";
+import type { PersonId } from "../../../core/ids.ts";
+import { Principal } from "../../../core/kernel/principal.ts";
 import type {
   MembershipFact,
   PersonPrincipal,
-} from "../../../domain/kernel/principal.ts";
+} from "../../../core/kernel/principal.ts";
 
 export const personPrincipal = (facts: {
   /** The memberships active in the current semester, whatever the state of their team. */

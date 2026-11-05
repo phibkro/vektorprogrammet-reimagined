@@ -9,8 +9,8 @@ import {
   pipe,
 } from "effect";
 
-import type { DomainError } from "../../../src/domain/errors.ts";
-import { anonymous } from "../../../src/domain/kernel/principal.ts";
+import type { DomainError } from "../../../src/core/errors.ts";
+import { anonymous } from "../../../src/core/kernel/principal.ts";
 import {
   FilesEndpoints,
   resolveLegacyFilePath,

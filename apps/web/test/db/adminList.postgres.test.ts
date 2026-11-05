@@ -23,15 +23,15 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { ValidationFailed } from "../../src/domain/errors";
+import { ValidationFailed } from "../../src/core/errors";
 import type {
   AdminGrantId,
   FieldOfStudyId,
   PersonId,
-} from "../../src/domain/ids";
-import { CurrentPrincipal, Principal } from "../../src/domain/kernel/principal";
-import { SiteOrigin } from "../../src/domain/siteOrigin";
-import { ADMIN_LIST_ID } from "../../src/domain/transactions/aggregate";
+} from "../../src/core/ids";
+import { CurrentPrincipal, Principal } from "../../src/core/kernel/principal";
+import { SiteOrigin } from "../../src/core/siteOrigin";
+import { ADMIN_LIST_ID } from "../../src/core/transactions/aggregate";
 import { AccountEndpoints } from "../../src/features/accounts/domain/commands";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import { TeamsEndpoints } from "../../src/features/teams/domain/commands";

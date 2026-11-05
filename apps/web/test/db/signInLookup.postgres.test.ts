@@ -23,7 +23,7 @@ import { SqlClient } from "effect/sql/SqlClient";
 
 import { Drizzle } from "../../src/adapters/db/internal/drizzle.ts";
 import { SignInDirectoryLive } from "../../src/adapters/db/repositories/signIn.ts";
-import { PersonId } from "../../src/domain/ids";
+import { PersonId } from "../../src/core/ids";
 import { SignInDirectory } from "../../src/features/accounts/domain/signInDirectory";
 import { postgresDatabase } from "./support/database.ts";
 import { TestDatabaseUrl } from "./support/disposableDatabase.ts";

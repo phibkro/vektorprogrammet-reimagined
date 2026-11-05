@@ -3,12 +3,12 @@ import { Effect } from "effect";
 import type {
   CurrentPrincipal,
   Principal,
-} from "../../src/domain/kernel/principal";
-import type { Outbox } from "../../src/domain/outbox/outbox";
-import type { OutboxReports } from "../../src/domain/outbox/status";
-import type { SiteOrigin } from "../../src/domain/siteOrigin";
-import type { AggregateLocks } from "../../src/domain/transactions/aggregate";
-import type { InTransaction } from "../../src/domain/transactions/transaction";
+} from "../../src/core/kernel/principal";
+import type { Outbox } from "../../src/core/outbox/outbox";
+import type { OutboxReports } from "../../src/core/outbox/status";
+import type { SiteOrigin } from "../../src/core/siteOrigin";
+import type { AggregateLocks } from "../../src/core/transactions/aggregate";
+import type { InTransaction } from "../../src/core/transactions/transaction";
 import type { AccountRepository } from "../../src/features/accounts/domain/services";
 import type { ApplicationRepository } from "../../src/features/admission/domain/services";
 import type { AuditLog } from "../../src/features/audit/domain/auditLog";

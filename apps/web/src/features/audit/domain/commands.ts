@@ -1,7 +1,7 @@
 /** The audit read (C12): the newest entries, for an admin. */
 import { Effect } from "effect";
 
-import * as Commands from "../../../domain/kernel/commands.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
 import { AuditLog } from "./auditLog.ts";
 import { AuditDomain, AuditRpc, listAuditEntries } from "./declaration.ts";
 

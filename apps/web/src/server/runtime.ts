@@ -24,19 +24,19 @@ import {
   workspaceModeLayer,
   workspaceWriterLayer,
 } from "../adapters/workspace";
-import type { OutboxMessageId } from "../domain/ids";
-import * as Job from "../domain/jobs/job";
-import * as JobRegistry from "../domain/jobs/registry";
-import { CurrentPrincipal, systemPrincipal } from "../domain/kernel/principal";
-import type { SystemJob } from "../domain/kernel/principal";
-import type { Outbox } from "../domain/outbox/outbox";
-import { SiteOrigin } from "../domain/siteOrigin";
+import type { OutboxMessageId } from "../core/ids";
+import * as Job from "../core/jobs/job";
+import * as JobRegistry from "../core/jobs/registry";
+import { CurrentPrincipal, systemPrincipal } from "../core/kernel/principal";
+import type { SystemJob } from "../core/kernel/principal";
+import type { Outbox } from "../core/outbox/outbox";
+import { SiteOrigin } from "../core/siteOrigin";
 import type {
   InTransaction,
   IntegrationPort,
   NotAnIntegration,
-} from "../domain/transactions/transaction";
-import { Transactor } from "../domain/transactions/transactor";
+} from "../core/transactions/transaction";
+import { Transactor } from "../core/transactions/transactor";
 import type { CmsClient, ContentEditor } from "../features/cms/domain/client";
 import type { FileStore } from "../features/files/domain/services";
 import type { WorkspaceWriter } from "../features/workspace/domain/services";

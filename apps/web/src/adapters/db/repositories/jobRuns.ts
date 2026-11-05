@@ -1,8 +1,8 @@
 import { and, asc, eq, like, lte, or, sql } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 
-import * as Job from "../../../domain/jobs/job.ts";
-import * as JobRun from "../../../domain/jobs/runs.ts";
+import * as Job from "../../../core/jobs/job.ts";
+import * as JobRun from "../../../core/jobs/runs.ts";
 /**
  * `JobRuns` (spec 0008): one row per `(job, period)`. The contract is the domain's (`jobs/runs.ts`); this is how
  * PostgreSQL keeps it, with no advisory lock, no `LISTEN` and no session state (Hyperdrive):
@@ -16,7 +16,7 @@ import * as JobRun from "../../../domain/jobs/runs.ts";
  *   chunk's own rows, so a cursor never stands without its chunk, nor a chunk without its cursor.
  * - Every timestamp comes from Effect's `Clock`.
  */
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { Drizzle, decodeWith } from "../internal/drizzle.ts";
 import { verified } from "../live.ts";
 import { jobRun } from "../schema.ts";

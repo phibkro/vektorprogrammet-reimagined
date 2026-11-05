@@ -6,15 +6,15 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
-import { FileKey } from "../../../domain/ids.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
+import { FileKey } from "../../../core/ids.ts";
 import {
   Info,
   grant,
   info,
   member,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
+} from "../../../core/kernel/domain.ts";
 import { StoredContentType } from "./fileType.ts";
 import { PublicFile } from "./publicFile.ts";
 

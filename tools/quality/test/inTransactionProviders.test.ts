@@ -30,7 +30,7 @@ import {
 } from "effect";
 import { ChildProcessSpawner } from "effect/process";
 
-import { InTransaction } from "../../../apps/web/src/domain/transactions/transaction.ts";
+import { InTransaction } from "../../../apps/web/src/core/transactions/transaction.ts";
 import { gitIn } from "../workingTree.ts";
 import { proofReferences } from "./support/proofReferences.ts";
 import { workingTreeSources } from "./support/sources.ts";
@@ -78,19 +78,19 @@ const allowances: readonly Allowance[] = [
   },
   {
     calls: 2,
-    path: "apps/web/src/domain/store/guarantees.ts",
+    path: "apps/web/src/core/store/guarantees.ts",
     reason:
       "the declaration of TX3 and TX5 hands the service to `wholePort`, which reads its key and provides nothing",
   },
   {
     calls: 1,
-    path: "apps/web/src/domain/transactions/transaction.ts",
+    path: "apps/web/src/core/transactions/transaction.ts",
     reason:
       "the declaration of the service: its key, written once, as every service declares its own",
   },
   {
     calls: 1,
-    path: "apps/web/src/domain/transactions/integrationGuard.ts",
+    path: "apps/web/src/core/transactions/integrationGuard.ts",
     reason:
       "the runtime guard of the integration ports reads the proof with `Effect.serviceOption` to refuse a call made while it is held (spec 0024 R6); it provides nothing",
   },

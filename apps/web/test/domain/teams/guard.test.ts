@@ -10,7 +10,7 @@ import {
 } from "effect";
 import { expectTypeOf } from "vite-plus/test";
 
-import * as Machine from "../../../src/domain/kernel/machine.ts";
+import * as Machine from "../../../src/core/kernel/machine.ts";
 import * as SemesterGuard from "../../../src/features/organisation/domain/semesterGuard.ts";
 import * as Teams from "../../../src/features/teams/domain/declaration.ts";
 import type { MembershipMoment } from "../../../src/features/teams/domain/declaration.ts";

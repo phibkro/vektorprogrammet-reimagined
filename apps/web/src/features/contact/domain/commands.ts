@@ -1,10 +1,10 @@
 /** C10 submit contact: validate, then enqueue the notifications in the caller's transaction. */
 import { Effect } from "effect";
 
-import { validationFailed } from "../../../domain/errors.ts";
-import * as Commands from "../../../domain/kernel/commands.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { validationFailed } from "../../../core/errors.ts";
+import * as Commands from "../../../core/kernel/commands.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import { DepartmentRepository } from "../../organisation/domain/services.ts";
 import { ContactDomain, ContactRpc, submitContact } from "./declaration.ts";
 import {

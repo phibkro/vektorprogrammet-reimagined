@@ -7,7 +7,7 @@ import { assert, layer } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect, Exit, Option } from "effect";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { EmailAddress } from "../../src/domain/validation";
+import { EmailAddress } from "../../src/core/validation";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import {
   AdminGrantRepository,

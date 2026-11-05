@@ -13,14 +13,14 @@ import {
   Schema,
 } from "effect";
 
-import { PersonId } from "../../../domain/ids.ts";
-import * as OutboxSweep from "../../../domain/outbox/declaration.ts";
-import type { Outbox } from "../../../domain/outbox/outbox.ts";
+import { PersonId } from "../../../core/ids.ts";
+import * as OutboxSweep from "../../../core/outbox/declaration.ts";
+import type { Outbox } from "../../../core/outbox/outbox.ts";
 import type {
   AggregateLocks,
   Locked,
-} from "../../../domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
+} from "../../../core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
 import { DeleteAuthUserMessage } from "../../../features/accounts/domain/messages.ts";
 import type { AccountRepository } from "../../../features/accounts/domain/services.ts";
 /**

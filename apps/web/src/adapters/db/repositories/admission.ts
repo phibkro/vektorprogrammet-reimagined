@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
 
-import { NotFound } from "../../../domain/errors.ts";
+import { NotFound } from "../../../core/errors.ts";
 /**
  * Application persistence (spec 0009). An application belongs to the person who applied (spec 0006b): every write takes
  * that person's `Locked` token and so does the read that a decision rests on. The state is a stored machine
@@ -14,10 +14,10 @@ import {
   FieldOfStudyId,
   PersonId,
   TeamId,
-} from "../../../domain/ids.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
-import { EmailAddress } from "../../../domain/validation.ts";
+} from "../../../core/ids.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
+import { EmailAddress } from "../../../core/validation.ts";
 import type { ApplicationMachineTransition } from "../../../features/admission/domain/declaration.ts";
 import {
   ApplicationState,

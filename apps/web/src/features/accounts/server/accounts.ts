@@ -1,6 +1,6 @@
 import { Array as Arr, Effect, Predicate } from "effect";
 
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
 import {
   DepartmentRepository,
   FieldOfStudyRepository,

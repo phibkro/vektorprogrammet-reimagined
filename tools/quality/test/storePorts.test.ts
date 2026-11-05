@@ -10,7 +10,7 @@ import { Array as Arr, Effect, Order, Record as Rec } from "effect";
 import {
   NotStorePorts,
   TransactionModes,
-} from "../../../apps/web/src/domain/store/transactionModes.ts";
+} from "../../../apps/web/src/core/store/transactionModes.ts";
 import { domainSources } from "./support/sources.ts";
 
 const serviceClass =

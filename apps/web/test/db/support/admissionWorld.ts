@@ -1,12 +1,12 @@
 import { Array as Arr, DateTime, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { PersonId, TeamId } from "../../../src/domain/ids";
+import { PersonId, TeamId } from "../../../src/core/ids";
 import type {
   AdmissionPeriodId,
   DepartmentId as DepartmentIdType,
-} from "../../../src/domain/ids";
-import { Principal } from "../../../src/domain/kernel/principal";
+} from "../../../src/core/ids";
+import { Principal } from "../../../src/core/kernel/principal";
 /**
  * What the admission tests of spec 0009 share: a department with a field of study, a recruitment team and a leader, a
  * stored semester, the principals that act, and the encoded input of an application. Every value is a fake of the same

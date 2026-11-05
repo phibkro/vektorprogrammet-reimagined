@@ -16,18 +16,18 @@ import type {
   AlreadyExists,
   Conflict,
   NotFound,
-} from "../../../domain/errors.ts";
+} from "../../../core/errors.ts";
 import type {
   AdminGrantId,
   DepartmentId,
   MembershipId,
   PersonId,
   TeamId,
-} from "../../../domain/ids.ts";
-import type { PersonPrincipal } from "../../../domain/kernel/principal.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
-import type { EmailAddress } from "../../../domain/validation.ts";
+} from "../../../core/ids.ts";
+import type { PersonPrincipal } from "../../../core/kernel/principal.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
+import type { EmailAddress } from "../../../core/validation.ts";
 import type { Semester } from "../../organisation/domain/semester.ts";
 import type {
   AdminGrant,

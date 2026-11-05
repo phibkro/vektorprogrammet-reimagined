@@ -28,12 +28,12 @@ import {
   MessageSender,
   captureSenderLayer,
 } from "../src/adapters/messaging/senders";
-import type { OutboxMessageId } from "../src/domain/ids";
-import { OutboxDelivery } from "../src/domain/outbox/delivery";
-import { OutboxMessage } from "../src/domain/outbox/messages";
-import { Outbox, SlackTarget } from "../src/domain/outbox/outbox";
-import type { TransportMessage } from "../src/domain/outbox/outbox";
-import { Transactor } from "../src/domain/transactions/transactor";
+import type { OutboxMessageId } from "../src/core/ids";
+import { OutboxDelivery } from "../src/core/outbox/delivery";
+import { OutboxMessage } from "../src/core/outbox/messages";
+import { Outbox, SlackTarget } from "../src/core/outbox/outbox";
+import type { TransportMessage } from "../src/core/outbox/outbox";
+import { Transactor } from "../src/core/transactions/transactor";
 import { AccountDelivery } from "../src/server/background/outbox/accountDelivery";
 import { deliverOutbox } from "../src/server/background/outbox/delivery";
 import {

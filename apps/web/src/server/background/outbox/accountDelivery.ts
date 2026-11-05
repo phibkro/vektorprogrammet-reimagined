@@ -16,18 +16,18 @@ import {
   MessageSender,
 } from "../../../adapters/messaging/senders";
 import { createAdminClient } from "../../../adapters/supabase/clients";
-import { PersonId } from "../../../domain/ids";
-import { OutboxDelivery } from "../../../domain/outbox/delivery";
+import { PersonId } from "../../../core/ids";
+import { OutboxDelivery } from "../../../core/outbox/delivery";
 import type {
   ClaimedOutboxMessage,
   OutboxAck,
-} from "../../../domain/outbox/delivery";
-import { OutboxMessage } from "../../../domain/outbox/messages";
-import { Outbox } from "../../../domain/outbox/outbox";
-import type { TransportMessage } from "../../../domain/outbox/outbox";
-import { SiteOrigin } from "../../../domain/siteOrigin";
-import { AggregateLocks } from "../../../domain/transactions/aggregate";
-import { Transactor } from "../../../domain/transactions/transactor";
+} from "../../../core/outbox/delivery";
+import { OutboxMessage } from "../../../core/outbox/messages";
+import { Outbox } from "../../../core/outbox/outbox";
+import type { TransportMessage } from "../../../core/outbox/outbox";
+import { SiteOrigin } from "../../../core/siteOrigin";
+import { AggregateLocks } from "../../../core/transactions/aggregate";
+import { Transactor } from "../../../core/transactions/transactor";
 import { codePolicy, mintCode } from "../../../features/accounts/domain/code";
 import type { CodeHash } from "../../../features/accounts/domain/code";
 import { CodeRepository } from "../../../features/accounts/domain/codeRepository";

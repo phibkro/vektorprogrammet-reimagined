@@ -1,13 +1,13 @@
 import { Array as Arr, DateTime, Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { OutboxMessage } from "../../../src/domain/outbox/messages";
+import { OutboxMessage } from "../../../src/core/outbox/messages";
 /**
  * A person with data in every table that the catalog names (spec 0007b), each value distinctive, so that a test can ask
  * whether any value of one person turned up where it should not. `Holdings` says which tables get rows; everything is
  * written with SQL, outside a command, because the values and the instants are the point.
  */
-import { EmailAddress } from "../../../src/domain/validation";
+import { EmailAddress } from "../../../src/core/validation";
 import { activateAccount } from "./accountsWorld.ts";
 import { encodeJson } from "./json.ts";
 import { providerUserId } from "./supabaseAuth.ts";

@@ -28,13 +28,13 @@ apps/web/src/features/workspace/domain/services.ts
 apps/web/src/features/teams/domain/commands.ts
 apps/web/src/features/teams/domain/declaration.ts
 apps/web/src/features/accounts/domain/commands.ts
-apps/web/src/domain/transactions/aggregate.ts
+apps/web/src/core/transactions/aggregate.ts
 apps/web/src/adapters/db/aggregate
 apps/web/src/adapters/db/classifySqlFailure.ts
 apps/web/src/adapters/db/transactional.ts
 apps/web/src/adapters/db/schema.ts
 apps/web/drizzle
-apps/web/src/domain/transactions/transactor.ts
+apps/web/src/core/transactions/transactor.ts
 ```
 
 | Covered code | What the model takes from it |
@@ -45,7 +45,7 @@ apps/web/src/domain/transactions/transactor.ts
 | the handlers `createMembership`, `deleteMembership`, `changeMembership`, `endEarlyMembership`, `extendMembership`, `createAdminGrant`, `deleteAdminGrant` (`teams/commands.ts`) and `deactivateAccount`, `reactivateAccount` (`accounts/commands.ts:150-151, 176-177`) | which locks and repository calls each command makes, in order (`compose`); `beginTransition` (`teams/commands.ts:121-150`) is find, lock, read, decide |
 | `WelcomeLedger.claim` (`apps/web/src/adapters/db/repositories/teams.ts`) | its write uses the same Person token; it adds no lock. The model does not prove welcome-message uniqueness; `welcome.postgres.test.ts` tests that separately. |
 | Workspace assignment and shared address claims (`workspace/commands.ts`, `repositories/companyAddresses.ts`) | Person locks precede address claims; multiple people lock by id and multiple addresses claim by address. `Address.tla` checks two projections with two addresses each; the PostgreSQL probe pins unique-insert waiting. Profile and team edits claim one address each. |
-| `AggregateRoots`, `lockAdminList` (`apps/web/src/domain/transactions/aggregate.ts:36-39, 90-91`) | the admin list's lock comes before every person's |
+| `AggregateRoots`, `lockAdminList` (`apps/web/src/core/transactions/aggregate.ts:36-39, 90-91`) | the admin list's lock comes before every person's |
 | `MembershipMachine` (`declaration.ts:274-352`) | the guard that decides, after the lock, whether a transition is allowed (`Allowed`) |
 | `membership_no_overlap` (`drizzle/20261026221817_membership_no_overlap`) | the exclusion constraint on person, team and term |
 | `classifySqlFailure` (`classifySqlFailure.ts:108-166`) | `23P01` is `AlreadyExists`; `40P01` is a defect, never `AlreadyExists` |
@@ -54,7 +54,7 @@ apps/web/src/domain/transactions/transactor.ts
 
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change"). The confirmation of 2026-10-27 (spec 0007b) covers the commands in `compose`: the aggregate writes now accept several locks and use `IN`, which for the one token held by these commands selects the same rows as before. The tombstone filter and the writers in the next section are outside the model.
 
-Spec 0030 relocated the covered code into the application at `c95ce8d`. Review of 80 covered files found only import and export-visibility changes; migration files are byte-identical. The record above identifies that reviewed source tree. Model execution and code-probe results are recorded separately in spec 0030.
+The digest and confirmed-at above remain historical evidence for `c95ce8d`; the core relocation requires a new code review and confirmation. Spec 0030 relocated the covered code into the application at `c95ce8d`. Review of 80 covered files found only import and export-visibility changes; migration files are byte-identical. The record above identifies that reviewed source tree. Model execution and code-probe results are recorded separately in spec 0030.
 
 After the 0007d rebase, the model was run again with `--code`. The membership-machine additions declare metadata for effx; they do not change transitions. The added retention-report migration changes only the audit action constraint. Neither changes the modeled statements.
 
@@ -114,7 +114,7 @@ devenv shell --profile formal -- .agents/skills/verify-membership-writes/run.sh 
 
 The `formal` profile of `devenv.nix` adds TLA+ tools 1.7.4 (TLC, with the Java 8 that nixpkgs builds them with), pinned by `devenv.lock`, with the Java heap capped; the default shell does not have them. The machine is shared: `run.sh` prints the load and stops when it is above 80% of the CPUs or under 4 GB are free (`FORCE=1` overrides). It runs one TLC at a time with 8 workers (`TLC_WORKERS`) and a 2 GB heap (`TLC_HEAP`); the three-command run visited 1,712,396 states in 45 seconds on 2026-10-27. `--code` also runs the tests of the real repositories that pin the facts that `Shapes.tla` takes from the code (needs PostgreSQL): the files in `code_tests` of `run.sh`.
 
-`--code` requires `bun install` and runs its PostgreSQL tests in the default devenv shell, using this worktree's allocated port rather than the formal profile's port. It prints the port before the tests.
+`--code` requires `bun install` and runs its PostgreSQL tests in the default devenv shell, using this worktree's allocated port rather than the formal profile's port. It prints the port before the tests. The runner uses `vp test --project db --maxWorkers 1` with the paths in `code_tests`.
 
 What a good run prints, and what each line means:
 
@@ -140,7 +140,7 @@ Read every result that is not `as expected`, and the passing `current-code`, wit
 
 1. Take the counterexample as steps in words (`/statechart`). Each step is one SQL statement or one PostgreSQL action. `Shapes.tla` gives the file and line of every statement, and `MembershipWrites.tla` names the PostgreSQL rule of every other step.
 2. **A step that the code cannot take is a modeling error.** Open the cited line. Does the code issue that statement, in that order, in that command? Fix the model so that it matches the code and say what was wrong. Never weaken the property or the bounds to make it pass.
-3. **A step that PostgreSQL would not take is a modeling error.** Run `bunx vp test run test/db/membershipWriteModel.postgres.test.ts` in `apps/web` (PostgreSQL up). The test named after that step shows the rule on a real database. If it passes, the model's rule is right; if it fails, PostgreSQL changed and the model's rule is stale.
+3. **A step that PostgreSQL would not take is a modeling error.** Run `bunx vp test --project db test/db/membershipWriteModel.postgres.test.ts` in `apps/web` (PostgreSQL up). The test named after that step shows the rule on a real database. If it passes, the model's rule is right; if it fails, PostgreSQL changed and the model's rule is stale.
 4. **If every step can happen, it is a bug.** Report the counterexample in the code's words, the harm in one sentence and the commit that introduced it (`git log -S'for("no key update"' -- apps/web/src/adapters/db/aggregate/locks.ts`). Replay it on the real code when you can. The two writes of the R6 counterexample are the overlap race of `teams.postgres.test.ts`: with `.for("no key update")` deleted from `locks.ts`, the model fails at once (`lock-takes-no-row-lock`), the 300-round race failed with `DeadlockError: deadlock detected` in 2 of 5 runs, and the lock-wait control and the unconditional-update control failed in all five (spec 0006b R3). Do not change product code unless you were asked to.
 
 ## Update the model after a change

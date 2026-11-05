@@ -22,8 +22,8 @@ import {
   MembershipId,
   PersonId,
   TeamId,
-} from "../../src/domain/ids";
-import { EmailAddress } from "../../src/domain/validation";
+} from "../../src/core/ids";
+import { EmailAddress } from "../../src/core/validation";
 import type { Semester } from "../../src/features/organisation/domain/semester";
 import type {
   Membership,

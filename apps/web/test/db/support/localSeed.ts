@@ -2,8 +2,8 @@ import { Array as Arr, DateTime, Effect, Option, Order } from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../../src/adapters/db/transactional.ts";
-import type { TeamFunction } from "../../../src/domain/kernel/principal";
-import { EmailAddress } from "../../../src/domain/validation";
+import type { TeamFunction } from "../../../src/core/kernel/principal";
+import { EmailAddress } from "../../../src/core/validation";
 /**
  * The local seed (spec 0006): the people that `vp dev` and the browser tests can act as. The local test actor is a
  * seeded person chosen by name (the `vp-test-actor` cookie); there is no sign-in before spec 0007. It runs after the

@@ -297,7 +297,7 @@ if [ "$code" = 1 ]; then
     exit 2
   fi
   started=$SECONDS
-  if (cd "$root" && devenv shell -- bash -c 'cd apps/web && exec bunx vp test run --maxWorkers=1 "$@"' -- "${code_tests[@]}") >"$out/code-tests.out" 2>&1; then
+  if (cd "$root" && devenv shell -- bash -c 'cd apps/web && exec bunx vp test run --project db --maxWorkers=1 "$@"' -- "${code_tests[@]}") >"$out/code-tests.out" 2>&1; then
     echo "ok     $(grep -E '^ +Tests ' "$out/code-tests.out" | tr -s ' ') in $((SECONDS - started))s"
   else
     echo "FAIL   a test of the real code failed (see $out/code-tests.out). If the change that broke it is intended, the model's fact is stale: update model/Shapes.tla."

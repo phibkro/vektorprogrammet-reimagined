@@ -6,15 +6,15 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Order } from "effect";
 
-import { Declarations } from "../../../src/domain/declarations.ts";
-import * as Job from "../../../src/domain/jobs/job.ts";
-import { jobProblems } from "../../../src/domain/jobs/problems.ts";
-import * as JobRegistry from "../../../src/domain/jobs/registry.ts";
+import { Declarations } from "../../../src/core/declarations.ts";
+import * as Job from "../../../src/core/jobs/job.ts";
+import { jobProblems } from "../../../src/core/jobs/problems.ts";
+import * as JobRegistry from "../../../src/core/jobs/registry.ts";
 import {
   SystemJob,
   systemPrincipal,
-} from "../../../src/domain/kernel/principal.ts";
-import * as OutboxSweep from "../../../src/domain/outbox/declaration.ts";
+} from "../../../src/core/kernel/principal.ts";
+import * as OutboxSweep from "../../../src/core/outbox/declaration.ts";
 import { semesterWindow } from "../../../src/features/organisation/domain/semester.ts";
 import { Periods } from "../../../src/features/personal-data/domain/periods.ts";
 import { afterDuration } from "../../../src/features/personal-data/domain/retentionEnd.ts";

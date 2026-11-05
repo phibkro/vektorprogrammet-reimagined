@@ -7,8 +7,8 @@
 import { Context } from "effect";
 import type { DateTime, Effect, Option } from "effect";
 
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import type { InTransaction } from "../../../domain/transactions/transaction.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import type { InTransaction } from "../../../core/transactions/transaction.ts";
 import type { Code, CodeHash, CodePurpose, codePolicy } from "./code.ts";
 
 /** The purposes whose code one use ends (`codePolicy.singleUse`): `consume` takes no other, so a reusable code is never spent. */

@@ -3,7 +3,7 @@ import { BeginTransaction, SqlClient } from "effect/sql/SqlClient";
 import { isSqlError } from "effect/sql/SqlError";
 import type { SqlError } from "effect/sql/SqlError";
 
-import type { InTransaction } from "../../domain/transactions/transaction.ts";
+import type { InTransaction } from "../../core/transactions/transaction.ts";
 /**
  * The one production provider of the domain's `InTransaction` (spec 0018 TX5; spec 0019 makes the proof the live
  * transaction's own, and `live.ts` has how an adapter checks it).
@@ -26,7 +26,7 @@ import type { InTransaction } from "../../domain/transactions/transaction.ts";
  *
  * Receipt: success means committed. No provider I/O may run inside `self`.
  */
-import { Transactor } from "../../domain/transactions/transactor.ts";
+import { Transactor } from "../../core/transactions/transactor.ts";
 import { CurrentLockScope, handUp, openScope } from "./aggregate/lockScope.ts";
 import { liveLevel } from "./live.ts";
 

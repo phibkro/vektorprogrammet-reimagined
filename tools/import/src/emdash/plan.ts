@@ -1,7 +1,7 @@
 import type { DateTime } from "effect";
 import { Array as Arr, HashMap, Option, Result, Schema } from "effect";
 
-import { HttpUrl } from "../../../../apps/web/src/domain/validation.ts";
+import { HttpUrl } from "../../../../apps/web/src/core/validation.ts";
 import type { NewEntry } from "../../../../apps/web/src/features/cms/domain/client.ts";
 /**
  * The EmDash half of the import (spec 0005, D5): the legacy articles, static texts and sponsors as CMS entries.

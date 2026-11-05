@@ -6,7 +6,7 @@
  * adapter's to say: one sentence for every capability, and a sentence that is not "measured" says so. `Hyperdrive` is the
  * deployed platform; "on PostgreSQL" is the contract tests on the test server.
  */
-import type { Capability } from "../../../domain/store/guarantees.ts";
+import type { Capability } from "../../../core/store/guarantees.ts";
 
 export const evidence: Readonly<Record<Capability, string>> = {
   AggregateLocks:

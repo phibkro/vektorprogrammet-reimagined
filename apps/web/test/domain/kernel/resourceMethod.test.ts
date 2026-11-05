@@ -8,11 +8,11 @@ import { Array as Arr, Option, Schema } from "effect";
 import { Rpc } from "effect/rpc";
 import { expectTypeOf } from "vite-plus/test";
 
-import { Declarations } from "../../../src/domain/declarations.ts";
-import { EntityName } from "../../../src/domain/ids.ts";
-import * as Commands from "../../../src/domain/kernel/commands.ts";
-import * as Domain from "../../../src/domain/kernel/domain.ts";
-import type { Declaration } from "../../../src/domain/kernel/domain.ts";
+import { Declarations } from "../../../src/core/declarations.ts";
+import { EntityName } from "../../../src/core/ids.ts";
+import * as Commands from "../../../src/core/kernel/commands.ts";
+import * as Domain from "../../../src/core/kernel/domain.ts";
+import type { Declaration } from "../../../src/core/kernel/domain.ts";
 import { Sample } from "./sample.ts";
 
 type Fields = Parameters<typeof Commands.info>[0];

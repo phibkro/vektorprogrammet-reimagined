@@ -22,10 +22,10 @@ import { Array as Arr, DateTime, Match, Order, pipe, Schema } from "effect";
 import {
   osloParts,
   osloWallClock,
-} from "../../../../apps/web/src/domain/clock.ts";
-import type { FileKey } from "../../../../apps/web/src/domain/ids.ts";
-import { SlackChannel } from "../../../../apps/web/src/domain/outbox/outbox.ts";
-import { EmailAddress } from "../../../../apps/web/src/domain/validation.ts";
+} from "../../../../apps/web/src/core/clock.ts";
+import type { FileKey } from "../../../../apps/web/src/core/ids.ts";
+import { SlackChannel } from "../../../../apps/web/src/core/outbox/outbox.ts";
+import { EmailAddress } from "../../../../apps/web/src/core/validation.ts";
 import { TargetTable } from "../../../../apps/web/src/features/organisation/domain/legacyImport.ts";
 import type { TargetRows } from "../../../../apps/web/src/features/organisation/domain/legacyImport.ts";
 import { SemesterYear } from "../../../../apps/web/src/features/organisation/domain/semester.ts";

@@ -1,7 +1,7 @@
 import { DateTime, Effect, Option } from "effect";
 
-import { anonymous } from "../../domain/kernel/principal";
-import type { Principal } from "../../domain/kernel/principal";
+import { anonymous } from "../../core/kernel/principal";
+import type { Principal } from "../../core/kernel/principal";
 import { currentSemester } from "../../features/organisation/domain/commands";
 /** Supabase verifies identity; current domain account state and grants decide authority. */
 import { PrincipalDirectory } from "../../features/teams/domain/services";

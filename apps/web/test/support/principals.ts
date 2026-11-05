@@ -5,9 +5,9 @@ import { DateTime } from "effect";
  * R1): the memberships active this semester, and the end of the admin place. Nothing here is a role: a leader is
  * a person with a membership whose `leader` flag is set.
  */
-import { DepartmentId, PersonId, TeamId } from "../../src/domain/ids";
-import { Principal } from "../../src/domain/kernel/principal";
-import type { TeamFunction } from "../../src/domain/kernel/principal";
+import { DepartmentId, PersonId, TeamId } from "../../src/core/ids";
+import { Principal } from "../../src/core/kernel/principal";
+import type { TeamFunction } from "../../src/core/kernel/principal";
 
 const LATE = DateTime.makeUnsafe("2099-12-31T23:59:59Z");
 

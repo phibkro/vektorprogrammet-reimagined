@@ -8,18 +8,18 @@
 import { Array as Arr, Schema } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import { DepartmentId } from "../../../domain/ids.ts";
+import { DepartmentId } from "../../../core/ids.ts";
 import {
   EmailMessage,
   SlackPostMessage,
   SlackTarget,
-} from "../../../domain/outbox/outbox.ts";
-import type { DeclaredMessage } from "../../../domain/outbox/outbox.ts";
+} from "../../../core/outbox/outbox.ts";
+import type { DeclaredMessage } from "../../../core/outbox/outbox.ts";
 import {
   EmailAddressInput,
   REQUIRED_FIELD_MESSAGE,
   requiredText,
-} from "../../../domain/validation.ts";
+} from "../../../core/validation.ts";
 import type { Department } from "../../organisation/domain/department.ts";
 
 export const DEPARTMENT_UNAVAILABLE_MESSAGE =

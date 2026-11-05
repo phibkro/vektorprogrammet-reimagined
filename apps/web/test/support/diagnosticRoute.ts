@@ -8,7 +8,7 @@ import { Effect, Layer, Schema } from "effect";
 import type { Option, Redacted } from "effect";
 
 import { DatabaseLive } from "../../src/adapters/db/databaseLive";
-import { Forbidden } from "../../src/domain/errors";
+import { Forbidden } from "../../src/core/errors";
 import type { Outcome } from "../../src/http/outcome";
 import { failureOf } from "../../src/server/http/errors";
 

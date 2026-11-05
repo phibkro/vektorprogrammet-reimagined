@@ -4,7 +4,7 @@ import { Array as Arr, DateTime, Effect, Predicate, Schema } from "effect";
  * The web side of personal data (spec 0007b): the form text of each command, the file that `exportMyData` makes and the
  * message that an erasure answers with. The rules, the texts and the commands are the domain's; nothing here decides.
  */
-import { CurrentPrincipal } from "../../../domain/kernel/principal";
+import { CurrentPrincipal } from "../../../core/kernel/principal";
 import { textOf } from "../../../forms/formSchema";
 import type { Outcome } from "../../../http/outcome";
 import { personOf } from "../../accounts/domain/principal";

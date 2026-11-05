@@ -8,7 +8,7 @@ import {
   NotFound,
   ValidationFailed,
   validationFailed,
-} from "../src/domain/errors";
+} from "../src/core/errors";
 import { success } from "../src/http/outcome";
 import { RateLimited } from "../src/http/requestError";
 import { ERROR_TABLE, failureOf } from "../src/server/http/errors";

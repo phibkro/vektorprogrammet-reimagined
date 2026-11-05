@@ -14,25 +14,25 @@ import {
 } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import { EntityName, OutboxMessageId, PersonId } from "../../../domain/ids.ts";
-import { AuditClient, SystemJob } from "../../../domain/kernel/principal.ts";
-import * as OutboxSweep from "../../../domain/outbox/declaration.ts";
+import { EntityName, OutboxMessageId, PersonId } from "../../../core/ids.ts";
+import { AuditClient, SystemJob } from "../../../core/kernel/principal.ts";
+import * as OutboxSweep from "../../../core/outbox/declaration.ts";
 import {
   ClaimedOutboxMessage,
   OutboxClaim,
   OutboxClaimToken,
   OutboxDelivery,
-} from "../../../domain/outbox/delivery.ts";
-import type { OutboxAck } from "../../../domain/outbox/delivery.ts";
-import { OutboxMessage } from "../../../domain/outbox/messages.ts";
-import { Outbox } from "../../../domain/outbox/outbox.ts";
-import type { DeclaredMessage } from "../../../domain/outbox/outbox.ts";
+} from "../../../core/outbox/delivery.ts";
+import type { OutboxAck } from "../../../core/outbox/delivery.ts";
+import { OutboxMessage } from "../../../core/outbox/messages.ts";
+import { Outbox } from "../../../core/outbox/outbox.ts";
+import type { DeclaredMessage } from "../../../core/outbox/outbox.ts";
 import {
   OutboxOverview,
   OutboxReports,
   OVERVIEW_ROWS,
   deliveryState,
-} from "../../../domain/outbox/status.ts";
+} from "../../../core/outbox/status.ts";
 /**
  * Transactional outbox (architecture §4) and C12 audit writer.
  *

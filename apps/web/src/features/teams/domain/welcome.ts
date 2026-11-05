@@ -1,8 +1,8 @@
 import { Array as Arr } from "effect";
 import type { NonEmptyReadonlyArray } from "effect/Array";
 
-import { EmailMessage } from "../../../domain/outbox/outbox.ts";
-import type { DeclaredMessage } from "../../../domain/outbox/outbox.ts";
+import { EmailMessage } from "../../../core/outbox/outbox.ts";
+import type { DeclaredMessage } from "../../../core/outbox/outbox.ts";
 import type { Person, Position, Team } from "./entities.ts";
 
 /**

@@ -5,7 +5,7 @@
 import { Context, Schema } from "effect";
 import type { DateTime, Effect, Option } from "effect";
 
-import { DepartmentId } from "../../../domain/ids.ts";
+import { DepartmentId } from "../../../core/ids.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
 import {
   Audience,

@@ -12,15 +12,15 @@ import { Array as Arr, DateTime, Effect, Exit } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import type { NotFound } from "../../src/domain/errors";
+import type { NotFound } from "../../src/core/errors";
 import type {
   FieldOfStudyId,
   PositionId,
   TeamId,
   PersonId,
-} from "../../src/domain/ids";
-import { lockAdminList } from "../../src/domain/transactions/aggregate";
-import { EmailAddress } from "../../src/domain/validation";
+} from "../../src/core/ids";
+import { lockAdminList } from "../../src/core/transactions/aggregate";
+import { EmailAddress } from "../../src/core/validation";
 import { AccountRepository } from "../../src/features/accounts/domain/services";
 import { answerRecord } from "../../src/features/personal-data/domain/consents";
 import { ConsentRepository } from "../../src/features/personal-data/domain/services";

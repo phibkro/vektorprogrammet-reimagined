@@ -19,7 +19,7 @@ export const tsgoRules = diagnosticRules.lint;
 const effectConfig: EffectConfigInput = {
   groups: [
     {
-      files: ["apps/web/src/domain/**", "apps/web/src/features/**/domain/**"],
+      files: ["apps/web/src/core/**", "apps/web/src/features/**/domain/**"],
       platform: "portable",
       role: "effect-library",
       strictness: "strict",
@@ -348,7 +348,7 @@ export default defineConfig({
       // cycles that `tools/quality/checkModuleGraph.ts` looks for are the declaration's `acyclic` globs.
       {
         files: [
-          "apps/web/src/domain/**",
+          "apps/web/src/core/**",
           "apps/web/src/features/**/domain/**",
           "apps/web/src/adapters/db/**",
         ],
@@ -370,7 +370,7 @@ export default defineConfig({
         },
       },
       {
-        files: ["apps/web/src/domain/**", "apps/web/src/features/**/domain/**"],
+        files: ["apps/web/src/core/**", "apps/web/src/features/**/domain/**"],
         rules: {
           "no-restricted-imports": [
             "error",
@@ -396,7 +396,7 @@ export default defineConfig({
       {
         // The domain's Effect Schema declarations intentionally export both a runtime value and a same-named type (TypeScript itself rejects every other redeclaration).
         files: [
-          "apps/web/src/domain/**",
+          "apps/web/src/core/**",
           "apps/web/src/features/**/domain/**",
           "apps/web/src/adapters/db/repositories/outbox.ts",
           "tools/import/src/config.ts",
@@ -444,9 +444,9 @@ export default defineConfig({
       {
         // unicorn/throw-new-error treats Schema.TaggedError class definitions as throw sites; they contain no throw.
         files: [
-          "apps/web/src/domain/errors.ts",
+          "apps/web/src/core/errors.ts",
           "tools/prototype/seed.ts",
-          "apps/web/src/domain/transactions/integrationGuard.ts",
+          "apps/web/src/core/transactions/integrationGuard.ts",
           "apps/web/src/http/requestError.ts",
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
@@ -479,7 +479,7 @@ export default defineConfig({
       {
         // max-classes-per-file conflicts with a closed typed-error set: the domain's errors, and the lock construct's four defects.
         files: [
-          "apps/web/src/domain/errors.ts",
+          "apps/web/src/core/errors.ts",
           "apps/web/src/adapters/db/aggregate/defects.ts",
         ],
         rules: { "max-classes-per-file": "off" },
@@ -517,8 +517,8 @@ export default defineConfig({
       {
         // The command endpoint and the input decoders own untrusted request decoding through the command's schema; this rule cannot see decodeInput inside the boundary.
         files: [
-          "apps/web/src/domain/kernel/commands.ts",
-          "apps/web/src/domain/validation.ts",
+          "apps/web/src/core/kernel/commands.ts",
+          "apps/web/src/core/validation.ts",
         ],
         rules: { "anti-slop/no-unknown-parameters": "off" },
       },
@@ -528,7 +528,7 @@ export default defineConfig({
           "apps/web/src/features/events/domain/services.ts",
           "apps/web/src/features/files/domain/services.ts",
           // EX-0031: related service contracts share their owning module.
-          "apps/web/src/domain/jobs/runs.ts",
+          "apps/web/src/core/jobs/runs.ts",
           "apps/web/src/features/organisation/domain/services.ts",
           "apps/web/src/features/personal-data/domain/services.ts",
           "apps/web/src/features/teams/domain/services.ts",
@@ -702,7 +702,7 @@ export default defineConfig({
           "apps/web/src/server/http/errors.ts",
           "apps/web/src/adapters/messaging/senders.ts",
           // EX-0031: these Effect error constructors are not throw sites.
-          "apps/web/src/domain/jobs/runs.ts",
+          "apps/web/src/core/jobs/runs.ts",
           "apps/web/src/features/workspace/domain/services.ts",
         ],
         rules: { "unicorn/throw-new-error": "off" },
@@ -788,6 +788,84 @@ export default defineConfig({
       "vite-plus/prefer-vite-plus-imports": "error",
     },
   },
-  run: { cache: true },
+  // Scripts may depend on live services; only explicit native tasks use the default cache.
+  run: {
+    cache: { scripts: false, tasks: true },
+    tasks: {
+      check: { cache: false, command: "vp check" },
+      "check:docs": {
+        cache: false,
+        command: "vp run @vektorprogrammet/docgen#generate --check",
+      },
+      "check:exceptions": {
+        cache: false,
+        command: "bun tools/quality/checkEffectExceptions.ts",
+      },
+      "check:module-graph": {
+        cache: false,
+        command: "bun tools/quality/checkModuleGraph.ts",
+      },
+      "check:store-boundary": {
+        cache: false,
+        command: "bun tools/quality/checkStoreBoundary.ts",
+      },
+      cpd: { cache: false, command: "jscpd --config .jscpd.json apps tools" },
+      description: {
+        cache: false,
+        command: "vp run @vektorprogrammet/effx-conformance#generate",
+      },
+      "description:drift": {
+        cache: false,
+        command: "vp run @vektorprogrammet/effx-conformance#drift",
+      },
+      "description:regenerate": {
+        cache: false,
+        command: "vp run @vektorprogrammet/effx-conformance#regenerate",
+      },
+      dev: { cache: false, command: "vp run @vektorprogrammet/web#dev" },
+      docs: {
+        cache: false,
+        command: "vp run @vektorprogrammet/docgen#generate",
+      },
+      e2e: { cache: false, command: "vp run @vektorprogrammet/web#e2e" },
+      knip: { cache: false, command: "knip" },
+      "prototype:dev": {
+        cache: false,
+        command: "bash with-env.sh vp -C ../../apps/web dev --port 3000",
+        cwd: "tools/prototype",
+      },
+      "prototype:setup": {
+        cache: false,
+        command: "bash setup.sh",
+        cwd: "tools/prototype",
+      },
+      ready: {
+        cache: false,
+        command: ["vp run test:all", "vp -C apps/web build"],
+        dependsOn: [
+          "check",
+          "check:exceptions",
+          "check:store-boundary",
+          "check:module-graph",
+          "check:docs",
+          "knip",
+          "cpd",
+          "secrets",
+        ],
+      },
+      secrets: {
+        cache: false,
+        command: "gitleaks git --config .gitleaks.toml --redact",
+      },
+      "sync:effect-policy": {
+        cache: false,
+        command: "bun tools/quality/syncEffectPolicy.ts",
+      },
+      "test:all": {
+        cache: false,
+        command: "vp run -r --no-cache --concurrency-limit 1 test",
+      },
+    },
+  },
   staged: { "*": "vp check --fix" },
 });

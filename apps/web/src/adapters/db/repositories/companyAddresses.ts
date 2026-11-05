@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { Effect } from "effect";
 
-import { Conflict } from "../../../domain/errors.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
-import { InTransaction } from "../../../domain/transactions/transaction.ts";
+import { Conflict } from "../../../core/errors.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
+import { InTransaction } from "../../../core/transactions/transaction.ts";
 import type { Aggregates } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import type { Owned } from "../aggregate/model.ts";

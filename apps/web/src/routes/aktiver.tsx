@@ -8,8 +8,8 @@ import { requestScope } from "@/server/http/scope";
 import { runCommand, runQuery } from "@/server/runtime";
 
 import { createRequestClient } from "../adapters/supabase/clients";
-import { PersonId } from "../domain/ids";
-import { CurrentPrincipal, Principal } from "../domain/kernel/principal";
+import { PersonId } from "../core/ids";
+import { CurrentPrincipal, Principal } from "../core/kernel/principal";
 import { AccountEndpoints } from "../features/accounts/domain/commands";
 import { passwordAllowed } from "../features/accounts/domain/entities";
 import { AccountRepository } from "../features/accounts/domain/services";

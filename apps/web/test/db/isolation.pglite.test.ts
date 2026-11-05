@@ -8,7 +8,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
-import { IsolationProbe } from "../../src/domain/store/isolationProbe";
+import { IsolationProbe } from "../../src/core/store/isolationProbe";
 import { pgliteDatabase } from "./support/database.ts";
 import { level } from "./support/isolationLevel.ts";
 

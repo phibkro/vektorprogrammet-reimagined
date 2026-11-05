@@ -2,8 +2,8 @@ import { and, eq, gt } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { DateTime, Effect, Layer, Option, Schema } from "effect";
 
-import { PersonId } from "../../../domain/ids.ts";
-import type { Locked } from "../../../domain/transactions/aggregate.ts";
+import { PersonId } from "../../../core/ids.ts";
+import type { Locked } from "../../../core/transactions/aggregate.ts";
 /**
  * Code persistence. A code belongs to its subject (spec 0006b): a write takes the subject's `Locked` token. Its life is
  * `CodeMachine` (spec 0024): `issue` stores a code `Unsent`, and the other two writes are transitions applied with

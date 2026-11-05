@@ -2,8 +2,8 @@
 import { Schema, SchemaRepresentation } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
-import { DomainErrorSchema } from "../../../domain/errors.ts";
-import { PersonId } from "../../../domain/ids.ts";
+import { DomainErrorSchema } from "../../../core/errors.ts";
+import { PersonId } from "../../../core/ids.ts";
 import {
   Info,
   grant,
@@ -11,8 +11,8 @@ import {
   leader,
   self,
   make as declareDomain,
-} from "../../../domain/kernel/domain.ts";
-import * as Machine from "../../../domain/kernel/machine.ts";
+} from "../../../core/kernel/domain.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
 import {
   Person,
   PersonEmailInput,

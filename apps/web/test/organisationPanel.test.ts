@@ -9,8 +9,8 @@ import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
-import { DepartmentId, FieldOfStudyId, SemesterId } from "../src/domain/ids";
-import { anonymous } from "../src/domain/kernel/principal";
+import { DepartmentId, FieldOfStudyId, SemesterId } from "../src/core/ids";
+import { anonymous } from "../src/core/kernel/principal";
 import {
   SAVED,
   departmentsView,
