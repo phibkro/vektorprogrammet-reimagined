@@ -44,3 +44,7 @@ playwright-report
 .devenv*
 devenv.local.nix
 .direnv
+
+# Supabase CLI local state is generated, not application source.
+supabase/.temp/
+supabase/.branches/
