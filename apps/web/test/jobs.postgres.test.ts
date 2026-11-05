@@ -6,22 +6,6 @@
  * chunk is visible as a duplicated or missing row.
  */
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import {
-  EmailAddress,
-  Job,
-  JobRun,
-  Outbox,
-  OutboxMessage,
-  OutboxMessageId,
-  Transactor,
-  validationFailed,
-} from "@vektorprogrammet/domain";
-import type { SystemJob } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -37,8 +21,22 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { dispatchTick } from "../src/server/jobs";
-import type { Runner } from "../src/server/jobs";
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
+import { validationFailed } from "../src/domain/errors";
+import { OutboxMessageId } from "../src/domain/ids";
+import * as Job from "../src/domain/jobs/job";
+import * as JobRun from "../src/domain/jobs/runs";
+import type { SystemJob } from "../src/domain/kernel/principal";
+import { OutboxMessage } from "../src/domain/outbox/messages";
+import { Outbox } from "../src/domain/outbox/outbox";
+import { Transactor } from "../src/domain/transactions/transactor";
+import { EmailAddress } from "../src/domain/validation";
+import { dispatchTick } from "../src/server/background/scheduler";
+import type { Runner } from "../src/server/background/scheduler";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "./db/support/disposableDatabase";
 import { Publications, recordingPublisher } from "./support/publications";
 import { rowsIn } from "./support/rowCount";
 

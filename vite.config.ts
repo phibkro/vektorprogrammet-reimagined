@@ -19,21 +19,24 @@ export const tsgoRules = diagnosticRules.lint;
 const effectConfig: EffectConfigInput = {
   groups: [
     {
-      files: ["packages/domain/src/**"],
+      files: ["apps/web/src/domain/**", "apps/web/src/features/**/domain/**"],
       platform: "portable",
       role: "effect-library",
       strictness: "strict",
     },
     {
       boundaries: ["external-data"],
-      files: ["packages/db/src/**"],
+      files: ["apps/web/src/adapters/db/**"],
       platform: "node",
       role: "runtime-adapter",
       strictness: "strict",
     },
     {
       boundaries: ["external-data"],
-      files: ["apps/web/src/server/auth.ts", "apps/web/src/server/password.ts"],
+      files: [
+        "apps/web/src/server/identity/auth.ts",
+        "apps/web/src/server/password.ts",
+      ],
       platform: "node",
       role: "runtime-adapter",
       strictness: "strict",
@@ -64,26 +67,26 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/router.tsx",
         "apps/web/src/start.ts",
         "apps/web/src/server/actor.ts",
-        "apps/web/src/server/publicFiles.ts",
-        "apps/web/src/server/redirects.ts",
-        "apps/web/src/server/fileStore.ts",
-        "apps/web/src/server/senders.ts",
-        "apps/web/src/server/errors.ts",
-        "apps/web/src/server/webCrypto.ts",
-        "apps/web/src/server/rateLimit.ts",
-        "apps/web/src/server/panel.ts",
-        "apps/web/src/server/admission.ts",
-        "apps/web/src/server/shell.ts",
-        "apps/web/src/server/site/**",
-        "apps/web/src/server/turnstile.ts",
-        "apps/web/src/server/outboxDelivery.ts",
-        "apps/web/src/server/accountDelivery.ts",
-        "apps/web/src/server/contact.ts",
-        "apps/web/src/server/personalData.ts",
-        "apps/web/src/server/scope.ts",
+        "apps/web/src/features/files/server/publicFiles.ts",
+        "apps/web/src/server/http/redirects.ts",
+        "apps/web/src/adapters/supabase/storage.ts",
+        "apps/web/src/adapters/messaging/senders.ts",
+        "apps/web/src/server/http/errors.ts",
+        "apps/web/src/adapters/webCrypto.ts",
+        "apps/web/src/adapters/cloudflare/rateLimit.ts",
+        "apps/web/src/features/organisation/server/organisation.ts",
+        "apps/web/src/features/admission/server/admission.ts",
+        "apps/web/src/features/panel/server/shell.ts",
+        "apps/web/src/server/features/site/**",
+        "apps/web/src/adapters/turnstile.ts",
+        "apps/web/src/server/background/outbox/delivery.ts",
+        "apps/web/src/server/background/outbox/accountDelivery.ts",
+        "apps/web/src/features/contact/server/contact.ts",
+        "apps/web/src/features/personal-data/server/personalData.ts",
+        "apps/web/src/server/http/scope.ts",
         "apps/web/src/server/deployment.ts",
-        "apps/web/src/server/env.ts",
-        "apps/web/src/server/outcomeStatus.ts",
+        "apps/web/src/server/http/env.ts",
+        "apps/web/src/server/http/outcomeStatus.ts",
       ],
       platform: "portable",
       role: "application",
@@ -100,7 +103,7 @@ const effectConfig: EffectConfigInput = {
       strictness: "strict",
     },
     {
-      files: ["apps/web/src/lib/authClient.ts"],
+      files: ["apps/web/src/features/accounts/client.ts"],
       platform: "browser",
       role: "composition-root",
       strictness: "strict",
@@ -112,8 +115,8 @@ const effectConfig: EffectConfigInput = {
         "apps/web/src/routes/auth/confirm.ts",
         "apps/web/src/server/authStartup.ts",
         "apps/web/src/server/runtime.ts",
-        "apps/web/src/server/contactPost.ts",
-        "apps/web/src/server/admissionPost.ts",
+        "apps/web/src/features/contact/server/contactPost.ts",
+        "apps/web/src/features/admission/server/admissionPost.ts",
         "apps/web/src/server/accountPost.ts",
       ],
       platform: "portable",
@@ -211,17 +214,17 @@ const effectConfig: EffectConfigInput = {
     },
     {
       files: [
-        "packages/domain/test/cms/collections.test.ts",
+        "apps/web/test/domain/cms/collections.test.ts",
         "apps/web/test/textSlots.test.ts",
         "tools/docgen/test/render.test.ts",
         "tools/docgen/test/storeGuarantees.test.ts",
         "tools/docgen/test/databasePlatforms.test.ts",
         "tools/effx-conformance/test/conformance.test.ts",
-        "packages/db/test/accounts.postgres.test.ts",
-        "packages/db/test/adminList.postgres.test.ts",
-        "packages/db/test/companyAddressMigration.postgres.test.ts",
-        "packages/db/test/personalDataAlumni.postgres.test.ts",
-        "packages/db/test/platformConstructs.test.ts",
+        "apps/web/test/db/accounts.postgres.test.ts",
+        "apps/web/test/db/adminList.postgres.test.ts",
+        "apps/web/test/db/companyAddressMigration.postgres.test.ts",
+        "apps/web/test/db/personalDataAlumni.postgres.test.ts",
+        "apps/web/test/db/platformConstructs.test.ts",
         "apps/web/test/support/workerRuntime.ts",
       ],
       platform: "node",
@@ -266,6 +269,7 @@ for (const name of effectAntiSlopRuleNames) {
   localAntiSlopRules[`anti-slop-effect/${name}`] = "error";
 }
 
+// Application paths imported by tools are governed precisely by moduleGraph units.toolPaths.
 const restrictedSourcePatterns = [
   {
     message:
@@ -275,7 +279,7 @@ const restrictedSourcePatterns = [
   {
     message:
       "Import another workspace package through its export map, not its source path.",
-    regex: "^(?:\\./|(?:\\.\\./)+)(?:apps|packages|tools)/[^/]+/src(?:/|$)",
+    regex: "^(?:\\./|(?:\\.\\./)+)(?:packages|tools)/[^/]+/src(?:/|$)",
   },
 ];
 
@@ -283,12 +287,12 @@ export default defineConfig({
   fmt: {
     ...ultraciteFmt,
     // The router-generated tree is recreated during development and builds. The descriptions, vectors and
-    // registers of `packages/domain/conformance` by `tools/effx-conformance`; formatting them would make the next
+    // registers of `apps/web/conformance` by `tools/effx-conformance`; formatting them would make the next
     // regeneration differ from what is committed.
     ignorePatterns: [
       ...(ultraciteFmt.ignorePatterns ?? []),
       "apps/web/src/routeTree.gen.ts",
-      "packages/domain/conformance/**",
+      "apps/web/conformance/**",
     ],
   },
   lint: {
@@ -321,7 +325,7 @@ export default defineConfig({
       // Plugin 0.2.0 does not reset rules absent from a later overlapping role. These are real framework roots.
       {
         files: [
-          "apps/web/src/lib/authClient.ts",
+          "apps/web/src/features/accounts/client.ts",
           "apps/web/src/routes/aktiver.tsx",
           "apps/web/src/routes/auth/confirm.ts",
         ],
@@ -333,23 +337,26 @@ export default defineConfig({
       // Persisted wire-format expectations must remain independent of the constructors they verify.
       {
         files: [
-          "packages/db/test/personalDataErasure.postgres.test.ts",
-          "packages/db/test/personalDataMerge.postgres.test.ts",
-          "packages/db/test/retentionCascade.postgres.test.ts",
-          "packages/domain/test/outbox/messages.test.ts",
+          "apps/web/test/db/personalDataErasure.postgres.test.ts",
+          "apps/web/test/db/personalDataMerge.postgres.test.ts",
+          "apps/web/test/db/retentionCascade.postgres.test.ts",
+          "apps/web/test/domain/outbox/messages.test.ts",
         ],
         rules: { "anti-slop-effect/no-manual-tagged-construction": "off" },
       },
       // No import cycle between files of a package, type-only imports included (ADR 0015, stage 1). The files and the
       // cycles that `tools/quality/checkModuleGraph.ts` looks for are the declaration's `acyclic` globs.
       {
-        files: ["packages/**"],
+        files: [
+          "apps/web/src/domain/**",
+          "apps/web/src/features/**/domain/**",
+          "apps/web/src/adapters/db/**",
+        ],
         rules: { "import/no-cycle": ["error", { ignoreTypes: false }] },
       },
-      // A package beside `packages/db` reaches the adapter as `../../db/…` (spec 0017); `boundaryOverrides` below
-      // replace this for the files that an allowance covers, `packages/db/**` among them.
+      // Boundary allowances below replace the default restrictions for specific files.
       {
-        files: ["packages/**"],
+        files: ["apps/web/src/**"],
         rules: {
           "no-restricted-imports": [
             "error",
@@ -363,7 +370,7 @@ export default defineConfig({
         },
       },
       {
-        files: ["packages/domain/**"],
+        files: ["apps/web/src/domain/**", "apps/web/src/features/**/domain/**"],
         rules: {
           "no-restricted-imports": [
             "error",
@@ -389,16 +396,17 @@ export default defineConfig({
       {
         // The domain's Effect Schema declarations intentionally export both a runtime value and a same-named type (TypeScript itself rejects every other redeclaration).
         files: [
-          "packages/domain/src/**",
-          "packages/db/src/repositories/outbox.ts",
+          "apps/web/src/domain/**",
+          "apps/web/src/features/**/domain/**",
+          "apps/web/src/adapters/db/repositories/outbox.ts",
           "tools/import/src/config.ts",
           "apps/web/src/server/deployment.ts",
           "tools/import/src/legacy/rows.ts",
           "tools/import/src/report.ts",
-          "packages/db/src/schema.ts",
-          "packages/domain/src/cms/portableText.ts",
-          "packages/domain/src/cms/collections.ts",
-          "packages/domain/src/cms/client.ts",
+          "apps/web/src/adapters/db/schema.ts",
+          "apps/web/src/features/cms/domain/portableText.ts",
+          "apps/web/src/features/cms/domain/collections.ts",
+          "apps/web/src/features/cms/domain/client.ts",
           "tools/import/src/emdash/report.ts",
           "tools/import/src/emdash/write.ts",
         ],
@@ -409,21 +417,21 @@ export default defineConfig({
       {
         // These framework entry callbacks return the Effect runtime's Promise; requiring async wrappers conflicts with the Effect async-function rule.
         files: [
-          "apps/web/src/functions/public.functions.ts",
-          "apps/web/src/functions/content.functions.ts",
+          "apps/web/src/features/site/server/functions.ts",
+          "apps/web/src/features/cms/server/functions.ts",
           "apps/web/src/components/forms.tsx",
           "apps/web/src/components/form/commandForm.tsx",
           "apps/web/src/components/form/useConstructForm.ts",
           "apps/web/src/routes/filer/$key.ts",
           "apps/web/src/routes/kontakt/*.tsx",
           "apps/web/src/routes/soknad/*.tsx",
-          "apps/web/src/functions/panel.functions.ts",
-          "apps/web/src/functions/account.functions.ts",
-          "apps/web/src/functions/personalData.functions.ts",
+          "apps/web/src/features/panel/server/functions.ts",
+          "apps/web/src/features/accounts/server/functions.ts",
+          "apps/web/src/features/personal-data/server/functions.ts",
           "apps/web/src/routes/nyhet/$slug.tsx",
           "apps/web/src/routes/nyheter/index.tsx",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
-          "apps/web/src/server/panel.ts",
+          "apps/web/src/features/organisation/server/organisation.ts",
           "apps/web/src/routes/*.tsx",
           "apps/web/src/routes/team/**",
           "apps/web/src/routes/kontrollpanel/**",
@@ -436,13 +444,14 @@ export default defineConfig({
       {
         // unicorn/throw-new-error treats Schema.TaggedError class definitions as throw sites; they contain no throw.
         files: [
-          "packages/domain/src/shared/errors.ts",
+          "apps/web/src/domain/errors.ts",
           "tools/prototype/seed.ts",
-          "packages/domain/src/shared/integrationGuard.ts",
+          "apps/web/src/domain/transactions/integrationGuard.ts",
+          "apps/web/src/http/requestError.ts",
           "tools/import/src/config.ts",
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
-          "packages/domain/src/organisation/legacyImport.ts",
+          "apps/web/src/features/organisation/domain/legacyImport.ts",
           "tools/import/src/report.ts",
           "tools/quality/checkEffectExceptions.ts",
           "tools/quality/checkStoreBoundary.ts",
@@ -452,16 +461,16 @@ export default defineConfig({
           "tools/db-path-spike/src/worker/http.ts",
           "tools/db-path-spike/src/smoke.ts",
           "tools/db-path-spike/src/smoke/refused.ts",
-          "apps/web/src/server/authError.ts",
-          "apps/web/src/server/deliveryClaimLost.ts",
+          "apps/web/src/server/identity/authError.ts",
+          "apps/web/src/server/background/outbox/deliveryClaimLost.ts",
           "apps/web/e2e/run.ts",
           "apps/web/e2e/support/devServer.ts",
           "apps/web/e2e/support/command.ts",
-          "packages/domain/src/cms/client.ts",
+          "apps/web/src/features/cms/domain/client.ts",
           "tools/import/src/reportFiles.ts",
           "tools/import/src/emdash/pipeline.ts",
           "apps/cms/scripts/checkBundle.ts",
-          "packages/db/src/aggregate/defects.ts",
+          "apps/web/src/adapters/db/aggregate/defects.ts",
         ],
         rules: {
           "unicorn/throw-new-error": "off",
@@ -470,8 +479,8 @@ export default defineConfig({
       {
         // max-classes-per-file conflicts with a closed typed-error set: the domain's errors, and the lock construct's four defects.
         files: [
-          "packages/domain/src/shared/errors.ts",
-          "packages/db/src/aggregate/defects.ts",
+          "apps/web/src/domain/errors.ts",
+          "apps/web/src/adapters/db/aggregate/defects.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
@@ -479,8 +488,7 @@ export default defineConfig({
         // Effect Data tagged variants use this exact empty payload representation; the type rule resolves it to {}. The
         // integration-port type test pins that a requirement bound of `{}` admits every service (spec 0020), so it names it.
         files: [
-          "packages/domain/src/shared/capabilities.ts",
-          "packages/domain/test/shared/integrationPorts.types.test.ts",
+          "apps/web/test/domain/shared/integrationPorts.types.test.ts",
           "tools/import/src/transform/legacyPath.ts",
         ],
         rules: { "typescript/no-generated-empty-object-type": "off" },
@@ -488,8 +496,8 @@ export default defineConfig({
       {
         // Promise lint misreads Effect.catch, Effect.flatMap and Effect.catchIf callbacks as native Promise chains.
         files: [
-          "packages/db/src/classifySqlFailure.ts",
-          "packages/db/src/transactional.ts",
+          "apps/web/src/adapters/db/classifySqlFailure.ts",
+          "apps/web/src/adapters/db/transactional.ts",
           "tools/db-path-spike/src/worker/checks.ts",
           "tools/db-path-spike/src/worker/http.ts",
           "tools/db-path-spike/src/smoke/client.ts",
@@ -498,51 +506,42 @@ export default defineConfig({
       },
       {
         // Drizzle rows remain unknown until Schema.decodeUnknownEffect validates them at this adapter boundary.
-        files: ["packages/db/src/internal/drizzle.ts"],
+        files: ["apps/web/src/adapters/db/internal/drizzle.ts"],
         rules: { "anti-slop/no-unknown-parameters": "off" },
       },
       {
         // Drizzle's SQL error wrapper is foreign; this classifier narrows its unknown input with isSqlError and Cause guards.
-        files: ["packages/db/src/classifySqlFailure.ts"],
+        files: ["apps/web/src/adapters/db/classifySqlFailure.ts"],
         rules: { "anti-slop/no-unknown-parameters": "off" },
       },
       {
         // The command endpoint and the input decoders own untrusted request decoding through the command's schema; this rule cannot see decodeInput inside the boundary.
         files: [
-          "packages/domain/src/kernel/commands.ts",
-          "packages/domain/src/shared/validation.ts",
+          "apps/web/src/domain/kernel/commands.ts",
+          "apps/web/src/domain/validation.ts",
         ],
         rules: { "anti-slop/no-unknown-parameters": "off" },
       },
       {
         // Context.Service contracts are grouped by bounded context; max-classes-per-file would fragment these service modules.
         files: [
-          "packages/domain/src/content/services.ts",
-          "packages/domain/src/files/services.ts",
+          "apps/web/src/features/events/domain/services.ts",
+          "apps/web/src/features/files/domain/services.ts",
           // EX-0031: related service contracts share their owning module.
-          "packages/domain/src/jobs/runs.ts",
-          "packages/domain/src/organisation/services.ts",
-          "packages/domain/src/personalData/services.ts",
-          "packages/domain/src/teams/services.ts",
+          "apps/web/src/domain/jobs/runs.ts",
+          "apps/web/src/features/organisation/domain/services.ts",
+          "apps/web/src/features/personal-data/domain/services.ts",
+          "apps/web/src/features/teams/domain/services.ts",
           // EX-0031: related service contracts share their owning module.
-          "packages/domain/src/workspace/services.ts",
+          "apps/web/src/features/workspace/domain/services.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
       {
-        // These documented workspace entry points intentionally re-export their public API.
-        files: [
-          "packages/db/src/index.ts",
-          "packages/domain/src/index.ts",
-          "packages/domain/src/cms/index.ts",
-        ],
-        rules: { "oxc/no-barrel-file": "off" },
-      },
-      {
         // The transport error types and service form one cohesive adapter contract.
         files: [
-          "apps/web/src/server/senders.ts",
-          "packages/domain/src/cms/client.ts",
+          "apps/web/src/adapters/messaging/senders.ts",
+          "apps/web/src/features/cms/domain/client.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
@@ -551,7 +550,7 @@ export default defineConfig({
         files: [
           "tools/import/src/legacy/source.ts",
           "tools/import/src/files.ts",
-          "packages/domain/src/organisation/legacyImport.ts",
+          "apps/web/src/features/organisation/domain/legacyImport.ts",
         ],
         rules: { "max-classes-per-file": "off" },
       },
@@ -571,10 +570,10 @@ export default defineConfig({
           "apps/web/src/server.ts",
           "tools/prototype/seed.ts",
           "apps/web/src/server/runtime.ts",
-          "apps/web/src/server/contactPost.ts",
-          "apps/web/src/server/admissionPost.ts",
+          "apps/web/src/features/contact/server/contactPost.ts",
+          "apps/web/src/features/admission/server/admissionPost.ts",
           "apps/web/src/server/accountPost.ts",
-          "apps/web/src/server/auth.ts",
+          "apps/web/src/server/identity/auth.ts",
           "apps/web/src/server/password.ts",
           "apps/web/test/auth.postgres.test.ts",
           "apps/web/test/isolation.postgres.test.ts",
@@ -592,14 +591,13 @@ export default defineConfig({
           "apps/web/test/formRender.test.tsx",
           "apps/web/test/formAgreement.test.ts",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
-          "apps/web/src/server/fileStore.ts",
-          "apps/web/src/server/rateLimit.ts",
-          "apps/web/src/server/senders.ts",
-          "apps/web/src/server/outboxPublisher.ts",
-          "apps/web/test/outboxQueue.postgres.test.ts",
+          "apps/web/src/adapters/supabase/storage.ts",
+          "apps/web/src/adapters/cloudflare/rateLimit.ts",
+          "apps/web/src/adapters/messaging/senders.ts",
+          "apps/web/src/server/background/outbox/publisher.ts",
           "apps/web/test/support/fakeQueue.ts",
           "apps/web/test/outboxPublisher.test.ts",
-          "apps/web/src/server/webCrypto.ts",
+          "apps/web/src/adapters/webCrypto.ts",
           "apps/web/src/routes/*.tsx",
           "apps/web/src/routes/team/**",
           "apps/web/src/routes/nyheter/index.tsx",
@@ -615,7 +613,7 @@ export default defineConfig({
           "apps/web/src/components/form/commandForm.tsx",
           "apps/web/src/components/form/useConstructForm.ts",
           "apps/web/src/components/panel/testActorSwitch.tsx",
-          "apps/web/src/server/outcomeStatus.ts",
+          "apps/web/src/server/http/outcomeStatus.ts",
           "tools/db-path-spike/src/worker.ts",
           "apps/web/e2e/support/probes.ts",
           "apps/cms/scripts/checkBundle.ts",
@@ -628,13 +626,13 @@ export default defineConfig({
       },
       {
         // The Web Crypto adapter implements Effect's Crypto service using the Worker runtime capability.
-        files: ["apps/web/src/server/webCrypto.ts"],
+        files: ["apps/web/src/adapters/webCrypto.ts"],
         rules: { "effect/no-ambient-authority": "off" },
       },
       {
         // TanStack loaders signal not-found, redirects and page failures by throwing host control-flow objects.
         files: [
-          "apps/web/src/lib/outcome.ts",
+          "apps/web/src/http/outcome.ts",
           "apps/web/src/routes/kontakt/avdeling/$id.tsx",
           "apps/web/src/routes/etter-innlogging.tsx",
         ],
@@ -650,20 +648,19 @@ export default defineConfig({
       },
       {
         // Typed error serialization is the existing synchronous Schema bridge.
-        files: ["apps/web/src/server/errors.ts"],
+        files: ["apps/web/src/server/http/errors.ts"],
         rules: { "effecttsgo/schema-sync": "off" },
       },
       {
         // Effect.promise takes a thunk. typescript/promise-function-async needs that thunk to be async, while effecttsgo/async-function rejects every async function, so the two rules cannot both hold at a Promise boundary. Test files only: they drive platform Promise surfaces (Response bodies, the SendEmail binding, AbortController, Playwright's browser API).
         files: [
+          // EX-0027: Vitest owns the asynchronous module re-evaluation.
+          "apps/web/test/domain/personalData/basesApproval.test.ts",
           "apps/web/test/contact.test.ts",
           // EX-0028: the delivery test calls the Promise-based command runtime.
           "apps/web/test/deliveryBoundary.postgres.test.ts",
           // EX-0028 (spec 0017): the scope test calls the Promise-based runners, and its stand-in rate-limit binding answers a Promise.
-          "apps/web/test/deliveryScope.postgres.test.ts",
           "apps/web/test/admission.postgres.test.ts",
-          "apps/web/test/support/workerEnv.ts",
-          "apps/web/test/outboxQueue.postgres.test.ts",
           "apps/web/test/support/commandOutcome.ts",
           "apps/web/test/support/diagnosticRoute.ts",
           "apps/web/test/support/fakeQueue.ts",
@@ -701,12 +698,12 @@ export default defineConfig({
       {
         // Schema.TaggedError's class factory is the established Effect error constructor, not a thrown unconstructed error.
         files: [
-          "apps/web/src/lib/outcome.ts",
-          "apps/web/src/server/errors.ts",
-          "apps/web/src/server/senders.ts",
+          "apps/web/src/http/outcome.ts",
+          "apps/web/src/server/http/errors.ts",
+          "apps/web/src/adapters/messaging/senders.ts",
           // EX-0031: these Effect error constructors are not throw sites.
-          "packages/domain/src/jobs/runs.ts",
-          "packages/domain/src/workspace/services.ts",
+          "apps/web/src/domain/jobs/runs.ts",
+          "apps/web/src/features/workspace/domain/services.ts",
         ],
         rules: { "unicorn/throw-new-error": "off" },
       },
@@ -720,8 +717,8 @@ export default defineConfig({
       {
         // Deferred.succeed requires an explicit void payload; dropping it returns a curried function.
         files: [
-          "packages/db/test/concurrency.postgres.test.ts",
-          "packages/db/test/transactions.postgres.test.ts",
+          "apps/web/test/db/concurrency.postgres.test.ts",
+          "apps/web/test/db/transactions.postgres.test.ts",
         ],
         rules: {
           "unicorn/no-useless-undefined": "off",

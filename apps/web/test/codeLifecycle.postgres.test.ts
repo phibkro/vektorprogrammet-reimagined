@@ -22,30 +22,6 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  IssueCodeMessage,
-  Outbox,
-  CapturedMessageStore,
-  CodeToken,
-  EmailAddress,
-  IntegrationCalledInTransaction,
-  OutboxMessage,
-  PersonId,
-  OutboxDelivery,
-  codePrincipal,
-  refusingInTransaction,
-} from "@vektorprogrammet/domain";
-import type {
-  AggregateLocks,
-  PersonRepository,
-  SiteOrigin,
-  Transactor,
-  AccountRepository,
-  CodePurpose,
-  CodeRepository,
-  TransportMessage,
-  OutboxMessageId,
-} from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Cause,
   Deferred,
@@ -61,15 +37,37 @@ import {
 import type { Crypto } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { MessageSender } from "../src/adapters/messaging/senders";
+import type { DeliveryFailed } from "../src/adapters/messaging/senders";
+import { PersonId } from "../src/domain/ids";
+import type { OutboxMessageId } from "../src/domain/ids";
+import { CapturedMessageStore } from "../src/domain/outbox/captured";
+import { OutboxDelivery } from "../src/domain/outbox/delivery";
+import { OutboxMessage } from "../src/domain/outbox/messages";
+import { Outbox } from "../src/domain/outbox/outbox";
+import type { TransportMessage } from "../src/domain/outbox/outbox";
+import type { SiteOrigin } from "../src/domain/siteOrigin";
+import type { AggregateLocks } from "../src/domain/transactions/aggregate";
+import {
+  IntegrationCalledInTransaction,
+  refusingInTransaction,
+} from "../src/domain/transactions/integrationGuard";
+import type { Transactor } from "../src/domain/transactions/transactor";
+import { EmailAddress } from "../src/domain/validation";
+import { CodeToken } from "../src/features/accounts/domain/code";
+import type { CodePurpose } from "../src/features/accounts/domain/code";
+import type { CodeRepository } from "../src/features/accounts/domain/codeRepository";
+import { IssueCodeMessage } from "../src/features/accounts/domain/messages";
+import { codePrincipal } from "../src/features/accounts/domain/principal";
+import type { AccountRepository } from "../src/features/accounts/domain/services";
+import type { PersonRepository } from "../src/features/teams/domain/services";
 import {
   AccountDelivery,
   accountDeliveryLayer,
-} from "../src/server/accountDelivery";
-import { Auth } from "../src/server/auth";
-import type { AuthBoundaryFailure } from "../src/server/authError";
-import { deliverOutbox } from "../src/server/outboxDelivery";
-import { MessageSender } from "../src/server/senders";
-import type { DeliveryFailed } from "../src/server/senders";
+} from "../src/server/background/outbox/accountDelivery";
+import { deliverOutbox } from "../src/server/background/outbox/delivery";
+import { Auth } from "../src/server/identity/auth";
+import type { AuthBoundaryFailure } from "../src/server/identity/authError";
 import { liveWith } from "./support/deliveryLive";
 import { transacted } from "./support/transacted";
 

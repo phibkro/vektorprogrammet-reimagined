@@ -1,19 +1,19 @@
 import { assert, describe, it } from "@effect/vitest";
-import { SlackChannel } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Layer, Predicate } from "effect";
 
-import {
-  contactCommand,
-  prepareHuman,
-  readContactSubmission,
-} from "../src/server/contact";
-import { contactRateLimiterTestLayer } from "../src/server/rateLimit";
-import { runCommandOutcome } from "../src/server/runtime";
+import { contactRateLimiterTestLayer } from "../src/adapters/cloudflare/rateLimit";
 import {
   CAPTCHA_FIELD,
   TURNSTILE_RESPONSE_FIELD,
   turnstileTestLayer,
-} from "../src/server/turnstile";
+} from "../src/adapters/turnstile";
+import { SlackChannel } from "../src/domain/outbox/outbox";
+import {
+  contactCommand,
+  prepareHuman,
+  readContactSubmission,
+} from "../src/features/contact/server/contact";
+import { runCommandOutcome } from "../src/server/runtime";
 import {
   form,
   fakeDepartment,

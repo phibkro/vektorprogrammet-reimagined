@@ -13,7 +13,7 @@
 (*     that record.                                                        *)
 (*   - what POSTGRESQL does: everything below. Each action is one step     *)
 (*     that another transaction can interleave with; the probes in         *)
-(*     packages/db/test/membershipWriteModel.postgres.test.ts show each of *)
+(*     apps/web/test/db/membershipWriteModel.postgres.test.ts show each of *)
 (*     them on a real database.                                            *)
 (*                                                                         *)
 (* A transaction runs one command. The command is a list of statements    *)

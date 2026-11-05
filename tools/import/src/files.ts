@@ -1,5 +1,3 @@
-import { detectContentType, fileKeyFor } from "@vektorprogrammet/domain";
-import type { FileKey, StoredContentType } from "@vektorprogrammet/domain";
 /**
  * Legacy file bytes and their content-addressed keys.
  *
@@ -23,6 +21,13 @@ import {
   Schema,
 } from "effect";
 import { encode as hexEncode } from "effect/encoding/Hex";
+
+import type { FileKey } from "../../../apps/web/src/domain/ids.ts";
+import {
+  detectContentType,
+  fileKeyFor,
+} from "../../../apps/web/src/features/files/domain/fileType.ts";
+import type { StoredContentType } from "../../../apps/web/src/features/files/domain/fileType.ts";
 
 export class LegacyFilesError extends Schema.TaggedError<
   LegacyFilesError,

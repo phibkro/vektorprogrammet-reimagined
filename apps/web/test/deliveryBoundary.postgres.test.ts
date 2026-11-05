@@ -11,23 +11,6 @@
  * key, which keeps it twice.
  */
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-  withClient,
-} from "@vektorprogrammet/db/testing";
-import {
-  Outbox,
-  OutboxDelivery,
-  OutboxMessage,
-  SlackTarget,
-  Transactor,
-} from "@vektorprogrammet/domain";
-import type {
-  OutboxMessageId,
-  TransportMessage,
-} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   DateTime,
@@ -40,9 +23,24 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { AccountDelivery } from "../src/server/accountDelivery";
-import { deliverOutbox } from "../src/server/outboxDelivery";
-import { MessageSender, captureSenderLayer } from "../src/server/senders";
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
+import {
+  MessageSender,
+  captureSenderLayer,
+} from "../src/adapters/messaging/senders";
+import type { OutboxMessageId } from "../src/domain/ids";
+import { OutboxDelivery } from "../src/domain/outbox/delivery";
+import { OutboxMessage } from "../src/domain/outbox/messages";
+import { Outbox, SlackTarget } from "../src/domain/outbox/outbox";
+import type { TransportMessage } from "../src/domain/outbox/outbox";
+import { Transactor } from "../src/domain/transactions/transactor";
+import { AccountDelivery } from "../src/server/background/outbox/accountDelivery";
+import { deliverOutbox } from "../src/server/background/outbox/delivery";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+  withClient,
+} from "./db/support/disposableDatabase";
 import { email, requestOutcome } from "./support/commandOutcome";
 import { deliverPending } from "./support/deliveryLive";
 import { rowsIn as countRows } from "./support/rowCount";
@@ -239,6 +237,9 @@ layer(live, { excludeTestServices: true })(
             const [mailId, slackId] = yield* (yield* Transactor).run(
               (yield* Outbox).enqueue([email, slack])
             );
+
+            assert.isDefined(mailId);
+            assert.isDefined(slackId);
 
             const crashed = yield* crashingDelivery(captureSenderLayer);
 

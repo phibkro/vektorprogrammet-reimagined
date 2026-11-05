@@ -3,9 +3,9 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/domain";
 import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
 
+import { LOCAL_FAKE_PASSWORD } from "../test/fixtures/localPeople";
 import { openPage, screenshot, signIn } from "./support/panel.ts";
 import {
   LEGACY_FILE_KEY,

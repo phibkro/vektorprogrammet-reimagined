@@ -12,7 +12,7 @@ legacy MySQL (SELECT-only legacy_reader, one snapshot)
 
 The organisation importer refuses accounts, codes, consents and durable integration activity. It cannot restore credentials, consent records or notification history. Account migration belongs to spec 0013.
 
-The importer does not import the database driver: `src/pipeline.ts` is its composition root, and it builds `ImportDatabaseLive` (`@vektorprogrammet/db`) for the domain's `ImportTarget` port (`packages/domain/src/organisation/legacyImport.ts`). The adapter, with the truncate list, is `packages/db/src/repositories/legacyImport.ts` (spec 0017).
+The importer does not import the database driver: `src/pipeline.ts` is its composition root, and it builds `ImportDatabaseLive` for the domain's `ImportTarget` port (`apps/web/src/features/organisation/domain/legacyImport.ts`). The adapter, with the truncate list, is `apps/web/src/adapters/db/repositories/legacyImport.ts` (spec 0017).
 
 ## Authority
 
@@ -44,7 +44,7 @@ Keep the direct PostgreSQL connection string in a private file named by `IMPORT_
 Apply the migrations before the import:
 
 ```sh
-devenv shell -- bash -c 'cd packages/db && DATABASE_URL="$(cat "$IMPORT_TARGET_URL_FILE")" bunx drizzle-kit migrate'
+devenv shell -- bash -c 'cd apps/web && DATABASE_URL="$(cat "$IMPORT_TARGET_URL_FILE")" bunx drizzle-kit migrate'
 ```
 
 Import organisation data before seed accounts or provider identities. `prototype:setup` already creates accounts, so its database is not an empty import target.
@@ -139,7 +139,7 @@ devenv shell -- bash -c 'cd tools/import && bunx vp test'    # round trip agains
 devenv shell -- bash -c 'cd tools/import && bunx vp check'   # format, lint, type check
 ```
 
-The round trip creates a uniquely named MySQL database with `mysql -uroot` over `$MYSQL_UNIX_PORT`, loads the Phase 1 `CREATE TABLE` statements from `test/fixtures/legacy-phase1-schema.sql` (vendored verbatim from the production structure-only dump; source and checksum in its header) plus FAKE rows (`test/support/fixture.ts`), and grants `legacy_reader` SELECT on it, so the importer reads through the same SELECT-only user as in production. The PostgreSQL target is the migrated disposable database of `@vektorprogrammet/db/testing` (`vp_db_test_<random>`, created through `$TEST_DATABASE_ADMIN_URL` and migrated from `packages/db/drizzle/`). Both are dropped afterwards. The first test runs the CLI (`bun src/main.ts`) exactly as the runbook does.
+The round trip creates a uniquely named MySQL database with `mysql -uroot` over `$MYSQL_UNIX_PORT`, loads the Phase 1 `CREATE TABLE` statements from `test/fixtures/legacy-phase1-schema.sql` (vendored verbatim from the production structure-only dump; source and checksum in its header) plus FAKE rows (`test/support/fixture.ts`), and grants `legacy_reader` SELECT on it, so the importer reads through the same SELECT-only user as in production. The PostgreSQL target is a disposable database (`vp_db_test_<random>`, created through `$TEST_DATABASE_ADMIN_URL` and migrated from `apps/web/drizzle/`). Both are dropped afterwards. The first test runs the CLI (`bun src/main.ts`) exactly as the runbook does.
 
 `bun run import:fixture` (`test/support/importFixture.ts`) imports that same FAKE fixture into an already migrated database named by `IMPORT_TARGET_DATABASE_URL`, with the same `runImport` and `importLayer`, and drops the throwaway MySQL database again. It refuses the development database like the CLI does. The `apps/web` browser tests use it to start on migrated data.
 

@@ -1,12 +1,12 @@
+import type { Result } from "effect";
+import { Array as Arr } from "effect";
+
 /**
  * The generated blocks of `docs/system/impact.md` (spec 0027 D10): the measures with their definitions, the grains and
  * their audiences, the minimum with its approval, and how the cells of a lattice relate. Pure, like the other renderers:
  * the declarations go in, the page comes out, and the check compares it with the committed one.
  */
-import { ImpactMeasures } from "@vektorprogrammet/domain";
-import type { Result } from "effect";
-import { Array as Arr } from "effect";
-
+import * as ImpactMeasures from "../../../apps/web/src/features/impact/domain/measures.ts";
 import { checkRendered, replaceBlocks, table } from "./render.ts";
 
 /** What the page is made of: the real declarations, or changed ones in the tests that show a changed declaration changes it. */

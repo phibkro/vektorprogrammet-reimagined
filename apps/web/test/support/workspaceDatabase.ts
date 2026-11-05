@@ -1,10 +1,10 @@
-import { DatabaseLive } from "@vektorprogrammet/db";
+import { Effect, Layer } from "effect";
+
+import { DatabaseLive } from "../../src/adapters/db/databaseLive";
 import {
   TestDatabaseUrl,
   migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import { Effect, Layer } from "effect";
-
+} from "../db/support/disposableDatabase";
 import { recordingPublisher } from "./publications";
 
 /** The real PostgreSQL repositories and transactor for Workspace tests, with a publisher that records what a chunk published. */

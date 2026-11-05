@@ -1,8 +1,11 @@
 /** Writing a plan to the CMS: create then publish, a rerun that changes nothing, refusals, and an unreachable CMS. */
 import { assert, describe, it } from "@effect/vitest";
-import { CmsRejected, CmsUnavailable } from "@vektorprogrammet/domain/cms";
 import { DateTime, Effect, Option } from "effect";
 
+import {
+  CmsRejected,
+  CmsUnavailable,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
 import { planEmDashContent } from "../../src/emdash/plan.ts";
 import { writeContent } from "../../src/emdash/write.ts";
 import type { LegacySnapshot } from "../../src/legacy/rows.ts";

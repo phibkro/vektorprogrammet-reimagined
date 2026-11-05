@@ -6,9 +6,10 @@ import {
   Divider,
   FaqSection,
 } from "@/components/site/pageParts";
-import { PortableTextView } from "@/components/site/portableTextView";
-import { getAssistantsPage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+
+import { PortableTextView } from "../features/cms/components/portableTextView";
+import { getAssistantsPage } from "../features/site/server/functions";
+import { pageData } from "../http/outcome";
 
 const routeApi = getRouteApi("/assistenter");
 

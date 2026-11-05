@@ -15,7 +15,7 @@ devenv shell -- bun run prototype:setup
 devenv shell -- bun run prototype:dev
 ```
 
-Open http://localhost:3000/logg-inn. Synthetic accounts are declared in [`localPeople.ts`](../../packages/domain/src/localPeople.ts). Use a fresh synthetic Supabase database for the hybrid migration chain. Upgrading an existing prototype database has not been rehearsed and is not supported; do not reset the interactive prototype. Setup refuses remote database/API targets.
+Open http://localhost:3000/logg-inn. Synthetic accounts are declared in [`localPeople.ts`](test/fixtures/localPeople.ts). Use a fresh synthetic Supabase database for the hybrid migration chain. Upgrading an existing prototype database has not been rehearsed and is not supported; do not reset the interactive prototype. Setup refuses remote database/API targets.
 
 The application does not accept a test-actor cookie. Sign in through real local Supabase Auth. Supabase CLI's development keys are publicly shared defaults; ports may be bound beyond loopback. Never use this stack for real personal data or production credentials. Local Auth email is captured by the CLI's Mailpit service; application invitations and notifications use the non-production capture store.
 
@@ -35,6 +35,20 @@ The application does not accept a test-actor cookie. Sign in through real local 
 Secret values are local runtime variables, never Vite browser variables. Standalone production builds contain empty database/secret bindings; Terraform supplies deployed values. Optional production mail, Slack and Workspace capabilities remain explicit operator-controlled integrations, not part of a safe synthetic deployment.
 
 ## Request and data boundaries
+
+The app-local organisation is described in [spec 0030](../../docs/specs/0030-app-local-feature-organisation.md). Its decisions are provisional pending operator approval.
+
+| Location | Responsibility |
+| --- | --- |
+| `src/features/<feature>/` | Feature domain, functions, forms and components |
+| `src/domain/` | Shared kernel, declarations, outbox and jobs |
+| `src/adapters/db/` | Database implementation; migrations in `drizzle/` and tests in `test/db/` |
+| `src/adapters/` | Provider integrations, including Supabase, storage, messaging, Turnstile, rate limiting, Workspace and Web Crypto |
+| `src/server/` | Composition, request identity, background execution and diagnostics |
+| `src/http/outcome.ts` | Shared client/server HTTP outcome |
+| `src/routes/` | TanStack routes |
+
+Business rules and grant declarations remain in the domain. Provider adapters do not import the composition root. Worker bindings are separate from feature-specific request state. Import concrete modules directly; do not add package barrels or shims.
 
 - Start server functions are the application's read/write entry points. Commands reuse the existing Effect domain rules and Drizzle/PostgreSQL transactions. Domain rows, audit and outbox intent commit together.
 - The shared Drizzle table factory enables RLS without browser-role policies on domain tables. Anonymous and authenticated Data API clients cannot bypass Worker authorization. Provider Auth and Storage schemas keep their native policies. Before a hosted release, inspect exposed definer functions and owner-privileged views separately.

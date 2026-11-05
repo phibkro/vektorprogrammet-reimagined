@@ -1,10 +1,11 @@
 import { Link, createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { NewsTeaser } from "@/components/site/newsParts";
 import { AdmissionStatus, greenButtonClass } from "@/components/site/pageParts";
-import { PortableTextView } from "@/components/site/portableTextView";
-import { getHomePage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+
+import { NewsTeaser } from "../features/cms/components/newsParts";
+import { PortableTextView } from "../features/cms/components/portableTextView";
+import { getHomePage } from "../features/site/server/functions";
+import { pageData } from "../http/outcome";
 
 const routeApi = getRouteApi("/");
 

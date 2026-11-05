@@ -21,8 +21,7 @@ const sourcePattern = /\.[cm]?[jt]sx?$/u;
 
 /**
  * The group of a module specifier written in the file `importer`. A relative specifier is also resolved against the
- * importer, so a package beside `packages/db` that writes `../../db/src/schema.ts` is found: resolved, that is
- * `packages/db/src/schema.ts`. Only the adapter is looked for in a resolved path, which names no package of its own.
+ * importer, so relative imports into the adapter or its test support are found even without an absolute path.
  */
 const groupOfImport = (
   importer: string,

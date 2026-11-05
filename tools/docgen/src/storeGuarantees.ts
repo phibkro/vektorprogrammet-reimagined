@@ -1,3 +1,16 @@
+import { Array as Arr, Record as Rec } from "effect";
+import type { Result } from "effect";
+
+import {
+  NonGuarantees,
+  StoreGuarantees,
+  portNameOf,
+} from "../../../apps/web/src/domain/store/guarantees.ts";
+import type {
+  Carrier,
+  Guarantee,
+  NonGuarantee,
+} from "../../../apps/web/src/domain/store/guarantees.ts";
 /**
  * The generated blocks of `docs/system/store-guarantees.md` (spec 0018): the guarantees as the domain declares them, what it
  * does not promise, and the transaction mode of every port method. Pure, like the other renderers: the declaration goes in,
@@ -5,20 +18,9 @@
  */
 import {
   CmsCollectionModes,
-  NonGuarantees,
-  StoreGuarantees,
   TransactionModes,
-  portNameOf,
-} from "@vektorprogrammet/domain";
-import type {
-  Carrier,
-  Guarantee,
-  NonGuarantee,
-  TransactionMode,
-} from "@vektorprogrammet/domain";
-import { Array as Arr, Record as Rec } from "effect";
-import type { Result } from "effect";
-
+} from "../../../apps/web/src/domain/store/transactionModes.ts";
+import type { TransactionMode } from "../../../apps/web/src/domain/store/transactionModes.ts";
 import { checkRendered, replaceBlocks, table } from "./render.ts";
 
 /** What the page is made of: the real declarations, or changed ones in the tests that show a changed declaration changes it. */

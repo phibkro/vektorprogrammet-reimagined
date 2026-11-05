@@ -1,3 +1,5 @@
+import { Array as Arr, Data, Effect, Result } from "effect";
+
 /**
  * Writes an `EmDashPlan` to the CMS through `CmsClient`, and reads the collections back.
  *
@@ -7,10 +9,11 @@
  * (`CmsRejected`, for example a department city that is not an option of `news.departments`): that is counted
  * with the CMS's error code and the run goes on. A CMS that cannot be reached stops the run.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/domain/cms";
-import type { Collection } from "@vektorprogrammet/domain/cms";
-import { Array as Arr, Data, Effect, Result } from "effect";
-
+import {
+  CmsClient,
+  CreateOutcome,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
+import type { Collection } from "../../../../apps/web/src/features/cms/domain/client.ts";
 import type { EmDashPlan, ImportedCollection, PlannedEntry } from "./plan.ts";
 
 /** The CMS refused an entry; only the operation and the CMS's error code are kept (never values). */

@@ -7,9 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getDashboard } from "@/functions/panel.functions";
-import { actorLabel } from "@/lib/actorLabel";
-import { pageData } from "@/lib/outcome";
+
+import { actorLabel } from "../../features/panel/actorLabel";
+import { getDashboard } from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/");
 

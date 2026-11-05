@@ -1,17 +1,15 @@
+import { Array as Arr, Effect, Layer, Option } from "effect";
+import type { Redacted } from "effect";
+
 /**
  * The command that two delivery test files run through the real request runtime (`runCommandOutcome`): it queues one
  * e-mail in the transaction that the runner opens, as the contact form does, and with `rollback` refuses after queueing.
  */
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  EmailAddress,
-  Outbox,
-  OutboxMessage,
-  validationFailed,
-} from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Layer, Option } from "effect";
-import type { Redacted } from "effect";
-
+import { DatabaseLive } from "../../src/adapters/db/databaseLive";
+import { validationFailed } from "../../src/domain/errors";
+import { OutboxMessage } from "../../src/domain/outbox/messages";
+import { Outbox } from "../../src/domain/outbox/outbox";
+import { EmailAddress } from "../../src/domain/validation";
 import { runCommandOutcome } from "../../src/server/runtime";
 
 export const email = OutboxMessage.cases.Email.make({

@@ -10,7 +10,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
-import { dashboardView } from "../src/server/panel";
+import { dashboardView } from "../src/features/organisation/server/organisation";
 import { makeTables, memoryLayer } from "./support/memory";
 import { ADMIN } from "./support/principals";
 // ---------------------------------------------------------------- RULE-033

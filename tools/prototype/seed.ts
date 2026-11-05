@@ -1,8 +1,6 @@
 import { NodeRuntime } from "@effect/platform-node";
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
-import { withClient } from "@vektorprogrammet/db/testing";
-import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Config,
@@ -12,6 +10,12 @@ import {
   Redacted,
   Schema,
 } from "effect";
+
+import { withClient } from "../../apps/web/test/db/support/disposableDatabase.ts";
+import {
+  LOCAL_FAKE_PASSWORD,
+  LOCAL_PEOPLE,
+} from "../../apps/web/test/fixtures/localPeople.ts";
 
 class SetupFailure extends Schema.TaggedError<
   SetupFailure,

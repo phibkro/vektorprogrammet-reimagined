@@ -1,8 +1,8 @@
 /** The CMS half of the import as a pure function: what each legacy row becomes, and why a row is refused. */
 import { assert, describe, it } from "@effect/vitest";
-import { PortableText } from "@vektorprogrammet/domain/cms";
 import { Array as Arr, DateTime, Schema } from "effect";
 
+import * as PortableText from "../../../../apps/web/src/features/cms/domain/portableText.ts";
 import { planEmDashContent } from "../../src/emdash/plan.ts";
 import type {
   LegacyArticle,

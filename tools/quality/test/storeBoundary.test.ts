@@ -46,21 +46,32 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     assert.isTrue(tests.test("apps/web/test/deep/er/auth.postgres.test.ts"));
     assert.isFalse(tests.test("apps/web/test/auth.test.ts"));
     assert.isFalse(tests.test("apps/web/src/auth.postgres.test.ts"));
-    assert.isTrue(globToRegExp("packages/db/**").test("packages/db/src/a.ts"));
-    assert.isFalse(globToRegExp("packages/db/**").test("packages/dbx/a.ts"));
+    assert.isTrue(
+      globToRegExp("apps/web/src/adapters/db/**").test(
+        "apps/web/src/adapters/db/a.ts"
+      )
+    );
+    assert.isFalse(
+      globToRegExp("apps/web/src/adapters/db/**").test(
+        "apps/web/src/adapters/dbx/a.ts"
+      )
+    );
     assert.isFalse(globToRegExp("a/*.ts").test("a/b/c.ts"));
   });
 
   it("names each restricted module by group and no other", () => {
-    assert.deepStrictEqual(groupOf("@vektorprogrammet/db"), Option.some("db"));
-
     assert.deepStrictEqual(
-      groupOf("@vektorprogrammet/db/testing"),
-      Option.some("db")
+      groupOf("@vektorprogrammet/db"),
+      Option.some("removed-db")
     );
 
     assert.deepStrictEqual(
-      groupOf("../../packages/db/src/index.ts"),
+      groupOf("@vektorprogrammet/db/testing"),
+      Option.some("removed-db")
+    );
+
+    assert.deepStrictEqual(
+      groupOf("../../apps/web/src/adapters/db/live.ts"),
       Option.some("db")
     );
 
@@ -94,14 +105,14 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
         'import { a } from "@vektorprogrammet/db";',
         'import type { B } from "@vektorprogrammet/db";',
         'import * as c from "@vektorprogrammet/db/testing";',
-        'import { d } from "../../packages/db/src/index.ts";',
+        'import { d } from "../../apps/web/src/adapters/db/live.ts";',
         'export * from "drizzle-orm";',
         'export { e } from "@effect/sql-pg";',
         'export const f = import("pg");',
         "export const g = import(someVariable);",
         'export const h = "import { x } from \\"@vektorprogrammet/db\\"";',
         '// import { y } from "@vektorprogrammet/db"',
-        'import { ok } from "@vektorprogrammet/domain";',
+        'import { ok } from "../domain/ids.ts";',
       ],
       "\n"
     );
@@ -112,9 +123,9 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
         found.group,
       ]),
       [
-        [1, "db"],
-        [2, "db"],
-        [3, "db"],
+        [1, "removed-db"],
+        [2, "removed-db"],
+        [3, "removed-db"],
         [4, "db"],
         [5, "drizzle"],
         [6, "sql-pg"],
@@ -123,25 +134,25 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     );
   });
 
-  it("resolves a relative specifier against the importing file, so a sibling package's `../../db` is the adapter", () => {
+  it("resolves relative specifiers into the adapter", () => {
     assert.deepStrictEqual(
-      groupsIn("packages/domain/src/a.ts", "../../db/src/schema.ts"),
+      groupsIn("apps/web/src/domain/a.ts", "../adapters/db/schema.ts"),
       ["db"]
     );
 
     assert.deepStrictEqual(
-      groupsIn("packages/domain/src/deep/a.ts", "../../../db/src/index.ts"),
+      groupsIn("apps/web/src/domain/deep/a.ts", "../../adapters/db/live.ts"),
       ["db"]
     );
 
     assert.deepStrictEqual(
-      groupsIn("packages/domain/test/a.ts", "../../db/test/support/x.ts"),
+      groupsIn("apps/web/test/domain/a.ts", "../db/support/x.ts"),
       ["db"]
     );
 
     // Inside the adapter, a relative import stays in the adapter and is allowed there.
     assert.deepStrictEqual(
-      groupsIn("packages/db/src/repositories/a.ts", "../schema.ts"),
+      groupsIn("apps/web/src/adapters/db/repositories/a.ts", "../schema.ts"),
       ["db"]
     );
 
@@ -154,8 +165,8 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     it("reports an import that no allowance covers", () => {
       const path = "apps/web/src/server/newThing.ts";
 
-      assert.deepStrictEqual(findingsAt(path, "@vektorprogrammet/db", "db"), [
-        `${path}:1: imports @vektorprogrammet/db (db) and no allowance covers it`,
+      assert.deepStrictEqual(findingsAt(path, "../adapters/db/live.ts", "db"), [
+        `${path}:1: imports ../adapters/db/live.ts (db) and no allowance covers it`,
       ]);
     });
 
@@ -163,8 +174,19 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       assert.isTrue(
         Arr.some(
           boundaryFindings(["tools/quality/storeBoundary.ts"], []),
-          (finding) => finding.startsWith("packages/db/**: allowance")
+          (finding) =>
+            finding.startsWith("apps/web/src/adapters/db/**: allowance")
         )
+      );
+    });
+
+    it("refuses the removed package even in an allowed adapter", () => {
+      const path = "apps/web/src/adapters/db/example.ts";
+      assert.deepStrictEqual(
+        findingsAt(path, "@vektorprogrammet/db", "removed-db"),
+        [
+          `${path}:1: imports @vektorprogrammet/db (removed-db), which its allowance does not allow (The adapter and its tests.)`,
+        ]
       );
     });
 
@@ -172,7 +194,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       assert.deepStrictEqual(
         findingsAt(
           "tools/db-path-spike/src/worker/database.ts",
-          "@vektorprogrammet/db",
+          "../../../../apps/web/src/adapters/db/databaseLive.ts",
           "db"
         ),
         []
@@ -202,7 +224,7 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
       'import type { B } from "@vektorprogrammet/db";',
       'import * as c from "@vektorprogrammet/db";',
       'import { d } from "@vektorprogrammet/db/testing";',
-      'import { e } from "../../../packages/db/test/support/disposableDatabase.ts";',
+      'import { e } from "../adapters/db/live.ts";',
       'import { f } from "drizzle-orm";',
       'import { g } from "@effect/sql-pg";',
       'import { h } from "pg";',
@@ -214,8 +236,8 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
     const everyLine = Arr.map(imports, (_line, index) => index + 1);
 
     const siblingImports = [
-      'import { a } from "../../db/src/schema.ts";',
-      'import { b } from "../../db/test/support/disposableDatabase.ts";',
+      'import { a } from "../adapters/db/schema.ts";',
+      'import { b } from "@/adapters/db/live.ts";',
     ];
 
     const siblingLines = Arr.map(siblingImports, (_line, index) => index + 1);
@@ -227,10 +249,10 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
         file: storeBoundaryProbes.adapterTest,
       },
       clean: {
-        content: text(['import { ok } from "@vektorprogrammet/domain";']),
+        content: text(['import { ok } from "../domain/ids.ts";']),
         file: storeBoundaryProbes.clean,
       },
-      // Packages beside `packages/db`: no allowance covers them.
+      // Domain code: no allowance covers it.
       domainSibling: {
         content: text(siblingImports),
         file: storeBoundaryProbes.domainSibling,
@@ -269,11 +291,17 @@ describe("store boundary (spec 0017, ADR 0014 stage 1)", () => {
           // Outside every allowance: each of the eleven forms fails.
           assert.deepStrictEqual(flagged(probes.restricted.file), everyLine);
 
-          // Inside an allowance that leaves Drizzle out: only the Drizzle line (6) fails.
-          assert.deepStrictEqual(flagged(probes.adapterTest.file), [6]);
+          // Removed package imports are refused even where adapter access is allowed.
+          assert.deepStrictEqual(
+            flagged(probes.adapterTest.file),
+            [1, 2, 3, 4, 6, 9, 10, 11]
+          );
 
-          // Inside an allowance of every group, and with nothing restricted imported: nothing fails.
-          assert.deepStrictEqual(flagged(probes.harness.file), []);
+          // Even an adapter-level harness cannot import the removed package.
+          assert.deepStrictEqual(
+            flagged(probes.harness.file),
+            [1, 2, 3, 4, 9, 10, 11]
+          );
 
           // A sibling package reaches the adapter as `../../db/…`, with no `packages/` in the specifier.
           assert.deepStrictEqual(

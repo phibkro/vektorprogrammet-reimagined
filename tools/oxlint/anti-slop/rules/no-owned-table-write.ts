@@ -1,7 +1,7 @@
 import { defineRule } from "vite-plus/lint/plugins";
 import type { ESTree, SourceCode } from "vite-plus/lint/plugins";
 
-import { Ownership } from "../../../../packages/db/src/aggregate/ownership.ts";
+import { Ownership } from "../../../../apps/web/src/adapters/db/aggregate/ownership.ts";
 import { resolveVariable } from "../shared/scope.ts";
 
 /** The statements that write a table. */
@@ -11,7 +11,7 @@ const WRITES: Readonly<Record<string, true>> = {
   update: true,
 };
 
-/** The schema module of `packages/db`: `../schema.ts`, `./schema.ts`. */
+/** The schema module of `apps/web/src/adapters/db`: `../schema.ts`, `./schema.ts`. */
 const SCHEMA_MODULE = /(?:^|\/)schema(?:\.[cm]?[jt]s)?$/u;
 
 interface Declared {
@@ -64,7 +64,7 @@ function importOf(
 /**
  * The name of the schema table that an expression stands for, when it is one: a table imported by name from the schema
  * module (`membership`), or a property of the schema namespace (`schema.membership`, from `import * as schema`). The
- * package root of `packages/db` does not export the schema (spec 0017), so the schema module is imported by path.
+ * package root of `apps/web/src/adapters/db` does not export the schema (spec 0017), so the schema module is imported by path.
  */
 function schemaTableName(
   sourceCode: SourceCode,
@@ -144,7 +144,7 @@ function setsState(call: ESTree.CallExpression, state: string): boolean {
  * Ban Drizzle writes to a table that an aggregate root owns, outside the aggregate writer (`Aggregates`). An owned
  * table is written only with the lock of its owner (`Locked<Root>`), and a stored machine's state column only by
  * `Aggregates.apply`. A root's own table is created freely (no token exists before the row does) and updated or
- * deleted only under its lock. The declaration is `packages/db/src/aggregate/ownership.ts`, the one that the lock
+ * deleted only under its lock. The declaration is `apps/web/src/adapters/db/aggregate/ownership.ts`, the one that the lock
  * construct and the closure test read.
  */
 export const noOwnedTableWriteRule = defineRule({

@@ -6,12 +6,12 @@
 import { assert } from "@effect/vitest";
 import { Predicate } from "effect";
 
-import type { Outcome } from "../../src/lib/outcome";
-import { ERROR_TABLE } from "../../src/server/errors";
+import type { Outcome } from "../../src/http/outcome";
 import type {
   EncodedRequestError,
   RequestErrorTag,
-} from "../../src/server/errors";
+} from "../../src/http/requestError";
+import { ERROR_TABLE } from "../../src/server/http/errors";
 
 type FailedOutcome = Extract<Outcome<unknown>, { readonly _tag: "Failure" }>;
 

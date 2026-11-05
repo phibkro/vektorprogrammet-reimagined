@@ -1,9 +1,9 @@
 // oxlint-disable effecttsgo/async-function -- EX-0004: Playwright owns these Promise-returning browser callbacks.
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext } from "@playwright/test";
-import { LOCAL_FAKE_PASSWORD } from "@vektorprogrammet/domain";
 import { Config, Effect, Schema } from "effect";
 
+import { LOCAL_FAKE_PASSWORD } from "../test/fixtures/localPeople";
 import { openPage, sheetOf, signIn, submitSheet } from "./support/panel.ts";
 import {
   accountStateOf,

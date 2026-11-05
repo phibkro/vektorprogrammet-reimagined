@@ -1,8 +1,8 @@
 /**
  * Where the store adapter and the database engine packages may be imported (spec 0017, ADR 0014 stage 1).
  *
- * `@vektorprogrammet/db` is the PostgreSQL adapter. Code outside it asks for a capability from `@vektorprogrammet/domain`
- * (a port) and a composition root provides the adapter's Layer. This module is the one declaration of that rule:
+ * The PostgreSQL adapter lives in `apps/web/src/adapters/db`. Code outside it asks for a domain port;
+ * a composition root provides the adapter Layer. This module declares the rule:
  *
  * - `restricted` says which module specifiers are restricted, in groups;
  * - `allowances` says which files may import which group, and why;
@@ -17,7 +17,7 @@
 import { Array as Arr, Record as Rec } from "effect";
 import type { Option } from "effect";
 
-export type Group = "db" | "drizzle" | "pg" | "sql-pg";
+export type Group = "db" | "removed-db" | "drizzle" | "pg" | "sql-pg";
 
 interface Restriction {
   readonly message: string;
@@ -28,12 +28,16 @@ interface Restriction {
 const restricted: Readonly<Record<Group, Restriction>> = {
   db: {
     message:
-      "`@vektorprogrammet/db` is the PostgreSQL adapter: code outside it asks for a port that `@vektorprogrammet/domain` declares, and a composition root provides the adapter's Layer (spec 0017).",
-    regexes: ["^@vektorprogrammet/db(?:/|$)", "(?:^|/)packages/db(?:/|$)"],
+      "The PostgreSQL adapter is internal: code outside it asks for a domain port, and a composition root provides the adapter's Layer (spec 0017).",
+    regexes: [
+      "(?:^|/)apps/web/src/adapters/db(?:/|$)",
+      "(?:^|/)adapters/db(?:/|$)",
+      "(?:^|/)apps/web/test/db(?:/|$)",
+    ],
   },
   drizzle: {
     message:
-      "Drizzle is an adapter detail of `packages/db`: go through a domain port (spec 0017).",
+      "Drizzle is an adapter detail of `apps/web/src/adapters/db`: go through a domain port (spec 0017).",
     regexes: ["^drizzle-orm(?:/|$)"],
   },
   pg: {
@@ -41,14 +45,24 @@ const restricted: Readonly<Record<Group, Restriction>> = {
       "`pg` is an engine adapter detail: use the domain ports outside database adapters and their tests.",
     regexes: ["^pg(?:/|$)"],
   },
+  "removed-db": {
+    message:
+      "The @vektorprogrammet/db package was removed; import the appropriate consolidated adapter file only at an allowed boundary.",
+    regexes: ["^@vektorprogrammet/db(?:/|$)"],
+  },
   "sql-pg": {
     message:
-      "`@effect/sql-pg` is the PostgreSQL client of `packages/db`: go through a domain port (spec 0017).",
+      "`@effect/sql-pg` is the PostgreSQL client of `apps/web/src/adapters/db`: go through a domain port (spec 0017).",
     regexes: ["^@effect/sql-pg(?:lite)?(?:/|$)"],
   },
 };
 
-const groups: readonly Group[] = Rec.keys(restricted);
+const allGroups: readonly Group[] = Rec.keys(restricted);
+
+const groups: readonly Group[] = Arr.filter(
+  allGroups,
+  (group) => group !== "removed-db"
+);
 
 export interface Allowance {
   /** Paths from the repository root; `*` stops at a slash and `**` crosses slashes. */
@@ -62,8 +76,8 @@ const adapterTest = ["db", "pg", "sql-pg"] as const satisfies readonly Group[];
 export const allowances: readonly Allowance[] = [
   {
     allows: groups,
-    files: ["packages/db/**"],
-    reason: "The adapter itself.",
+    files: ["apps/web/src/adapters/db/**", "apps/web/test/db/**"],
+    reason: "The adapter and its tests.",
   },
   {
     allows: ["db"],
@@ -91,7 +105,7 @@ export const allowances: readonly Allowance[] = [
   },
   {
     allows: adapterTest,
-    files: ["apps/web/test/**/*.postgres.test.ts"],
+    files: ["apps/web/test/*.postgres.test.ts"],
     reason:
       "Adapter tests: each builds the real database Layer against a disposable PostgreSQL (spec 0017, resolution 1).",
   },
@@ -146,19 +160,14 @@ export const allowances: readonly Allowance[] = [
     allows: ["db"],
     files: ["tools/docgen/src/databasePlatforms.ts"],
     reason:
-      "The generated platform page reads the adapter's declaration of its platforms (`@vektorprogrammet/db/platform/*`: plain data, no client and no connection; spec 0025).",
+      "The generated platform page reads the adapter's declaration of its platforms (plain data in `apps/web/src/adapters/db/platform/`, no client and no connection; spec 0025).",
   },
 ];
 
-/**
- * A package beside `packages/db` reaches it as `../../db/…`, a specifier with no `packages/` in it. Oxlint cannot resolve
- * a path, so the lint restricts that spelling in `packages/**`, where `..` leads to `packages/`; a `db` directory
- * elsewhere (`apps/cms/db`) is not the adapter. `checkStoreBoundary.ts` resolves every relative specifier against its
- * file and needs no pattern.
- */
+/** Direct adapter-path spellings for lint; the repository scan also resolves relative imports. */
 export const siblingAdapterPattern = {
   message: restricted.db.message,
-  regex: String.raw`^(?:\.\./)+db(?:/|$)`,
+  regex: String.raw`(?:^|/)adapters/db(?:/|$)`,
 };
 
 const escape = (text: string): string =>
@@ -181,7 +190,7 @@ export const globToRegExp = (glob: string): RegExp => {
 };
 
 export const groupOf = (specifier: string): Option.Option<Group> =>
-  Arr.findFirst(groups, (group) =>
+  Arr.findFirst(allGroups, (group) =>
     Arr.some(restricted[group].regexes, (regex) =>
       new RegExp(regex, "u").test(specifier)
     )
@@ -206,7 +215,7 @@ export const restrictedImportPatterns = (
   allowed: readonly Group[],
   everywhere: readonly Pattern[]
 ): Pattern[] => {
-  const denied = Arr.filter(groups, (group) => !allowed.includes(group));
+  const denied = Arr.filter(allGroups, (group) => !allowed.includes(group));
 
   return [
     ...Arr.flatMap(denied, (group) =>

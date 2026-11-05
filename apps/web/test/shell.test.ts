@@ -12,13 +12,11 @@
  * The browser tests (`e2e/shell.spec.ts`) show the same per person in the rendered DOM.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { anonymous } from "@vektorprogrammet/domain";
-import type { Principal } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
-import type { Outcome } from "../src/lib/outcome";
-import type { SectionKey } from "../src/lib/panelSections";
+import { anonymous } from "../src/domain/kernel/principal";
+import type { Principal } from "../src/domain/kernel/principal";
 import {
   departmentsView,
   fieldsOfStudyView,
@@ -26,8 +24,10 @@ import {
   saveFieldOfStudyProgram,
   saveSocialEventProgram,
   socialEventsView,
-} from "../src/server/panel";
-import { navigationFor, shellView } from "../src/server/shell";
+} from "../src/features/organisation/server/organisation";
+import type { SectionKey } from "../src/features/panel/panelSections";
+import { navigationFor, shellView } from "../src/features/panel/server/shell";
+import type { Outcome } from "../src/http/outcome";
 import {
   fakeDepartment,
   fakeFieldOfStudy,

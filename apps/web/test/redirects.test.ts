@@ -1,14 +1,14 @@
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Effect, Option } from "effect";
 
-import { success } from "../src/lib/outcome";
+import { success } from "../src/http/outcome";
 import {
   LEGACY_FILE_PREFIXES,
   LegacyPathSchema,
   classifyLegacyPath,
   legacyFileLocation,
   permanentRedirect,
-} from "../src/server/redirects";
+} from "../src/server/http/redirects";
 import { runOutcome } from "../src/server/runtime";
 import { fakeKey, makeTables, memoryLayer } from "./support/memory";
 

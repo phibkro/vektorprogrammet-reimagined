@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { isolationReport, isolationResponse } from "@/server/isolation";
+import { requestScope } from "@/server/http/scope";
 import { runQuery } from "@/server/runtime";
-import { requestScope } from "@/server/scope";
+
+import {
+  isolationReport,
+  isolationResponse,
+} from "../../server/diagnostics/isolation";
 
 /**
  * What the store reports about the isolation of its transactions on this deployment, and whether it is what the domain

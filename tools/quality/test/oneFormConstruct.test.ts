@@ -15,6 +15,7 @@ import { Array as Arr, Order } from "effect";
 
 import {
   assertCleanScan,
+  isWebSource,
   repositoryRoot,
   signFindings,
 } from "./support/sources.ts";
@@ -30,7 +31,7 @@ const SIGNS = {
         "the form for a client library",
       "apps/web/src/components/form/postForm.tsx":
         "the form that the browser posts",
-      "apps/web/src/components/ownData.tsx":
+      "apps/web/src/features/personal-data/components/ownData.tsx":
         "the export of one's own data: a button, posted to /api/eksport, with no input",
       "apps/web/src/routes/aktiver.tsx":
         "native POST for a Supabase invitation session; it works without JavaScript",
@@ -43,7 +44,7 @@ const SIGNS = {
     allowed: {
       "apps/web/src/forms/formSchema.ts":
         "`textOf` is the one reader of a posted FormData",
-      "apps/web/src/lib/formText.ts":
+      "apps/web/src/utils/formText.ts":
         "text reader for the Supabase recovery password form; files and missing values are refused as empty",
     },
     pattern: /\b(?:form|data)\.get\(/u,
@@ -56,10 +57,6 @@ const SIGNS = {
     pattern: /from "@tanstack\/react-form"/u,
   },
 } satisfies Readonly<Record<string, Sign>>;
-
-/** The source that the scan reads: the `src` of the web app. */
-const isSource = (path: string): boolean =>
-  /^apps\/web\/src\/.*\.tsx?$/u.test(path);
 
 const { stale, unlisted } = signFindings(SIGNS);
 
@@ -97,14 +94,18 @@ describe("spec 0010a F1: one form construct", () => {
 
   it("control: an allowance whose file no longer has the sign is reported", () => {
     assert.isAbove(
-      stale([{ path: "apps/web/src/components/ownData.tsx", text: "<div />" }])
-        .length,
+      stale([
+        {
+          path: "apps/web/src/features/personal-data/components/ownData.tsx",
+          text: "<div />",
+        },
+      ]).length,
       0
     );
   });
 
   it.effect(
     "the real tree: every sign is in a listed file, and every listing is used",
-    () => assertCleanScan(repositoryRoot, isSource, { stale, unlisted })
+    () => assertCleanScan(repositoryRoot, isWebSource, { stale, unlisted })
   );
 });

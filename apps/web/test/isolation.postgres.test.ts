@@ -13,21 +13,21 @@
  * - A production deployment answers an empty 404 and never asks the store.
  */
 import { assert, describe, it as plain, layer } from "@effect/vitest";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-  serializableByDefault,
-} from "@vektorprogrammet/db/testing";
-import { IsolationProbe } from "@vektorprogrammet/domain";
-import type { IsolationReport } from "@vektorprogrammet/domain";
 import { Effect, Option, Schema } from "effect";
 
-import { success } from "../src/lib/outcome";
+import { IsolationProbe } from "../src/domain/store/isolationProbe";
+import type { IsolationReport } from "../src/domain/store/isolationProbe";
+import { success } from "../src/http/outcome";
 import {
   isolationProblems,
   isolationReport,
   isolationResponse,
-} from "../src/server/isolation";
+} from "../src/server/diagnostics/isolation";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+  serializableByDefault,
+} from "./db/support/disposableDatabase";
 import {
   assertEmpty404,
   assertFailureStatus,

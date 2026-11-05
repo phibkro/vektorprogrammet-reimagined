@@ -1,10 +1,10 @@
 # @vektorprogrammet/effx-conformance
 
-Spec 0007d (ADR 0009). The kernel exports each domain as an effx `DomainDescription` (`Effx.describe`, `packages/domain/src/kernel/effx.ts`, a pure function of the declarations). effx turns each description into conformance vectors: for every world up to its scope, which principal may run which command about which target, and which transition of each machine is enabled in which state. The tests here ask the kernel's own `authorize` and machine tables every row of those vectors. effx is not a dependency (its packages are not published, ADR 0009); what crosses is files.
+Spec 0007d (ADR 0009). The kernel exports each domain as an effx `DomainDescription` (`Effx.describe`, `apps/web/src/domain/kernel/effx.ts`, a pure function of the declarations). effx turns each description into conformance vectors: for every world up to its scope, which principal may run which command about which target, and which transition of each machine is enabled in which state. The tests here ask the kernel's own `authorize` and machine tables every row of those vectors. effx is not a dependency (its packages are not published, ADR 0009); what crosses is files.
 
 ## What is committed
 
-`packages/domain/conformance/`:
+`apps/web/conformance/`:
 
 | File | What it is | Made by |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ EFFX_DIR=… devenv shell -- bun run description:regenerate   # the vectors and 
 `EFFX_DIR` is a clean checkout of `phibkro/effx` at the commit of `effx.pin.json`, with its dependencies installed:
 
 ```sh
-git clone https://github.com/phibkro/effx "$EFFX_DIR" && git -C "$EFFX_DIR" checkout "$(jq -r .commit packages/domain/conformance/effx.pin.json)"
+git clone https://github.com/phibkro/effx "$EFFX_DIR" && git -C "$EFFX_DIR" checkout "$(jq -r .commit apps/web/conformance/effx.pin.json)"
 (cd "$EFFX_DIR" && bun install --frozen-lockfile --ignore-scripts)
 ```
 

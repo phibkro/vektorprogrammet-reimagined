@@ -7,19 +7,19 @@
  * Nothing is suppressed.
  */
 import { describe, it } from "@effect/vitest";
+import { Effect } from "effect";
+import { expectTypeOf } from "vite-plus/test";
+
+import type { MessageSender } from "../src/adapters/messaging/senders";
+import type { TurnstileVerifier } from "../src/adapters/turnstile";
+import type { Outbox } from "../src/domain/outbox/outbox";
 import type {
   InTransaction,
   IntegrationPort,
   NotAnIntegration,
-  Outbox,
-  Transactor,
-} from "@vektorprogrammet/domain";
-import { Effect } from "effect";
-import { expectTypeOf } from "vite-plus/test";
-
-import type { Auth } from "../src/server/auth";
-import type { MessageSender } from "../src/server/senders";
-import type { TurnstileVerifier } from "../src/server/turnstile";
+} from "../src/domain/transactions/transaction";
+import type { Transactor } from "../src/domain/transactions/transactor";
+import type { Auth } from "../src/server/identity/auth";
 
 type Run = Transactor["Service"];
 

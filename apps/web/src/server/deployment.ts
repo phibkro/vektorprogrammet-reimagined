@@ -5,7 +5,7 @@
  */
 import { Effect, Schema } from "effect";
 
-import type { WorkerEnv } from "./env";
+import type { WorkerEnv } from "./http/env";
 
 export const Deployment = Schema.Literals(["local", "preview", "production"]);
 

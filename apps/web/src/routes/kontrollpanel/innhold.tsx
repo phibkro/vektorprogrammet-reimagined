@@ -4,11 +4,6 @@ import {
   getRouteApi,
   useRouter,
 } from "@tanstack/react-router";
-import { FaqPage, ImageValue, SponsorSize } from "@vektorprogrammet/domain/cms";
-import type {
-  CollectionName,
-  ContentDraft,
-} from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   Effect,
@@ -22,13 +17,24 @@ import { lazy, Suspense, useState } from "react";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { publishContent, saveContent } from "@/functions/content.functions";
-import { getContent } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+
+import type { ContentDraft } from "../../features/cms/domain/client";
+import {
+  FaqPage,
+  ImageValue,
+  SponsorSize,
+} from "../../features/cms/domain/collections";
+import type { CollectionName } from "../../features/cms/domain/collections";
+import {
+  publishContent,
+  saveContent,
+} from "../../features/cms/server/functions";
+import { getContent } from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 // The editor SDK initializes browser-only random keys when its module loads.
 const ContentTextEditor = lazy(() =>
-  import("@/components/panel/contentTextEditor").then((module) => ({
+  import("../../features/cms/components/contentTextEditor").then((module) => ({
     default: module.ContentTextEditor,
   }))
 );

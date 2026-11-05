@@ -1,0 +1,28 @@
+/** The audit read (C12): the newest entries, for an admin. */
+import { Effect } from "effect";
+
+import * as Commands from "../../../domain/kernel/commands.ts";
+import { AuditLog } from "./auditLog.ts";
+import { AuditDomain, AuditRpc, listAuditEntries } from "./declaration.ts";
+
+const AuditHandlers = AuditRpc.toLayer({
+  listAuditEntries: AuditDomain.handle(listAuditEntries, {
+    resource: () => Effect.succeed({}),
+    run: ({ limit }) =>
+      Effect.gen(function* run() {
+        const log = yield* AuditLog;
+
+        return yield* log.latest(limit);
+      }),
+  }),
+});
+
+/** The audit command behind the in-process client; see `Commands.inProcess`. */
+const withAudit = Commands.inProcess(AuditRpc, AuditHandlers);
+
+/** The server functions' entries: untrusted input in, the command's own result out (`Commands.endpoint`). */
+export const AuditEndpoints = {
+  listAuditEntries: Commands.endpoint(listAuditEntries, (payload) =>
+    withAudit((client) => client.listAuditEntries(payload))
+  ),
+};

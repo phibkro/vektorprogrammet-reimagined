@@ -30,59 +30,59 @@ EXTENDS Sequences
 
 CurrentCode == [
     \* The calls that each command makes, in order (each handler runs in one
-    \* transaction, packages/db/src/transactional.ts:44-76; the proof that live.ts checks before each lock and write sends no statement). `createAdminGrant` and
+    \* transaction, apps/web/src/adapters/db/transactional.ts:44-76; the proof that live.ts checks before each lock and write sends no statement). `createAdminGrant` and
     \* `deleteAdminGrant` write admin_grant, not membership: the model takes only
-    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:147-148,
-    \* 173-174, through lockAccount at 46-61) take the same two locks.
+    \* their locks. `deactivateAccount` and `reactivateAccount` (accounts/commands.ts:150-151,
+    \* 176-177, through lockAccount at 49-64) take the same two locks.
     \* createMembership reads history and claims welcome_ledger; deleteMembership
     \* also claims it after removal. Both use the existing Person token and take
     \* no new root lock. Ledger and outbox guarantees are tested on PostgreSQL.
     \* syncWorkspace locks generated-address owners in one sorted lockAll;
     \* its one-person case is below, its multi-person and address ordering in Pair and Address.
     compose |-> [
-        createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:272, 311
-        deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:428, 430
-        changeMembership   |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:183, 193, 200
-        endEarlyMembership |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:447, 449
-        extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:472, 474
-        createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:241-242
-        deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:393, 403
+        createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:275, 314
+        deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:431, 433
+        changeMembership   |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:186, 196, 203
+        endEarlyMembership |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:450, 452
+        extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:475, 477
+        createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:244-245
+        deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:396, 406
         syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:238, one person
-        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:196, 201, the lock taken in authorization at teams/personResource.ts:33
+        updatePerson       |-> <<"lock">>                      \* accounts/commands.ts:197, 204, the lock taken in authorization at teams/personResource.ts:33
     ],
     \* The statements of each call, in order.
     repo |-> [
         \* beginTransition: the unlocked read that finds the owner, the lock
         \* of that person, the read through its token, on which the machine
-        \* decides (teams/commands.ts:118-148).
-        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 126, 127, 128, 129-145
-        find     |-> <<"find">>,                       \* teams.ts:479-489
-        read     |-> <<"read">>,                       \* teams.ts:491-499
+        \* decides (teams/commands.ts:121-150).
+        beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 129, 130, 131, 135-147
+        find     |-> <<"find">>,                       \* teams.ts:481-491
+        read     |-> <<"read">>,                       \* teams.ts:493-501
         \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
-        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:106-118, 143-149). A row
-        \* that the transaction holds sends no statement (88-91).
+        \* FOR NO KEY UPDATE (db/aggregate/locks.ts:109-122, 146-152). A row
+        \* that the transaction holds sends no statement (91-94).
         lock     |-> <<"lockPerson">>,
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
-        \* (domain/shared/aggregate.ts:90-91): the same statement on admin_list.
+        \* (domain/transactions/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
-        insert   |-> <<"insertRow">>,                  \* teams.ts:572-591, Aggregates.insert (aggregates.ts:304-343)
-        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:598-628, Aggregates.update (aggregates.ts:370-390, onHeld :144-162)
-        remove   |-> <<"deleteRow">>                   \* teams.ts:634-663, Aggregates.remove (aggregates.ts:360-364, onHeld :144-162)
+        insert   |-> <<"insertRow">>,                  \* teams.ts:574-593, Aggregates.insert (aggregates.ts:308-347)
+        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:600-630, Aggregates.update (aggregates.ts:374-394, onHeld :148-165)
+        remove   |-> <<"deleteRow">>                   \* teams.ts:636-665, Aggregates.remove (aggregates.ts:364-368, onHeld :148-165)
     ],
     \* A lock that would come before one that the transaction holds is a defect
-    \* before any statement is sent (db/aggregate/locks.ts:96-104,
+    \* before any statement is sent (db/aggregate/locks.ts:99-107,
     \* lockScope.ts:36-44). The order: the admin list, then persons by id
-    \* (domain/shared/aggregate.ts:36-39).
+    \* (domain/transactions/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:427-432, 623-627, 658-660).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:612-617
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:646-654
+    \* row is `lostRace`, the typed Conflict (teams.ts:429-434, 627-629, 660-662).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:614-619
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:648-656
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
-    exclusion |-> TRUE,                             \* packages/db/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
+    exclusion |-> TRUE,                             \* apps/web/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10
     \* What the caller is told for each SQLSTATE that a write can meet.
-    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:99-124, 139-158
+    on23P01 |-> "AlreadyExists",                    \* classifySqlFailure.ts:108-133, 148-166
     on40P01 |-> "defect"                            \* classifySqlFailure.ts: no case; test classifySqlFailure.test.ts:51
 ]
 
@@ -91,7 +91,7 @@ CurrentCode == [
 (***************************************************************************)
 
 \* The lock without the row lock: the SELECT of AggregateLocks.lock loses its
-\* FOR NO KEY UPDATE (locks.ts:117), so every lock, of a person and of the
+\* FOR NO KEY UPDATE (locks.ts:121), so every lock, of a person and of the
 \* admin list, is a plain read. The state before spec 0006 R6 and mutation M1
 \* of spec 0006b R3: two writes of one person overlap, and one of them dies as
 \* the victim of a deadlock.
@@ -136,7 +136,7 @@ ListAfterPerson ==
     [CurrentCode EXCEPT !.compose = [CurrentCode.compose EXCEPT
         !.deleteAdminGrant = <<"lock", "lockList">>]]
 
-\* The same order, and the registry does not refuse it (locks.ts:96-104
+\* The same order, and the registry does not refuse it (locks.ts:99-107
 \* deleted): `createAdminGrant` holds the list and waits for the person, and
 \* `deleteAdminGrant` holds the person and waits for the list.
 ListAfterPersonUnchecked == [ListAfterPerson EXCEPT !.orderCheck = FALSE]

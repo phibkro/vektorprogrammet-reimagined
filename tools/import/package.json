@@ -14,8 +14,6 @@
   "dependencies": {
     "@effect/platform-node": "catalog:",
     "@effect/sql-mysql2": "catalog:",
-    "@vektorprogrammet/db": "workspace:*",
-    "@vektorprogrammet/domain": "workspace:*",
     "domhandler": "catalog:",
     "effect": "catalog:",
     "htmlparser2": "catalog:"

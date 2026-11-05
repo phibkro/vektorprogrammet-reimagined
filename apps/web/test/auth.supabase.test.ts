@@ -1,9 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
-import { withClient } from "@vektorprogrammet/db/testing";
 import { Array as Arr, Config, Crypto, Effect } from "effect";
 
-import { createAdminClient, createWorkerClient } from "../src/server/supabase";
-import { webCryptoLayer } from "../src/server/webCrypto";
+import {
+  createAdminClient,
+  createWorkerClient,
+} from "../src/adapters/supabase/clients";
+import { webCryptoLayer } from "../src/adapters/webCrypto";
+import { withClient } from "./db/support/disposableDatabase";
 
 describe("Supabase session cookies", () => {
   it.live("signs a synthetic user in, verifies the cookie and signs out", () =>
@@ -67,9 +70,8 @@ describe("Supabase session cookies", () => {
             assert.isNull(signedIn.error);
 
             const cookie = Arr.join(
-              Arr.map(
-                responseHeaders.getSetCookie(),
-                (entry) => entry.split(";", 1)[0]
+              Arr.map(responseHeaders.getSetCookie(), (entry) =>
+                Arr.join(entry.split(";", 1), "")
               ),
               "; "
             );

@@ -1,3 +1,6 @@
+import { Array as Arr, Record as Rec } from "effect";
+import type { Result } from "effect";
+
 /**
  * The generated blocks of `docs/system/database-platforms.md` (spec 0025): what the domain asks of a platform, how the
  * PostgreSQL adapter answers on Hyperdrive, what only a direct connection has, and the connection profiles. Pure, like the
@@ -6,30 +9,28 @@
  * The domain's side is `PlatformRequirements`; the adapter's side is `@vektorprogrammet/db/platform/*` (plain data, no
  * client). The `pg-txmode` column is a pointer into another repository's catalogue (private and unpublished) and says so in its header.
  */
-import { constructFacts } from "@vektorprogrammet/db/platform/constructs";
+import { constructFacts } from "../../../apps/web/src/adapters/db/platform/constructs.ts";
 import type {
   Cell,
   Construct,
   ConstructFact,
-} from "@vektorprogrammet/db/platform/constructs";
-import { evidence } from "@vektorprogrammet/db/platform/evidence";
+} from "../../../apps/web/src/adapters/db/platform/constructs.ts";
+import { evidence } from "../../../apps/web/src/adapters/db/platform/evidence.ts";
 import {
   direct,
   directOnly,
   hyperdrive,
   supabase,
   otherConsumers,
-} from "@vektorprogrammet/db/platform/profiles";
-import type { ConnectionProfile } from "@vektorprogrammet/db/platform/profiles";
-import { recipes } from "@vektorprogrammet/db/platform/recipes";
-import { PlatformRequirements, isProbed } from "@vektorprogrammet/domain";
-import type {
-  Capability,
-  CapabilityRequirement,
-} from "@vektorprogrammet/domain";
-import { Array as Arr, Record as Rec } from "effect";
-import type { Result } from "effect";
-
+} from "../../../apps/web/src/adapters/db/platform/profiles.ts";
+import type { ConnectionProfile } from "../../../apps/web/src/adapters/db/platform/profiles.ts";
+import { recipes } from "../../../apps/web/src/adapters/db/platform/recipes.ts";
+import type { Capability } from "../../../apps/web/src/domain/store/guarantees.ts";
+import {
+  PlatformRequirements,
+  isProbed,
+} from "../../../apps/web/src/domain/store/platformRequirements.ts";
+import type { CapabilityRequirement } from "../../../apps/web/src/domain/store/platformRequirements.ts";
 import { checkRendered, replaceBlocks, table } from "./render.ts";
 
 /** What the page is made of: the real declarations, or changed ones in the tests that show a changed declaration changes it. */

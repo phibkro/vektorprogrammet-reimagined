@@ -1,22 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import {
-  Catalog,
-  Commands,
-  Contact,
-  Declarations,
-  Domain,
-  Forms,
-  GrantTable,
-  Job,
-  JobRegistry,
-  Teams,
-  approvalWords,
-  codePolicy,
-  personalColumns,
-  recordOfProcessing,
-} from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Effect,
   FileSystem,
@@ -26,6 +10,24 @@ import {
   Result,
 } from "effect";
 
+import {
+  Declarations,
+  GrantTable,
+} from "../../../apps/web/src/domain/declarations.ts";
+import * as Job from "../../../apps/web/src/domain/jobs/job.ts";
+import * as JobRegistry from "../../../apps/web/src/domain/jobs/registry.ts";
+import * as Commands from "../../../apps/web/src/domain/kernel/commands.ts";
+import * as Domain from "../../../apps/web/src/domain/kernel/domain.ts";
+import { codePolicy } from "../../../apps/web/src/features/accounts/domain/code.ts";
+import * as Contact from "../../../apps/web/src/features/contact/domain/declaration.ts";
+import {
+  Catalog,
+  Forms,
+} from "../../../apps/web/src/features/personal-data/domain/catalog.ts";
+import { personalColumns } from "../../../apps/web/src/features/personal-data/domain/derive.ts";
+import { recordOfProcessing } from "../../../apps/web/src/features/personal-data/domain/notice.ts";
+import { approvalWords } from "../../../apps/web/src/features/personal-data/domain/texts.ts";
+import * as Teams from "../../../apps/web/src/features/teams/domain/declaration.ts";
 import {
   approvalCell,
   checkAccountsDocument,

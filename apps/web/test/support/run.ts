@@ -1,40 +1,44 @@
+import { Effect } from "effect";
+
 import type {
-  AccountRepository,
-  AdmissionPeriodRepository,
-  AdminGrantRepository,
-  AggregateLocks,
-  ApplicationRepository,
-  AuditLog,
   CurrentPrincipal,
-  DepartmentRepository,
-  DigestLedger,
-  FieldOfStudyRepository,
-  ImpactSnapshots,
-  ImpactSource,
-  InTransaction,
-  MembershipRepository,
-  Outbox,
-  PersonRepository,
-  PositionRepository,
   Principal,
-  PrincipalDirectory,
-  PublicFileRepository,
-  SemesterRepository,
-  SiteOrigin,
-  SocialEventRepository,
-  TeamRepository,
-  WelcomeLedger,
-  OutboxReports,
-  WorkspaceReports,
-} from "@vektorprogrammet/domain";
+} from "../../src/domain/kernel/principal";
+import type { Outbox } from "../../src/domain/outbox/outbox";
+import type { OutboxReports } from "../../src/domain/outbox/status";
+import type { SiteOrigin } from "../../src/domain/siteOrigin";
+import type { AggregateLocks } from "../../src/domain/transactions/aggregate";
+import type { InTransaction } from "../../src/domain/transactions/transaction";
+import type { AccountRepository } from "../../src/features/accounts/domain/services";
+import type { ApplicationRepository } from "../../src/features/admission/domain/services";
+import type { AuditLog } from "../../src/features/audit/domain/auditLog";
 /**
  * Runs a program as a principal over the in-memory services (`memory.ts`), the way a server function does, and
  * answers with the runtime's serializable `Outcome` (the error table's statuses included).
  */
-import type { ContentEditor } from "@vektorprogrammet/domain/cms";
-import { Effect } from "effect";
-
-import type { RequestError } from "../../src/server/errors";
+import type { ContentEditor } from "../../src/features/cms/domain/client";
+import type { SocialEventRepository } from "../../src/features/events/domain/services";
+import type { PublicFileRepository } from "../../src/features/files/domain/services";
+import type { ImpactSnapshots } from "../../src/features/impact/domain/services";
+import type { ImpactSource } from "../../src/features/impact/domain/source";
+import type {
+  AdmissionPeriodRepository,
+  DepartmentRepository,
+  FieldOfStudyRepository,
+  SemesterRepository,
+} from "../../src/features/organisation/domain/services";
+import type {
+  AdminGrantRepository,
+  DigestLedger,
+  MembershipRepository,
+  PersonRepository,
+  PositionRepository,
+  PrincipalDirectory,
+  TeamRepository,
+  WelcomeLedger,
+} from "../../src/features/teams/domain/services";
+import type { WorkspaceReports } from "../../src/features/workspace/domain/services";
+import type { RequestError } from "../../src/http/requestError";
 import { runCommandOutcome, runOutcome } from "../../src/server/runtime";
 import { memoryLayer } from "./memory";
 import type { MemoryTables } from "./memory";

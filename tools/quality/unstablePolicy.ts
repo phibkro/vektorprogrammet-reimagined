@@ -61,9 +61,17 @@ export const unstablePolicy = {
       ...tools
     ),
     override(["tools/*/test/**", "apps/*/e2e/**"], ...testingTools),
-    override(["packages/db/src/**"], ...base, "sql"),
+    override(["apps/web/src/adapters/db/**"], ...base, "sql"),
     override(["apps/web/src/server/**"], ...base, "sql", "http"),
-    override(["apps/web/src/lib/authClient.ts"], ...base, "http"),
+    override(
+      [
+        "apps/web/src/features/accounts/client.ts",
+        "apps/web/src/adapters/messaging/senders.ts",
+        "apps/web/src/adapters/turnstile.ts",
+      ],
+      ...base,
+      "http"
+    ),
     override(["tools/import/src/**"], ...tools, "mysql"),
     override(["tools/import/test/**"], ...testingTools, "mysql"),
     override(
@@ -75,7 +83,7 @@ export const unstablePolicy = {
       "http"
     ),
     override(
-      ["packages/db/test/support/disposableDatabase.ts"],
+      ["apps/web/test/db/support/disposableDatabase.ts"],
       ...testing,
       "reactivity"
     ),
@@ -110,13 +118,15 @@ export const unstablePolicy = {
         "apps/web/test/redirects.test.ts",
         "apps/web/test/sandbox.test.ts",
         "apps/web/test/integrationGuard.test.ts",
+        // EX-0027: Vitest owns the asynchronous module re-evaluation.
+        "apps/web/test/domain/personalData/basesApproval.test.ts",
         "tools/db-path-spike/test/**"
       ),
       options: { diagnosticSeverity: { asyncFunction: "off" } },
     },
     // This synchronous function maps an already typed error union.
     {
-      include: paths("apps/web/src/server/errors.ts"),
+      include: paths("apps/web/src/server/http/errors.ts"),
       options: { diagnosticSeverity: { schemaSync: "off" } },
     },
   ],

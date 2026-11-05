@@ -1,7 +1,6 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
-import { ApplicantFields } from "@/components/admission/applicantFields";
 import { Choice, firstValue } from "@/components/form/choice";
 import { PageHeader } from "@/components/panel/pageHeader";
 import { CommandSheet } from "@/components/panel/panelSheets";
@@ -18,13 +17,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+import { ApplicantFields } from "../../features/admission/components/applicantFields";
 import {
   CancelPeriodForm,
   ExtendPeriodForm,
   RegisterApplicationForm,
   SchedulePeriodForm,
   WithdrawApplicationForm,
-} from "@/forms/admission";
+} from "../../features/admission/forms/admission";
 import {
   cancelPeriod,
   extendPeriod,
@@ -32,8 +33,8 @@ import {
   registerApplication,
   schedulePeriod,
   withdrawApplication,
-} from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+} from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel/opptak");
 

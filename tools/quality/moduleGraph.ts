@@ -4,20 +4,10 @@
  * One declaration of what may import what, in two levels, and `checkModuleGraph.ts` reads it (as `storeBoundary.ts` is
  * read by its check and by the lint):
  *
- * - **Modules** inside `packages/domain/src`: a named group of files, by glob over today's layout, with a layer and the
- *   modules it may use. Layers order the modules (library < service < catalog < privacy < assembly): an import that
- *   points to a higher layer fails, and so does an import of a module that the importer does not declare. A module
- *   imports `effect` and the external packages its row names, and nothing else.
- * - **Units** (`packages/*`, `apps/*`, `tools/*`): the workspace package that a file belongs to, with the units it may
- *   import. The domain imports no workspace package, `packages/db` only the domain, nothing imports a tool or an app.
- *
- * Today's layout breaks some of these rules (ADR 0015, sections 2 and 3). Each such import is a `baseline` entry with
- * its reason, and the list can only shrink: an import that breaks a rule and is not on it fails, an entry that no import
- * needs fails, and `moduleGraph.test.ts` pins its length, so a stage that removes an import must lower the count. Stages
- * 2 to 5 of the ADR remove the entries.
+ * - **Modules** partition the shared and feature domain source trees. Each has a layer and declared dependencies.
+ * - **Units** separate the application from tools; tools may use direct application paths.
+ * The baseline lists tolerated violations and fails when an entry becomes unnecessary.
  */
-import { Array as Arr } from "effect";
-
 export type Layer = "library" | "service" | "catalog" | "privacy" | "assembly";
 
 /** A module may import a module of its own layer or a lower one (ADR 0015, section 2). */
@@ -47,6 +37,8 @@ export interface Unit {
   readonly root: string;
   /** The units whose package this one may import. */
   readonly uses: readonly string[];
+  /** Paths in this unit that tools may import directly. */
+  readonly toolPaths?: readonly string[];
 }
 
 /** An import that breaks a rule today and is tolerated until a stage of the ADR removes it. */
@@ -77,105 +69,119 @@ interface IntegrationCall {
 
 export interface Declaration {
   /** The files that the modules partition: every source file under it is a `.ts` file of exactly one module. */
-  readonly governed: string;
+  readonly governed: readonly string[];
   readonly modules: readonly Module[];
   readonly units: readonly Unit[];
   /** Files in which an import cycle fails, the same files for which the root `vite.config.ts` turns on `import/no-cycle`. */
   readonly acyclic: readonly string[];
+  /** Generated type-only edges excluded from cycle traversal. */
+  readonly acyclicTypeEdges?: readonly (readonly [string, string])[];
   readonly baseline: readonly Tolerated[];
   readonly integrationCalls: readonly IntegrationCall[];
 }
 
-const src = (...files: readonly string[]): readonly string[] =>
-  Arr.map(files, (file) => `packages/domain/src/${file}`);
-
 const modules: readonly Module[] = [
-  { files: src("cms/*.ts"), layer: "library", name: "cms", uses: [] },
   {
-    files: src(
-      "shared/ids.ts",
-      "shared/errors.ts",
-      "shared/validation.ts",
-      "shared/clock.ts",
-      "shared/siteOrigin.ts",
-      "organisation/semester.ts",
-      "kernel/principal.ts"
-    ),
+    files: [
+      "apps/web/src/features/cms/domain/client.ts",
+      "apps/web/src/features/cms/domain/collections.ts",
+      "apps/web/src/features/cms/domain/portableText.ts",
+    ],
+    layer: "library",
+    name: "cms",
+    uses: [],
+  },
+  {
+    files: [
+      "apps/web/src/domain/ids.ts",
+      "apps/web/src/domain/errors.ts",
+      "apps/web/src/domain/validation.ts",
+      "apps/web/src/domain/clock.ts",
+      "apps/web/src/domain/siteOrigin.ts",
+      "apps/web/src/features/organisation/domain/semester.ts",
+      "apps/web/src/domain/kernel/principal.ts",
+    ],
     layer: "library",
     name: "vocabulary",
     uses: [],
   },
   {
-    files: src(
-      "kernel/authorize.ts",
-      "kernel/commands.ts",
-      "kernel/domain.ts",
-      "kernel/effx.ts",
-      "kernel/grant.ts",
-      "kernel/guard.ts",
-      "kernel/machine.ts",
-      "kernel/subject.ts"
-    ),
+    files: [
+      "apps/web/src/domain/kernel/authorize.ts",
+      "apps/web/src/domain/kernel/commands.ts",
+      "apps/web/src/domain/kernel/domain.ts",
+      "apps/web/src/domain/kernel/effx.ts",
+      "apps/web/src/domain/kernel/grant.ts",
+      "apps/web/src/domain/kernel/guard.ts",
+      "apps/web/src/domain/kernel/machine.ts",
+      "apps/web/src/domain/kernel/subject.ts",
+    ],
     layer: "library",
     name: "kernel",
     uses: ["transactions", "vocabulary"],
   },
   {
-    files: src(
-      "shared/transaction.ts",
-      "shared/integrationGuard.ts",
-      "shared/transactor.ts",
-      "shared/aggregate.ts",
-      "shared/isolationProbe.ts",
-      "shared/platformProbe.ts"
-    ),
+    files: [
+      "apps/web/src/domain/transactions/transaction.ts",
+      "apps/web/src/domain/transactions/integrationGuard.ts",
+      "apps/web/src/domain/transactions/transactor.ts",
+      "apps/web/src/domain/transactions/aggregate.ts",
+      "apps/web/src/domain/store/isolationProbe.ts",
+      "apps/web/src/domain/store/platformProbe.ts",
+    ],
     layer: "library",
     name: "transactions",
     uses: ["vocabulary"],
   },
   {
-    files: src("shared/outbox.ts"),
+    files: ["apps/web/src/domain/outbox/outbox.ts"],
     layer: "library",
     name: "outbox",
     uses: ["transactions", "vocabulary"],
   },
   {
-    files: src(
-      "personalData/declaration.ts",
-      "personalData/duration.ts",
-      "personalData/forms.ts",
-      "personalData/periods.ts",
-      "personalData/retentions.ts",
-      "personalData/consents.ts",
-      "personalData/retentionEnd.ts",
-      "personalData/texts.ts"
-    ),
+    files: [
+      "apps/web/src/features/personal-data/domain/declaration.ts",
+      "apps/web/src/features/personal-data/domain/duration.ts",
+      "apps/web/src/features/personal-data/domain/forms.ts",
+      "apps/web/src/features/personal-data/domain/periods.ts",
+      "apps/web/src/features/personal-data/domain/retentions.ts",
+      "apps/web/src/features/personal-data/domain/consents.ts",
+      "apps/web/src/features/personal-data/domain/retentionEnd.ts",
+      "apps/web/src/features/personal-data/domain/texts.ts",
+    ],
     layer: "library",
     name: "annotations",
     uses: ["vocabulary"],
   },
   {
-    files: src("audit/*.ts"),
+    files: ["apps/web/src/features/audit/domain/*.ts"],
     layer: "service",
     name: "audit",
     uses: ["annotations", "kernel", "transactions", "vocabulary"],
   },
   {
-    files: src("files/*.ts"),
+    files: ["apps/web/src/features/files/domain/*.ts"],
     layer: "service",
     name: "files",
     uses: ["annotations", "audit", "kernel", "transactions", "vocabulary"],
   },
   {
-    files: src("content/*.ts"),
+    files: [
+      "apps/web/src/features/cms/domain/article.ts",
+      "apps/web/src/features/cms/domain/sanitizer.ts",
+      "apps/web/src/features/cms/domain/slug.ts",
+      "apps/web/src/features/cms/domain/sponsor.ts",
+      "apps/web/src/features/events/domain/*.ts",
+    ],
     layer: "service",
     name: "content",
     packages: ["sanitize-html"],
     uses: ["annotations", "audit", "kernel", "transactions", "vocabulary"],
   },
   {
-    except: src("organisation/semester.ts"),
-    files: src("organisation/*.ts"),
+    except: ["apps/web/src/features/organisation/domain/semester.ts"],
+    files: ["apps/web/src/features/organisation/domain/*.ts"],
     layer: "service",
     name: "organisation",
     uses: [
@@ -189,7 +195,7 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src("contact/*.ts"),
+    files: ["apps/web/src/features/contact/domain/*.ts"],
     layer: "service",
     name: "contact",
     uses: [
@@ -202,7 +208,10 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src("teams/*.ts", "workspace/companyEmail.ts"),
+    files: [
+      "apps/web/src/features/teams/domain/*.ts",
+      "apps/web/src/features/workspace/domain/companyEmail.ts",
+    ],
     layer: "service",
     name: "membership",
     uses: [
@@ -216,7 +225,7 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src("accounts/*.ts"),
+    files: ["apps/web/src/features/accounts/domain/*.ts"],
     layer: "service",
     name: "iam",
     uses: [
@@ -230,14 +239,18 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    except: src("outbox/delivery.ts", "outbox/messages.ts"),
-    files: src(
-      "jobs/job.ts",
-      "jobs/runs.ts",
-      "jobs/problems.ts",
-      "jobs/personalData.ts",
-      "outbox/*.ts"
-    ),
+    except: [
+      "apps/web/src/domain/outbox/delivery.ts",
+      "apps/web/src/domain/outbox/messages.ts",
+      "apps/web/src/domain/outbox/outbox.ts",
+    ],
+    files: [
+      "apps/web/src/domain/jobs/job.ts",
+      "apps/web/src/domain/jobs/runs.ts",
+      "apps/web/src/domain/jobs/problems.ts",
+      "apps/web/src/domain/jobs/personalData.ts",
+      "apps/web/src/domain/outbox/*.ts",
+    ],
     layer: "service",
     name: "triggers",
     uses: [
@@ -250,8 +263,8 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    except: src("workspace/companyEmail.ts"),
-    files: src("workspace/*.ts"),
+    except: ["apps/web/src/features/workspace/domain/companyEmail.ts"],
+    files: ["apps/web/src/features/workspace/domain/*.ts"],
     layer: "service",
     name: "workspace",
     uses: [
@@ -266,13 +279,13 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src("impact/*.ts"),
+    files: ["apps/web/src/features/impact/domain/*.ts"],
     layer: "service",
     name: "impact",
     uses: ["annotations", "kernel", "organisation", "triggers", "vocabulary"],
   },
   {
-    files: src("admission/*.ts"),
+    files: ["apps/web/src/features/admission/domain/*.ts"],
     layer: "service",
     name: "admission",
     uses: [
@@ -288,12 +301,12 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src(
-      "personalData/catalog.ts",
-      "jobs/registry.ts",
-      "outbox/delivery.ts",
-      "outbox/messages.ts"
-    ),
+    files: [
+      "apps/web/src/features/personal-data/domain/catalog.ts",
+      "apps/web/src/domain/jobs/registry.ts",
+      "apps/web/src/domain/outbox/delivery.ts",
+      "apps/web/src/domain/outbox/messages.ts",
+    ],
     layer: "catalog",
     name: "catalog",
     uses: [
@@ -315,14 +328,14 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src(
-      "personalData/alumni.ts",
-      "personalData/commands.ts",
-      "personalData/derive.ts",
-      "personalData/notice.ts",
-      "personalData/rpc.ts",
-      "personalData/services.ts"
-    ),
+    files: [
+      "apps/web/src/features/personal-data/domain/alumni.ts",
+      "apps/web/src/features/personal-data/domain/commands.ts",
+      "apps/web/src/features/personal-data/domain/derive.ts",
+      "apps/web/src/features/personal-data/domain/notice.ts",
+      "apps/web/src/features/personal-data/domain/rpc.ts",
+      "apps/web/src/features/personal-data/domain/services.ts",
+    ],
     layer: "privacy",
     name: "privacy",
     uses: [
@@ -339,64 +352,44 @@ const modules: readonly Module[] = [
     ],
   },
   {
-    files: src(
-      "declarations.ts",
-      "index.ts",
-      "localPeople.ts",
-      "shared/guarantees.ts",
-      "shared/platformRequirements.ts",
-      "shared/transactionModes.ts"
-    ),
+    files: [
+      "apps/web/src/domain/declarations.ts",
+      "apps/web/src/domain/store/guarantees.ts",
+      "apps/web/src/domain/store/platformRequirements.ts",
+      "apps/web/src/domain/store/transactionModes.ts",
+    ],
     layer: "assembly",
     name: "assembly",
     uses: "all",
   },
 ];
 
-/**
- * `apps/*` compose the platform and import no other app; `tools/*` import a package's declarations and never an app
- * (ADR 0015, section 7). `tools/quality`'s tests read the domain's declarations to check them (`storePorts.test.ts`,
- * `inTransactionProviders.test.ts`), and the Slice 0000 harness `tools/db-path-spike` is an adapter-level test of the
- * database packages by design (`storeBoundary.ts` allows it the same imports).
- */
+/** The application and each tool remain separate units. */
 const units: readonly Unit[] = [
-  { root: "packages/domain", uses: [] },
-  { root: "packages/db", uses: ["packages/domain"] },
   {
     root: "apps/web",
-    uses: ["packages/domain", "packages/db"],
+    toolPaths: [
+      "apps/web/src/domain/**",
+      "apps/web/src/features/*/domain/**",
+      "apps/web/src/adapters/db/**",
+      "apps/web/test/fixtures/**",
+      "apps/web/test/domain/support/**",
+      "apps/web/test/db/support/**",
+      "apps/web/worker.config.ts",
+    ],
+    uses: [],
   },
-  { root: "tools/quality", uses: ["packages/domain"] },
-  { root: "tools/docgen", uses: ["packages/domain", "packages/db"] },
-  { root: "tools/effx-conformance", uses: ["packages/domain"] },
+  { root: "tools/quality", uses: [] },
+  { root: "tools/docgen", uses: [] },
+  { root: "tools/effx-conformance", uses: [] },
   { root: "tools/oxlint", uses: [] },
-  {
-    root: "tools/import",
-    uses: ["packages/domain", "packages/db"],
-  },
-  { root: "tools/prototype", uses: ["packages/domain", "packages/db"] },
-  { root: "tools/db-path-spike", uses: ["packages/db", "packages/domain"] },
+  { root: "tools/import", uses: [] },
+  { root: "tools/prototype", uses: [] },
+  { root: "tools/db-path-spike", uses: [] },
 ];
 
-/**
- * The imports that break a rule today (ADR 0015, sections 2, 3 and 9), each with the stage that removes it. The list can
- * only shrink; `moduleGraph.test.ts` pins its length. Stages 2 and 3 (spec 0022) removed the three imports between
- * modules; what is left are imports between packages (stage 5).
- */
-export const baseline: readonly Tolerated[] = [
-  {
-    from: "tools/db-path-spike/alchemy.run.ts",
-    reason:
-      "The harness's Alchemy file reads `apps/web/worker.config.ts`. Stage 5: the harness stops importing `apps/web` or is deleted.",
-    to: "apps/web",
-  },
-  {
-    from: "tools/oxlint/anti-slop/rules/no-owned-table-write.ts",
-    reason:
-      "The rule reads the adapter's ownership declaration. ADR 0014 stage 5 moves that declaration into the domain.",
-    to: "packages/db",
-  },
-];
+/** Violations still tolerated by the ratchet. */
+export const baseline: readonly Tolerated[] = [];
 
 /**
  * The calls of another system that still run inside `Transactor.run` although the type bound (`NotAnIntegration`) does
@@ -413,9 +406,13 @@ export const baseline: readonly Tolerated[] = [
 const integrationCalls: readonly IntegrationCall[] = [];
 
 export const declaration: Declaration = {
-  acyclic: ["packages/**/*.ts", "packages/**/*.tsx"],
+  acyclic: ["apps/web/src/**/*.ts", "apps/web/src/**/*.tsx"],
+  // TanStack generates the route tree and router.tsx registers its type against it.
+  acyclicTypeEdges: [
+    ["apps/web/src/routeTree.gen.ts", "apps/web/src/router.tsx"],
+  ],
   baseline,
-  governed: "packages/domain/src/**",
+  governed: ["apps/web/src/domain/**", "apps/web/src/features/*/domain/**"],
   integrationCalls,
   modules,
   units,

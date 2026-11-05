@@ -1,9 +1,10 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { Divider, TextPictureParagraph } from "@/components/site/pageParts";
-import { PortableTextView } from "@/components/site/portableTextView";
-import { getAboutPage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+
+import { PortableTextView } from "../features/cms/components/portableTextView";
+import { getAboutPage } from "../features/site/server/functions";
+import { pageData } from "../http/outcome";
 
 const routeApi = getRouteApi("/om-oss");
 

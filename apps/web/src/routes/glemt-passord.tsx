@@ -10,9 +10,10 @@ import { LocalForm } from "@/components/form/localForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RequestResetForm } from "@/forms/account";
-import { getResetSiteKey } from "@/functions/account.functions";
-import { authRequest } from "@/lib/authClient";
+
+import { authRequest } from "../features/accounts/client";
+import { RequestResetForm } from "../features/accounts/forms/account";
+import { getResetSiteKey } from "../features/accounts/server/functions";
 
 const routeApi = getRouteApi("/glemt-passord");
 

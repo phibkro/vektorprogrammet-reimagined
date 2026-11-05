@@ -6,19 +6,26 @@ import {
 import { Array as Arr, Predicate } from "effect";
 import { useState } from "react";
 
-import { ActiveSessions } from "@/components/auth/settings/security/activeSessions";
-import { ChangePassword } from "@/components/auth/settings/security/changePassword";
-import { ConsentQuestions } from "@/components/consentQuestions";
 import { CommandForm } from "@/components/form/commandForm";
-import { OwnData } from "@/components/ownData";
-import { ProfileFields, profileDefaults } from "@/components/profileFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UpdateProfileForm } from "@/forms/people";
-import { getMyPage, updateProfile } from "@/functions/account.functions";
-import { answerOwnConsent } from "@/functions/personalData.functions";
-import { authRequest } from "@/lib/authClient";
-import { pageData } from "@/lib/outcome";
+
+import { authRequest } from "../features/accounts/client";
+import {
+  ProfileFields,
+  profileDefaults,
+} from "../features/accounts/components/profileFields";
+import { ActiveSessions } from "../features/accounts/components/settings/security/activeSessions";
+import { ChangePassword } from "../features/accounts/components/settings/security/changePassword";
+import {
+  getMyPage,
+  updateProfile,
+} from "../features/accounts/server/functions";
+import { ConsentQuestions } from "../features/personal-data/components/consentQuestions";
+import { OwnData } from "../features/personal-data/components/ownData";
+import { answerOwnConsent } from "../features/personal-data/server/functions";
+import { UpdateProfileForm } from "../features/teams/forms/people";
+import { pageData } from "../http/outcome";
 
 const routeApi = getRouteApi("/min-side");
 

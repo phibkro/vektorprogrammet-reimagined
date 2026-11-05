@@ -6,17 +6,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { isNotFound } from "@tanstack/react-router";
 import {
-  AdmissionPeriodId,
-  Catalog,
-  ContactForm,
-  DepartmentId,
-  SemesterId,
-  privacyNotice,
-} from "@vektorprogrammet/domain";
-import type { StoredAdmissionPeriod } from "@vektorprogrammet/domain";
-import { CmsClient, PortableText } from "@vektorprogrammet/domain/cms";
-import type { NewsData } from "@vektorprogrammet/domain/cms";
-import {
   Array as Arr,
   DateTime,
   Effect,
@@ -27,10 +16,15 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import { pageData } from "../src/lib/outcome";
-import type { Outcome } from "../src/lib/outcome";
-import { TEXT_SLOTS } from "../src/lib/textSlots";
-import { runOutcome } from "../src/server/runtime";
+import { AdmissionPeriodId, DepartmentId, SemesterId } from "../src/domain/ids";
+import { CmsClient } from "../src/features/cms/domain/client";
+import type { NewsData } from "../src/features/cms/domain/collections";
+import * as PortableText from "../src/features/cms/domain/portableText";
+import { TEXT_SLOTS } from "../src/features/cms/textSlots";
+import { ContactForm } from "../src/features/contact/domain/personalData";
+import type { StoredAdmissionPeriod } from "../src/features/organisation/domain/admission";
+import { Catalog } from "../src/features/personal-data/domain/catalog";
+import { privacyNotice } from "../src/features/personal-data/domain/notice";
 import {
   aboutPage,
   articlePage,
@@ -41,7 +35,10 @@ import {
   homePage,
   newsPage,
   teamPage,
-} from "../src/server/site/pages";
+} from "../src/features/site/server/pages";
+import { pageData } from "../src/http/outcome";
+import type { Outcome } from "../src/http/outcome";
+import { runOutcome } from "../src/server/runtime";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
 import { fakeDepartment, makeTables, memoryLayer } from "./support/memory";

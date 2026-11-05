@@ -1,0 +1,40 @@
+/**
+ * The content domain as data (spec 0006): social events (C8). The articles, texts and sponsors of the public site are
+ * the CMS's (spec 0005). Phase 1's `ManageSocialEvents` capability is this command and its row: a member of a team
+ * of the department.
+ */
+import { Rpc, RpcGroup } from "effect/rpc";
+
+import { DomainErrorSchema } from "../../../domain/errors.ts";
+import {
+  Info,
+  grant,
+  info,
+  member,
+  make as declareDomain,
+} from "../../../domain/kernel/domain.ts";
+import { SocialEvent, SocialEventInput } from "./socialEvent.ts";
+
+export const createSocialEvent = Rpc.make("createSocialEvent", {
+  error: DomainErrorSchema,
+  payload: SocialEventInput,
+  success: SocialEvent,
+}).annotate(
+  Info,
+  info({
+    method: "create",
+    replaces: ["RULE-188"],
+    resource: "SocialEvent",
+    summary: "Add a social event for a department and a semester.",
+  })
+);
+
+export const ContentRpc = RpcGroup.make(createSocialEvent);
+
+export const ContentDomain = declareDomain({
+  commands: ContentRpc,
+  grants: [grant([member], ["createSocialEvent"], "department")],
+  name: "content",
+  reads: {},
+  title: "Content",
+});

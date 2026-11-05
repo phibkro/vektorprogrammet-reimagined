@@ -35,6 +35,38 @@ interface UnitEdge {
   readonly use: Use;
 }
 
+/** Tool access is limited to explicitly declared application surfaces. */
+const toolMayReach = (from: Unit, to: Unit, use: Use): boolean => {
+  if (!from.root.startsWith("tools/") || use.target.kind !== "file") {
+    return false;
+  }
+
+  const target = use.target.path;
+
+  return Arr.some(to.toolPaths ?? [], (pattern) =>
+    globToRegExp(pattern).test(target)
+  );
+};
+
+const isExcludedTypeEdge = (
+  declaration: Declaration,
+  files: readonly SourceFile[],
+  use: Use,
+  target: string
+): boolean =>
+  Arr.some(
+    declaration.acyclicTypeEdges ?? [],
+    ([from, to]) =>
+      from === use.path &&
+      to === target &&
+      Arr.some(
+        files,
+        (file) =>
+          file.path === from &&
+          /^\s*import\s+type\b/u.test(file.text.split("\n")[use.line - 1] ?? "")
+      )
+  );
+
 const site = (use: Use): string => `${use.path}:${use.line}`;
 
 const baseName = (root: string): string =>
@@ -192,7 +224,7 @@ const declarationFindings = (
   const ownership = Arr.flatMap(governedPaths, (path) => {
     if (!path.endsWith(".ts")) {
       return [
-        `${path}: is a source file of the governed tree (${governed}) and not a .ts file; the module globs read .ts only, so rename it`,
+        `${path}: is a source file of the governed tree (${Arr.join(governed, ", ")}) and not a .ts file; the module globs read .ts only, so rename it`,
       ];
     }
 
@@ -200,7 +232,7 @@ const declarationFindings = (
 
     if (owners.length === 0) {
       return [
-        `${path}: belongs to no module (${governed}); list it in a module of tools/quality/moduleGraph.ts`,
+        `${path}: belongs to no module (${Arr.join(governed, ", ")}); list it in a module of tools/quality/moduleGraph.ts`,
       ];
     }
 
@@ -278,8 +310,11 @@ export const moduleGraphFindings = (
     declaration;
 
   const paths = new Set(Arr.map(files, ({ path }) => path));
-  const governedPattern = globToRegExp(governed);
-  const isGoverned = (path: string): boolean => governedPattern.test(path);
+
+  const governedPatterns = Arr.map(governed, globToRegExp);
+
+  const isGoverned = (path: string): boolean =>
+    Arr.some(governedPatterns, (pattern) => pattern.test(path));
 
   const uses: readonly Use[] = Arr.flatMap(files, ({ imports, path }) =>
     Arr.map(imports, (found) => ({ ...found, path }))
@@ -302,7 +337,7 @@ export const moduleGraphFindings = (
       ? [
           {
             from: use.path,
-            text: `${site(use)}: imports ${target}, a source file of its own package that no module owns (${governed}): its imports are beyond every module rule, so the governed tree may not import it`,
+            text: `${site(use)}: imports ${target}, a source file of its own package that no module owns (${Arr.join(governed, ", ")}): its imports are beyond every module rule, so the governed tree may not import it`,
             to: target,
           },
         ]
@@ -465,6 +500,10 @@ export const moduleGraphFindings = (
       }
 
       if (reach === "path") {
+        if (toolMayReach(from, to.value, use)) {
+          return [];
+        }
+
         return [
           {
             from: use.path,
@@ -555,11 +594,17 @@ export const moduleGraphFindings = (
     (path) => Arr.some(acyclic, (glob) => globToRegExp(glob).test(path))
   );
 
-  const fileEdges = Arr.flatMap(uses, (use): [Use, string][] =>
-    use.target.kind === "file" && paths.has(use.target.path)
-      ? [[use, use.target.path]]
-      : []
-  );
+  const fileEdges = Arr.flatMap(uses, (use): [Use, string][] => {
+    if (use.target.kind !== "file" || !paths.has(use.target.path)) {
+      return [];
+    }
+
+    const target = use.target.path;
+
+    return isExcludedTypeEdge(declaration, files, use, target)
+      ? []
+      : [[use, target]];
+  });
 
   const fileCycles = Arr.map(
     cycles(
@@ -608,7 +653,7 @@ export const moduleGraphFindings = (
   const symlinks = Arr.flatMap(files, ({ path, symlink }) =>
     symlink && isGoverned(path)
       ? [
-          `${path}: is a symbolic link in the governed tree (${governed}); the module rules read real paths, so a link would hide an edge: import the real file, or move it`,
+          `${path}: is a symbolic link in the governed tree (${Arr.join(governed, ", ")}); the module rules read real paths, so a link would hide an edge: import the real file, or move it`,
         ]
       : []
   );

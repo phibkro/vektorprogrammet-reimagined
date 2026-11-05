@@ -1,20 +1,20 @@
+import { Array as Arr, DateTime, Effect, Layer, Record as Rec } from "effect";
+
 /**
  * An in-memory CMS for apps/web tests: the `CmsClient` over seeded entries. Like the real client it shows a page
  * only the published entries (the real EmDash lets a token that can read also read drafts), and it implements the
  * writes the importer uses, so a test can publish an entry and watch a page program change without a deploy.
  * Every value here is a fake same-shape value.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/domain/cms";
+import { CmsClient, CreateOutcome } from "../../src/features/cms/domain/client";
+import type { Collection, Entry } from "../../src/features/cms/domain/client";
 import type {
-  Collection,
-  Entry,
   FaqData,
   NewsData,
   SponsorData,
   TeamData,
   TextData,
-} from "@vektorprogrammet/domain/cms";
-import { Array as Arr, DateTime, Effect, Layer, Record as Rec } from "effect";
+} from "../../src/features/cms/domain/collections";
 
 /** A seeded entry; a draft is kept by the CMS but never shown. */
 export interface Seed<A> {

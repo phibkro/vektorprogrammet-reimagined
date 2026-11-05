@@ -1,10 +1,3 @@
-/**
- * One Effect program per check (spec 0000). Each runs inside the per-request stack
- * (`SqlClient` + `SpikeDb`, see `database.ts`) and answers with the evidence the
- * smoke command judges; the verdict itself lives there, never here.
- */
-import { classifySqlFailure, transactional } from "@vektorprogrammet/db";
-import { sanitizeRichText } from "@vektorprogrammet/domain";
 import { compareSync, getRounds } from "bcryptjs";
 import { and, eq, sql as drizzleSql } from "drizzle-orm";
 import {
@@ -19,6 +12,14 @@ import {
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+/**
+ * One Effect program per check (spec 0000). Each runs inside the per-request stack
+ * (`SqlClient` + `SpikeDb`, see `database.ts`) and answers with the evidence the
+ * smoke command judges; the verdict itself lives there, never here.
+ */
+import { classifySqlFailure } from "../../../../apps/web/src/adapters/db/classifySqlFailure.ts";
+import { transactional } from "../../../../apps/web/src/adapters/db/transactional.ts";
+import { sanitizeRichText } from "../../../../apps/web/src/features/cms/domain/sanitizer.ts";
 import {
   allowedRichText,
   bcryptProbe,

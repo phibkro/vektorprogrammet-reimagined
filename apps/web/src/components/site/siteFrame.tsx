@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 import { SiteFooter } from "@/components/site/siteFooter";
 import { SiteHeader } from "@/components/site/siteHeader";
-import type { SponsorView } from "@/server/site/pages";
+
+import type { SponsorView } from "../../features/site/server/pages";
 
 /** The header, the page and the footer on mono-web's plain white page (`.public-site`). */
 export const SiteFrame = ({

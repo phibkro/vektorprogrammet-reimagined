@@ -4,13 +4,13 @@
  * that do not depend on a report (an empty 404 on production, the status of a failed request).
  */
 import { assert } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import { Forbidden } from "@vektorprogrammet/domain";
 import { Effect, Layer, Schema } from "effect";
 import type { Option, Redacted } from "effect";
 
-import type { Outcome } from "../../src/lib/outcome";
-import { failureOf } from "../../src/server/errors";
+import { DatabaseLive } from "../../src/adapters/db/databaseLive";
+import { Forbidden } from "../../src/domain/errors";
+import type { Outcome } from "../../src/http/outcome";
+import { failureOf } from "../../src/server/http/errors";
 
 export const databaseAt = (url: Redacted.Redacted) =>
   DatabaseLive({ url }).pipe(Layer.orDie);

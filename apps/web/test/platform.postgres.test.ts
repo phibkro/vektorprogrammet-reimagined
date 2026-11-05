@@ -10,25 +10,26 @@
  * - The failure of the request answers with its own status.
  */
 import { assert, layer } from "@effect/vitest";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import {
-  runtimeTestDatabase,
-  RuntimeDatabaseUrl,
-} from "@vektorprogrammet/db/testing/runtime-role";
-import { PlatformProbe, requiredChecks } from "@vektorprogrammet/domain";
-import type { PlatformReport } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Option, Redacted, Schema } from "effect";
 
-import { success } from "../src/lib/outcome";
+import { PlatformProbe } from "../src/domain/store/platformProbe";
+import type { PlatformReport } from "../src/domain/store/platformProbe";
+import { requiredChecks } from "../src/domain/store/platformRequirements";
+import { success } from "../src/http/outcome";
 import {
   platformReport,
   platformResponse,
   runPlatformRoute,
-} from "../src/server/platform";
+} from "../src/server/diagnostics/platform";
 import type { RequestScope } from "../src/server/runtime";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "./db/support/disposableDatabase";
+import {
+  runtimeTestDatabase,
+  RuntimeDatabaseUrl,
+} from "./db/support/runtimeRole";
 import {
   assertEmpty404,
   assertFailureStatus,

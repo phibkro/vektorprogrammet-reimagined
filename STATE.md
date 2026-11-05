@@ -6,7 +6,7 @@
 
 - Architecture: one Start Worker, Supabase Postgres/Auth/Storage, in-app content editor, due-safe Postgres outbox delivery; Terraform owns hosted Worker artifacts and selected existing-project settings. No remote import/plan/apply or deployment has run.
 - The earlier local prototype is described in `docs/specs/0028-supabase-prototype.md`; its evidence predates the hybrid merge and does not verify it.
-- Startup and synthetic account references: `tools/prototype/README.md`, `apps/web/README.md`, `packages/domain/src/localPeople.ts`. Secrets/captured links stay outside Git and logs. Local CLI defaults and non-loopback published ports make this synthetic-only.
+- Startup and synthetic account references: `tools/prototype/README.md`, `apps/web/README.md`, `apps/web/test/fixtures/localPeople.ts`. Secrets/captured links stay outside Git and logs. Local CLI defaults and non-loopback published ports make this synthetic-only.
 - Supabase owns provider credentials and recovery; alumni consent and application verification remain domain code purposes. Provider erasure/relink is durable external work with explicit pending/manual-editorial disclosures.
 - Plugin 0.2.0 overlapping role groups leave application-only rules active at framework roots; root lint configuration contains a narrow applicability correction for actual auth route/browser roots. Retire it when the maintained plugin resets non-applicable rules across overlaps.
 - A real signed-in legacy-file request exposed a raw-Worker/Start cookie-context boundary error. The redirect now uses only the public registry layer. Its updated browser case passed for anonymous and signed-in requests.
@@ -15,8 +15,12 @@
 - Hybrid local acceptance passed: compiled browser membership and CMS journeys, explicit authorization refusals, private Storage, provider metadata export, database role denials, and captured outbox delivery. Runtime is non-owner and NOBYPASSRLS. Private Auth views are a bounded owner-read exception. The SDK secret still carries provider authority.
 - Workspace gate: 9 units and 1,481 tests passed at implementation 1cb988f. A subsequent bootstrap-only path containment correction passed real CLI rejection/acceptance checks and full static gates. Two affected credential browser tests passed. Terraform format/validation passed without plan/apply.
 - Hosted preview remains blocked on dedicated synthetic project/control-plane access and independently verified non-delivering native Auth SMTP. No PR, remote project change or deployment ran. Fresh migration execution passed; upgrading the preserved 5d51f3c database remains unrehearsed.
+- The earlier server regrouping separated HTTP, feature, identity, provider, background and diagnostic boundaries. `runtime.ts` remains the composition root. Spec 0030 describes the app-local consolidation; its organisation decisions are provisional pending operator approval.
+- Server regrouping verification: 272 web tests and 91 quality tests passed; format, lint/type, exception, store-boundary, module-graph, generated-doc and Knip checks passed. The production Worker build passed. A native Supabase browser smoke signed in, read teams, created a synthetic team, reloaded its persisted row and refused anonymous panel access. This run did not repeat the full workspace or browser suites.
 
 ## Done
+
+The records below describe earlier implementations and their evidence. Their architecture, paths and deployment instructions are historical, not current prototype guidance.
 
 - Phase 1 architecture approved at Checkpoint 2 (2026-10-15).
 - Slice 0000 ran on a deployed Worker → Hyperdrive (cache off) → Neon `dev` → `@effect/sql-pg` → Drizzle `effect-postgres`: 12 of 12 checks pass (`docs/specs/0000-results.md`). The first run failed check 3b because the Worker lacked `enable_request_signal`; the flag is now in the shared Worker config and must stay there. `tools/db-path-spike` has 39 tests. The spike Worker was torn down on 2026-10-16 at the operator's request; it can be redeployed.

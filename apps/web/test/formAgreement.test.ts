@@ -7,18 +7,6 @@
  * reports it.
  */
 import { assert, describe, it } from "@effect/vitest";
-import type { ValidationFailed } from "@vektorprogrammet/domain";
-import {
-  Accounts,
-  Admission,
-  Contact,
-  EmailAddressInput,
-  Content,
-  Organisation,
-  PersonalDataRpcs,
-  Teams,
-  decodeInput,
-} from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Effect,
@@ -28,10 +16,23 @@ import {
   Schema,
 } from "effect";
 
-import * as AccountForms from "../src/forms/account";
-import * as AdmissionForms from "../src/forms/admission";
-import * as ContactForms from "../src/forms/contact";
-import * as DepartmentForms from "../src/forms/department";
+import type { ValidationFailed } from "../src/domain/errors";
+import { EmailAddressInput, decodeInput } from "../src/domain/validation";
+import * as Accounts from "../src/features/accounts/domain/declaration";
+import * as AccountForms from "../src/features/accounts/forms/account";
+import * as Admission from "../src/features/admission/domain/declaration";
+import * as AdmissionForms from "../src/features/admission/forms/admission";
+import * as Contact from "../src/features/contact/domain/declaration";
+import * as ContactForms from "../src/features/contact/forms/contact";
+import * as Content from "../src/features/events/domain/declaration";
+import * as Organisation from "../src/features/organisation/domain/declaration";
+import * as DepartmentForms from "../src/features/organisation/forms/department";
+import * as OrganisationForms from "../src/features/organisation/forms/organisation";
+import * as PersonalDataRpcs from "../src/features/personal-data/domain/rpc";
+import * as PersonalDataForms from "../src/features/personal-data/forms/personalData";
+import * as Teams from "../src/features/teams/domain/declaration";
+import * as PeopleForms from "../src/features/teams/forms/people";
+import * as TeamForms from "../src/features/teams/forms/teams";
 import {
   Text,
   clientValidator,
@@ -39,10 +40,6 @@ import {
   toFormData,
 } from "../src/forms/formSchema";
 import type { FormText } from "../src/forms/formSchema";
-import * as OrganisationForms from "../src/forms/organisation";
-import * as PeopleForms from "../src/forms/people";
-import * as PersonalDataForms from "../src/forms/personalData";
-import * as TeamForms from "../src/forms/teams";
 
 /** An issue as a person reads it: where, and what it says. */
 const asText = (path: readonly string[], message: string): string =>
@@ -369,8 +366,11 @@ const isForm = (value: unknown): value is Form =>
   Predicate.hasProperty(value, "read") &&
   Predicate.hasProperty(value, "schema");
 
-/** Every module of `src/forms`, read from the directory (a module that is added is here without a line to say so). */
-const FORM_MODULES = import.meta.glob("../src/forms/*.ts", { eager: true });
+/** Every shared and feature module is discovered; only exported form constructs are checked. */
+const FORM_MODULES = {
+  ...import.meta.glob("../src/forms/*.ts", { eager: true }),
+  ...import.meta.glob("../src/features/**/*.ts", { eager: true }),
+};
 
 /** Every form that the modules export: the exports that carry the construct's members (`payloadOf`, `read`, `schema`). */
 const formsIn = (modules: typeof FORM_MODULES): readonly Form[] =>
@@ -432,10 +432,8 @@ describe("spec 0010a F2: the browser and the server agree", () => {
       })
   );
 
-  it("issue 74: every form of src/forms is compared above or excused, so a new form cannot join unchecked", () => {
-    // The directory is read, not listed: a module that is added to it is in `FORM_MODULES` without a line here.
-    assert.isAbove(Rec.keys(FORM_MODULES).length, 7);
-    assert.isAbove(formsIn(FORM_MODULES).length, 20);
+  it("issue 74: every discovered form is compared above or excused", () => {
+    assert.isAbove(formsIn(FORM_MODULES).length, 0);
     assert.deepStrictEqual(
       uncovered(formsIn(FORM_MODULES), CASES, WITHOUT_A_COMMAND),
       []

@@ -1,21 +1,22 @@
-/** Real SQL repositories, crypto and captured transports over a disposable migrated database. */
-import { DatabaseLive } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import type { CapturedMessageStore } from "@vektorprogrammet/domain";
-import { OutboxMessageId, SiteOrigin } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { accountDeliveryLayer } from "../../src/server/accountDelivery";
-import { authLayer } from "../../src/server/auth";
-import { deliverOutbox } from "../../src/server/outboxDelivery";
-import { captureSenderLayer } from "../../src/server/senders";
-import type { MessageSender } from "../../src/server/senders";
-import { webCryptoLayer } from "../../src/server/webCrypto";
-import { workspaceWriterLayer } from "../../src/server/workspace";
+/** Real SQL repositories, crypto and captured transports over a disposable migrated database. */
+import { DatabaseLive } from "../../src/adapters/db/databaseLive";
+import { captureSenderLayer } from "../../src/adapters/messaging/senders";
+import type { MessageSender } from "../../src/adapters/messaging/senders";
+import { webCryptoLayer } from "../../src/adapters/webCrypto";
+import { workspaceWriterLayer } from "../../src/adapters/workspace";
+import { OutboxMessageId } from "../../src/domain/ids";
+import type { CapturedMessageStore } from "../../src/domain/outbox/captured";
+import { SiteOrigin } from "../../src/domain/siteOrigin";
+import { accountDeliveryLayer } from "../../src/server/background/outbox/accountDelivery";
+import { deliverOutbox } from "../../src/server/background/outbox/delivery";
+import { authLayer } from "../../src/server/identity/auth";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "../db/support/disposableDatabase";
 
 /** The origin that the links of the mail name. */
 export const origin = "https://mail.example";

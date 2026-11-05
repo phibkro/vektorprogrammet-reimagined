@@ -4,8 +4,9 @@ import { Array as Arr } from "effect";
 import { NoSections, NotSignedIn } from "@/components/panel/notSignedIn";
 import { PanelShell } from "@/components/panel/panelShell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { getShell } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+
+import { getShell } from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/kontrollpanel");
 
@@ -36,7 +37,7 @@ const ControlPanelLayout = () => {
 
 /**
  * The control panel: a dashboard shell (sidebar, header, page) that owns the whole page. The sidebar lists only the
- * sections the principal may use, derived from the grant table (`server/shell.ts`: `canAnywhere`); a visitor who is
+ * sections the principal may use, derived from the grant table (`server/features/panel/shell.ts`: `canAnywhere`); a visitor who is
  * not signed in gets a plain page instead, and so does a person who belongs to no team.
  * Each command independently checks the current principal and grants.
  */

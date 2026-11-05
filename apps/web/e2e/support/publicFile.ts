@@ -1,8 +1,9 @@
 import { PgClient } from "@effect/sql-pg";
 import { createClient } from "@supabase/supabase-js";
-import { fileKeyFor } from "@vektorprogrammet/domain";
 import { Config, Crypto, Effect, Redacted } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
+
+import { fileKeyFor } from "../../src/features/files/domain/fileType";
 
 export const PUBLIC_FILE_FIXTURE_TEXT =
   "Vektorprogrammet local public-file fixture.\n";

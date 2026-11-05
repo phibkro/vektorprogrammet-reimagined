@@ -75,7 +75,7 @@ const makeModule = (
 export const fixture: Declaration = {
   acyclic: ["packages/**/*.ts"],
   baseline: [],
-  governed: `${d}/**`,
+  governed: [`${d}/**`],
   integrationCalls: [],
   modules: [
     makeModule("vocab", "library", []),

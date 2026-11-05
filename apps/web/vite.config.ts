@@ -19,6 +19,7 @@ import {
 const environment = Effect.runSync(
   Config.all({
     database: Config.String("DATABASE_URL").pipe(Config.withDefault("")),
+    domainTests: Config.option(Config.String("DOMAIN_TESTS")),
     publishableKey: Config.String("SUPABASE_PUBLISHABLE_KEY").pipe(
       Config.withDefault("")
     ),
@@ -103,7 +104,9 @@ export default defineConfig(({ command }) => ({
   test: {
     hookTimeout: 60_000,
     include: ["test/**/*.test.{ts,tsx}"],
-    maxWorkers: Math.min(2, Math.max(availableParallelism() - 1, 1)),
+    maxWorkers: Option.isSome(environment.domainTests)
+      ? Math.max(availableParallelism() - 1, 1)
+      : Math.min(2, Math.max(availableParallelism() - 1, 1)),
     testTimeout: 60_000,
   },
 }));

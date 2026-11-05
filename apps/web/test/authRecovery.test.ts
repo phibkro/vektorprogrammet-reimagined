@@ -4,11 +4,11 @@ import {
   AuthRetryableFetchError,
   AuthSessionMissingError,
 } from "@supabase/supabase-js";
-import { SignInMatch } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Ref } from "effect";
 
-import { recoveryResponse, sessionFailure } from "../src/server/auth";
-import { AuthBoundaryFailure } from "../src/server/authError";
+import { SignInMatch } from "../src/features/accounts/domain/signInDirectory";
+import { recoveryResponse, sessionFailure } from "../src/server/identity/auth";
+import { AuthBoundaryFailure } from "../src/server/identity/authError";
 
 const failed = () =>
   Effect.fail(new AuthBoundaryFailure({ cause: "provider unavailable" }));

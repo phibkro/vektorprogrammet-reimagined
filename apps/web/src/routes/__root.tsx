@@ -11,8 +11,9 @@ import { Array as Arr } from "effect";
 import type { ReactNode } from "react";
 
 import { SiteFrame } from "@/components/site/siteFrame";
-import { getFooter } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+
+import { getFooter } from "../features/site/server/functions";
+import { pageData } from "../http/outcome";
 
 import appCss from "../styles.css?url";
 

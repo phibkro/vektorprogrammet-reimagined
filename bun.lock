@@ -36,14 +36,14 @@
         "@tanstack/react-form": "catalog:",
         "@tanstack/react-router": "catalog:",
         "@tanstack/react-start": "catalog:",
-        "@vektorprogrammet/db": "workspace:*",
-        "@vektorprogrammet/domain": "workspace:*",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
+        "drizzle-orm": "catalog:",
         "effect": "catalog:",
         "lucide-react": "1.57.0",
         "react": "catalog:",
         "react-dom": "catalog:",
+        "sanitize-html": "catalog:",
         "tailwind-merge": "3.7.0",
         "tailwindcss": "4.3.3",
         "tailwindcss-animate": "^1.0.7",
@@ -52,52 +52,21 @@
         "@cloudflare/vite-plugin": "catalog:",
         "@cloudflare/workers-types": "catalog:",
         "@effect/platform-node": "catalog:",
+        "@effect/sql-pglite": "catalog:",
         "@effect/vitest": "catalog:",
+        "@electric-sql/pglite": "catalog:",
         "@playwright/test": "catalog:",
         "@tanstack/router-cli": "1.167.44",
         "@types/node": "catalog:",
         "@types/react": "19.3.0",
         "@types/react-dom": "19.3.0",
+        "@types/sanitize-html": "catalog:",
         "@vitejs/plugin-react": "6.1.2",
+        "drizzle-kit": "catalog:",
         "happy-dom": "catalog:",
         "typescript": "catalog:",
         "vite-plus": "catalog:",
         "wrangler": "catalog:",
-      },
-    },
-    "packages/db": {
-      "name": "@vektorprogrammet/db",
-      "version": "0.0.0",
-      "dependencies": {
-        "@effect/sql-pg": "catalog:",
-        "@vektorprogrammet/domain": "workspace:*",
-        "drizzle-orm": "catalog:",
-        "effect": "catalog:",
-      },
-      "devDependencies": {
-        "@effect/platform-node": "catalog:",
-        "@effect/sql-pglite": "catalog:",
-        "@effect/vitest": "catalog:",
-        "@electric-sql/pglite": "catalog:",
-        "@types/node": "catalog:",
-        "drizzle-kit": "catalog:",
-        "typescript": "catalog:",
-        "vite-plus": "catalog:",
-      },
-    },
-    "packages/domain": {
-      "name": "@vektorprogrammet/domain",
-      "version": "0.0.0",
-      "dependencies": {
-        "effect": "catalog:",
-        "sanitize-html": "catalog:",
-      },
-      "devDependencies": {
-        "@effect/vitest": "catalog:",
-        "@types/node": "catalog:",
-        "@types/sanitize-html": "catalog:",
-        "typescript": "catalog:",
-        "vite-plus": "catalog:",
       },
     },
     "tools/db-path-spike": {
@@ -105,8 +74,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/sql-pg": "catalog:",
-        "@vektorprogrammet/db": "workspace:*",
-        "@vektorprogrammet/domain": "workspace:*",
         "bcryptjs": "catalog:",
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
@@ -128,8 +95,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-node": "catalog:",
-        "@vektorprogrammet/db": "workspace:*",
-        "@vektorprogrammet/domain": "workspace:*",
         "effect": "catalog:",
       },
       "devDependencies": {
@@ -144,7 +109,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-node": "catalog:",
-        "@vektorprogrammet/domain": "workspace:*",
         "effect": "catalog:",
       },
       "devDependencies": {
@@ -160,8 +124,6 @@
       "dependencies": {
         "@effect/platform-node": "catalog:",
         "@effect/sql-mysql2": "catalog:",
-        "@vektorprogrammet/db": "workspace:*",
-        "@vektorprogrammet/domain": "workspace:*",
         "domhandler": "catalog:",
         "effect": "catalog:",
         "htmlparser2": "catalog:",
@@ -187,8 +149,6 @@
       "dependencies": {
         "@effect/platform-node": "catalog:",
         "@supabase/supabase-js": "2.118.0",
-        "@vektorprogrammet/db": "workspace:*",
-        "@vektorprogrammet/domain": "workspace:*",
         "effect": "catalog:",
       },
       "devDependencies": {
@@ -201,7 +161,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-node": "catalog:",
-        "@vektorprogrammet/domain": "workspace:*",
         "effect": "catalog:",
         "oxc-parser": "catalog:",
         "oxc-resolver": "catalog:",
@@ -1107,13 +1066,9 @@
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
-    "@vektorprogrammet/db": ["@vektorprogrammet/db@workspace:packages/db"],
-
     "@vektorprogrammet/db-path-spike": ["@vektorprogrammet/db-path-spike@workspace:tools/db-path-spike"],
 
     "@vektorprogrammet/docgen": ["@vektorprogrammet/docgen@workspace:tools/docgen"],
-
-    "@vektorprogrammet/domain": ["@vektorprogrammet/domain@workspace:packages/domain"],
 
     "@vektorprogrammet/effx-conformance": ["@vektorprogrammet/effx-conformance@workspace:tools/effx-conformance"],
 

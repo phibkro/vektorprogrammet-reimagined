@@ -1,9 +1,3 @@
-/**
- * The spike's own tables (spec 0000). Everything lives in the schema `spike_0000`,
- * so the Phase 1 tables in `public` stay untouched and `drop schema spike_0000 cascade`
- * is the whole table teardown. Tables carry the `spike_` prefix.
- */
-import { UniqueConstraint } from "@vektorprogrammet/db";
 import {
   date,
   integer,
@@ -15,6 +9,13 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+
+/**
+ * The spike's own tables (spec 0000). Everything lives in the schema `spike_0000`,
+ * so the Phase 1 tables in `public` stay untouched and `drop schema spike_0000 cascade`
+ * is the whole table teardown. Tables carry the `spike_` prefix.
+ */
+import { UniqueConstraint } from "../../../apps/web/src/adapters/db/schema.ts";
 
 const SPIKE_SCHEMA = "spike_0000";
 

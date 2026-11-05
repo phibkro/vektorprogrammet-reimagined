@@ -9,7 +9,7 @@ import { Link } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 import { Mail } from "lucide-react";
 
-import type { SponsorView } from "@/server/site/pages";
+import type { SponsorView } from "../../features/site/server/pages";
 
 /** The departments' Facebook pages, from mono-web's footer; the department model has no social links yet. */
 const FACEBOOK = [

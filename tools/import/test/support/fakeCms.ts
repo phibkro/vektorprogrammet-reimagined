@@ -1,21 +1,27 @@
+import { Array as Arr, Effect, Layer, Option } from "effect";
+
 /**
  * An in-memory CMS: `CmsClient` over a Map per collection. It behaves like EmDash where the importer depends on
  * it: `create` makes a draft, a slug that exists answers `SlugTaken`, `publish` turns a draft into a published
  * entry, `listings` shows every entry with its status. Tests inspect `stored` afterwards; the real EmDash is
  * exercised by `apps/web/e2e`.
  */
-import { CmsClient, CreateOutcome } from "@vektorprogrammet/domain/cms";
+import {
+  CmsClient,
+  CreateOutcome,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
 import type {
   CmsFailure,
   Collection,
-  FaqData,
   NewEntry,
+} from "../../../../apps/web/src/features/cms/domain/client.ts";
+import type {
+  FaqData,
   NewsData,
   SponsorData,
   TeamData,
   TextData,
-} from "@vektorprogrammet/domain/cms";
-import { Array as Arr, Effect, Layer, Option } from "effect";
+} from "../../../../apps/web/src/features/cms/domain/collections.ts";
 
 interface Stored<A> {
   readonly id: string;

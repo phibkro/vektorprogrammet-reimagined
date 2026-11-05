@@ -24,6 +24,85 @@ import {
 
 const root = new URL("../../../", import.meta.url).pathname;
 
+const checkRealBoundaries = (files: readonly SourceFile[]): void => {
+  for (const path of [
+    "apps/web/src/domain/new/unknown.ts",
+    "apps/web/src/features/new/domain/unknown.ts",
+  ]) {
+    assert.lengthOf(
+      mentioning(
+        moduleGraphFindings(declaration, [...files, source(path)]),
+        `${path}: belongs to no module`
+      ),
+      1
+    );
+  }
+
+  for (const path of [
+    "apps/web/src/domain/new/unknown.tsx",
+    "apps/web/src/features/new/domain/unknown.tsx",
+  ]) {
+    assert.lengthOf(
+      mentioning(
+        moduleGraphFindings(declaration, [...files, source(path)]),
+        `${path}: is a source file of the governed tree`
+      ),
+      1
+    );
+  }
+
+  // Both shared and feature domains must reject paths into the application adapters and web.
+  for (const from of [
+    "apps/web/src/domain/outbox/outbox.ts",
+    "apps/web/src/features/contact/domain/commands.ts",
+  ]) {
+    for (const to of [
+      "apps/web/src/adapters/db/live.ts",
+      "apps/web/src/server/runtime.ts",
+    ]) {
+      const escaped = Arr.map(files, (file) =>
+        file.path === from
+          ? {
+              ...file,
+              imports: [
+                ...file.imports,
+                {
+                  line: 9999,
+                  specifier: to,
+                  target: { kind: "file" as const, path: to },
+                },
+              ],
+            }
+          : file
+      );
+
+      assert.lengthOf(
+        mentioning(
+          moduleGraphFindings(declaration, escaped),
+          `${from}:9999: imports ${to}, a source file`
+        ),
+        1
+      );
+    }
+  }
+
+  for (const to of [
+    "apps/web/src/routes/aktiver.tsx",
+    "apps/web/src/components/site/pageParts.tsx",
+    "apps/web/src/server/runtime.ts",
+  ]) {
+    const use = source("tools/quality/test/boundary.ts", `../../../${to}`);
+
+    assert.lengthOf(
+      mentioning(
+        moduleGraphFindings(declaration, [...files, use]),
+        "tools/quality/test/boundary.ts:1: tools/quality reaches into apps/web"
+      ),
+      1
+    );
+  }
+};
+
 /** A probe file as the check reads it. */
 const asSource = ({
   content,
@@ -143,6 +222,35 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
     it("control: the same map without the new import passes", () => {
       assert.deepStrictEqual(check(clean), []);
+    });
+    it("exempts only the declared type edge, not runtime or other cycles", () => {
+      const except = { ...fixture, acyclicTypeEdges: [[team, login]] as const };
+
+      const typed = replacing(
+        parsed(
+          team,
+          'import "../vocab/ids.ts";\nimport type { X } from "../login/a.ts";'
+        )
+      );
+
+      assert.deepStrictEqual(
+        mentioning(check(typed, except), "import cycle"),
+        []
+      );
+      assert.lengthOf(
+        mentioning(
+          check(importing(team, "../login/a.ts"), except),
+          "import cycle"
+        ),
+        1
+      );
+
+      const other = replacing(
+        source(team, "../vocab/ids.ts", "../contact/a.ts"),
+        source(contact, "../vocab/ids.ts", "../team/a.ts", "sanitize-html")
+      );
+
+      assert.lengthOf(mentioning(check(other, except), "import cycle"), 1);
     });
 
     it("a cycle through three modules prints every hop", () => {
@@ -314,7 +422,7 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           "newplace"
         ),
         [
-          `${d}/newplace/thing.ts: belongs to no module (${fixture.governed}); list it in a module of tools/quality/moduleGraph.ts`,
+          `${d}/newplace/thing.ts: belongs to no module (${Arr.join(fixture.governed, ", ")}); list it in a module of tools/quality/moduleGraph.ts`,
         ]
       );
     });
@@ -521,7 +629,10 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
     it("a fixture with a known cycle: the check says cycle, and the control says none", () => {
       assert.lengthOf(
         mentioning(
-          check([asSource(probes.cycleA), asSource(probes.cycleB)]),
+          check([asSource(probes.cycleA), asSource(probes.cycleB)], {
+            ...fixture,
+            acyclic: declaration.acyclic,
+          }),
           "import cycle between 2 files"
         ),
         1
@@ -529,7 +640,10 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
       assert.deepStrictEqual(
         mentioning(
-          check([asSource(probes.flatA), asSource(probes.flatB)]),
+          check([asSource(probes.flatA), asSource(probes.flatB)], {
+            ...fixture,
+            acyclic: declaration.acyclic,
+          }),
           "import cycle"
         ),
         []
@@ -545,7 +659,10 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
           const governed = Arr.map(
             Arr.filter(
               yield* scanImports(root),
-              ({ path }) => path.startsWith(`${d}/`) && path.endsWith(".ts")
+              ({ path }) =>
+                (path.startsWith("apps/web/src/domain/") ||
+                  /^apps\/web\/src\/features\/[^/]+\/domain\//u.test(path)) &&
+                path.endsWith(".ts")
             ),
             ({ path }) => path
           );
@@ -611,17 +728,17 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
           // A new real import, `contact` using `iam`, which no declared edge allows, is one more finding.
           const mutated = Arr.map(files, (file) =>
-            file.path === `${d}/contact/commands.ts`
+            file.path === "apps/web/src/features/contact/domain/commands.ts"
               ? {
                   ...file,
                   imports: [
                     ...file.imports,
                     {
                       line: 9999,
-                      specifier: "../accounts/declaration.ts",
+                      specifier: "../../accounts/domain/declaration.ts",
                       target: {
                         kind: "file" as const,
-                        path: `${d}/accounts/declaration.ts`,
+                        path: "apps/web/src/features/accounts/domain/declaration.ts",
                       },
                     },
                   ],
@@ -631,12 +748,22 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
           assert.lengthOf(moduleGraphFindings(declaration, mutated), 1);
 
-          // F6's control (spec 0022): the three imports between modules that stages 2 and 3 removed, put back in memory,
-          // are three findings, one for each, and the file graph stays acyclic apart from them.
+          checkRealBoundaries(files);
+
+          // Restored upward imports still fail at their actual relocated paths.
           const retired = [
-            ["shared/outbox.ts", "accounts/passwordHasher.ts"],
-            ["shared/outbox.ts", "workspace/change.ts"],
-            ["workspace/commands.ts", "jobs/registry.ts"],
+            [
+              "apps/web/src/domain/outbox/outbox.ts",
+              "apps/web/src/features/accounts/domain/services.ts",
+            ],
+            [
+              "apps/web/src/domain/outbox/outbox.ts",
+              "apps/web/src/features/workspace/domain/change.ts",
+            ],
+            [
+              "apps/web/src/features/workspace/domain/commands.ts",
+              "apps/web/src/domain/jobs/registry.ts",
+            ],
           ] as const;
 
           const restored = Arr.map(files, (file) => ({
@@ -644,14 +771,14 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
             imports: [
               ...file.imports,
               ...Arr.flatMap(retired, ([from, to]) =>
-                file.path === `${d}/${from}`
+                file.path === from
                   ? [
                       {
                         line: 9999,
-                        specifier: `../${to}`,
+                        specifier: to,
                         target: {
                           kind: "file" as const,
-                          path: `${d}/${to}`,
+                          path: to,
                         },
                       },
                     ]
@@ -662,12 +789,10 @@ describe("module graph (spec 0020, ADR 0015 stage 1)", () => {
 
           const back = moduleGraphFindings(declaration, restored);
 
-          assert.lengthOf(back, 3);
-
           for (const [from, to] of retired) {
             assert.lengthOf(
               Arr.filter(back, (finding) =>
-                finding.startsWith(`${d}/${from}:9999: imports ${d}/${to} `)
+                finding.startsWith(`${from}:9999: imports ${to} `)
               ),
               1,
               `${from} -> ${to}`

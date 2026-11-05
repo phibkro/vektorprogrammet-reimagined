@@ -1,11 +1,12 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { Config, Crypto, Effect, FileSystem, Path, Redacted } from "effect";
+
 import {
   probeRuntimeLogin,
   provisionRuntimeAccess,
   runtimeRoleExists,
-} from "@vektorprogrammet/db/runtime-provision";
-import { runtimeDatabaseUrl } from "@vektorprogrammet/db/runtime-url";
-import { Config, Crypto, Effect, FileSystem, Path, Redacted } from "effect";
+} from "../../apps/web/src/adapters/db/runtimeAccess.ts";
+import { runtimeDatabaseUrl } from "../../apps/web/src/adapters/db/runtimeUrl.ts";
 
 const outsideWorktree = (path: Path.Path, root: string, location: string) => {
   const relative = path.relative(root, location);

@@ -1,16 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
-  EmailAddress,
-  OutboxClaimToken,
-  OutboxMessageId,
-  OutboxMessage as OutboxMessageSchema,
-  OutboxSweep,
-  anonymous,
-  systemPrincipal,
-  WorkspaceWriter,
-} from "@vektorprogrammet/domain";
-import type { OutboxMessage, Principal } from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   DateTime,
   Duration,
@@ -21,10 +10,22 @@ import {
 } from "effect";
 import { TestClock } from "effect/testing";
 
-import { AccountDelivery } from "../src/server/accountDelivery";
-import { deliverOutbox } from "../src/server/outboxDelivery";
-import { withOutbox } from "../src/server/outboxSweep";
-import { DeliveryFailed, MessageSender } from "../src/server/senders";
+import {
+  DeliveryFailed,
+  MessageSender,
+} from "../src/adapters/messaging/senders";
+import { OutboxMessageId } from "../src/domain/ids";
+import { anonymous, systemPrincipal } from "../src/domain/kernel/principal";
+import type { Principal } from "../src/domain/kernel/principal";
+import * as OutboxSweep from "../src/domain/outbox/declaration";
+import { OutboxClaimToken } from "../src/domain/outbox/delivery";
+import { OutboxMessage as OutboxMessageSchema } from "../src/domain/outbox/messages";
+import type { OutboxMessage } from "../src/domain/outbox/messages";
+import { EmailAddress } from "../src/domain/validation";
+import { WorkspaceWriter } from "../src/features/workspace/domain/services";
+import { AccountDelivery } from "../src/server/background/outbox/accountDelivery";
+import { deliverOutbox } from "../src/server/background/outbox/delivery";
+import { withOutbox } from "../src/server/background/outbox/sweep";
 import { makeTables, memoryLayer } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
 import { ADMIN, leaderOf } from "./support/principals";

@@ -1,3 +1,6 @@
+import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
+import type { Redacted } from "effect";
+
 /**
  * The CMS import program and the Layers it runs on. `cms.ts` (the CLI), `test/support/importFixtureCms.ts` and
  * the tests run the same `runCmsImport`.
@@ -10,10 +13,8 @@
  * It does not touch PostgreSQL: the two targets have their own lifecycles (the PostgreSQL import truncates and
  * reloads; this one only creates what the CMS lacks).
  */
-import { ContentLive, DatabaseLive } from "@vektorprogrammet/db";
-import { Array as Arr, DateTime, Effect, Layer, Schema } from "effect";
-import type { Redacted } from "effect";
-
+import { ContentLive } from "../../../../apps/web/src/adapters/db/content.ts";
+import { DatabaseLive } from "../../../../apps/web/src/adapters/db/databaseLive.ts";
 import { LegacySource, legacyMysqlLayer } from "../legacy/source.ts";
 import { planEmDashContent } from "./plan.ts";
 import { buildEmDashReport, writeEmDashReport } from "./report.ts";

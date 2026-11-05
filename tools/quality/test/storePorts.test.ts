@@ -1,13 +1,16 @@
 /**
- * Spec 0018, falsifier 2 (the coverage half): every service that `packages/domain/src` declares is either a store port
+ * Spec 0018, falsifier 2 (the coverage half): every service that `the shared and feature domain directories` declares is either a store port
  * with a transaction mode for each of its methods (`TransactionModes`), or a service that is not one, with its reason
  * (`NotStorePorts`). A new service in neither fails here; a name in either list that no service has fails too, so the
  * lists cannot rot.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { NotStorePorts, TransactionModes } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Order, Record as Rec } from "effect";
 
+import {
+  NotStorePorts,
+  TransactionModes,
+} from "../../../apps/web/src/domain/store/transactionModes.ts";
 import { domainSources } from "./support/sources.ts";
 
 const serviceClass =

@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 
-import { ALL_TEXT_SLOTS } from "../src/lib/textSlots";
+import { ALL_TEXT_SLOTS } from "../src/features/cms/textSlots";
 
 describe("public text slots", () => {
   it("names each editable slot once", () => {

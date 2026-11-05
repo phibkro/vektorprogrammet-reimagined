@@ -4,16 +4,16 @@
  * and the answers that the pages show.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { PersonalDataRpcs } from "@vektorprogrammet/domain";
 import { DateTime, Effect, Record as Rec } from "effect";
 
-import { success } from "../src/lib/outcome";
-import { failureOf } from "../src/server/errors";
+import * as PersonalDataRpcs from "../src/features/personal-data/domain/rpc";
 import {
   consentAnswers,
   erasureMessage,
   exportResponse,
-} from "../src/server/personalData";
+} from "../src/features/personal-data/server/personalData";
+import { success } from "../src/http/outcome";
+import { failureOf } from "../src/server/http/errors";
 
 const clicked = (fields: Readonly<Record<string, string>>): FormData => {
   const form = new FormData();

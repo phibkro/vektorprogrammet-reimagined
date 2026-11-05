@@ -17,10 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DepartmentForm } from "@/forms/department";
-import { getDepartments, saveDepartment } from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
-import type { DepartmentRow } from "@/server/panel";
+
+import { DepartmentForm } from "../../features/organisation/forms/department";
+import type { DepartmentRow } from "../../features/organisation/server/organisation";
+import {
+  getDepartments,
+  saveDepartment,
+} from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 type DepartmentFieldComponent = FieldComponent<
   typeof DepartmentForm.schema.Encoded

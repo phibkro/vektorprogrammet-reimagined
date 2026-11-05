@@ -10,11 +10,6 @@
 import { PgClient } from "@effect/sql-pg";
 import { assert, layer } from "@effect/vitest";
 import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import type { TargetTable } from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Config,
   Crypto,
@@ -33,6 +28,11 @@ import { encode as hexEncode } from "effect/encoding/Hex";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import type { SqlError } from "effect/sql/SqlError";
 
+import type { TargetTable } from "../../../apps/web/src/features/organisation/domain/legacyImport.ts";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "../../../apps/web/test/db/support/disposableDatabase.ts";
 import { nodeServicesLayer } from "../src/nodeServices.ts";
 import { importLayer, runImport } from "../src/pipeline.ts";
 import { ReportFromJson } from "../src/report.ts";

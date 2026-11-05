@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
-import { createRequestClient } from "@/server/supabase";
+import { createRequestClient } from "../../adapters/supabase/clients";
 
 const recoveryResponse = (token: string | null, type: string | null) => {
   if (token === null || token === "" || type !== "recovery") {

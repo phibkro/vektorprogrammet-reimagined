@@ -6,29 +6,6 @@
  */
 import { assert, layer } from "@effect/vitest";
 import {
-  AggregateLocks,
-  CompanyEmail,
-  CurrentPrincipal,
-  Job,
-  Outbox,
-  WorkspaceAssignments,
-  WorkspaceJob,
-  WorkspaceModeSetting,
-  WorkspaceReports,
-  WorkspaceWriter,
-  requestWorkspaceReport,
-  Transactor,
-} from "@vektorprogrammet/domain";
-import type {
-  JobRun,
-  WorkspaceChange,
-  WorkspaceDirectory,
-  WorkspaceFacts,
-  WorkspaceMode,
-  WorkspaceReport,
-  AuditLog,
-} from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Cause,
   Crypto,
@@ -46,12 +23,37 @@ import {
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
-import { AccountDelivery } from "../src/server/accountDelivery";
-import { workspaceSyncRunner } from "../src/server/jobRunners";
-import { dispatchTick } from "../src/server/jobs";
-import { MessageSender } from "../src/server/senders";
-import { webCryptoLayer } from "../src/server/webCrypto";
-import { workspaceDirectoryLayer } from "../src/server/workspace";
+import { MessageSender } from "../src/adapters/messaging/senders";
+import { webCryptoLayer } from "../src/adapters/webCrypto";
+import { workspaceDirectoryLayer } from "../src/adapters/workspace";
+import * as Job from "../src/domain/jobs/job";
+import type * as JobRun from "../src/domain/jobs/runs";
+import { CurrentPrincipal } from "../src/domain/kernel/principal";
+import { Outbox } from "../src/domain/outbox/outbox";
+import { AggregateLocks } from "../src/domain/transactions/aggregate";
+import { Transactor } from "../src/domain/transactions/transactor";
+import type { AuditLog } from "../src/features/audit/domain/auditLog";
+import type { WorkspaceChange } from "../src/features/workspace/domain/change";
+import { requestWorkspaceReport } from "../src/features/workspace/domain/commands";
+import { CompanyEmail } from "../src/features/workspace/domain/companyEmail";
+import * as WorkspaceJob from "../src/features/workspace/domain/job";
+import type {
+  WorkspaceMode,
+  WorkspaceReport,
+} from "../src/features/workspace/domain/report";
+import {
+  WorkspaceAssignments,
+  WorkspaceModeSetting,
+  WorkspaceReports,
+  WorkspaceWriter,
+} from "../src/features/workspace/domain/services";
+import type {
+  WorkspaceDirectory,
+  WorkspaceFacts,
+} from "../src/features/workspace/domain/services";
+import { AccountDelivery } from "../src/server/background/outbox/accountDelivery";
+import { workspaceSyncRunner } from "../src/server/background/runners";
+import { dispatchTick } from "../src/server/background/scheduler";
 import { deliverPending } from "./support/deliveryLive";
 import { ADMIN, adminOf } from "./support/principals";
 import { rowsIn } from "./support/rowCount";

@@ -5,23 +5,19 @@
  * the skip is the erasure's doing, not a message that never sends.
  */
 import { assert, layer } from "@effect/vitest";
-import {
-  CodeToken,
-  CurrentPrincipal,
-  Outbox,
-  OutboxMessage,
-  PersonId,
-  PersonalDataEndpoints,
-  Principal,
-  authorize,
-  codePolicy,
-  codePrincipal,
-  lifetimeWords,
-} from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Option, Schema } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
+import { authorize } from "../src/domain/declarations";
+import { PersonId } from "../src/domain/ids";
+import { CurrentPrincipal, Principal } from "../src/domain/kernel/principal";
+import { OutboxMessage } from "../src/domain/outbox/messages";
+import { Outbox } from "../src/domain/outbox/outbox";
+import { CodeToken, codePolicy } from "../src/features/accounts/domain/code";
+import { codePrincipal } from "../src/features/accounts/domain/principal";
+import { PersonalDataEndpoints } from "../src/features/personal-data/domain/commands";
+import { lifetimeWords } from "../src/features/personal-data/domain/duration";
 import { deliverPending, live, origin } from "./support/deliveryLive";
 import { transacted } from "./support/transacted";
 

@@ -1,11 +1,11 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
-import { NewsList } from "@/components/site/newsParts";
-import { PortableTextView } from "@/components/site/portableTextView";
-import { getNewsPage } from "@/functions/public.functions";
-import { validateNewsSearch } from "@/lib/newsSearch";
-import type { NewsSearch } from "@/lib/newsSearch";
-import { pageData } from "@/lib/outcome";
+import { NewsList } from "../../features/cms/components/newsParts";
+import { PortableTextView } from "../../features/cms/components/portableTextView";
+import { validateNewsSearch } from "../../features/cms/newsSearch";
+import type { NewsSearch } from "../../features/cms/newsSearch";
+import { getNewsPage } from "../../features/site/server/functions";
+import { pageData } from "../../http/outcome";
 
 const routeApi = getRouteApi("/nyheter/");
 

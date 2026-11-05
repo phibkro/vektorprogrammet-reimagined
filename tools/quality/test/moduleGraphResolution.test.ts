@@ -107,7 +107,7 @@ const inGen = (body: string) =>
   `export const layer = Effect.gen(function* () {\n${body}\n});\n`;
 
 const notTs = (path: string) =>
-  `${path}: is a source file of the governed tree (${fixture.governed}) and not a .ts file; the module globs read .ts only, so rename it`;
+  `${path}: is a source file of the governed tree (${Arr.join(fixture.governed, ", ")}) and not a .ts file; the module globs read .ts only, so rename it`;
 
 describe("module graph: resolution and the ways past the check (spec 0020, review rounds)", () => {
   it.effect(
@@ -217,7 +217,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
               `${ids}:1:`
             ),
             [
-              `${ids}:1: imports ${through}, a source file of its own package that no module owns (${fixture.governed}): its imports are beyond every module rule, so the governed tree may not import it`,
+              `${ids}:1: imports ${through}, a source file of its own package that no module owns (${Arr.join(fixture.governed, ", ")}): its imports are beyond every module rule, so the governed tree may not import it`,
             ],
             through
           );
@@ -345,7 +345,7 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
         );
 
         assert.deepStrictEqual(mentioning(found, link), [
-          `${link}: is a symbolic link in the governed tree (${fixture.governed}); the module rules read real paths, so a link would hide an edge: import the real file, or move it`,
+          `${link}: is a symbolic link in the governed tree (${Arr.join(fixture.governed, ", ")}); the module rules read real paths, so a link would hide an edge: import the real file, or move it`,
         ]);
 
         // The import through the link is the import of the file behind it: `kernel` uses `team`'s file.
@@ -571,18 +571,18 @@ describe("module graph: resolution and the ways past the check (spec 0020, revie
     "R11 (round 3): import.meta.glob with a literal pattern imports every file it matches, so a glob that reaches another unit or a higher layer is found, and one that stays in its own unit is not",
     () =>
       Effect.gen(function* globsAreImports() {
-        const redirects = "apps/web/src/server/redirects.ts";
+        const redirects = "apps/web/src/server/http/redirects.ts";
         const cmsFile = "apps/cms/build/page.ts";
 
         const glob =
-          'export const pages = import.meta.glob("../../../cms/build/*.ts", { eager: true });\n';
+          'export const pages = import.meta.glob("../../../../cms/build/*.ts", { eager: true });\n';
 
         // The same reach, written as a plain import: the finding to expect.
         const plain = mentioning(
           yield* findingsOf({
             ...base,
             [cmsFile]: "export const page = 1;\n",
-            [redirects]: 'import "../../../cms/build/page.ts";\n',
+            [redirects]: 'import "../../../../cms/build/page.ts";\n',
           }),
           redirects
         );

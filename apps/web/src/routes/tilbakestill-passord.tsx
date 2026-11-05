@@ -3,15 +3,16 @@ import {
   getRouteApi,
   useHydrated,
 } from "@tanstack/react-router";
-import { passwordAllowed } from "@vektorprogrammet/domain";
 import { Schema } from "effect";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { authRequest } from "@/lib/authClient";
-import { text } from "@/lib/formText";
+
+import { authRequest } from "../features/accounts/client";
+import { passwordAllowed } from "../features/accounts/domain/entities";
+import { text } from "../utils/formText";
 
 const Search = Schema.toStandardSchemaV1(
   Schema.Struct({ token_hash: Schema.optionalKey(Schema.String) })

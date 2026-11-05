@@ -1,8 +1,8 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Schema } from "effect";
 
-import { VerifyApplicant } from "@/components/site/verifyApplicant";
-import { handleVerifyPost } from "@/server/admissionPost";
+import { VerifyApplicant } from "../../features/admission/components/verifyApplicant";
+import { handleVerifyPost } from "../../features/admission/server/admissionPost";
 
 const Search = Schema.toStandardSchemaV1(
   Schema.Struct({

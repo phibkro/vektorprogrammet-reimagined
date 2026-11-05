@@ -11,26 +11,26 @@ import type {
   EmailMessageBuilder,
 } from "@cloudflare/workers-types";
 import { assert, layer } from "@effect/vitest";
-import { DatabaseLive } from "@vektorprogrammet/db";
-import { TestDatabaseUrl } from "@vektorprogrammet/db/testing";
-import {
-  runtimeTestDatabase,
-  RuntimeDatabaseUrl,
-} from "@vektorprogrammet/db/testing/runtime-role";
-import {
-  Catalog,
-  JobRegistry,
-  retentionIsProposed,
-  retentionRules,
-} from "@vektorprogrammet/domain";
-import type { RetentionMode } from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect, Layer, Redacted, Ref } from "effect";
 import { flow } from "effect/Function";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
+import * as JobRegistry from "../src/domain/jobs/registry";
+import { Catalog } from "../src/features/personal-data/domain/catalog";
+import {
+  retentionIsProposed,
+  retentionRules,
+} from "../src/features/personal-data/domain/derive";
+import type { RetentionMode } from "../src/features/personal-data/domain/services";
 import { Deployment } from "../src/server/deployment";
 import { runTick } from "../src/server/runtime";
 import type { TickEnv } from "../src/server/runtime";
+import { TestDatabaseUrl } from "./db/support/disposableDatabase";
+import {
+  runtimeTestDatabase,
+  RuntimeDatabaseUrl,
+} from "./db/support/runtimeRole";
 
 const PERSON = 701;
 

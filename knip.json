@@ -16,7 +16,7 @@
       "entry": [
         "src/routes/**/*.{ts,tsx}",
         "src/server/**",
-        "src/functions/**",
+        "src/features/*/server/functions.ts",
         "src/components/ui/**",
         "src/server.ts",
         "src/router.tsx",
@@ -31,12 +31,6 @@
         "e2e/**/*.ts",
         "**/*.css"
       ]
-    },
-    "packages/domain": {
-      "project": ["src/**/*.ts", "test/**/*.ts"]
-    },
-    "packages/db": {
-      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "tools/prototype": {
       "entry": ["seed.ts", "provisionRuntime.ts"],

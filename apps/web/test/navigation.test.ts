@@ -3,8 +3,8 @@ import { assert, describe, it } from "@effect/vitest";
 import { Option } from "effect";
 
 import { activeTab } from "../src/components/site/siteHeader";
-import { validateContactSearch } from "../src/lib/contactSearch";
-import { validateNewsSearch } from "../src/lib/newsSearch";
+import { validateNewsSearch } from "../src/features/cms/newsSearch";
+import { validateContactSearch } from "../src/features/contact/contactSearch";
 
 const tabOf = (path: string) =>
   Option.map(activeTab(path), (item) => item.name);

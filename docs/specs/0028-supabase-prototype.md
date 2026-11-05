@@ -31,7 +31,7 @@ No production deployment, remote project creation, copying production files/data
 
 ## Reuse and provenance
 
-The existing Start application remains the scaffold. The official TanStack Supabase example informed the integration. `apps/web/src/server/supabase.ts` records the adapted Supabase Library cookie bridge, source URL and Apache-2.0 provenance.
+The existing Start application remains the scaffold. The official TanStack Supabase example informed the integration. `apps/web/src/server/providers/supabase.ts` records the adapted Supabase Library cookie bridge, source URL and Apache-2.0 provenance.
 
 Official Supabase SDKs handle Auth and Storage. The maintained Portable Text editor reuses the existing content model. Existing React/shadcn components, Effect domain rules and Drizzle transactions remain. Unused example dependencies and unrelated Library blocks were not installed.
 

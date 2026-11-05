@@ -1,6 +1,6 @@
 name: effx drift
 
-# Spec 0007d, gate G2. The conformance vectors in packages/domain/conformance are made by effx's own tooling at the
+# Spec 0007d, gate G2. The conformance vectors in apps/web/conformance are made by effx's own tooling at the
 # commit pinned in effx.pin.json. effx moves on its own, and nothing else here would notice. Each week this job makes the
 # vectors again with the main branch of phibkro/effx (a public repository: no secret) and fails when they are not the
 # committed ones: the first line that differs, per domain, is in the log. When main is still at the pin it checks that the
@@ -40,7 +40,7 @@ jobs:
       - name: effx's main against the pin
         shell: bash
         run: |
-          echo "pin:  $(jq -r .commit packages/domain/conformance/effx.pin.json)"
+          echo "pin:  $(jq -r .commit apps/web/conformance/effx.pin.json)"
           echo "main: $(git -C effx-main rev-parse HEAD)"
       - name: Install this repository's dependencies
         shell: bash

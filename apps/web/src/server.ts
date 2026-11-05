@@ -11,8 +11,8 @@ import type {
 import handler from "@tanstack/react-start/server-entry";
 import { Effect, Match, Option, Predicate } from "effect";
 
-import type { WorkerEnv } from "./server/env";
-import { classifyLegacyPath, permanentRedirect } from "./server/redirects";
+import type { WorkerEnv } from "./server/http/env";
+import { classifyLegacyPath, permanentRedirect } from "./server/http/redirects";
 import {
   runAuthRequest,
   runLegacyFileRedirect,

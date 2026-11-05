@@ -16,21 +16,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
   CreateFieldOfStudyForm,
   RenameFieldOfStudyForm,
-} from "@/forms/organisation";
+} from "../../features/organisation/forms/organisation";
 import {
   getFieldsOfStudy,
   saveFieldOfStudy,
-} from "@/functions/panel.functions";
-import { pageData } from "@/lib/outcome";
+} from "../../features/panel/server/functions";
+import { pageData } from "../../http/outcome";
 
 /** The two names of a field of study, in the form that creates it and in the one that renames it. */
 const FieldOfStudyFields = ({
   Field,
 }: {
-  Field: FieldComponent<{ name?: string; shortName?: string }>;
+  Field: FieldComponent<
+    Pick<
+      (typeof CreateFieldOfStudyForm.schema)["Encoded"],
+      "name" | "shortName"
+    >
+  >;
 }) => (
   <>
     <Field name="name" label="Navn">

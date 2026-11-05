@@ -1,3 +1,5 @@
+import { Array as Arr, Effect, Schema } from "effect";
+
 /**
  * The reconciliation report (architecture §6): rows in and out per table,
  * quarantined rows with reasons, collapsed semesters, missing files and broken
@@ -11,9 +13,8 @@
  * The Schemas below are the report's contract: the plan builds values of these
  * types, and consumers decode `reconciliation.json` with `ReportFromJson`.
  */
-import { TargetTable, Term } from "@vektorprogrammet/domain";
-import { Array as Arr, Effect, Schema } from "effect";
-
+import { TargetTable } from "../../../apps/web/src/features/organisation/domain/legacyImport.ts";
+import { Term } from "../../../apps/web/src/features/organisation/domain/semester.ts";
 import {
   ReportWriteError,
   markdownTable,

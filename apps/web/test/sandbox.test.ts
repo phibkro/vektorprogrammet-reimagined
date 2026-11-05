@@ -4,25 +4,26 @@ import type {
   SendEmail,
 } from "@cloudflare/workers-types";
 import { assert, describe, it } from "@effect/vitest";
-import {
-  CapturedMessageStore,
-  EmailAddress,
-  OutboxMessage as OutboxMessageSchema,
-  SlackTarget,
-} from "@vektorprogrammet/domain";
-import type { TransportMessage } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, Exit, Layer, Redacted, Ref } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
-import { decodeDeployment } from "../src/server/deployment";
-import type { Deployment } from "../src/server/deployment";
 import {
   captureSenderLayer,
   MessageSender,
   messageSenderLayer,
   productionSenderLayer,
-} from "../src/server/senders";
-import type { SenderConfig, SenderConfigRejected } from "../src/server/senders";
+} from "../src/adapters/messaging/senders";
+import type {
+  SenderConfig,
+  SenderConfigRejected,
+} from "../src/adapters/messaging/senders";
+import { CapturedMessageStore } from "../src/domain/outbox/captured";
+import { OutboxMessage as OutboxMessageSchema } from "../src/domain/outbox/messages";
+import { SlackTarget } from "../src/domain/outbox/outbox";
+import type { TransportMessage } from "../src/domain/outbox/outbox";
+import { EmailAddress } from "../src/domain/validation";
+import { decodeDeployment } from "../src/server/deployment";
+import type { Deployment } from "../src/server/deployment";
 
 const email: TransportMessage = OutboxMessageSchema.cases.Email.make({
   replyTo: null,

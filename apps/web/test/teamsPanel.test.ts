@@ -8,15 +8,15 @@
  * would go through for the principal, for the membership's calculated state.
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Semester, anonymous, authorize } from "@vektorprogrammet/domain";
-import type { Principal } from "@vektorprogrammet/domain";
-import { MEMBER_POSITION } from "@vektorprogrammet/domain/testing";
 import { Array as Arr, Effect, Option, Ref, Schema } from "effect";
 
-import { semesterOfChoice } from "../src/forms/semester";
-import type { Outcome } from "../src/lib/outcome";
-import { SAVED } from "../src/server/panel";
-import { panelReads } from "../src/server/panelReads";
+import { authorize } from "../src/domain/declarations";
+import { anonymous } from "../src/domain/kernel/principal";
+import type { Principal } from "../src/domain/kernel/principal";
+import { Semester } from "../src/features/organisation/domain/semester";
+import { semesterOfChoice } from "../src/features/organisation/forms/semester";
+import { SAVED } from "../src/features/organisation/server/organisation";
+import { panelReads } from "../src/features/panel/server/reads";
 import {
   addMemberProgram,
   adminsView,
@@ -32,8 +32,10 @@ import {
   saveTeamProgram,
   teamView,
   teamsView,
-} from "../src/server/teams";
-import type { MemberRow } from "../src/server/teams";
+} from "../src/features/teams/server/teams";
+import type { MemberRow } from "../src/features/teams/server/teams";
+import type { Outcome } from "../src/http/outcome";
+import { MEMBER_POSITION } from "./domain/support/teamsInMemory";
 import { form, makeTables } from "./support/memory";
 import type { MemoryTables } from "./support/memory";
 import { assertRefused, assertSuccess, isSuccess } from "./support/outcomes";

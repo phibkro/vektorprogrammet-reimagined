@@ -1,5 +1,5 @@
 /**
- * Spec 0018, falsifier 7: the domain states properties, not mechanisms. No file of `packages/domain/src` names an engine
+ * Spec 0018, falsifier 7: the domain states properties, not mechanisms. No file of `apps/web/src domain directories` names an engine
  * feature (a statement, a clause, a column type, a constraint kind) outside the few lines that describe the personal
  * data catalog, which is data written in the engine's terms until stage 5 (ownership) moves it. The retention arithmetic
  * left the list with spec 0021 (ADR 0014, answer 3). An allowance that no line needs fails, so the list only shrinks.
@@ -37,12 +37,12 @@ const CATALOG =
 const allowances: readonly Allowance[] = [
   {
     includes: "by their SQL names",
-    path: "personalData/catalog.ts",
+    path: "apps/web/src/features/personal-data/domain/catalog.ts",
     reason: CATALOG,
   },
   {
     includes: "a jsonb column",
-    path: "personalData/declaration.ts",
+    path: "apps/web/src/features/personal-data/domain/declaration.ts",
     reason: CATALOG,
   },
 ];

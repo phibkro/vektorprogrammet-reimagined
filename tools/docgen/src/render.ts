@@ -1,31 +1,32 @@
+import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
+
+import * as Job from "../../../apps/web/src/domain/jobs/job.ts";
+import { jobProblems } from "../../../apps/web/src/domain/jobs/problems.ts";
+import * as JobRegistry from "../../../apps/web/src/domain/jobs/registry.ts";
 /**
  * Pure renderers for the declaration-derived teams, accounts, commands-by-resource, scheduled-jobs and personal data
  * references.
  */
+import * as Commands from "../../../apps/web/src/domain/kernel/commands.ts";
+import * as Domain from "../../../apps/web/src/domain/kernel/domain.ts";
+import type * as Grant from "../../../apps/web/src/domain/kernel/grant.ts";
+import type * as Machine from "../../../apps/web/src/domain/kernel/machine.ts";
+import * as Subject from "../../../apps/web/src/domain/kernel/subject.ts";
+import { codePolicy } from "../../../apps/web/src/features/accounts/domain/code.ts";
+import { CodeMachine } from "../../../apps/web/src/features/accounts/domain/codeMachine.ts";
+import type { CatalogOf } from "../../../apps/web/src/features/personal-data/domain/catalog.ts";
+import type { FormDeclaration } from "../../../apps/web/src/features/personal-data/domain/forms.ts";
 import {
-  Commands,
-  Domain,
-  Job,
-  JobRegistry,
-  Subject,
-  approvalWords,
-  CodeMachine,
-  codePolicy,
-  consentNames,
-  consentTexts,
   draftNote,
-  jobProblems,
   privacyNotice,
   recordOfProcessing,
-} from "@vektorprogrammet/domain";
-import type {
-  CatalogOf,
-  FormDeclaration,
-  Grant,
-  Machine,
-  RecordRow,
-} from "@vektorprogrammet/domain";
-import { Array as Arr, Option, Order, Record as Rec, Result } from "effect";
+} from "../../../apps/web/src/features/personal-data/domain/notice.ts";
+import type { RecordRow } from "../../../apps/web/src/features/personal-data/domain/notice.ts";
+import {
+  approvalWords,
+  consentNames,
+  consentTexts,
+} from "../../../apps/web/src/features/personal-data/domain/texts.ts";
 
 interface Entry {
   readonly name: string;

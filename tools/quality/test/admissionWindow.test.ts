@@ -20,6 +20,7 @@ import { assert, describe, it } from "@effect/vitest";
 
 import {
   assertCleanScan,
+  isWebSource,
   repositoryRoot,
   signFindings,
 } from "./support/sources.ts";
@@ -28,7 +29,7 @@ import type { Sign, Source } from "./support/sources.ts";
 const SIGNS = {
   "a Drizzle comparison of an admission period's date": {
     allowed: {
-      "packages/db/src/repositories/organisation.ts":
+      "apps/web/src/adapters/db/repositories/organisation.ts":
         "extend (`ends_at > now`) and cancel (`starts_at > now`) are conditional writes: the window in the WHERE holds under a race",
     },
     pattern:
@@ -36,24 +37,20 @@ const SIGNS = {
   },
   "a SQL comparison of an admission period's date": {
     allowed: {
-      "packages/db/src/personalData/sql.ts":
+      "apps/web/src/adapters/db/personalData/sql.ts":
         "the retention run's `PeriodEnd` trigger: when an application's period ended, plus the retention period (not the window)",
     },
     pattern: /col\("admission_period", "(?:starts_at|ends_at)"\)/u,
   },
   "a period's start or end compared with a clock value": {
     allowed: {
-      "packages/domain/src/organisation/admission.ts":
+      "apps/web/src/features/organisation/domain/admission.ts":
         "the definition itself: `isAdmissionOpen`, `admissionState` and the pick of the current period",
     },
     pattern:
       /\b(?:isBefore|DateTime\.(?:isLessThan|isGreaterThan|isLessThanOrEqualTo|isGreaterThanOrEqualTo|isBetween))\w*\(\s*(?:now\s*,\s*\w+\.(?:start|end)|\w+\.(?:start|end)\s*,\s*now)\b/u,
   },
 } satisfies Readonly<Record<string, Sign>>;
-
-/** The source that the scan reads: the `src` of the packages and of the web app. */
-const isSource = (path: string): boolean =>
-  /^(?:packages|apps)\/[^/]+\/src\/.*\.tsx?$/u.test(path);
 
 const { stale, unlisted } = signFindings(SIGNS);
 
@@ -65,19 +62,19 @@ describe("spec 0009 F1: one window", () => {
         text: "const open = isBefore(now, period.end);",
       },
       {
-        path: "packages/db/src/repositories/ny.ts",
+        path: "apps/web/src/adapters/db/repositories/ny.ts",
         text: "where(gt(admissionPeriod.endsAt, now))",
       },
       {
-        path: "packages/db/src/personalData/ny.ts",
+        path: "apps/web/src/adapters/db/personalData/ny.ts",
         text: 'sql(col("admission_period", "ends_at"), "<", now)',
       },
       {
-        path: "packages/domain/src/organisation/admission.ts",
+        path: "apps/web/src/features/organisation/domain/admission.ts",
         text: "return !isBefore(now, period.start);",
       },
       {
-        path: "packages/domain/src/admission/ok.ts",
+        path: "apps/web/src/features/admission/domain/ok.ts",
         text: "if (!DateTime.isGreaterThan(end, period.end)) {}",
       },
     ];
@@ -86,8 +83,8 @@ describe("spec 0009 F1: one window", () => {
       [...unlisted(sources)],
       [
         "apps/web/src/server/ny.ts has a period's start or end compared with a clock value",
-        "packages/db/src/personalData/ny.ts has a SQL comparison of an admission period's date",
-        "packages/db/src/repositories/ny.ts has a Drizzle comparison of an admission period's date",
+        "apps/web/src/adapters/db/personalData/ny.ts has a SQL comparison of an admission period's date",
+        "apps/web/src/adapters/db/repositories/ny.ts has a Drizzle comparison of an admission period's date",
       ]
     );
   });
@@ -96,7 +93,7 @@ describe("spec 0009 F1: one window", () => {
     assert.isAbove(
       stale([
         {
-          path: "packages/domain/src/organisation/admission.ts",
+          path: "apps/web/src/features/organisation/domain/admission.ts",
           text: "export {};",
         },
       ]).length,
@@ -106,6 +103,6 @@ describe("spec 0009 F1: one window", () => {
 
   it.effect(
     "the real tree: every comparison is in a listed file, and every listing is used",
-    () => assertCleanScan(repositoryRoot, isSource, { stale, unlisted })
+    () => assertCleanScan(repositoryRoot, isWebSource, { stale, unlisted })
   );
 });

@@ -1,25 +1,4 @@
 import { assert, layer } from "@effect/vitest";
-/**
- * Spec 0009 F3 (the mail), F4 and F7 (the public submit's guards) over PostgreSQL and the real delivery stack.
- *
- * - The journey in the mail: a submit queues one `IssueCode` message that carries no code; the delivery stores the code
- *   `Unsent`, sends the mail and acknowledges it (spec 0024); the link names `/soknad/bekreft`; the code verifies the
- *   address once, and the plaintext lives in the capture mailbox only.
- * - The guards of `/soknad/{department}`: a missing or wrong Turnstile answer and a rate-limited address are refused before
- *   a transaction opens and leave no person, application or message; a post for a department with no open period is
- *   refused; the valid post queues exactly one message.
- */
-import { DatabaseLive } from "@vektorprogrammet/db";
-import { TestDatabaseUrl } from "@vektorprogrammet/db/testing";
-import {
-  AdmissionEndpoints,
-  CodeToken,
-  CurrentPrincipal,
-  PersonalDataEndpoints,
-  anonymous,
-  codePrincipal,
-} from "@vektorprogrammet/domain";
-import type { Principal } from "@vektorprogrammet/domain";
 import {
   Array as Arr,
   Cause,
@@ -32,16 +11,34 @@ import {
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
-import { admissionView } from "../src/server/admission";
-import { submissionOf } from "../src/server/admissionPost";
-import { contactRateLimiterTestLayer } from "../src/server/rateLimit";
-import { runCommandOutcome } from "../src/server/runtime";
+import { contactRateLimiterTestLayer } from "../src/adapters/cloudflare/rateLimit";
+/**
+ * Spec 0009 F3 (the mail), F4 and F7 (the public submit's guards) over PostgreSQL and the real delivery stack.
+ *
+ * - The journey in the mail: a submit queues one `IssueCode` message that carries no code; the delivery stores the code
+ *   `Unsent`, sends the mail and acknowledges it (spec 0024); the link names `/soknad/bekreft`; the code verifies the
+ *   address once, and the plaintext lives in the capture mailbox only.
+ * - The guards of `/soknad/{department}`: a missing or wrong Turnstile answer and a rate-limited address are refused before
+ *   a transaction opens and leave no person, application or message; a post for a department with no open period is
+ *   refused; the valid post queues exactly one message.
+ */
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
 import {
   CAPTCHA_FIELD,
   TURNSTILE_RESPONSE_FIELD,
   turnstileTestLayer,
-} from "../src/server/turnstile";
-import { webCryptoLayer } from "../src/server/webCrypto";
+} from "../src/adapters/turnstile";
+import { webCryptoLayer } from "../src/adapters/webCrypto";
+import { CurrentPrincipal, anonymous } from "../src/domain/kernel/principal";
+import type { Principal } from "../src/domain/kernel/principal";
+import { CodeToken } from "../src/features/accounts/domain/code";
+import { codePrincipal } from "../src/features/accounts/domain/principal";
+import { AdmissionEndpoints } from "../src/features/admission/domain/commands";
+import { admissionView } from "../src/features/admission/server/admission";
+import { submissionOf } from "../src/features/admission/server/admissionPost";
+import { PersonalDataEndpoints } from "../src/features/personal-data/domain/commands";
+import { runCommandOutcome } from "../src/server/runtime";
+import { TestDatabaseUrl } from "./db/support/disposableDatabase";
 import { deliverPending, live } from "./support/deliveryLive";
 import { form } from "./support/memory";
 import { assertRefused, assertSuccess } from "./support/outcomes";

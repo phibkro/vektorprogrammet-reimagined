@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 [[ "$SYNTHETIC_SUPABASE_OWNED" == 1 ]] || { echo 'Refusing unowned target' >&2; exit 1; }
 bash tools/prototype/with-env.sh --bootstrap bash -c '
   set -euo pipefail
-  (cd packages/db && bun run db:migrate && SEED_TARGET_DATABASE_URL="$MIGRATION_DATABASE_URL" bun run db:seed:local)
+  (cd apps/web && bun run db:migrate && SEED_TARGET_DATABASE_URL="$MIGRATION_DATABASE_URL" bun run db:seed:local)
   DATABASE_URL="$MIGRATION_DATABASE_URL" bun tools/prototype/seed.ts
   bun tools/prototype/provisionRuntime.ts
 '

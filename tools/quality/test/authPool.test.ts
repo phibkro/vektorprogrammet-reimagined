@@ -1,5 +1,5 @@
 /**
- * Spec 0017, falsifier 6, read 4: Better Auth's pool is Better Auth's. `apps/web/src/server/auth.ts` hands it to the
+ * Spec 0017, falsifier 6, read 4: Better Auth's pool is Better Auth's. `apps/web/src/server/identity/auth.ts` hands it to the
  * library (`database: pool`) and to nothing else: it runs no SQL of its own through it. The restricted role of
  * `auth.postgres.test.ts` catches a read of a domain table, but not a raw read of `auth_user`, a table the role may
  * read; this test is what catches that one (the person-to-identity link is read through `SignInDirectory`).
@@ -15,7 +15,7 @@ import { Array as Arr, Effect, FileSystem } from "effect";
 import { Visitor, parseSync } from "oxc-parser";
 
 const authFile = new URL(
-  "../../../apps/web/src/server/auth.ts",
+  "../../../apps/web/src/server/identity/auth.ts",
   import.meta.url
 ).pathname;
 

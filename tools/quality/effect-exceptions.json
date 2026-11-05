@@ -95,7 +95,7 @@
     {
       "id": "EX-0024",
       "scope": {
-        "files": ["packages/db/test/aggregate.types.test.ts"],
+        "files": ["apps/web/test/db/aggregate.types.test.ts"],
         "directives": ["@ts-expect-error"]
       },
       "reason": "Spec 0006b falsifier 1: each statement must not type-check, and the directive fails the type check itself the day one starts to compile.",
@@ -103,14 +103,14 @@
         "Vitest expectTypeOf asserts the shape of a type, not that a particular call is rejected, and the spec names the directive.",
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
-      "owner": "packages/db",
+      "owner": "apps/web",
       "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
       "id": "EX-0026",
       "scope": {
-        "files": ["packages/domain/test/kernel/machine.types.test.ts"],
+        "files": ["apps/web/test/domain/kernel/machine.types.test.ts"],
         "directives": ["@ts-expect-error"]
       },
       "reason": "Spec 0007c: a machine query that names a command its group does not have must not type-check, and the directive fails the type check itself the day it starts to compile.",
@@ -118,7 +118,7 @@
         "Vitest expectTypeOf asserts the shape of a type, and the instantiated signature of a generic function does not show what a call infers, so it cannot show that a call is rejected.",
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
-      "owner": "packages/domain",
+      "owner": "apps/web",
       "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
@@ -150,11 +150,11 @@
     },
     {
       "id": "EX-0027",
-      "rules": ["anti-slop/no-module-mocking"],
+      "rules": ["anti-slop/no-module-mocking", "effecttsgo/async-function"],
       "scope": {
         "files": [
-          "packages/domain/test/personalData/periodsInText.test.ts",
-          "packages/domain/test/personalData/basesApproval.test.ts"
+          "apps/web/test/domain/personalData/periodsInText.test.ts",
+          "apps/web/test/domain/personalData/basesApproval.test.ts"
         ],
         "directives": ["oxlint-disable"]
       },
@@ -166,10 +166,10 @@
         "A test project with module aliases needs one project for each variant (periods moved, bases decided, bases proposed), and the two graphs would live in two processes, with no way to compare their strings."
       ],
       "verification": [
-        "devenv shell -- bunx vp -C packages/domain test test/personalData/periodsInText.test.ts test/personalData/basesApproval.test.ts",
+        "devenv shell -- bunx vp -C apps/web test test/domain/personalData/periodsInText.test.ts test/domain/personalData/basesApproval.test.ts",
         "Put a period back into a reason as a number: periodsInText.test.ts fails and names the text (spec 0007b R3 item 28)."
       ],
-      "owner": "packages/domain",
+      "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
         "typescript": "7.0.2",
@@ -184,8 +184,8 @@
       "rules": ["FX012", "unicorn/throw-new-error", "max-classes-per-file"],
       "scope": {
         "files": [
-          "packages/domain/src/jobs/runs.ts",
-          "packages/domain/src/workspace/services.ts"
+          "apps/web/src/domain/jobs/runs.ts",
+          "apps/web/src/features/workspace/domain/services.ts"
         ],
         "symbols": [
           "LeaseLost",
@@ -202,7 +202,7 @@
         "Throwing untyped errors would lose the typed error channel; splitting related ports would not change their ownership."
       ],
       "verification": ["devenv shell -- bun run ready"],
-      "owner": "packages/domain",
+      "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
         "vite-plus": "1.2.0",
@@ -222,10 +222,7 @@
         "files": [
           "apps/web/test/admission.postgres.test.ts",
           "apps/web/test/deliveryBoundary.postgres.test.ts",
-          "apps/web/test/deliveryScope.postgres.test.ts",
-          "apps/web/test/outboxQueue.postgres.test.ts",
-          "apps/web/test/support/commandOutcome.ts",
-          "apps/web/test/support/workerEnv.ts"
+          "apps/web/test/support/commandOutcome.ts"
         ],
         "symbols": [
           "runCommandOutcome Promise boundary",
@@ -254,9 +251,9 @@
       "rules": ["FX012", "unicorn/throw-new-error"],
       "scope": {
         "files": [
-          "apps/web/src/server/authError.ts",
-          "apps/web/src/server/deliveryClaimLost.ts",
-          "packages/db/src/aggregate/defects.ts"
+          "apps/web/src/server/identity/authError.ts",
+          "apps/web/src/server/background/outbox/deliveryClaimLost.ts",
+          "apps/web/src/adapters/db/aggregate/defects.ts"
         ],
         "symbols": [
           "AuthBoundaryFailure",
@@ -283,14 +280,14 @@
       "rules": ["typescript/no-unsafe-type-assertion"],
       "scope": {
         "files": [
-          "packages/db/src/aggregate/aggregates.ts",
-          "packages/db/src/aggregate/locks.ts",
-          "packages/db/src/aggregate/model.ts",
-          "packages/db/src/live.ts",
-          "packages/db/test/aggregates.postgres.test.ts",
-          "packages/db/test/liveProof.postgres.test.ts",
-          "packages/domain/src/shared/integrationGuard.ts",
-          "packages/domain/test/support/teamsInMemory.ts"
+          "apps/web/src/adapters/db/aggregate/aggregates.ts",
+          "apps/web/src/adapters/db/aggregate/locks.ts",
+          "apps/web/src/adapters/db/aggregate/model.ts",
+          "apps/web/src/adapters/db/live.ts",
+          "apps/web/test/db/aggregates.postgres.test.ts",
+          "apps/web/test/db/liveProof.postgres.test.ts",
+          "apps/web/src/domain/transactions/integrationGuard.ts",
+          "apps/web/test/domain/support/teamsInMemory.ts"
         ],
         "symbols": [
           "asRows",
@@ -306,17 +303,17 @@
       "missingCapability": "TypeScript cannot build a value of an opaque type with an unexported brand from a plain object, and Drizzle 1.0.0-rc.5 has no generic form of insert, update, delete and select on a table type parameter whose rows follow that parameter.",
       "nativeAlternativesExamined": [
         "`verified` maps the members of whichever port it is given, and TypeScript has no mapped-type form that is also a runtime map over a generic service shape, so the object that it builds is stated to have the service's type with one Function.cast at each end of the map.",
-        "`refusingInTransaction` (spec 0024, `packages/domain/src/shared/integrationGuard.ts`) is the same map over an integration port: its bound says that every member of the service is a method or an effect, and the two casts only read the members by name and give the object back as the service's own type. Each shipped Layer of a port is called member by member inside `Transactor.run` by `integrationGuard.test.ts`, so a Layer that wraps fewer members than it has fails.",
+        "`refusingInTransaction` (spec 0024, `apps/web/src/domain/transactions/integrationGuard.ts`) is the same map over an integration port: its bound says that every member of the service is a method or an effect, and the two casts only read the members by name and give the object back as the service's own type. Each shipped Layer of a port is called member by member inside `Transactor.run` by `integrationGuard.test.ts`, so a Layer that wraps fewer members than it has fails.",
         "Effect Brand.nominal makes a token without a cast, but its brand key is Effect's public type id, so a hand-made literal with that key would type-check. The spec asks for an unexported brand.",
-        "A class with a private constructor needs a factory that packages/db can call, and anything that can call it can make a token.",
+        "A class with a private constructor needs a factory that the database adapter can call, and anything that can call it can make a token.",
         "Decoding every returned row through a schema would check at run time what the statement already guarantees, for every write of every repository.",
         "A type assertion is flagged by typescript/no-unsafe-type-assertion, which the repository keeps on, so each narrowing is one Function.cast with a SAFETY comment at the site."
       ],
       "verification": [
-        "devenv shell -- bunx vp -C packages/db test test/aggregate.types.test.ts test/aggregates.postgres.test.ts",
+        "devenv shell -- bunx vp -C apps/web test test/db/aggregate.types.test.ts test/db/aggregates.postgres.test.ts",
         "devenv shell -- bunx vp -C apps/web test test/integrationGuard.test.ts test/codeLifecycle.postgres.test.ts"
       ],
-      "owner": "packages/db",
+      "owner": "apps/web",
       "versions": {
         "effect": "4.0.6",
         "drizzle-orm": "1.0.0-rc.5",
@@ -451,7 +448,7 @@
       "name": "sql",
       "scope": {
         "files": [
-          "packages/db/**",
+          "apps/web/src/adapters/db/**",
           "apps/web/src/server/**",
           "**/test/**",
           "tools/**",
@@ -507,7 +504,9 @@
       "scope": {
         "files": [
           "apps/web/src/server/**",
-          "apps/web/src/lib/authClient.ts",
+          "apps/web/src/features/accounts/client.ts",
+          "apps/web/src/adapters/messaging/senders.ts",
+          "apps/web/src/adapters/turnstile.ts",
           "apps/web/test/sandbox.test.ts",
           "apps/web/test/integrationGuard.test.ts",
           "tools/**",
@@ -573,7 +572,7 @@
       "name": "reactivity",
       "scope": {
         "files": [
-          "packages/db/test/support/disposableDatabase.ts",
+          "apps/web/test/db/support/disposableDatabase.ts",
           "tools/db-path-spike/test/support/localWorker.ts"
         ],
         "modules": ["effect/reactivity/Reactivity"]

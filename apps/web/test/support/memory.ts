@@ -1,70 +1,4 @@
 import {
-  AdmissionPeriodId,
-  AdmissionPeriodRepository,
-  AlreadyExists,
-  ApplicationRepository,
-  AuditLog,
-  Conflict,
-  CurrentPrincipal,
-  DepartmentId,
-  DepartmentRepository,
-  EmailAddress,
-  FieldOfStudyId,
-  FieldOfStudyRepository,
-  FileKey,
-  FileStore,
-  ImpactMeasures,
-  ImpactSnapshots,
-  ImpactSource,
-  InTransaction,
-  NotFound,
-  Outbox,
-  OutboxClaim,
-  OutboxClaimToken,
-  OutboxDelivery,
-  OutboxMessageId,
-  OutboxReports,
-  OutboxSweep,
-  PublicFileRepository,
-  SemesterId,
-  SemesterRepository,
-  SiteOrigin,
-  SocialEventId,
-  SocialEventRepository,
-  Transactor,
-  WorkspaceReports,
-  anonymous,
-  deliveryState,
-  isListed,
-} from "@vektorprogrammet/domain";
-import type {
-  ApplicationView,
-  AuditEntry,
-  ClaimedOutboxMessage,
-  Department,
-  EntityName,
-  FieldOfStudy,
-  OutboxMessage,
-  Principal,
-  PublicFile,
-  SocialEvent,
-  StoredAdmissionPeriod,
-  StoredSemester,
-} from "@vektorprogrammet/domain";
-/**
- * In-memory Layers for apps/web tests (Node, `vp test`). Real database
- * behaviour is `packages/db`'s job; these fakes implement the domain's
- * service contracts just far enough for the web runtime, routes and outbox
- * delivery to be exercised. Every value is a fake same-shape value.
- */
-import { ContentEditor } from "@vektorprogrammet/domain/cms";
-import {
-  makeTeamTables,
-  snapshotTeamTables,
-  teamsInMemoryOver,
-} from "@vektorprogrammet/domain/testing";
-import type { TeamTableRefs } from "@vektorprogrammet/domain/testing";
-import {
   Array as Arr,
   Context,
   DateTime,
@@ -74,6 +8,73 @@ import {
   Record as Rec,
   Stream,
 } from "effect";
+
+import { AlreadyExists, Conflict, NotFound } from "../../src/domain/errors";
+import {
+  AdmissionPeriodId,
+  DepartmentId,
+  FieldOfStudyId,
+  FileKey,
+  OutboxMessageId,
+  SemesterId,
+  SocialEventId,
+} from "../../src/domain/ids";
+import type { EntityName } from "../../src/domain/ids";
+import { CurrentPrincipal, anonymous } from "../../src/domain/kernel/principal";
+import type { Principal } from "../../src/domain/kernel/principal";
+import * as OutboxSweep from "../../src/domain/outbox/declaration";
+import {
+  OutboxClaim,
+  OutboxClaimToken,
+  OutboxDelivery,
+} from "../../src/domain/outbox/delivery";
+import type { ClaimedOutboxMessage } from "../../src/domain/outbox/delivery";
+import { isListed } from "../../src/domain/outbox/messages";
+import type { OutboxMessage } from "../../src/domain/outbox/messages";
+import { Outbox } from "../../src/domain/outbox/outbox";
+import { OutboxReports, deliveryState } from "../../src/domain/outbox/status";
+import { SiteOrigin } from "../../src/domain/siteOrigin";
+import { InTransaction } from "../../src/domain/transactions/transaction";
+import { Transactor } from "../../src/domain/transactions/transactor";
+import { EmailAddress } from "../../src/domain/validation";
+import { ApplicationRepository } from "../../src/features/admission/domain/services";
+import type { ApplicationView } from "../../src/features/admission/domain/services";
+import { AuditLog } from "../../src/features/audit/domain/auditLog";
+import type { AuditEntry } from "../../src/features/audit/domain/auditLog";
+/**
+ * In-memory Layers for apps/web tests (Node, `vp test`). Real database
+ * behaviour is `packages/db`'s job; these fakes implement the domain's
+ * service contracts just far enough for the web runtime, routes and outbox
+ * delivery to be exercised. Every value is a fake same-shape value.
+ */
+import { ContentEditor } from "../../src/features/cms/domain/client";
+import { SocialEventRepository } from "../../src/features/events/domain/services";
+import type { SocialEvent } from "../../src/features/events/domain/socialEvent";
+import type { PublicFile } from "../../src/features/files/domain/publicFile";
+import {
+  FileStore,
+  PublicFileRepository,
+} from "../../src/features/files/domain/services";
+import * as ImpactMeasures from "../../src/features/impact/domain/measures";
+import { ImpactSnapshots } from "../../src/features/impact/domain/services";
+import { ImpactSource } from "../../src/features/impact/domain/source";
+import type { StoredAdmissionPeriod } from "../../src/features/organisation/domain/admission";
+import type { Department } from "../../src/features/organisation/domain/department";
+import type { FieldOfStudy } from "../../src/features/organisation/domain/fieldOfStudy";
+import type { StoredSemester } from "../../src/features/organisation/domain/semester";
+import {
+  AdmissionPeriodRepository,
+  DepartmentRepository,
+  FieldOfStudyRepository,
+  SemesterRepository,
+} from "../../src/features/organisation/domain/services";
+import { WorkspaceReports } from "../../src/features/workspace/domain/services";
+import {
+  makeTeamTables,
+  snapshotTeamTables,
+  teamsInMemoryOver,
+} from "../domain/support/teamsInMemory";
+import type { TeamTableRefs } from "../domain/support/teamsInMemory";
 
 interface OutboxRow {
   readonly id: OutboxMessageId;

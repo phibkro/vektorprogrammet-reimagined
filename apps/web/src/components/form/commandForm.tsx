@@ -8,9 +8,9 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { toFormData } from "@/forms/formSchema";
 import type { FormText } from "@/forms/formSchema";
-import { fieldErrors } from "@/lib/outcome";
-import type { Outcome } from "@/lib/outcome";
 
+import { fieldErrors } from "../../http/outcome";
+import type { Outcome } from "../../http/outcome";
 import { FormAlert, RegisterFieldContext, ServerIssuesContext } from "./field";
 import type { FieldComponent, RegisterField } from "./field";
 import { useConstructForm } from "./useConstructForm";

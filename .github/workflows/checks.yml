@@ -50,7 +50,7 @@ jobs:
           export RUNTIME_DATABASE_URL_FILE="$RUNNER_TEMP/runtime-database-url"
           export SYNTHETIC_SUPABASE_OWNED=1 E2E_DISPOSABLE=1
           devenv shell -- bash tools/prototype/with-env.sh --bootstrap bash -euo pipefail -c '
-            (cd packages/db && bun run db:migrate)
+            (cd apps/web && bun run db:migrate)
             (cd tools/import && IMPORT_TARGET_DATABASE_URL="$MIGRATION_DATABASE_URL" env -u DATABASE_URL bun run import:fixture)
           '
           devenv shell -- bun run prototype:setup

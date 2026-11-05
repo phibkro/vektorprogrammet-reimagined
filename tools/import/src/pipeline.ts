@@ -1,3 +1,6 @@
+import { Effect, Layer, Option } from "effect";
+import type { Redacted } from "effect";
+
 /**
  * The import program and the Layers it runs on. `main.ts` (the CLI) and the
  * round-trip test run the same `runImport` on the same `importLayer`, so the
@@ -9,11 +12,8 @@
  *     → ImportTarget.replaceAll (one PostgreSQL transaction)
  *     → buildReport + writeReport (JSON + Markdown)
  */
-import { ImportDatabaseLive } from "@vektorprogrammet/db";
-import { ImportTarget } from "@vektorprogrammet/domain";
-import { Effect, Layer, Option } from "effect";
-import type { Redacted } from "effect";
-
+import { ImportDatabaseLive } from "../../../apps/web/src/adapters/db/databaseLive.ts";
+import { ImportTarget } from "../../../apps/web/src/features/organisation/domain/legacyImport.ts";
 import { LegacyFiles, resolveLegacyFiles } from "./files.ts";
 import { LegacySource, legacyMysqlLayer } from "./legacy/source.ts";
 import { buildReport, writeReport } from "./report.ts";

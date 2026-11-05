@@ -7,15 +7,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
-  Effx,
-  Grant,
-  GrantTable,
-  Subject,
-  Teams,
-  authorizeWith,
-} from "@vektorprogrammet/domain";
-import type { Domain, Machine } from "@vektorprogrammet/domain";
-import {
   Array as Arr,
   Context,
   Effect,
@@ -28,6 +19,14 @@ import {
   Schema,
 } from "effect";
 
+import { GrantTable } from "../../../apps/web/src/domain/declarations.ts";
+import { authorizeWith } from "../../../apps/web/src/domain/kernel/authorize.ts";
+import type * as Domain from "../../../apps/web/src/domain/kernel/domain.ts";
+import * as Effx from "../../../apps/web/src/domain/kernel/effx.ts";
+import * as Grant from "../../../apps/web/src/domain/kernel/grant.ts";
+import type * as Machine from "../../../apps/web/src/domain/kernel/machine.ts";
+import * as Subject from "../../../apps/web/src/domain/kernel/subject.ts";
+import * as Teams from "../../../apps/web/src/features/teams/domain/declaration.ts";
 import {
   Pin,
   Provenance,

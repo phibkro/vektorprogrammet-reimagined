@@ -1,0 +1,78 @@
+import { Array as Arr, Match, Schema } from "effect";
+
+import { failureOutcome } from "../../http/outcome";
+import type { Failure } from "../../http/outcome";
+/**
+ * The one table that maps the domain's closed error set (plus the web's own
+ * `RateLimited` and the CMS client's three failures) to HTTP statuses. Every server function, server route and
+ * loader goes through `failureOf`; nothing else chooses a status for a typed
+ * failure. Defects are not in this table: the runtime logs them and answers
+ * 500. A CMS that cannot be reached is a 503, and one that refuses or sends content that does not match
+ * its collection is a 502: the page is the web's, the failure is upstream.
+ */
+import { RequestErrorSchema } from "../../http/requestError";
+import type {
+  EncodedRequestError,
+  RequestError,
+  RequestErrorTag,
+} from "../../http/requestError";
+
+/**
+ * `status`: server functions, server routes and pages.
+ * `formStatus`: a no-JavaScript form post that re-renders the form
+ * (spec §3: 422 for validation errors).
+ */
+export const ERROR_TABLE = {
+  AlreadyExists: { formStatus: 409, status: 409 },
+  CmsInvalidContent: { formStatus: 502, status: 502 },
+  CmsRejected: { formStatus: 502, status: 502 },
+  CmsUnavailable: { formStatus: 503, status: 503 },
+  Conflict: { formStatus: 409, status: 409 },
+  Forbidden: { formStatus: 403, status: 403 },
+  NotFound: { formStatus: 404, status: 404 },
+  RateLimited: { formStatus: 429, status: 429 },
+  ValidationFailed: { formStatus: 422, status: 400 },
+} as const satisfies {
+  readonly [Tag in RequestErrorTag]: {
+    readonly status: number;
+    readonly formStatus: number;
+  };
+};
+
+const encode = Schema.encodeSync(RequestErrorSchema);
+
+/** User-facing Norwegian text for a failure (the domain's own text where it has one). */
+const messageOf = (error: EncodedRequestError): string =>
+  Match.value(error).pipe(
+    Match.tagsExhaustive({
+      AlreadyExists: (failure) => failure.message,
+      CmsInvalidContent: () =>
+        "Innholdet på siden er ugyldig. Prøv igjen senere.",
+      CmsRejected: () =>
+        "Innholdstjenesten avviste forespørselen. Prøv igjen senere.",
+      CmsUnavailable: () =>
+        "Innholdet er midlertidig utilgjengelig. Prøv igjen om litt.",
+      Conflict: (failure) => failure.message,
+      Forbidden: () => "Du har ikke tilgang til dette.",
+      NotFound: () => "Fant ikke siden eller elementet.",
+      RateLimited: () => "For mange forsøk. Vent litt og prøv igjen.",
+      ValidationFailed: (failure) =>
+        Arr.join(
+          Arr.map(failure.issues, (issue) => issue.message),
+          " "
+        ),
+    })
+  );
+
+/** Maps a typed failure through the table into a serializable `Failure`. */
+export const failureOf = (error: RequestError): Failure => {
+  const encoded = encode(error);
+  const row = ERROR_TABLE[encoded._tag];
+
+  return failureOutcome({
+    error: encoded,
+    formStatus: row.formStatus,
+    message: messageOf(encoded),
+    status: row.status,
+  });
+};

@@ -45,10 +45,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { actorLabel } from "@/lib/actorLabel";
-import { sectionOfPath } from "@/lib/panelSections";
-import type { NavigationGroup, SectionKey } from "@/lib/panelSections";
-import type { ActorSummary } from "@/server/shell";
+
+import { actorLabel } from "../../features/panel/actorLabel";
+import { sectionOfPath } from "../../features/panel/panelSections";
+import type {
+  NavigationGroup,
+  SectionKey,
+} from "../../features/panel/panelSections";
+import type { ActorSummary } from "../../features/panel/server/shell";
 
 const SECTION_ICONS: Readonly<Record<SectionKey, LucideIcon>> = {
   admins: ShieldCheckIcon,

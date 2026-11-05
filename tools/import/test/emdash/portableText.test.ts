@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
-import { PortableText } from "@vektorprogrammet/domain/cms";
 import { Array as Arr, Effect, Option, Predicate, Schema } from "effect";
 
+import * as PortableText from "../../../../apps/web/src/features/cms/domain/portableText.ts";
 import { htmlToPortableText } from "../../src/emdash/portableText.ts";
 import type { Block } from "../../src/emdash/portableText.ts";
 

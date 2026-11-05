@@ -9,7 +9,6 @@
  * shows the checks' own logic is sound, so a deployed failure is the platform's.
  */
 import { PgClient } from "@effect/sql-pg";
-import { withClient } from "@vektorprogrammet/db/testing";
 import * as PgDrizzle from "drizzle-orm/effect-postgres";
 import { migrate } from "drizzle-orm/effect-postgres/migrator";
 import {
@@ -25,6 +24,7 @@ import {
 import { HttpClient, HttpClientResponse } from "effect/http";
 import * as Reactivity from "effect/reactivity/Reactivity";
 
+import { withClient } from "../../../../apps/web/test/db/support/disposableDatabase.ts";
 import worker from "../../src/worker.ts";
 import type { SpikeEnv } from "../../src/worker/database.ts";
 

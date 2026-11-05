@@ -15,7 +15,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { FormText } from "@/forms/formSchema";
-import type { Outcome } from "@/lib/outcome";
+
+import type { Outcome } from "../../http/outcome";
 
 interface SheetFrame {
   /** The control that opens the Sheet, as an element (`<Button size="sm" />`); its label is `triggerLabel`. */
@@ -86,6 +87,7 @@ export const CommandSheet = <
   return (
     <PanelSheet {...frame} open={open} onOpenChange={setOpen}>
       <CommandForm
+        {...(children === undefined ? {} : { children })}
         action={action}
         defaults={defaults}
         schema={schema}
@@ -99,9 +101,7 @@ export const CommandSheet = <
             Avbryt
           </SheetClose>
         }
-      >
-        {children}
-      </CommandForm>
+      />
     </PanelSheet>
   );
 };

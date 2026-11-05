@@ -6,15 +6,11 @@
  * are written only by the scheduled job; the semester views are reads.
  */
 import { assert, describe, it } from "@effect/vitest";
-import {
-  DepartmentId,
-  FieldOfStudyId,
-  SemesterId,
-  anonymous,
-} from "@vektorprogrammet/domain";
 import { Array as Arr, DateTime, Effect } from "effect";
 import { TestClock } from "effect/testing";
 
+import { DepartmentId, FieldOfStudyId, SemesterId } from "../src/domain/ids";
+import { anonymous } from "../src/domain/kernel/principal";
 import {
   SAVED,
   departmentsView,
@@ -22,7 +18,7 @@ import {
   saveDepartmentProgram,
   saveFieldOfStudyProgram,
   semestersView,
-} from "../src/server/panel";
+} from "../src/features/organisation/server/organisation";
 import {
   fakeDepartment,
   fakeFieldOfStudy,

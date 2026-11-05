@@ -1,16 +1,13 @@
+import { DateTime } from "effect";
+
 /**
  * The principals the web tests act as, with the facts `PrincipalDirectory` would load for such a person (spec 0006,
  * R1): the memberships active this semester, and the end of the admin place. Nothing here is a role: a leader is
  * a person with a membership whose `leader` flag is set.
  */
-import {
-  DepartmentId,
-  PersonId,
-  Principal,
-  TeamId,
-} from "@vektorprogrammet/domain";
-import type { TeamFunction } from "@vektorprogrammet/domain";
-import { DateTime } from "effect";
+import { DepartmentId, PersonId, TeamId } from "../../src/domain/ids";
+import { Principal } from "../../src/domain/kernel/principal";
+import type { TeamFunction } from "../../src/domain/kernel/principal";
 
 const LATE = DateTime.makeUnsafe("2099-12-31T23:59:59Z");
 

@@ -15,8 +15,6 @@
   },
   "dependencies": {
     "@effect/sql-pg": "catalog:",
-    "@vektorprogrammet/db": "workspace:*",
-    "@vektorprogrammet/domain": "workspace:*",
     "bcryptjs": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"

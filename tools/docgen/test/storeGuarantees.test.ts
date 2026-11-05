@@ -5,9 +5,9 @@
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { StoreGuarantees } from "@vektorprogrammet/domain";
 import { Array as Arr, Effect, FileSystem, Result } from "effect";
 
+import { StoreGuarantees } from "../../../apps/web/src/domain/store/guarantees.ts";
 import {
   STORE,
   checkStoreGuaranteesDocument,

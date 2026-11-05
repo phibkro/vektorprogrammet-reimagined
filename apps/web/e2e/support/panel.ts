@@ -1,15 +1,19 @@
 import { expect } from "@playwright/test";
 import type { BrowserContext, Locator, Page, Response } from "@playwright/test";
+import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
+
 /**
  * Helpers for provider sign-in, the Sheet every control-panel form opens in, the server
  * function call a click makes, the sidebar, and the semester labels a page lists. Locators go by role and
  * visible label, as a person reads the page.
  */
-import { LOCAL_FAKE_PASSWORD, LOCAL_PEOPLE } from "@vektorprogrammet/domain";
-import { Array as Arr, Config, Effect, Option, Record as Rec } from "effect";
+import {
+  LOCAL_FAKE_PASSWORD,
+  LOCAL_PEOPLE,
+} from "../../test/fixtures/localPeople";
 
 /** The seeded people the organisation and shell journeys use. */
-export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "@vektorprogrammet/domain";
+export { DEFAULT_LOCAL_PERSON as TEST_ADMIN } from "../../test/fixtures/localPeople.ts";
 
 /** The leader, and a plain member of the same team: the member holds no `viewPeople`. */
 export const [, TEST_LEADER, TEST_MEMBER] = LOCAL_PEOPLE;

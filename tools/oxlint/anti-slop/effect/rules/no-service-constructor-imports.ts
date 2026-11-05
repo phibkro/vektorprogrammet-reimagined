@@ -3,6 +3,7 @@ import type { ESTree } from "vite-plus/lint/plugins";
 
 const SERVICE_CONSTRUCTOR_NAME = /^make[A-Z]/u;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
+const TEST_SUPPORT = /(?:^|\/)test\/(?:[^/]+\/)*support\//u;
 
 function isProjectLocalImport(source: string): boolean {
   return source.startsWith("./") || source.startsWith("../");
@@ -19,7 +20,7 @@ export const noServiceConstructorImportsRule = defineRule({
     type: "problem",
     docs: {
       description:
-        "Disallow project-local make<CapabilityName> imports outside test and spec files.",
+        "Disallow project-local make<CapabilityName> imports outside tests and test support.",
     },
     messages: {
       serviceConstructorImport:
@@ -27,7 +28,8 @@ export const noServiceConstructorImportsRule = defineRule({
     },
   },
   create(context) {
-    const isTestFile = TEST_FILE.test(context.filename.replaceAll("\\", "/"));
+    const filename = context.filename.replaceAll("\\", "/");
+    const isTestFile = TEST_FILE.test(filename) || TEST_SUPPORT.test(filename);
 
     return {
       ImportDeclaration(node) {

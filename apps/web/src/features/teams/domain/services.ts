@@ -1,0 +1,259 @@
+/**
+ * The teams repositories. `packages/db` implements them as Layers; every method requires nothing and fails only with
+ * the listed domain errors (infrastructure failures are defects). A write that must not lose a race is a conditional
+ * update: it names the state the caller read, and a row that is no longer in that state is a `Conflict`.
+ *
+ * A table that an aggregate root owns (spec 0006b: a person owns its memberships and its admin places) is written only
+ * through the owner's lock. A method that writes one takes the `Locked` token of the owner, and so does a read that
+ * decides a write (`findLocked`): the command takes the lock first (`AggregateLocks`), then reads and writes through
+ * the token. A read for display takes no token and locks nothing. A fact that spans every administrator (the last
+ * Active administrator) is decided through the admin list's token instead.
+ */
+import { Context } from "effect";
+import type { DateTime, Effect, Option } from "effect";
+
+import type {
+  AlreadyExists,
+  Conflict,
+  NotFound,
+} from "../../../domain/errors.ts";
+import type {
+  AdminGrantId,
+  DepartmentId,
+  MembershipId,
+  PersonId,
+  TeamId,
+} from "../../../domain/ids.ts";
+import type { PersonPrincipal } from "../../../domain/kernel/principal.ts";
+import type { Locked } from "../../../domain/transactions/aggregate.ts";
+import type { InTransaction } from "../../../domain/transactions/transaction.ts";
+import type { EmailAddress } from "../../../domain/validation.ts";
+import type { Semester } from "../../organisation/domain/semester.ts";
+import type {
+  AdminGrant,
+  AdminGrantDraft,
+  Membership,
+  MembershipDraft,
+  Person,
+  PersonDraft,
+  Position,
+  Team,
+  TeamDetails,
+  TeamDraft,
+} from "./entities.ts";
+import type { MembershipTerm } from "./term.ts";
+
+/** A membership with the names a page shows beside it. */
+export interface MembershipView extends Membership {
+  readonly personName: string;
+  readonly positionName: string;
+}
+
+/** A membership that is active in a semester, with what the "ending soon" digest needs. */
+export interface ActiveMembership extends Membership {
+  readonly departmentId: DepartmentId;
+  readonly personEmail: EmailAddress;
+  readonly personName: string;
+  readonly positionName: string;
+  readonly teamName: string;
+}
+
+/** A place on the admin list with the name of its holder. */
+export interface AdminGrantView extends AdminGrant {
+  readonly personName: string;
+}
+
+export class PersonRepository extends Context.Service<
+  PersonRepository,
+  {
+    readonly findById: (id: PersonId) => Effect.Effect<Person, NotFound>;
+    /** The locked person: a decision read, which runs after the lock and sees what no other transaction can change. */
+    readonly findLocked: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<Person, never, InTransaction>;
+    /** The people of one department, or of all of them (`null`), by name. */
+    readonly list: (
+      departmentId: DepartmentId | null
+    ) => Effect.Effect<readonly Person[]>;
+    /** Fails with `AlreadyExists` on the unique e-mail address. */
+    readonly create: (
+      draft: PersonDraft
+    ) => Effect.Effect<Person, AlreadyExists | Conflict, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/teams/PersonRepository") {}
+
+export class TeamRepository extends Context.Service<
+  TeamRepository,
+  {
+    readonly findById: (id: TeamId) => Effect.Effect<Team, NotFound>;
+    /** The teams of one department, or of all of them (`null`), by name; deactivated ones included. */
+    readonly list: (
+      departmentId: DepartmentId | null
+    ) => Effect.Effect<readonly Team[]>;
+    /** Fails with `AlreadyExists` on the unique name within the department (RULE-157). */
+    readonly create: (
+      draft: TeamDraft
+    ) => Effect.Effect<Team, AlreadyExists | Conflict, InTransaction>;
+    readonly update: (
+      id: TeamId,
+      details: TeamDetails
+    ) => Effect.Effect<
+      Team,
+      NotFound | AlreadyExists | Conflict,
+      InTransaction
+    >;
+    /** A team is deactivated and never deleted (RULE-233). */
+    readonly deactivate: (id: TeamId) => Effect.Effect<Team, NotFound>;
+  }
+>()("@vektorprogrammet/domain/teams/TeamRepository") {}
+
+export class PositionRepository extends Context.Service<
+  PositionRepository,
+  {
+    readonly list: Effect.Effect<readonly Position[]>;
+    readonly findById: (
+      id: Position["id"]
+    ) => Effect.Effect<Position, NotFound>;
+  }
+>()("@vektorprogrammet/domain/teams/PositionRepository") {}
+
+export class MembershipRepository extends Context.Service<
+  MembershipRepository,
+  {
+    readonly findById: (
+      id: MembershipId
+    ) => Effect.Effect<Membership, NotFound>;
+    /** A membership of the locked person: a decision read, which runs after the lock. `NotFound` when it is not theirs. */
+    readonly findLocked: (
+      locked: Locked<"Person">,
+      id: MembershipId
+    ) => Effect.Effect<Membership, NotFound, InTransaction>;
+    /** Every membership of the locked person: a decision read, which runs after the lock. */
+    readonly listLocked: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<readonly Membership[], never, InTransaction>;
+    /** Every membership of the team, the ended ones too (history shows both rows of a change), by start. */
+    readonly listByTeam: (
+      teamId: TeamId
+    ) => Effect.Effect<readonly MembershipView[]>;
+    /** Every membership of the person, newest first. */
+    readonly listByPerson: (
+      personId: PersonId
+    ) => Effect.Effect<readonly MembershipView[]>;
+    /** The memberships active in `semester`, across all departments. */
+    readonly activeIn: (
+      semester: Semester
+    ) => Effect.Effect<readonly ActiveMembership[]>;
+    /**
+     * Inserts the locked person's membership (the owner is the lock's). A person's memberships in one team never
+     * overlap (NO1): the store refuses an overlap, and that is `AlreadyExists` (NO3).
+     */
+    readonly insert: (
+      locked: Locked<"Person">,
+      draft: Omit<MembershipDraft, "personId">
+    ) => Effect.Effect<Membership, AlreadyExists, InTransaction>;
+    /**
+     * Moves the end of the locked person's membership that is Active in `activeIn` and whose end is still
+     * `observedEnd` (CW1). A membership in any other state, one that someone else changed since it was read, or one
+     * that is not theirs, is a `Conflict`. A new end that overlaps another membership of the person in the team is
+     * `AlreadyExists`.
+     */
+    readonly setEnd: (
+      locked: Locked<"Person">,
+      change: {
+        readonly id: MembershipId;
+        readonly observedEnd: Semester;
+        readonly newEnd: Semester;
+        readonly activeIn: Semester;
+      }
+    ) => Effect.Effect<Membership, Conflict | AlreadyExists, InTransaction>;
+    /**
+     * Removes the locked person's membership that is Planned in `current` and still has the term the caller read
+     * (CW1). Anything else is a `Conflict`.
+     */
+    readonly remove: (
+      locked: Locked<"Person">,
+      removal: {
+        readonly id: MembershipId;
+        readonly observed: MembershipTerm;
+        readonly current: Semester;
+      }
+    ) => Effect.Effect<void, Conflict, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/teams/MembershipRepository") {}
+
+export class AdminGrantRepository extends Context.Service<
+  AdminGrantRepository,
+  {
+    /** Every place on the list, ended ones included, newest end first. */
+    readonly list: Effect.Effect<readonly AdminGrantView[]>;
+    readonly findById: (
+      id: AdminGrantId
+    ) => Effect.Effect<AdminGrant, NotFound>;
+    /**
+     * Puts the locked person on the list (the holder is the lock's). A place changes who is on the list, so the
+     * command holds the admin list's lock too, and the method takes its token.
+     */
+    readonly create: (
+      adminList: Locked<"AdminList">,
+      locked: Locked<"Person">,
+      draft: Omit<AdminGrantDraft, "personId">
+    ) => Effect.Effect<AdminGrant, never, InTransaction>;
+    /**
+     * Removes the place `id` of the locked holder, unless it is the last place that ends after `validAfter` (the end of
+     * the current semester) and that an Active account holds: the list would be left with no Active administrator. The
+     * decision reads the whole list through the admin list's token, which nobody else can change before this
+     * transaction ends, and the delete goes through the holder's token. Two revocations at once queue, and the second
+     * one is told it is the last.
+     */
+    readonly revoke: (
+      adminList: Locked<"AdminList">,
+      locked: Locked<"Person">,
+      id: AdminGrantId,
+      validAfter: DateTime.Utc
+    ) => Effect.Effect<"revoked" | "last", NotFound, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/teams/AdminGrantRepository") {}
+
+/** Records that the "ending soon" digest of a semester went to a leader, so that it goes out once (R1, falsifier 7). */
+export class DigestLedger extends Context.Service<
+  DigestLedger,
+  {
+    /**
+     * `true` when this call recorded the digest, `false` when an earlier one already had (CL1, CL2). The ledger row and
+     * the outbox row commit together, so it requires the transaction (CL3).
+     */
+    readonly claim: (
+      personId: PersonId,
+      semester: Semester
+    ) => Effect.Effect<boolean, never, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/teams/DigestLedger") {}
+
+/** One durable first-membership notification claim per person, committed with membership and outbox rows. */
+export class WelcomeLedger extends Context.Service<
+  WelcomeLedger,
+  {
+    readonly claim: (
+      locked: Locked<"Person">
+    ) => Effect.Effect<boolean, never, InTransaction>;
+  }
+>()("@vektorprogrammet/domain/teams/WelcomeLedger") {}
+
+/** Loads the facts of a person's principal in one read (spec 0006: "loaded per request in one read"). */
+export class PrincipalDirectory extends Context.Service<
+  PrincipalDirectory,
+  {
+    /** One read of account state and principal facts; non-Active accounts are absent. */
+    readonly activeById: (
+      personId: PersonId,
+      at: { readonly current: Semester; readonly now: DateTime.Utc }
+    ) => Effect.Effect<Option.Option<PersonPrincipal>>;
+    readonly byName: (
+      name: string,
+      at: { readonly current: Semester; readonly now: DateTime.Utc }
+    ) => Effect.Effect<Option.Option<PersonPrincipal>>;
+    /** The names of the people a local developer can act as, by id. */
+    readonly names: (limit: number) => Effect.Effect<readonly string[]>;
+  }
+>()("@vektorprogrammet/domain/teams/PrincipalDirectory") {}

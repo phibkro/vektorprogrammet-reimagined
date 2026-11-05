@@ -14,50 +14,6 @@
  * Every registered read is exercised against actual database privileges; no source-text assertions.
  */
 import { assert, layer } from "@effect/vitest";
-import { ContentLive, DatabaseLive } from "@vektorprogrammet/db";
-import {
-  TestDatabaseUrl,
-  migratedTestDatabase,
-} from "@vektorprogrammet/db/testing";
-import {
-  ReadOnlyDatabaseUrl,
-  readOnlyRole,
-} from "@vektorprogrammet/db/testing/read-only-role";
-import {
-  AdminGrantRepository,
-  AggregateLocks,
-  CurrentPrincipal,
-  EmailAddress,
-  FieldOfStudyId,
-  FieldOfStudyRepository,
-  FileStore,
-  MembershipRepository,
-  PersonId,
-  PersonRepository,
-  Principal,
-  PrincipalDirectory,
-  PositionId,
-  SemesterRepository,
-  TeamRepository,
-  Transactor,
-  WorkspaceFacts,
-  anonymous,
-  currentSemester,
-  lockAdminList,
-  semesterJob,
-  servePublicFile,
-  systemPrincipal,
-} from "@vektorprogrammet/domain";
-import type {
-  Forbidden,
-  NotFound,
-  ValidationFailed,
-} from "@vektorprogrammet/domain";
-import type {
-  CmsClient,
-  CmsFailure,
-  ContentEditor,
-} from "@vektorprogrammet/domain/cms";
 import {
   Array as Arr,
   Cause,
@@ -72,15 +28,51 @@ import {
 import type { Context, Redacted } from "effect";
 import { SqlClient } from "effect/sql";
 
-import { myPage, signInDestination } from "../src/server/accounts";
-import { applicationPage, applyIndexPage } from "../src/server/admission";
-import { Auth } from "../src/server/auth";
-import { isolationReport } from "../src/server/isolation";
-import { panelReads } from "../src/server/panelReads";
-import { resolvePrincipal } from "../src/server/principal";
-import { legacyFileLocation } from "../src/server/redirects";
-import type { DatabaseServices } from "../src/server/runtime";
-import { shellView } from "../src/server/shell";
+import { ContentLive } from "../src/adapters/db/content";
+import { DatabaseLive } from "../src/adapters/db/databaseLive";
+import type {
+  Forbidden,
+  NotFound,
+  ValidationFailed,
+} from "../src/domain/errors";
+import { FieldOfStudyId, PersonId, PositionId } from "../src/domain/ids";
+import {
+  CurrentPrincipal,
+  Principal,
+  anonymous,
+  systemPrincipal,
+} from "../src/domain/kernel/principal";
+import {
+  AggregateLocks,
+  lockAdminList,
+} from "../src/domain/transactions/aggregate";
+import { Transactor } from "../src/domain/transactions/transactor";
+import { EmailAddress } from "../src/domain/validation";
+import {
+  myPage,
+  signInDestination,
+} from "../src/features/accounts/server/accounts";
+import {
+  applicationPage,
+  applyIndexPage,
+} from "../src/features/admission/server/admission";
+import type {
+  CmsClient,
+  CmsFailure,
+  ContentEditor,
+} from "../src/features/cms/domain/client";
+import { servePublicFile } from "../src/features/files/domain/commands";
+import { FileStore } from "../src/features/files/domain/services";
+import {
+  currentSemester,
+  semesterJob,
+} from "../src/features/organisation/domain/commands";
+import {
+  FieldOfStudyRepository,
+  SemesterRepository,
+} from "../src/features/organisation/domain/services";
+import { panelReads } from "../src/features/panel/server/reads";
+import { shellView } from "../src/features/panel/server/shell";
 import {
   aboutPage,
   articlePage,
@@ -93,7 +85,25 @@ import {
   parentsPage,
   schoolsPage,
   teamPage,
-} from "../src/server/site/pages";
+} from "../src/features/site/server/pages";
+import {
+  AdminGrantRepository,
+  MembershipRepository,
+  PersonRepository,
+  PrincipalDirectory,
+  TeamRepository,
+} from "../src/features/teams/domain/services";
+import { WorkspaceFacts } from "../src/features/workspace/domain/services";
+import { isolationReport } from "../src/server/diagnostics/isolation";
+import { legacyFileLocation } from "../src/server/http/redirects";
+import { Auth } from "../src/server/identity/auth";
+import { resolvePrincipal } from "../src/server/identity/principal";
+import type { DatabaseServices } from "../src/server/services";
+import {
+  TestDatabaseUrl,
+  migratedTestDatabase,
+} from "./db/support/disposableDatabase";
+import { ReadOnlyDatabaseUrl, readOnlyRole } from "./db/support/readOnlyRole";
 import { draft, memoryCms, paragraph, published, textsOf } from "./support/cms";
 import type { CmsSeed } from "./support/cms";
 import { ADMIN, WITHOUT_TEAM, leaderOf, memberOf } from "./support/principals";

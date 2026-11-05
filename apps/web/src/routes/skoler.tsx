@@ -2,9 +2,10 @@ import { Link, createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { Array as Arr } from "effect";
 
 import { Divider, greenButtonClass } from "@/components/site/pageParts";
-import { PortableTextView } from "@/components/site/portableTextView";
-import { getSchoolsPage } from "@/functions/public.functions";
-import { pageData } from "@/lib/outcome";
+
+import { PortableTextView } from "../features/cms/components/portableTextView";
+import { getSchoolsPage } from "../features/site/server/functions";
+import { pageData } from "../http/outcome";
 
 const routeApi = getRouteApi("/skoler");
 

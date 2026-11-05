@@ -1,8 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Forbidden, ValidationFailed } from "@vektorprogrammet/domain";
 
-import { fieldErrors, formLevelMessage, success } from "../src/lib/outcome";
-import { failureOf } from "../src/server/errors";
+import { Forbidden, ValidationFailed } from "../src/domain/errors";
+import { fieldErrors, formLevelMessage, success } from "../src/http/outcome";
+import { failureOf } from "../src/server/http/errors";
 
 const refusal =
   "Den siste administratorplassen som varer etter dette semesteret kan ikke fjernes.";

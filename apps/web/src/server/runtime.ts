@@ -1,108 +1,70 @@
 /** One request owns the database and SDK adapters; domain transactions commit before delivery. */
 import type { ExecutionContext } from "@cloudflare/workers-types";
-import {
-  ContentLive,
-  DatabaseLive,
-  JobDatabaseLive,
-} from "@vektorprogrammet/db";
-import { runtimeDatabaseUrl } from "@vektorprogrammet/db/runtime-url";
-import {
-  CurrentPrincipal,
-  Job,
-  JobRegistry,
-  SiteOrigin,
-  Transactor,
-  systemPrincipal,
-} from "@vektorprogrammet/domain";
-import type {
-  AccountRepository,
-  AdminGrantRepository,
-  AggregateLocks,
-  AdmissionPeriodRepository,
-  AlumniRequests,
-  ApplicationRepository,
-  AuditLog,
-  CapturedMessageStore,
-  CodeRepository,
-  ConsentRepository,
-  DepartmentRepository,
-  DigestLedger,
-  FieldOfStudyRepository,
-  FileStore,
-  InTransaction,
-  IntegrationPort,
-  ImpactSnapshots,
-  ImpactSource,
-  IsolationProbe,
-  PlatformProbe,
-  NotAnIntegration,
-  JobRun,
-  LegalHolds,
-  MembershipRepository,
-  Outbox,
-  OutboxDelivery,
-  OutboxMessageId,
-  OutboxReports,
-  PersonRepository,
-  PersonalDataStore,
-  PositionRepository,
-  PrincipalDirectory,
-  PublicFileRepository,
-  SemesterRepository,
-  SignInDirectory,
-  SocialEventRepository,
-  TeamRepository,
-  SystemJob,
-  WelcomeLedger,
-  WorkspaceAssignments,
-  WorkspaceFacts,
-  WorkspaceReports,
-  WorkspaceWriter,
-  RetentionRun,
-} from "@vektorprogrammet/domain";
-import type { CmsClient, ContentEditor } from "@vektorprogrammet/domain/cms";
 import { Cause, DateTime, Effect, Layer, Predicate, Redacted } from "effect";
 import type { Crypto } from "effect";
 import { FetchHttpClient } from "effect/http";
-import type { SqlClient } from "effect/sql";
 
-import type { Outcome } from "../lib/outcome";
-import type { AccountDelivery } from "./accountDelivery";
-import { accountDeliveryLayer } from "./accountDelivery";
-import { Auth, authLayer } from "./auth";
-import type { AuthEnvironment } from "./auth";
-import { AuthBoundaryFailure } from "./authError";
-import { decodeDeployment } from "./deployment";
-import type { WorkerEnv } from "./env";
-import { failureOf, success } from "./errors";
-import type { RequestError } from "./errors";
-import { supabaseFileStoreLayer } from "./fileStore";
-import { runners } from "./jobRunners";
-import type { TickServices } from "./jobRunners";
-import { dispatchTick } from "./jobs";
+import { contactRateLimiterLayer } from "../adapters/cloudflare/rateLimit";
+import type { ContactRateLimiter } from "../adapters/cloudflare/rateLimit";
+import { ContentLive } from "../adapters/db/content";
+import { DatabaseLive, JobDatabaseLive } from "../adapters/db/databaseLive";
+import { runtimeDatabaseUrl } from "../adapters/db/runtimeUrl";
 import {
-  OutboxPublisher,
-  capturingOutbox,
-  directPublisherLayer,
-} from "./outboxPublisher";
-import type { DirectDeliveryServices } from "./outboxPublisher";
-import { withOutbox } from "./outboxSweep";
-import { resolvePrincipal } from "./principal";
-import { contactRateLimiterLayer } from "./rateLimit";
-import type { ContactRateLimiter } from "./rateLimit";
-import { legacyFileLocation } from "./redirects";
-import { retentionModeFor } from "./retentionMode";
-import { messageSenderLayer, senderConfigFromEnv } from "./senders";
-import type { MessageSender } from "./senders";
-import { turnstileLiveLayer } from "./turnstile";
-import type { TurnstileVerifier } from "./turnstile";
-import { webCryptoLayer } from "./webCrypto";
+  messageSenderLayer,
+  senderConfigFromEnv,
+} from "../adapters/messaging/senders";
+import type { MessageSender } from "../adapters/messaging/senders";
+import { supabaseFileStoreLayer } from "../adapters/supabase/storage";
+import { turnstileLiveLayer } from "../adapters/turnstile";
+import type { TurnstileVerifier } from "../adapters/turnstile";
+import { webCryptoLayer } from "../adapters/webCrypto";
 import {
   workspaceConfigFromEnv,
   workspaceDirectoryLayer,
   workspaceModeLayer,
   workspaceWriterLayer,
-} from "./workspace";
+} from "../adapters/workspace";
+import type { OutboxMessageId } from "../domain/ids";
+import * as Job from "../domain/jobs/job";
+import * as JobRegistry from "../domain/jobs/registry";
+import { CurrentPrincipal, systemPrincipal } from "../domain/kernel/principal";
+import type { SystemJob } from "../domain/kernel/principal";
+import type { Outbox } from "../domain/outbox/outbox";
+import { SiteOrigin } from "../domain/siteOrigin";
+import type {
+  InTransaction,
+  IntegrationPort,
+  NotAnIntegration,
+} from "../domain/transactions/transaction";
+import { Transactor } from "../domain/transactions/transactor";
+import type { CmsClient, ContentEditor } from "../features/cms/domain/client";
+import type { FileStore } from "../features/files/domain/services";
+import type { WorkspaceWriter } from "../features/workspace/domain/services";
+import type { Outcome } from "../http/outcome";
+import { success } from "../http/outcome";
+import type { RequestError } from "../http/requestError";
+import type { AccountDelivery } from "./background/outbox/accountDelivery";
+import { accountDeliveryLayer } from "./background/outbox/accountDelivery";
+import {
+  OutboxPublisher,
+  capturingOutbox,
+  directPublisherLayer,
+} from "./background/outbox/publisher";
+import type { DirectDeliveryServices } from "./background/outbox/publisher";
+import { withOutbox } from "./background/outbox/sweep";
+import { retentionModeFor } from "./background/retentionMode";
+import { runners } from "./background/runners";
+import type { TickServices } from "./background/runners";
+import { dispatchTick } from "./background/scheduler";
+import { decodeDeployment } from "./deployment";
+import type { WorkerEnv } from "./http/env";
+import { failureOf } from "./http/errors";
+import { legacyFileLocation } from "./http/redirects";
+import { Auth, authLayer } from "./identity/auth";
+import type { AuthEnvironment } from "./identity/auth";
+import { AuthBoundaryFailure } from "./identity/authError";
+import { resolvePrincipal } from "./identity/principal";
+import type { DatabaseServices } from "./services";
 
 /** Keep the short-lived request pool small; Supabase supplies the shared database. */
 const MAX_CONNECTIONS_PER_REQUEST = 2;
@@ -114,48 +76,6 @@ export interface RequestScope {
   readonly headers: Headers;
   readonly signal: AbortSignal;
 }
-
-/** What `DatabaseLive` provides (packages/db contract). */
-export type DatabaseServices =
-  | AccountRepository
-  | AggregateLocks
-  | CodeRepository
-  | AdmissionPeriodRepository
-  | ApplicationRepository
-  | DepartmentRepository
-  | SemesterRepository
-  | ImpactSnapshots
-  | ImpactSource
-  | IsolationProbe
-  | PlatformProbe
-  | FieldOfStudyRepository
-  | SocialEventRepository
-  | PublicFileRepository
-  | PersonRepository
-  | TeamRepository
-  | PositionRepository
-  | MembershipRepository
-  | AdminGrantRepository
-  | DigestLedger
-  | WelcomeLedger
-  | ConsentRepository
-  | AlumniRequests
-  | LegalHolds
-  | PersonalDataStore
-  | RetentionRun
-  | PrincipalDirectory
-  | Outbox
-  | OutboxReports
-  | AuditLog
-  | CapturedMessageStore
-  | JobRun.JobRuns
-  | WorkspaceAssignments
-  | WorkspaceFacts
-  | WorkspaceReports
-  | OutboxDelivery
-  | Transactor
-  | SignInDirectory
-  | SqlClient.SqlClient;
 
 /** Every service a request program may require. */
 export type RequestServices =

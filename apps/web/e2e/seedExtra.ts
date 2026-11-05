@@ -20,7 +20,7 @@ const main = Effect.gen(function* seedExtra() {
   // The public copy and FAQ fixture is extracted from the former local content seed.
   for (const [collection, entries] of Rec.toEntries(publicContent)) {
     for (const entry of entries) {
-      const value = yield* Schema.decodeUnknownEffect(Schema.Json)(entry.data);
+      const value = yield* Schema.decodeEffect(Schema.Json)(entry.data);
 
       const data = yield* Schema.encodeEffect(
         Schema.fromJsonString(Schema.Json)
