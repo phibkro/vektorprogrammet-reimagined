@@ -33,7 +33,7 @@ const environment = Effect.runSync(
   })
 );
 
-// Terraform supplies deployed secrets. Standalone production builds contain no credentials.
+// The preview lifecycle supplies deployed secrets. Standalone production builds contain no credentials.
 const standaloneWorker = (dev: boolean) =>
   cloudflare({
     config: {
