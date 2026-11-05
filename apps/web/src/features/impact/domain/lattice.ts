@@ -3,7 +3,7 @@
  * and the release of their answers. Plain functions: the answers come in as a function, so a test hands them in, and the
  * command reads them from the ports.
  */
-import { Array as Arr, Option } from "effect";
+import { Array as Arr, Option, Predicate, Result } from "effect";
 
 import type { DepartmentId } from "../../../core/ids.ts";
 import type { Semester } from "../../organisation/domain/semester.ts";
@@ -15,17 +15,19 @@ import {
   hiddenNote,
   mayRead,
   measureOf,
+  privacyRefusalNote,
   slotId,
 } from "./measures.ts";
 import type {
   Answer,
   Audience,
   MeasureDeclaration,
-  MeasureId,
+  PrivacyRefusal,
   Slot,
 } from "./measures.ts";
 import { release } from "./release.ts";
 import type { Relation } from "./release.ts";
+import type { ImpactReport, ReportCell } from "./services.ts";
 
 /** The schools of each department in the semester that the restricted audience may see: department id, then school ids. */
 export type SchoolsOf = readonly (readonly [
@@ -124,7 +126,7 @@ export const releaseLattice = (
   input: LatticeInput,
   answerOf: (slot: Slot) => Answer,
   minimum: number
-): readonly ReleasedSlot[] => {
+): Result.Result<readonly ReleasedSlot[], PrivacyRefusal> => {
   const slots = slotsOf(input);
 
   const out = release(
@@ -133,11 +135,13 @@ export const releaseLattice = (
     minimum
   );
 
-  return Arr.flatMap(slots, (cell) => {
-    const released = out[slotId(cell)];
+  return Result.map(out, (output) =>
+    Arr.flatMap(slots, (cell) => {
+      const released = output[slotId(cell)];
 
-    return released === undefined ? [] : [{ released, slot: cell }];
-  });
+      return released === undefined ? [] : [{ released, slot: cell }];
+    })
+  );
 };
 
 // ------------------------------------------------------------------ the CSV
@@ -145,15 +149,6 @@ export const releaseLattice = (
 /** A CSV field: quoted when it holds a comma, a quote or a line break, with quotes doubled. */
 const field = (text: string): string =>
   /[",\n\r]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-
-/** One row of the CSV for a released cell; the page shows the same fields. */
-export interface CsvCell {
-  readonly department: string;
-  readonly measure: MeasureId;
-  readonly released: Released;
-  readonly school: string;
-  readonly semester: Semester;
-}
 
 const statusOf = (released: Released): string =>
   Released.match(released, {
@@ -218,29 +213,70 @@ const HEADER = [
  * The CSV of a report: one row per released cell, with the definition of its measure. It is made from `Released` and
  * nothing else, so a suppressed cell has an empty value here as it has on the page.
  */
-export const impactCsv = (cells: readonly CsvCell[]): string =>
-  Arr.join(
+const row = (values: readonly string[]) =>
+  Arr.join(Arr.map(values, field), ",");
+
+const departmentName = (
+  departments: ImpactReport["departments"],
+  id: DepartmentId
+): string =>
+  Option.match(
+    Arr.findFirst(departments, (item) => item.id === id),
+    {
+      onNone: () => String(id),
+      onSome: ({ name }) => name,
+    }
+  );
+
+export const impactCsv = (report: ImpactReport): string => {
+  const cellRow = (cell: ReportCell) => {
+    const department = Scope.match(cell.scope, {
+      All: () => "Alle avdelinger",
+      Department: ({ department: id }) =>
+        departmentName(report.departments, id),
+      School: ({ department: id }) => departmentName(report.departments, id),
+    });
+
+    const school = Scope.match(cell.scope, {
+      All: () => "",
+      Department: () => "",
+      School: ({ school: id }) => String(id),
+    });
+
+    return row([
+      cell.measure,
+      semesterLabel(cell.semester),
+      department,
+      school,
+      statusOf(cell.released),
+      valueText(cell.released),
+      coverageText(cell.released),
+      reasonText(cell.released),
+      measureOf(cell.measure).definition.en,
+    ]);
+  };
+
+  return Arr.join(
     [
       Arr.join(HEADER, ","),
-      ...Arr.map(cells, (cell) =>
-        Arr.join(
-          Arr.map(
-            [
-              cell.measure,
-              semesterLabel(cell.semester),
-              cell.department,
-              cell.school,
-              statusOf(cell.released),
-              valueText(cell.released),
-              coverageText(cell.released),
-              reasonText(cell.released),
-              measureOf(cell.measure).definition.en,
-            ],
-            field
-          ),
-          ","
-        )
+      ...Arr.flatMap(report.lattices, (lattice) =>
+        Predicate.isTagged(lattice, "Released")
+          ? Arr.map(lattice.cells, cellRow)
+          : [
+              row([
+                lattice.measure,
+                semesterLabel(lattice.semester),
+                "",
+                "",
+                "refused",
+                "",
+                "",
+                privacyRefusalNote.en,
+                measureOf(lattice.measure).definition.en,
+              ]),
+            ]
       ),
     ],
     "\n"
   );
+};

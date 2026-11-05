@@ -14,9 +14,13 @@ import {
   closeEndedSemesters,
   impactReport,
 } from "../../src/features/impact/domain/commands";
+import { impactCsv } from "../../src/features/impact/domain/lattice";
 import * as ImpactMeasures from "../../src/features/impact/domain/measures";
 import { ImpactSnapshots } from "../../src/features/impact/domain/services";
-import type { ImpactReport } from "../../src/features/impact/domain/services";
+import type {
+  ImpactReport,
+  Snapshot,
+} from "../../src/features/impact/domain/services";
 import { ImpactSource } from "../../src/features/impact/domain/source";
 import type { Semester } from "../../src/features/organisation/domain/semester";
 import {
@@ -110,8 +114,27 @@ const sourceAnswering = (
     schools: () => Effect.succeed([]),
   });
 
+const refusalFixtureAnswer = (
+  departments: number,
+  slot: ImpactMeasures.Slot
+) => {
+  const all = Predicate.isTagged(slot.scope, "All");
+
+  const values: Partial<Record<ImpactMeasures.MeasureId, number>> = {
+    assistantsPlaced: all ? departments * 6 : 6,
+    placements: all ? departments : 1,
+  };
+
+  return Option.getOrUndefined(Option.fromNullishOr(values[slot.measure]));
+};
+
 const runWith = (source: ImpactSource["Service"]) =>
   closeEndedSemesters().pipe(Effect.provideService(ImpactSource, source));
+
+const releasedCells = (report: ImpactReport) =>
+  Arr.flatMap(report.lattices, (lattice) =>
+    Predicate.isTagged(lattice, "Released") ? lattice.cells : []
+  );
 
 const placementsAt = (
   report: ImpactReport,
@@ -121,7 +144,7 @@ const placementsAt = (
   Option.getOrUndefined(
     Option.map(
       Arr.findFirst(
-        report.cells,
+        releasedCells(report),
         (cell) =>
           cell.measure === "placements" &&
           cell.semester.year === semester.year &&
@@ -170,9 +193,9 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           const before = yield* countSnapshots();
           const report = yield* impactReport("standard");
 
-          assert.isAbove(report.cells.length, 0);
+          assert.isAbove(releasedCells(report).length, 0);
 
-          for (const cell of report.cells) {
+          for (const cell of releasedCells(report)) {
             assert.deepStrictEqual(
               cell.released,
               Released.cases.Unavailable.make({ reason: NO_SOURCE_REASON })
@@ -183,6 +206,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           assert.strictEqual(outcome.closed, 0);
           assert.strictEqual(outcome.alreadyClosed, 0);
+          assert.strictEqual(outcome.refused, 0);
           assert.isAbove(outcome.unavailable, 0);
           assert.strictEqual(yield* countSnapshots(), before);
         })
@@ -203,6 +227,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
           assert.strictEqual(first.closed, cells);
           assert.strictEqual(first.unavailable, 0);
+          assert.strictEqual(first.refused, 0);
 
           // A second close finds everything closed already; the open semester has no row.
           const second = yield* runWith(source);
@@ -466,7 +491,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           }
 
           // No published cell of the report is a count below the minimum.
-          for (const cell of report.cells) {
+          for (const cell of releasedCells(report)) {
             if (Predicate.isTagged(cell.released, "Published")) {
               assert.isTrue(
                 cell.released.value === 0 ||
@@ -474,6 +499,85 @@ layer(postgresDatabase(), { excludeTestServices: true })(
               );
             }
           }
+        })
+    );
+
+    it.effect(
+      "F8: an unsafe whole lattice is refused without a snapshot call while a nearby safe lattice closes",
+      () =>
+        Effect.gen(function* refusedLattice() {
+          yield* world();
+          yield* clearSnapshots();
+          const departments = yield* DepartmentRepository;
+          let all = yield* departments.list;
+
+          while (all.length < 4) {
+            yield* departments.create(
+              departmentDraft(`ImpactRefusal${all.length}`)
+            );
+            all = yield* departments.list;
+          }
+
+          assert.strictEqual(all.length, 4);
+          const snapshots = yield* ImpactSnapshots;
+          const calls: (readonly Snapshot[])[] = [];
+
+          const observing = ImpactSnapshots.of({
+            close: (rows) => {
+              calls.push(rows);
+
+              return snapshots.close(rows);
+            },
+            read: snapshots.read,
+          });
+
+          const source = sourceAnswering((slot) =>
+            refusalFixtureAnswer(all.length, slot)
+          );
+
+          const outcome = yield* closeEndedSemesters().pipe(
+            Effect.provideService(ImpactSource, source),
+            Effect.provideService(ImpactSnapshots, observing)
+          );
+
+          const latticeSize = all.length + 1;
+          assert.strictEqual(outcome.refused, ENDED.length * latticeSize);
+          assert.strictEqual(outcome.closed, ENDED.length * latticeSize);
+          assert.strictEqual(outcome.unavailable, ENDED.length * latticeSize);
+          assert.strictEqual(calls.length, ENDED.length);
+          assert.isTrue(
+            Arr.every(calls, (rows) =>
+              Arr.every(rows, (item) => item.measure === "assistantsPlaced")
+            )
+          );
+          assert.strictEqual(
+            yield* countSnapshots(),
+            ENDED.length * latticeSize
+          );
+
+          const report = yield* impactReport("standard").pipe(
+            Effect.provideService(ImpactSource, source)
+          );
+
+          const refused = Arr.filter(report.lattices, (lattice) =>
+            Predicate.isTagged(lattice, "Refused")
+          );
+
+          assert.strictEqual(refused.length, ENDED.length);
+          assert.isTrue(
+            Arr.every(
+              refused,
+              (lattice) =>
+                lattice.measure === "placements" && !("cells" in lattice)
+            )
+          );
+          const csv = impactCsv(report);
+          assert.strictEqual(
+            Arr.filter(csv.split("\n"), (line) => line.includes(",refused,,,"))
+              .length,
+            ENDED.length
+          );
+          assert.isTrue(csv.includes(ImpactMeasures.privacyRefusalNote.en));
         })
     );
   }

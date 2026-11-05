@@ -10,6 +10,7 @@ import {
   Option,
   Predicate,
   Record as Rec,
+  Result,
 } from "effect";
 
 import type { DepartmentId } from "../../../core/ids.ts";
@@ -41,7 +42,7 @@ import {
   slotId,
 } from "./measures.ts";
 import type { Audience, MeasureDeclaration, Slot } from "./measures.ts";
-import { ImpactSnapshots } from "./services.ts";
+import { ImpactSnapshots, ReportLattice } from "./services.ts";
 import type {
   CloseOutcome,
   ImpactReport,
@@ -194,7 +195,7 @@ export const impactReport = Effect.fn("impactReport")(function* impactReport(
             slotsOf(input)
           );
 
-          return Arr.map(
+          return Result.match(
             releaseLattice(
               input,
               (slot) =>
@@ -210,12 +211,26 @@ export const impactReport = Effect.fn("impactReport")(function* impactReport(
                 ),
               Minimum.value
             ),
-            ({ released, slot }): ReportCell => ({
-              measure: slot.measure,
-              released,
-              scope: slot.scope,
-              semester,
-            })
+            {
+              onFailure: (refusal): ReportLattice =>
+                ReportLattice.cases.Refused.make({
+                  measure: measure.id,
+                  refusal,
+                  semester,
+                }),
+              onSuccess: (released): ReportLattice =>
+                ReportLattice.cases.Released.make({
+                  cells: Arr.map(
+                    released,
+                    ({ released: cell, slot }): ReportCell => ({
+                      measure: slot.measure,
+                      released: cell,
+                      scope: slot.scope,
+                      semester: slot.semester,
+                    })
+                  ),
+                }),
+            }
           );
         })
       );
@@ -224,8 +239,8 @@ export const impactReport = Effect.fn("impactReport")(function* impactReport(
 
   return {
     audience,
-    cells: Arr.flatten(Arr.flatten(perSemester)),
     departments: Arr.map(departments, ({ id, name }) => ({ id, name })),
+    lattices: Arr.flatten(perSemester),
     measures: Measures,
     minimum: Minimum.value,
     semesters: Arr.map(semesters, asSemester),
@@ -234,15 +249,18 @@ export const impactReport = Effect.fn("impactReport")(function* impactReport(
 
 interface CloseInput {
   readonly closed: readonly Snapshot[];
-  readonly measure: MeasureDeclaration;
+  readonly lattice: LatticeInput;
   readonly now: DateTime.Utc;
-  readonly semester: Semester;
-  readonly slots: readonly Slot[];
   readonly snapshots: ImpactSnapshots["Service"];
   readonly source: ImpactSource["Service"];
 }
 
-const NOTHING: CloseOutcome = { alreadyClosed: 0, closed: 0, unavailable: 0 };
+const NOTHING: CloseOutcome = {
+  alreadyClosed: 0,
+  closed: 0,
+  refused: 0,
+  unavailable: 0,
+};
 
 const draftOf = (
   input: CloseInput,
@@ -254,14 +272,14 @@ const draftOf = (
       {
         closedAt: input.now,
         coverage,
-        definitionHash: definitionHash(input.measure),
+        definitionHash: definitionHash(input.lattice.measure),
         department: Scope.match(slot.scope, {
           All: () => Option.none(),
           Department: ({ department }) => Option.some(department),
           School: () => Option.none(),
         }),
-        measure: input.measure.id,
-        semester: input.semester,
+        measure: input.lattice.measure.id,
+        semester: input.lattice.semester,
         source: "reimagined",
         sourceRef: Option.none(),
         value,
@@ -280,7 +298,8 @@ const draftOf = (
 const closeLattice = Effect.fnUntraced(function* closeLattice(
   input: CloseInput
 ) {
-  const { closed, slots, snapshots, source } = input;
+  const { closed, lattice, snapshots, source } = input;
+  const slots = slotsOf(lattice);
 
   const present = Arr.filter(slots, (slot) =>
     Option.isSome(snapshotOf(closed, slot))
@@ -306,6 +325,26 @@ const closeLattice = Effect.fnUntraced(function* closeLattice(
 
   if (drafts.length < slots.length) {
     return { ...NOTHING, unavailable: slots.length };
+  }
+
+  const byId = Rec.fromEntries(
+    Arr.zipWith(
+      slots,
+      answers,
+      (slot, answer) => [slotId(slot), answer] as const
+    )
+  );
+
+  const release = releaseLattice(
+    lattice,
+    (slot) =>
+      byId[slotId(slot)] ??
+      Answer.cases.Unavailable.make({ reason: "the cell was not asked" }),
+    Minimum.value
+  );
+
+  if (Result.isFailure(release)) {
+    return { ...NOTHING, refused: slots.length };
   }
 
   const written = yield* snapshots.close(drafts);
@@ -334,16 +373,14 @@ export const closeEndedSemesters = Effect.fn("closeEndedSemesters")(
         return yield* Effect.forEach(Measures, (measure) =>
           closeLattice({
             closed,
-            measure,
-            now,
-            semester,
-            slots: slotsOf({
+            lattice: {
               audience: "standard",
               departments: ids,
               measure,
               schools: [],
               semester,
-            }),
+            },
+            now,
             snapshots,
             source,
           })
@@ -357,6 +394,7 @@ export const closeEndedSemesters = Effect.fn("closeEndedSemesters")(
       (sum, outcome): CloseOutcome => ({
         alreadyClosed: sum.alreadyClosed + outcome.alreadyClosed,
         closed: sum.closed + outcome.closed,
+        refused: sum.refused + outcome.refused,
         unavailable: sum.unavailable + outcome.unavailable,
       })
     );

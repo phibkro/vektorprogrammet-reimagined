@@ -41,6 +41,15 @@ const Words = Schema.Struct({ en: Schema.String, no: Schema.String });
 
 export type Words = typeof Words.Type;
 
+export const PrivacyRefusal = Schema.TaggedStruct("PrivacyRefusal", {});
+
+export type PrivacyRefusal = typeof PrivacyRefusal.Type;
+
+export const privacyRefusalNote: Words = {
+  en: "This report cannot be released safely.",
+  no: "Denne rapporten kan ikke publiseres på en trygg måte.",
+};
+
 /**
  * How the cells of a measure relate to the cell that is their total: an additive measure's total equals the sum of its
  * parts; a distinct measure's total is at least its largest part and at most the sum of the parts (a person placed in
@@ -194,8 +203,8 @@ export type Answer = typeof Answer.Type;
 
 /**
  * What an output may hold for a cell: never a count below the minimum, because a published value is a `ReleasedCount`,
- * which `releasedCount` alone makes (spec 0027 D5; a quality test lists the files that name it). A suppressed cell carries no
- * bound: it is hidden, and says nothing about its size (spec 0027 R4).
+ * which `releasedCount` alone makes (spec 0027 D5; a quality test lists the files that name it). A suppressed cell has no
+ * explicit size bound. This representation does not guarantee freedom from selection or refusal side channels.
  */
 export const Released = Schema.TaggedUnion({
   Published: { coverage: Coverage, value: ReleasedCountSchema },

@@ -67,6 +67,10 @@ const rulesBlock = (declared: ImpactDeclarations): string =>
         "The reason of a cell that no source answers",
         `\`${declared.unavailable}\``,
       ],
+      [
+        "When a lattice cannot be protected",
+        ImpactMeasures.privacyRefusalNote.en,
+      ],
     ]
   );
 

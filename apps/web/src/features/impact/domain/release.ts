@@ -17,9 +17,22 @@
  * attack pins its exact value; an interval narrower than 1 to `minimum − 1` is not prevented, and the spec says so.
  * Neither attack is complete: an integer program could pin a value that these miss. The spec claims what the tests run.
  */
-import { Array as Arr, Option, Order, Predicate, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Option,
+  Order,
+  Predicate,
+  Record as Rec,
+  Result,
+} from "effect";
 
-import { Answer, Released, isSmall, releasedCount } from "./measures.ts";
+import {
+  Answer,
+  PrivacyRefusal,
+  Released,
+  isSmall,
+  releasedCount,
+} from "./measures.ts";
 
 /** One cell: an id that the relations name, and what the source or the snapshot answered. */
 export interface Cell {
@@ -337,51 +350,40 @@ const neighbour = (
     )
   );
 
-/** Suppresses one more cell at a time until nothing can be recovered, or nothing is left to suppress. */
+/** Suppress published neighbours until safe, or refuse when no further suppression can help. */
 const complemented = (
   released: Output,
   relations: readonly Relation[],
   prior: Prior,
   passes: number
-): Output => {
-  const [first] = recoverable(released, relations, prior);
+): Result.Result<Output, PrivacyRefusal> => {
+  const recovered = recoverable(released, relations, prior);
 
-  if (first === undefined || passes === 0) {
-    return released;
+  if (recovered.length === 0) {
+    return Result.succeed(released);
   }
 
-  return Option.match(neighbour(released, relations, first), {
-    onNone: () => released,
-    onSome: (other) =>
-      complemented(
-        suppress(released, other, prior.minimum),
-        relations,
-        prior,
-        passes - 1
-      ),
-  });
+  if (passes > 0) {
+    for (const id of recovered) {
+      const candidate = neighbour(released, relations, id);
+
+      if (Option.isSome(candidate)) {
+        return complemented(
+          suppress(released, candidate.value, prior.minimum),
+          relations,
+          prior,
+          passes - 1
+        );
+      }
+    }
+  }
+
+  return Result.fail(PrivacyRefusal.make({}));
 };
 
-/**
- * The output for a lattice. A cell with no answer is `Unavailable` and takes part in no relation (a relation that names
- * one is dropped: the number that it would relate does not exist). A count from 1 to `minimum − 1` is suppressed; zero
- * and larger counts are published; then the complementary pass makes sure that no suppressed cell can be recovered.
- */
-export const release = (
-  cells: readonly Cell[],
-  relations: readonly Relation[],
-  minimum: number
-): Output => {
-  const answered = Arr.map(
-    Arr.filter(cells, ({ answer }) => Predicate.isTagged(answer, "Available")),
-    ({ id }) => id
-  );
-
-  const usable = Arr.filter(relations, (relation) =>
-    Arr.every(members(relation), (id) => Arr.contains(answered, id))
-  );
-
-  const first = Rec.fromEntries(
+/** Primary suppression alone is also the negative control. */
+const primaryPass = (cells: readonly Cell[], minimum: number): Output =>
+  Rec.fromEntries(
     Arr.map(
       cells,
       ({ answer, id }) =>
@@ -402,8 +404,23 @@ export const release = (
     )
   );
 
+/** Release only when neither attack recovers a suppressed cell. */
+export const release = (
+  cells: readonly Cell[],
+  relations: readonly Relation[],
+  minimum: number
+): Result.Result<Output, PrivacyRefusal> => {
+  const answered = Arr.map(
+    Arr.filter(cells, ({ answer }) => Predicate.isTagged(answer, "Available")),
+    ({ id }) => id
+  );
+
+  const usable = Arr.filter(relations, (relation) =>
+    Arr.every(members(relation), (id) => Arr.contains(answered, id))
+  );
+
   return complemented(
-    first,
+    primaryPass(cells, minimum),
     usable,
     { minimum, primary: primaryOf(cells, minimum) },
     cells.length
@@ -414,4 +431,4 @@ export const release = (
 export const releasePrimaryOnly = (
   cells: readonly Cell[],
   minimum: number
-): Output => release(cells, [], minimum);
+): Output => primaryPass(cells, minimum);

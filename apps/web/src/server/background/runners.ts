@@ -1,5 +1,6 @@
 import { Effect, Match } from "effect";
 import type { Digest, SecureRandom } from "effect/crypto";
+import { identity } from "effect/Function";
 
 import type { MessageSender } from "../../adapters/messaging/senders";
 import type { DomainError } from "../../core/errors";
@@ -189,11 +190,7 @@ export const runners: Runners = {
         )
       )
     ),
-    ({ alreadyClosed, closed, unavailable }) => ({
-      alreadyClosed,
-      closed,
-      unavailable,
-    })
+    identity
   ),
   outboxSweep: {
     prepare: () =>

@@ -16,6 +16,7 @@ import {
   Order,
   Predicate,
   Record as Rec,
+  Result,
   Schema,
 } from "effect";
 
@@ -31,10 +32,12 @@ import {
   Answer,
   Coverage,
   Minimum,
+  PrivacyRefusal,
   Released,
   Scope,
   hiddenNote,
   measureOf,
+  privacyRefusalNote,
   releasedCount,
   slotId,
 } from "../../../src/features/impact/domain/measures.ts";
@@ -54,6 +57,7 @@ import type {
   Cell,
   Relation,
 } from "../../../src/features/impact/domain/release.ts";
+import { ReportLattice } from "../../../src/features/impact/domain/services.ts";
 import { learn } from "./oracle.ts";
 import type { Learned, Reader } from "./oracle.ts";
 
@@ -285,10 +289,14 @@ describe("spec 0027 F3: nothing below the minimum is published", () => {
     "Passed",
     (scenario) => {
       const world = worldOf(scenario);
-      const out = release(cellsOf(world), world.relations, MIN);
+      const result = release(cellsOf(world), world.relations, MIN);
+
+      if (Result.isFailure(result)) {
+        return true;
+      }
 
       return Arr.every(
-        publishedValues(out),
+        publishedValues(result.success),
         ([id, value]) =>
           value === world.truth[id] && (value === 0 || value >= MIN)
       );
@@ -308,12 +316,12 @@ describe("spec 0027 F3: nothing below the minimum is published", () => {
     const cells = [{ answer: available(3), id: "a" }];
 
     assert.deepStrictEqual(
-      release(cells, [], 1).a,
+      Result.getOrThrow(release(cells, [], 1)).a,
       publishedAs(complete, 3, 1)
     );
 
     assert.deepStrictEqual(
-      release(cells, [], MIN).a,
+      Result.getOrThrow(release(cells, [], MIN)).a,
       Released.cases.Suppressed.make({ coverage: complete, minimum: MIN })
     );
   });
@@ -392,19 +400,82 @@ const truthOf = (cells: readonly Cell[]): Readonly<Record<string, number>> =>
   );
 
 describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows which are small", () => {
+  it("refuses the whole lattice when the strong prior determines every hidden count", () => {
+    const { cells, relations } = lattice("placements", 4, [1, 1, 1, 1]);
+
+    const learned = learn(
+      releasePrimaryOnly(cells, MIN),
+      relations,
+      readerOf(cells)
+    );
+
+    assert.isTrue(learned.complete);
+    assert.isAbove(learned.determined.length, 0);
+    assert.deepStrictEqual(
+      release(cells, relations, MIN),
+      Result.fail(PrivacyRefusal.make({}))
+    );
+    assert.deepStrictEqual(
+      release(Arr.reverse(cells), Arr.reverse(relations), MIN),
+      Result.fail(PrivacyRefusal.make({}))
+    );
+    assert.deepStrictEqual(
+      releaseLattice(
+        {
+          audience: "standard",
+          departments: [
+            department(1),
+            department(2),
+            department(3),
+            department(4),
+          ],
+          measure: measureOf("placements"),
+          schools: [],
+          semester: SEMESTER,
+        },
+        (slot) => available(Predicate.isTagged(slot.scope, "All") ? 4 : 1),
+        MIN
+      ),
+      Result.fail(PrivacyRefusal.make({}))
+    );
+  });
+
+  it("continues to another recoverable cell when the first has no published neighbour", () => {
+    const cells: readonly Cell[] = [
+      { answer: available(2), id: "a" },
+      { answer: available(2), id: "b" },
+      { answer: available(10), id: "c" },
+      { answer: available(12), id: "d" },
+    ];
+
+    const relations: readonly Relation[] = [
+      { kind: "sum", parts: ["b"], total: "a" },
+      { kind: "sum", parts: ["b", "c"], total: "d" },
+    ];
+
+    const out = Result.getOrThrow(release(cells, relations, MIN));
+    assert.strictEqual(out.c?._tag, "Suppressed");
+    assert.deepStrictEqual(recoverable(out, relations, priorOf(cells)), []);
+    assert.deepStrictEqual(
+      learn(out, relations, readerOf(cells)).determined,
+      []
+    );
+  });
+
   property(
     "property: a reader who is told which hidden cells are small, and tries every count, learns no hidden cell",
     "Passed",
     (scenario) => {
       const world = worldOf(scenario);
       const cells = cellsOf(world);
+      const result = release(cells, world.relations, MIN);
+
+      if (Result.isFailure(result)) {
+        return true;
+      }
 
       const learned = tally(
-        learn(
-          release(cells, world.relations, MIN),
-          world.relations,
-          readerOf(cells)
-        )
+        learn(result.success, world.relations, readerOf(cells))
       );
 
       return (
@@ -433,12 +504,12 @@ describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows wh
       const world = worldOf(scenario);
       const cells = cellsOf(world);
 
+      const result = release(cells, world.relations, MIN);
+
       return (
-        recoverable(
-          release(cells, world.relations, MIN),
-          world.relations,
-          priorOf(cells)
-        ).length === 0
+        Result.isFailure(result) ||
+        recoverable(result.success, world.relations, priorOf(cells)).length ===
+          0
       );
     }
   );
@@ -478,7 +549,7 @@ describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows wh
       [small]
     );
 
-    const protectedOutput = release(cells, relations, MIN);
+    const protectedOutput = Result.getOrThrow(release(cells, relations, MIN));
 
     assert.deepStrictEqual(
       learn(protectedOutput, relations, reader).determined,
@@ -531,7 +602,7 @@ describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows wh
       []
     );
 
-    const out = release(cells, relations, MIN);
+    const out = Result.getOrThrow(release(cells, relations, MIN));
 
     // The release holds the small part back and the smallest published part beside it (7); the total and the other part stay.
     assert.deepStrictEqual(
@@ -574,7 +645,7 @@ describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows wh
     );
     assert.isAbove(learn(unprotected, relations, reader).determined.length, 0);
 
-    const out = release(cells, relations, MIN);
+    const out = Result.getOrThrow(release(cells, relations, MIN));
 
     assert.strictEqual(out[id(3)]?._tag, "Suppressed");
     assert.deepStrictEqual(learn(out, relations, reader).determined, []);
@@ -630,7 +701,7 @@ describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows wh
       ["x", "y", "z"]
     );
 
-    const out = release(cells, relations, MIN);
+    const out = Result.getOrThrow(release(cells, relations, MIN));
 
     assert.deepStrictEqual(learn(out, relations, reader).determined, []);
     assert.deepStrictEqual(recoverable(out, relations, prior), []);
@@ -644,10 +715,18 @@ describe("spec 0027 F4: no hidden cell can be recovered by a reader who knows wh
       const world = worldOf(scenario);
       const cells = cellsOf(world);
 
-      return sameOutput(
-        release(cells, world.relations, MIN),
-        release(Arr.reverse(cells), Arr.reverse(world.relations), MIN)
+      const forward = release(cells, world.relations, MIN);
+
+      const reversed = release(
+        Arr.reverse(cells),
+        Arr.reverse(world.relations),
+        MIN
       );
+
+      return Result.isFailure(forward)
+        ? Result.isFailure(reversed)
+        : Result.isSuccess(reversed) &&
+            sameOutput(forward.success, reversed.success);
     }
   );
 });
@@ -658,19 +737,27 @@ describe("spec 0027 F5: coverage is carried, and an unavailable cell takes part 
       reason: "legacy rows 2016 to 2018 are partial",
     });
 
-    const out = release(
-      [
-        {
-          answer: Answer.cases.Available.make({ coverage: partial, value: 12 }),
-          id: "a",
-        },
-        {
-          answer: Answer.cases.Available.make({ coverage: partial, value: 3 }),
-          id: "b",
-        },
-      ],
-      [],
-      MIN
+    const out = Result.getOrThrow(
+      release(
+        [
+          {
+            answer: Answer.cases.Available.make({
+              coverage: partial,
+              value: 12,
+            }),
+            id: "a",
+          },
+          {
+            answer: Answer.cases.Available.make({
+              coverage: partial,
+              value: 3,
+            }),
+            id: "b",
+          },
+        ],
+        [],
+        MIN
+      )
     );
 
     assert.deepStrictEqual(out.a, publishedAs(partial, 12));
@@ -697,7 +784,7 @@ describe("spec 0027 F5: coverage is carried, and an unavailable cell takes part 
       { kind: "sum", parts: ["one", "two"], total: "all" },
     ];
 
-    const out = release(cells, relations, MIN);
+    const out = Result.getOrThrow(release(cells, relations, MIN));
 
     assert.deepStrictEqual(
       out.all,
@@ -727,14 +814,32 @@ describe("spec 0027 D6: audiences", () => {
     assert.isFalse(Arr.some(standard, isSchool));
     assert.strictEqual(Arr.filter(restricted, isSchool).length, 3);
 
-    const out = releaseLattice(
-      { ...base, audience: "restricted" },
-      (slot) => available(isSchool(slot) ? 2 : 20),
-      MIN
+    const out = Result.getOrThrow(
+      releaseLattice(
+        { ...base, audience: "restricted" },
+        (slot) =>
+          available(
+            Scope.match(slot.scope, {
+              All: () => 40,
+              Department: () => 20,
+              School: ({ department: id, school }) => {
+                if (id === department(1) && school === 1) {
+                  return 2;
+                }
+
+                return school === 2 ? 18 : 20;
+              },
+            })
+          ),
+        MIN
+      )
     );
 
     for (const { released, slot } of out) {
-      if (isSchool(slot)) {
+      if (
+        Predicate.isTagged(slot.scope, "School") &&
+        slot.scope.department === department(1)
+      ) {
         assert.strictEqual(released._tag, "Suppressed");
       }
     }
@@ -751,32 +856,31 @@ describe("spec 0027 D6: audiences", () => {
   });
 });
 
-const csvRow = (measure: MeasureId, place: string, released: Released) => ({
-  department: place,
+const csvRow = (measure: MeasureId, scope: Scope, released: Released) => ({
   measure,
   released,
-  school: "",
+  scope,
   semester: SEMESTER,
 });
 
 describe("spec 0027 F3 and F5: the CSV is made from released cells", () => {
   const rows = [
-    csvRow("placements", "Alle avdelinger", publishedAs(complete, 60)),
+    csvRow("placements", Scope.cases.All.make({}), publishedAs(complete, 60)),
     csvRow(
       "placements",
-      "Bergen",
+      Scope.cases.Department.make({ department: department(1) }),
       Released.cases.Suppressed.make({ coverage: complete, minimum: MIN })
     ),
     csvRow(
       "assistantsPlaced",
-      "Alle avdelinger",
+      Scope.cases.All.make({}),
       Released.cases.Unavailable.make({
         reason: "placement is not built (spec 0011)",
       })
     ),
     csvRow(
       "schoolsServed",
-      "Oslo, sentrum",
+      Scope.cases.Department.make({ department: department(2) }),
       publishedAs(
         Coverage.cases.Incomplete.make({ reason: "legacy rows are partial" }),
         12
@@ -785,7 +889,28 @@ describe("spec 0027 F3 and F5: the CSV is made from released cells", () => {
   ];
 
   it("a published cell has its value, a hidden one has none and no bound, an unavailable one has its reason, and the definition follows each", () => {
-    const csv = impactCsv(rows).split("\n");
+    const csv = impactCsv({
+      audience: "standard",
+      departments: [
+        { id: department(1), name: "Bergen" },
+        { id: department(2), name: "Oslo, sentrum" },
+      ],
+      lattices: [
+        ReportLattice.cases.Released.make({ cells: rows }),
+        ReportLattice.cases.Refused.make({
+          measure: "placements",
+          refusal: PrivacyRefusal.make({}),
+          semester: SEMESTER,
+        }),
+      ],
+      measures: [
+        measureOf("placements"),
+        measureOf("assistantsPlaced"),
+        measureOf("schoolsServed"),
+      ],
+      minimum: MIN,
+      semesters: [SEMESTER],
+    }).split("\n");
 
     assert.strictEqual(
       csv[0],
@@ -810,6 +935,12 @@ describe("spec 0027 F3 and F5: the CSV is made from released cells", () => {
       csv[4],
       '"Oslo, sentrum",,published,12,incomplete,legacy rows are partial,'
     );
+    assert.include(
+      csv[5],
+      `placements,Vår 2026,,,refused,,,${privacyRefusalNote.en},`
+    );
+    assert.notInclude(csv[5], "Bergen");
+    assert.notInclude(csv[5], "complete");
 
     for (const [index, cell] of rows.entries()) {
       assert.include(csv[index + 1], measureOf(cell.measure).definition.en);
