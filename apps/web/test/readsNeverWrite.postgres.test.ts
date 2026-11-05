@@ -492,7 +492,7 @@ const assertVerdict = (
   expected: Expected
 ) => {
   assert.isFalse(
-    Exit.hasDies(exit),
+    Exit.isFailure(exit) && Cause.hasDies(exit.cause),
     `${label} died: ${Exit.isFailure(exit) ? Cause.pretty(exit.cause) : ""}`
   );
 
@@ -595,7 +595,7 @@ layer(readOnlyRole.pipe(Layer.provideMerge(migratedTestDatabase)), {
           retiredEnsureCurrentSemester
         );
 
-        assert.isTrue(Exit.hasDies(denied));
+        assert.isTrue(Exit.isFailure(denied) && Cause.hasDies(denied.cause));
         assert.include(
           Exit.isFailure(denied) ? Cause.pretty(denied.cause) : "",
           "permission denied"

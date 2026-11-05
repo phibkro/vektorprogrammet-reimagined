@@ -1,7 +1,7 @@
 /** One request owns the database and SDK adapters; domain transactions commit before delivery. */
 import type { ExecutionContext } from "@cloudflare/workers-types";
 import { Cause, DateTime, Effect, Layer, Predicate, Redacted } from "effect";
-import type { Crypto } from "effect";
+import type { Digest, SecureRandom } from "effect/crypto";
 import { FetchHttpClient } from "effect/http";
 
 import { contactRateLimiterLayer } from "../adapters/cloudflare/rateLimit";
@@ -84,7 +84,8 @@ export type RequestServices =
   | FileStore
   | CurrentPrincipal
   | SiteOrigin
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | TurnstileVerifier
   | ContactRateLimiter
   | CmsClient
@@ -239,7 +240,8 @@ export const deliveryLayer = (
   | WorkspaceWriter
   | DatabaseServices
   | Auth
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | SiteOrigin
 > =>
   Layer.unwrap(

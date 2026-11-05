@@ -29,17 +29,8 @@ export const restrictedRole = (
 
     yield* Effect.acquireRelease(
       withClient(database, (client) =>
-        Effect.forEach(
-          [
-            `create role "${role}" login password '${password}' nosuperuser nocreatedb nocreaterole noinherit`,
-            `grant "${role}" to current_user`,
-            `revoke temporary on database "${databaseName}" from public`,
-            `grant connect on database "${databaseName}" to "${role}"`,
-            `grant usage on schema public to "${role}"`,
-            ...grant(role),
-          ],
-          (statement) => client.unsafe(statement),
-          { discard: true }
+        client.unsafe(
+          `create role "${role}" login password '${password}' nosuperuser nocreatedb nocreaterole noinherit`
         )
       ),
       () =>
@@ -50,6 +41,18 @@ export const restrictedRole = (
               Effect.andThen(client.unsafe(`drop role if exists "${role}"`))
             )
         ).pipe(Effect.orDie)
+    );
+    yield* withClient(database, (client) =>
+      Effect.forEach(
+        [
+          `grant "${role}" to current_user`,
+          `grant connect on database "${databaseName}" to "${role}"`,
+          `grant usage on schema public to "${role}"`,
+          ...grant(role),
+        ],
+        (statement) => client.unsafe(statement),
+        { discard: true }
+      )
     );
 
     url.username = role;

@@ -5,7 +5,15 @@
  */
 import { assert, layer } from "@effect/vitest";
 import { and, eq } from "drizzle-orm";
-import { Array as Arr, Deferred, Effect, Exit, Fiber, pipe } from "effect";
+import {
+  Array as Arr,
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  pipe,
+} from "effect";
 import type { SqlClient } from "effect/sql/SqlClient";
 
 import * as schema from "../../src/adapters/db/schema.ts";
@@ -138,7 +146,7 @@ const contract = (name: string, run: Run) => {
           run(Effect.andThen(writeAll(semester), Effect.die("boom")))
         );
 
-        assert.isTrue(Exit.hasDies(exit));
+        assert.isTrue(Exit.isFailure(exit) && Cause.hasDies(exit.cause));
         yield* assertNoWrites(semester);
       })
     );

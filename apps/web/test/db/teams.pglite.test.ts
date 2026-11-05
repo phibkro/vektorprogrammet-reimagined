@@ -4,7 +4,7 @@
  * ledger and the principal directory. The real-PostgreSQL races are `teams.postgres.test.ts`.
  */
 import { assert, layer } from "@effect/vitest";
-import { Array as Arr, DateTime, Effect, Exit, Option } from "effect";
+import { Array as Arr, Cause, DateTime, Effect, Exit, Option } from "effect";
 
 import { transactional } from "../../src/adapters/db/transactional.ts";
 import { EmailAddress } from "../../src/core/validation";
@@ -106,7 +106,7 @@ layer(pgliteDatabase)("the teams repositories on PGlite", (it) => {
         )
       );
 
-      assert.isTrue(Exit.hasDies(exit));
+      assert.isTrue(Exit.isFailure(exit) && Cause.hasDies(exit.cause));
     })
   );
 

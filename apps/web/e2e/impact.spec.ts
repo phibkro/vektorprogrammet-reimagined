@@ -9,6 +9,7 @@ import { expect, test } from "@playwright/test";
 import { Array as Arr, Effect } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
+import { privacyRefusalNote } from "../src/features/impact/domain/measures";
 import {
   TEST_ADMIN,
   TEST_LEADER,
@@ -41,6 +42,12 @@ test("an administrator reads the measures with every cell unavailable for the st
     page.getByRole("heading", { level: 1, name: "Effekt" })
   ).toBeVisible();
 
+  expect(
+    await page.evaluate<boolean>(
+      "document.documentElement.scrollWidth <= window.innerWidth"
+    )
+  ).toBe(true);
+
   await expect(
     page.getByRole("heading", { level: 2, name: "Vår 2018" })
   ).toBeVisible();
@@ -71,6 +78,8 @@ test("an administrator reads the measures with every cell unavailable for the st
   await expect(
     semesterCard.getByText(`Utilgjengelig: ${REASON}`).first()
   ).toBeVisible();
+  await expect(semesterCard.getByText(privacyRefusalNote.no)).toHaveCount(0);
+  await expect(semesterCard.getByRole("row")).toHaveCount(4);
 
   const cells = await semesterCard.getByRole("cell").allTextContents();
 

@@ -9,15 +9,7 @@ import { expect, test } from "@playwright/test";
 import { Array as Arr, Effect, Schema } from "effect";
 
 import { requiredChecks } from "../src/core/store/platformRequirements";
-
-const Report = Schema.Struct({
-  checks: Schema.Array(
-    Schema.Struct({ held: Schema.Boolean, id: Schema.String })
-  ),
-  deployment: Schema.String,
-  problems: Schema.Array(Schema.String),
-  profile: Schema.String,
-});
+import { Platform } from "./support/platformReport.ts";
 
 test("spec 0025: the platform report holds every check that the domain asks for", async ({
   request,
@@ -27,7 +19,7 @@ test("spec 0025: the platform report holds every check that the domain asks for"
   expect(response.status()).toBe(200);
 
   const body = await Effect.runPromise(
-    Schema.decodeUnknownEffect(Report)(await response.json())
+    Schema.decodeUnknownEffect(Platform)(await response.json())
   );
 
   expect(body.problems).toEqual([]);

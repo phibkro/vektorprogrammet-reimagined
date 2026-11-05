@@ -11,6 +11,7 @@ import {
   Audience,
   MeasureDeclaration,
   MeasureId,
+  PrivacyRefusal,
   Released,
   Scope,
 } from "./measures.ts";
@@ -62,13 +63,20 @@ export const ReportCell = Schema.Struct({
 
 export type ReportCell = typeof ReportCell.Type;
 
+export const ReportLattice = Schema.TaggedUnion({
+  Refused: { measure: MeasureId, refusal: PrivacyRefusal, semester: Semester },
+  Released: { cells: Schema.Array(ReportCell) },
+});
+
+export type ReportLattice = typeof ReportLattice.Type;
+
 /** What `listImpact` returns: the definitions, the minimum and every cell that the audience may see, as released. */
 export const ImpactReport = Schema.Struct({
   audience: Audience,
-  cells: Schema.Array(ReportCell),
   departments: Schema.Array(
     Schema.Struct({ id: DepartmentId, name: Schema.String })
   ),
+  lattices: Schema.Array(ReportLattice),
   measures: Schema.Array(MeasureDeclaration),
   minimum: Schema.Int,
   semesters: Schema.Array(Semester),
@@ -76,10 +84,11 @@ export const ImpactReport = Schema.Struct({
 
 export type ImpactReport = typeof ImpactReport.Type;
 
-/** What `closeImpact` reports: cells written, cells that were closed already, cells that the source could not answer. */
+/** What `closeImpact` reports: cells written, already closed, refused for privacy, or unavailable from the source. */
 export const CloseOutcome = Schema.Struct({
   alreadyClosed: Schema.Int,
   closed: Schema.Int,
+  refused: Schema.Int,
   unavailable: Schema.Int,
 });
 

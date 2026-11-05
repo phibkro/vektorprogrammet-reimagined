@@ -27,7 +27,6 @@ import {
   Fiber,
   Layer,
   Order,
-  Predicate,
   Record as Rec,
   Scope,
 } from "effect";
@@ -81,7 +80,10 @@ import {
   slack,
   slackChannel,
 } from "./support/fixtures.ts";
-import { describeExit } from "./support/race.ts";
+import {
+  describeExit,
+  isTransactionNotLive as refused,
+} from "./support/race.ts";
 
 type Proof = InTransaction["Service"];
 
@@ -142,11 +144,6 @@ const WRITERS = {
   },
   "Outbox.enqueue": { rows: outboxRows, write: enqueue },
 } satisfies Readonly<Record<string, Writer>>;
-
-/** Whether the exit is a defect that says the proof was not the live one. */
-const refused = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.hasDies(exit) &&
-  Predicate.isTagged("TransactionNotLive")(Cause.squash(exit.cause));
 
 const assertRefused = (exit: Exit.Exit<unknown, unknown>, label: string) => {
   assert.isTrue(refused(exit), `${label}: ${describeExit(exit)}`);
@@ -1363,7 +1360,9 @@ layer(postgresDatabase({ maxConnections: 4 }), {
               )
             );
 
-            assert.isTrue(Exit.hasDies(failed));
+            assert.isTrue(
+              Exit.isFailure(failed) && Cause.hasDies(failed.cause)
+            );
 
             assertRefused(
               yield* Effect.exit(

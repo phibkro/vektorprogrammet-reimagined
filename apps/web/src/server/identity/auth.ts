@@ -38,6 +38,7 @@ export const sessionFailure = (error: AuthError) => {
         error.code === "refresh_token_already_used" ||
         error.code === "session_expired" ||
         error.code === "session_not_found" ||
+        error.code === "user_not_found" ||
         error.code === "bad_jwt" ||
         error.code === "validation_failed"))
   ) {

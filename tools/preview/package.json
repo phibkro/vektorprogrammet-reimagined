@@ -1,0 +1,35 @@
+{
+  "name": "@vektorprogrammet/preview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "provision": "cd ../.. && bun tools/preview/prepare.ts",
+    "bootstrap": "cd ../.. && bun tools/preview/bootstrap.ts",
+    "build": "cd ../.. && bun tools/preview/build.ts",
+    "deploy": "cd ../.. && bun tools/preview/deploy.ts",
+    "admit-state": "cd ../.. && bun tools/preview/admitState.ts",
+    "bootstrap-state": "cd ../.. && alchemy state bootstrap --config tools/preview/alchemy.run.ts",
+    "teardown": "cd ../.. && bun tools/preview/destroy.ts",
+    "verify": "cd ../.. && bun tools/preview/verify.ts",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@alchemy.run/cloudflare": "catalog:",
+    "@distilled.cloud/cloudflare": "catalog:",
+    "@effect/platform-bun": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-pg": "catalog:",
+    "@playwright/test": "catalog:",
+    "@supabase/supabase-js": "2.118.0",
+    "alchemy": "catalog:",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

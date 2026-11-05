@@ -15,7 +15,7 @@ let
   };
 in
 {
-  # Toolchain. Vite+ needs Node >= 22.18 (root package.json engines).
+  # Toolchain. Node >= 22.19 is required (root package.json engines).
   # gitleaks scans staged changes (pre-commit hook) and the full history (CI) for secrets and
   # personal data; its rules live in .gitleaks.toml. Hooks and CI resolve project tools through
   # Bun and external executables from this shell, keeping one pinned toolchain.

@@ -1,0 +1,165 @@
+name: Synthetic preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, closed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  deployments: write
+
+# Never interrupt a migration or race deployment with teardown.
+concurrency:
+  group: synthetic-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Configure required reviewers before adding provider credentials to this environment.
+    environment:
+      name: synthetic-preview
+      url: ${{ steps.prepare.outputs.url }}
+    env:
+      PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+      PREVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      SUPABASE_PREVIEW_PROJECT_REF: ${{ vars.SUPABASE_PREVIEW_PROJECT_REF }}
+      CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+      MAILTRAP_ACCOUNT_ID: ${{ vars.MAILTRAP_ACCOUNT_ID }}
+      MAILTRAP_INBOX_ID: ${{ vars.MAILTRAP_INBOX_ID }}
+      MAILTRAP_NO_FORWARDING_CONFIRMED: ${{ vars.MAILTRAP_NO_FORWARDING_CONFIRMED }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Create private run directory
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/vektor-preview"
+          printf "PREVIEW_STATE_FILE=%s/vektor-preview/receipt.json\n" "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: cachix/install-nix-action@3c6342b75005b9cc7c7d4069c3e9179247c89012 # v31
+      - uses: cachix/cachix-action@97e5ff84d02b3b4f9936339f767e17f03c9252ed # v16
+        with:
+          name: devenv
+      - name: Install pinned toolchain and dependencies
+        run: |
+          nix profile add github:cachix/devenv/b904dcb51fe48c30db250038241507f60752f222
+          devenv shell -- bun install --frozen-lockfile
+      - name: Check identity and secure prerequisites
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PREVIEW_CREDENTIAL_SEED: ${{ secrets.PREVIEW_CREDENTIAL_SEED }}
+          MAILTRAP_API_TOKEN: ${{ secrets.MAILTRAP_API_TOKEN }}
+          EVENT_ACTION: ${{ github.event.action }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PREVIEW_HEAD_SHA"
+          reviewers=$(gh api "repos/$GITHUB_REPOSITORY/environments/synthetic-preview" --jq '[.protection_rules[]? | select(.type == "required_reviewers" and (.reviewers | length > 0))] | length')
+          test "$reviewers" -gt 0 || { echo "::error::Configure required reviewers on synthetic-preview before deployment"; exit 1; }
+          required=(SUPABASE_ACCESS_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN SUPABASE_PREVIEW_PROJECT_REF CLOUDFLARE_WORKERS_SUBDOMAIN)
+          if [[ "$EVENT_ACTION" != closed ]]; then
+            required+=(PREVIEW_CREDENTIAL_SEED MAILTRAP_API_TOKEN MAILTRAP_ACCOUNT_ID MAILTRAP_INBOX_ID MAILTRAP_NO_FORWARDING_CONFIRMED)
+          fi
+          missing=0
+          for name in "${required[@]}"; do
+            if [[ -z "${!name}" ]]; then echo "::error::Missing synthetic-preview configuration: $name"; missing=1; fi
+          done
+          test "$missing" = 0
+          umask 077
+          mkdir -p "$(dirname "$PREVIEW_STATE_FILE")"
+      - name: Refuse stale or closed pull request
+        if: github.event.action != 'closed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r state head < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_PR_NUMBER" --jq '[.state, .head.sha] | @tsv')
+          test "$state" = open
+          test "$head" = "$PREVIEW_HEAD_SHA"
+      - name: Admit the separately provisioned preview state store
+        if: github.event.action != 'closed'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          umask 077
+          devenv shell -- bunx vp run preview:admit-state > "$(dirname "$PREVIEW_STATE_FILE")/state.log" 2>&1 || { echo '::error::Provision or update the dedicated preview state store separately'; exit 1; }
+      - name: Prepare isolated Supabase branch and prove capture SMTP
+        id: prepare
+        if: github.event.action != 'closed'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PREVIEW_CREDENTIAL_SEED: ${{ secrets.PREVIEW_CREDENTIAL_SEED }}
+          MAILTRAP_API_TOKEN: ${{ secrets.MAILTRAP_API_TOKEN }}
+        run: |
+          umask 077
+          devenv shell -- bunx vp run preview:prepare > "$(dirname "$PREVIEW_STATE_FILE")/prepare.log" 2>&1 || { echo '::error::Preview branch or sandbox verification failed'; exit 1; }
+      - name: Migrate and seed the verified synthetic branch
+        if: github.event.action != 'closed'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MAILTRAP_API_TOKEN: ${{ secrets.MAILTRAP_API_TOKEN }}
+        run: |
+          umask 077
+          devenv shell -- bunx vp run preview:bootstrap > "$(dirname "$PREVIEW_STATE_FILE")/bootstrap.log" 2>&1 || { echo '::error::Preview migration or synthetic bootstrap failed'; exit 1; }
+      - name: Build without control-plane credentials
+        if: github.event.action != 'closed'
+        run: |
+          umask 077
+          devenv shell -- bunx vp run preview:build > "$(dirname "$PREVIEW_STATE_FILE")/build.log" 2>&1 || { echo '::error::Preview build failed'; exit 1; }
+      - name: Recheck current head before publishing
+        if: github.event.action != 'closed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r state head < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_PR_NUMBER" --jq '[.state, .head.sha] | @tsv')
+          test "$state" = open
+          test "$head" = "$PREVIEW_HEAD_SHA"
+      - name: Deploy the PR Worker with Alchemy
+        if: github.event.action != 'closed'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MAILTRAP_API_TOKEN: ${{ secrets.MAILTRAP_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          umask 077
+          devenv shell -- bunx vp run preview:deploy > "$(dirname "$PREVIEW_STATE_FILE")/deploy.log" 2>&1 || { echo '::error::Alchemy preview deployment failed'; exit 1; }
+      - name: Verify the served revision and real application flows
+        if: github.event.action != 'closed'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          MAILTRAP_API_TOKEN: ${{ secrets.MAILTRAP_API_TOKEN }}
+        run: |
+          umask 077
+          devenv shell -- bunx vp run preview:verify > "$(dirname "$PREVIEW_STATE_FILE")/verify.log" 2>&1 || { echo '::error::Hosted preview verification failed'; exit 1; }
+      - name: Publish verified preview link
+        if: github.event.action != 'closed'
+        env:
+          PREVIEW_URL: ${{ steps.prepare.outputs.url }}
+        run: |
+          printf 'Verified synthetic preview: %s\n' "$PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove only this PR's Worker and branch
+        if: always() && github.event.action == 'closed'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          mkdir -p "$(dirname "$PREVIEW_STATE_FILE")"
+          devenv shell -- bunx vp run preview:teardown > "$(dirname "$PREVIEW_STATE_FILE")/teardown.log" 2>&1 || { echo '::error::Preview cleanup failed; reconcile the PR-scoped resources before retrying'; exit 1; }
+      - name: Remove private runner credentials and logs
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/vektor-preview"

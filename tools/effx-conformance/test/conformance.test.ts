@@ -4,7 +4,7 @@
  * say, and what effx cannot state is the committed register of gaps. Each check has a negative control that changes one
  * thing and fails.
  */
-import { NodeServices } from "@effect/platform-node";
+import { NodeCrypto, NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import {
   Array as Arr,
@@ -127,11 +127,11 @@ class Committed extends Context.Service<
         vectors,
       });
     })
-  ).pipe(Layer.provide(NodeServices.layer));
+  ).pipe(Layer.provide([NodeServices.layer, NodeCrypto.layerDigest]));
 }
 
 const hash = (bytes: Uint8Array) =>
-  sha256Hex(bytes).pipe(Effect.provide(NodeServices.layer));
+  sha256Hex(bytes).pipe(Effect.provide(NodeCrypto.layerDigest));
 
 /** The committed vectors of a domain, asked of the kernel with `table` and `machines` standing in for its own. */
 const conform = Effect.fn("conform")(function* conform(
@@ -591,7 +591,7 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
           yield* hash(utf8(text.replace("createTeam", "createTeams")))
         );
         assert.notStrictEqual(entry?.vectorsSha256, yield* hash(flipped));
-      }).pipe(Effect.provide(NodeServices.layer))
+      }).pipe(Effect.provide([NodeServices.layer, NodeCrypto.layerDigest]))
   );
 
   it.effect(

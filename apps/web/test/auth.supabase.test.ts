@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Array as Arr, Config, Crypto, Effect } from "effect";
+import { Array as Arr, Config, Effect } from "effect";
+import { SecureRandom } from "effect/crypto";
 
 import {
   createAdminClient,
@@ -19,9 +20,9 @@ describe("Supabase session cookies", () => {
         SUPABASE_URL: yield* Config.String("SUPABASE_URL"),
       };
 
-      const crypto = yield* Crypto.Crypto;
-      const email = `session-${yield* crypto.randomUUIDv4()}@example.org`;
-      const password = `Test-${yield* crypto.randomUUIDv4()}`;
+      const crypto = yield* SecureRandom.SecureRandom;
+      const email = `session-${yield* crypto.uuidV4()}@example.org`;
+      const password = `Test-${yield* crypto.uuidV4()}`;
       const admin = createAdminClient(config);
       yield* Effect.acquireUseRelease(
         Effect.promise(() =>

@@ -87,7 +87,7 @@ export const allowances: readonly Allowance[] = [
   },
   {
     allows: ["db"],
-    files: ["tools/prototype/seed.ts"],
+    files: ["tools/prototype/seedProvider.ts"],
     reason:
       "Synthetic local prototype seed uses the existing database test-client boundary.",
   },
@@ -96,6 +96,18 @@ export const allowances: readonly Allowance[] = [
     files: ["tools/prototype/provisionRuntime.ts"],
     reason:
       "Synthetic bootstrap applies runtime role grants and verifies its database login.",
+  },
+  {
+    allows: ["db", "sql-pg", "drizzle"],
+    files: ["tools/preview/bootstrap.ts"],
+    reason:
+      "Hosted synthetic branch bootstrap owns migration, seed and least-privilege runtime provisioning.",
+  },
+  {
+    allows: ["sql-pg"],
+    files: ["tools/preview/verify.ts"],
+    reason:
+      "Hosted preview verification cleans up only its owned synthetic CMS fixture through a scoped PostgreSQL client.",
   },
   {
     allows: ["db"],

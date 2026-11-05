@@ -1,5 +1,6 @@
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Config, Crypto, Effect, FileSystem, Path, Redacted } from "effect";
+import { NodeCrypto, NodeRuntime, NodeServices } from "@effect/platform-node";
+import { Config, Effect, FileSystem, Path, Redacted } from "effect";
+import { SecureRandom } from "effect/crypto";
 
 import {
   probeRuntimeLogin,
@@ -24,7 +25,7 @@ const program = Effect.gen(function* provisionRuntimeMain() {
   const owned = yield* Config.String("SYNTHETIC_SUPABASE_OWNED");
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const crypto = yield* Crypto.Crypto;
+  const crypto = yield* SecureRandom.SecureRandom;
 
   if (owned !== "1" || !path.isAbsolute(file)) {
     return yield* Effect.die(
@@ -71,8 +72,8 @@ const program = Effect.gen(function* provisionRuntimeMain() {
   } else {
     target.username = "vektor_runtime";
     target.password =
-      (yield* crypto.randomUUIDv4()).replaceAll("-", "") +
-      (yield* crypto.randomUUIDv4()).replaceAll("-", "");
+      (yield* crypto.uuidV4()).replaceAll("-", "") +
+      (yield* crypto.uuidV4()).replaceAll("-", "");
     runtime = target.toString();
     yield* fs.writeFileString(file, `${runtime}\n`, {
       flag: "wx",
@@ -116,7 +117,7 @@ const program = Effect.gen(function* provisionRuntimeMain() {
 
 NodeRuntime.runMain(
   program.pipe(
-    Effect.provide(NodeServices.layer),
+    Effect.provide([NodeServices.layer, NodeCrypto.layerSecureRandom]),
     Effect.catch(() =>
       Effect.die(
         "Runtime provisioning failed; check bootstrap authority and the private credential file. Existing credentials are never rotated."

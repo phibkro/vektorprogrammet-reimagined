@@ -1,5 +1,6 @@
 import { Effect, Match } from "effect";
-import type { Crypto } from "effect";
+import type { Digest, SecureRandom } from "effect/crypto";
+import { identity } from "effect/Function";
 
 import type { MessageSender } from "../../adapters/messaging/senders";
 import type { DomainError } from "../../core/errors";
@@ -53,7 +54,8 @@ export type TickStore =
   | DatabaseServices
   | AccountDelivery
   | OutboxPublisher
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | SiteOrigin;
 
 /** Everything the runners (and so a tick) need besides the transaction runner, which the scheduler itself holds. */
@@ -188,11 +190,7 @@ export const runners: Runners = {
         )
       )
     ),
-    ({ alreadyClosed, closed, unavailable }) => ({
-      alreadyClosed,
-      closed,
-      unavailable,
-    })
+    identity
   ),
   outboxSweep: {
     prepare: () =>
