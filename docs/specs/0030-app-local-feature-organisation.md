@@ -1,6 +1,6 @@
 # 0030 — App-local feature organisation
 
-**Status:** Proposed; organisation decisions await operator approval. This spec records the requested cutover, not acceptance or verification of the resulting tree.
+**Status:** Implemented and verified locally; organisation decisions await operator approval. No hosted release.
 
 ## Goal
 
@@ -36,7 +36,17 @@ This is an organisation change, not a runtime, API, schema or provider change. C
 
 ## Evidence and decisions
 
-Operator approval of the proposed boundaries is pending. The integrating lead owns verification after all writers finish; no result for this cutover is asserted here. Earlier prototype and regrouping evidence is recorded in `STATE.md` and specs 0028–0029, with its original scope and limits.
+Operator approval of the proposed boundaries is pending. The following local verification ran at source checkpoint `c95ce8d0c95f535fb84b0f1afcc13a4ecd7cd245`. Subsequent documentation/provenance-only edits do not change that source; the full tests were not rerun for them. Earlier evidence remains in `STATE.md` and specs 0028–0029, with its original scope and limits.
+
+- Root `test:all` passed seven workspace tasks and nine test groups: domain 419, database 449, web 272, spike 39, quality 93, import 54, docgen 33, Oxlint 114 and conformance 14; total 1,487 tests. An earlier concurrent import timeout was followed by an isolated pass of 14 import tests and the final full run.
+- Format, lint and type checks passed (894 formatted files, 681 code files), as did exceptions, store and module-graph checks (20 modules, no tolerated violations), seven generated-document checks, Knip and duplicate detection (zero clones). Frozen Bun install made no changes; Drizzle `db:check` and a fresh production Worker build passed.
+- The formal model `--code` run exited zero: 30 maintained cases matched expectations, 1,712,396 current-code states and 53 PostgreSQL probes. The source coverage digest was `7e1d51b0c40a43c60c4f64f26ec9a9110978c98e`. Model predicates and bounds were unchanged; this result covers membership concurrency only.
+- On an owned local synthetic stack, a compiled Worker browser journey signed in as Ada, created a team, person and membership, and observed the membership after reload. Runtime-role SQL showed one membership, one welcome claim, one `membership.added` audit entry, two outbox intents, two deliveries and two captured messages. A CMS fixture's title and rich text were edited and published; exact future root, block and span projections were preserved in draft and publication. An anonymous team GET returned 403 and the public home returned 200.
+- An emitted-artifact scan covered 377 JS, MJS, JSON and map files and found no literal bootstrap or runtime database URL or SDK secret; manifest secret bindings were empty. Two credential no-JavaScript Playwright cases passed; the full browser suite was not run.
+- Unused export surfaces and dead pure helpers were removed. The declared Audit read was retained with a permission regression test. All work and verification were local: no PR, push, deployment or Terraform external operation was performed.
+- The owned browser, compiled preview, Supabase project and devenv services were stopped after verification. Supabase volumes and matching private credentials were retained. The original interactive prototype was left running and returned HTTP 200 after cleanup.
+
+The local journey and model do not establish hosted provider lifecycle, deployment privileges or full-browser coverage. Initial browser selector/navigation attempts and an SQL audit-action guess were corrected against the actual DOM and source; the membership committed and was observed after reload, not rolled back. Earlier static, probe and mock-test failures were corrected before the final reports.
 
 ## Revisions
 
@@ -44,3 +54,4 @@ Operator approval of the proposed boundaries is pending. The integrating lead ow
 - 2026-11-05: Recorded form-state and HTTP error ownership and the generated-route cycle exclusion discovered during consolidation.
 - 2026-11-05: Recorded the precise generated registration-edge exception, app-wide compiler strictness and formal test concurrency.
 - 2026-11-05: Recorded serial workspace test tasks to prevent quality probes racing app scanners.
+- 2026-11-05: Recorded the lead's local verification at the named source checkpoint; approval remains pending.

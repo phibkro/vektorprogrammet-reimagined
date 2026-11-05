@@ -17,6 +17,7 @@
 - Hosted preview remains blocked on dedicated synthetic project/control-plane access and independently verified non-delivering native Auth SMTP. No PR, remote project change or deployment ran. Fresh migration execution passed; upgrading the preserved 5d51f3c database remains unrehearsed.
 - The earlier server regrouping separated HTTP, feature, identity, provider, background and diagnostic boundaries. `runtime.ts` remains the composition root. Spec 0030 describes the app-local consolidation; its organisation decisions are provisional pending operator approval.
 - Server regrouping verification: 272 web tests and 91 quality tests passed; format, lint/type, exception, store-boundary, module-graph, generated-doc and Knip checks passed. The production Worker build passed. A native Supabase browser smoke signed in, read teams, created a synthetic team, reloaded its persisted row and refused anonymous panel access. This run did not repeat the full workspace or browser suites.
+- App-local consolidation at source checkpoint `c95ce8d0c95f535fb84b0f1afcc13a4ecd7cd245` was verified locally as described in [spec 0030](docs/specs/0030-app-local-feature-organisation.md). The proposed organisation decisions still await operator approval. No PR, push, deployment or Terraform external operation was performed.
 
 ## Done
 

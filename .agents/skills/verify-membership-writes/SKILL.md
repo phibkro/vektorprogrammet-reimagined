@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 01d4562a02933bce5a408f09d334fe7863f499f2
-confirmed-at: ca6785a529260e9325bb760c5e016866a46fe37b
+sync-digest: 7e1d51b0c40a43c60c4f64f26ec9a9110978c98e
+confirmed-at: c95ce8d0c95f535fb84b0f1afcc13a4ecd7cd245
 apps/web/src/adapters/db/live.ts
 apps/web/src/adapters/db/repositories/teams.ts
 apps/web/src/adapters/db/repositories/accounts.ts
@@ -54,7 +54,7 @@ apps/web/src/domain/transactions/transactor.ts
 
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change"). The confirmation of 2026-10-27 (spec 0007b) covers the commands in `compose`: the aggregate writes now accept several locks and use `IN`, which for the one token held by these commands selects the same rows as before. The tombstone filter and the writers in the next section are outside the model.
 
-The coverage paths above were relocated after the recorded confirmation. The digest and commit still refer to the earlier tree, not to the relocated or uncommitted files. Review the moved code against that tree and run the model and code probes before recording a digest for a committed tree.
+Spec 0030 relocated the covered code into the application at `c95ce8d`. Review of 80 covered files found only import and export-visibility changes; migration files are byte-identical. The record above identifies that reviewed source tree. Model execution and code-probe results are recorded separately in spec 0030.
 
 After the 0007d rebase, the model was run again with `--code`. The membership-machine additions declare metadata for effx; they do not change transitions. The added retention-report migration changes only the audit action constraint. Neither changes the modeled statements.
 
