@@ -82,7 +82,7 @@ A principal is a person with facts, never a role (ADR 0001). Every scheduled job
 | `WorkspaceDirectory`, `WorkspaceWriter` | Separate provider read and mutation capabilities. The production Google adapter is not configured. |
 | `SiteOrigin` | the origin that the links in messages carry |
 
-`storeUpload` also needs Effect's `Crypto.Crypto` (SHA-256); `apps/web` provides a Web Crypto implementation.
+`storeUpload` needs Effect’s `Digest.Digest` (SHA-256); `apps/web` supplies its Web Crypto layer.
 
 `authorize` is the one answer to "may this principal do this?". Every command handler is built with its domain's `handle`, which asks the table before the command runs (and refuses with `Forbidden`); `apps/web` asks the same function for the control panel's sidebar and for every control a page offers (spec 0004), so a control the principal may not use is not rendered. A role check in `apps/web` is a second list, and `apps/web/test/shell.test.ts` fails when a control and its command disagree.
 
@@ -187,6 +187,6 @@ Uploads are two steps: `storeUpload` (no transaction) returns a `StoredUpload`; 
 
 - `CurrentPrincipal`: `Anonymous`, or the person's facts (`PrincipalDirectory`; Phase 2: the local test person, spec 0007 adds sign-in); a job provides `System(job)`.
 - `SiteOrigin`: the deployment's origin, for the links in messages.
-- `Crypto.Crypto` (effect): a Web Crypto implementation (`Crypto.make`), used by `storeUpload` for SHA-256.
+- `Digest.Digest` and `SecureRandom.SecureRandom`: Effect crypto services supplied by native Web Crypto layers.
 - `FileStore`: the R2 binding.
 - `Clock`: Effect's default clock; tests use `TestClock`.

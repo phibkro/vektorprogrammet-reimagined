@@ -6,7 +6,6 @@
  */
 import {
   Array as Arr,
-  Crypto,
   Effect,
   FileSystem,
   Option,
@@ -14,6 +13,7 @@ import {
   Schema,
   Stream,
 } from "effect";
+import { Digest } from "effect/crypto";
 
 export const directory = "../../apps/web/conformance";
 
@@ -150,8 +150,8 @@ export class ArtefactFailed extends Schema.TaggedError<
 export const sha256Hex = Effect.fn("sha256Hex")(function* sha256Hex(
   bytes: Uint8Array
 ) {
-  const crypto = yield* Crypto.Crypto;
-  const digest = yield* crypto.digest("SHA-256", bytes);
+  const crypto = yield* Digest.Digest;
+  const digest = yield* crypto.digest(Digest.sha256, bytes);
 
   return Arr.join(
     Arr.map(Arr.fromIterable(digest), (byte) =>

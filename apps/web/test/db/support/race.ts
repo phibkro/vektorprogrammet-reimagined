@@ -1,8 +1,22 @@
-import { Array as Arr, Cause, Deferred, Effect, Exit, Fiber } from "effect";
+import {
+  Array as Arr,
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Predicate,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { transactional } from "../../../src/adapters/db/transactional.ts";
 import { TestDatabaseUrl, withClient } from "./disposableDatabase.ts";
+
+/** Whether the transaction adapter refused a proof that is no longer live. */
+export const isTransactionNotLive = (exit: Exit.Exit<unknown, unknown>) =>
+  Exit.isFailure(exit) &&
+  Cause.hasDies(exit.cause) &&
+  Predicate.isTagged("TransactionNotLive")(Cause.squash(exit.cause));
 
 /** The effect, held at the gate until it opens, then run to its exit. */
 const atGate = <A, E, R>(

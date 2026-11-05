@@ -1,3 +1,4 @@
+import * as Cloudflare from "@alchemy.run/cloudflare";
 /**
  * Infrastructure for slice 0000, the database-path spike (Alchemy v2).
  * Deploy only with operator authority; see README.md for the exact commands.
@@ -12,7 +13,6 @@
  * So the value never lands in the repository, in a log, or in plain text in state.
  */
 import * as Alchemy from "alchemy";
-import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect } from "effect";
 
 import {

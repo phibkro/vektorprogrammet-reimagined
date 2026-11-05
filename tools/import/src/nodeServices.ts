@@ -1,4 +1,9 @@
-import { NodeServices } from "@effect/platform-node";
+import { NodeCrypto, NodeServices } from "@effect/platform-node";
+import { Layer } from "effect";
 
 /** Node-backed services shared by the CLI and real-database integration tests. */
-export const nodeServicesLayer = NodeServices.layer;
+export const nodeServicesLayer = Layer.mergeAll(
+  NodeServices.layer,
+  NodeCrypto.layerDigest,
+  NodeCrypto.layerSecureRandom
+);

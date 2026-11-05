@@ -8,6 +8,7 @@ import { assert, layer } from "@effect/vitest";
 import { eq } from "drizzle-orm";
 import {
   Array as Arr,
+  Cause,
   DateTime,
   Effect,
   Exit,
@@ -255,7 +256,9 @@ layer(pgliteDatabase)("repositories on PGlite", (it) => {
           })
         );
 
-        assert.isTrue(Exit.hasDies(backwards));
+        assert.isTrue(
+          Exit.isFailure(backwards) && Cause.hasDies(backwards.cause)
+        );
       })
   );
 

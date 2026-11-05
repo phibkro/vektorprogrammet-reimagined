@@ -1,6 +1,5 @@
 import {
   Context,
-  Crypto,
   Data,
   DateTime,
   Effect,
@@ -10,6 +9,7 @@ import {
   Redacted,
   Schema,
 } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 
 import {
   DeliveryFailed,
@@ -133,7 +133,8 @@ export const accountDeliveryLayer = (
       const sender = yield* MessageSender;
       const delivery = yield* OutboxDelivery;
       const origin = yield* SiteOrigin;
-      const crypto = yield* Crypto.Crypto;
+      const digest = yield* Digest.Digest;
+      const random = yield* SecureRandom.SecureRandom;
 
       // A stale acknowledgment must fail inside the transaction so its other writes roll back.
       const acknowledgeClaim = Effect.fn("AccountDelivery.acknowledgeClaim")(
@@ -438,7 +439,8 @@ export const accountDeliveryLayer = (
             const now = yield* DateTime.now;
 
             const { token, hash } = yield* mintCode().pipe(
-              Effect.provideService(Crypto.Crypto, crypto),
+              Effect.provideService(Digest.Digest, digest),
+              Effect.provideService(SecureRandom.SecureRandom, random),
               Effect.orDie
             );
 

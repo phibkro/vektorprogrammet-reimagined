@@ -1,5 +1,6 @@
 /** Credentials sent by e-mail. Only the hash is persisted; plaintext exists in the delivered e-mail. */
-import { Crypto, Effect, Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 import { encode as encodeBase64Url } from "effect/encoding/Base64Url";
 import { encode as encodeHex } from "effect/encoding/Hex";
 
@@ -99,15 +100,15 @@ const utf8 = new TextEncoder();
 export const hashCode = Effect.fn("Code.hash")(function* hashCode(
   token: CodeToken
 ) {
-  const crypto = yield* Crypto.Crypto;
-  const digest = yield* crypto.digest("SHA-256", utf8.encode(token));
+  const crypto = yield* Digest.Digest;
+  const digest = yield* crypto.digest(Digest.sha256, utf8.encode(token));
 
   return CodeHash.make(encodeHex(digest));
 });
 
 /** Generate 256 random bits and the hash to store. Call only when delivering a message. */
 export const mintCode = Effect.fn("Code.mint")(function* mintCode() {
-  const crypto = yield* Crypto.Crypto;
+  const crypto = yield* SecureRandom.SecureRandom;
 
   const token = CodeToken.make(
     `c_${encodeBase64Url(yield* crypto.randomBytes(32))}`

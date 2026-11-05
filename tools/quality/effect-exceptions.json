@@ -30,6 +30,7 @@
       "reason": "The rule mistakes the native Schema.TaggedError class declaration for a throw site; the command needs a typed documentation failure.",
       "missingCapability": "The installed rule cannot distinguish this Effect error declaration from a throw statement.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Schema.ts defines TaggedError as a schema-backed yieldable error class; the unchanged lint rule still owns this exception.",
         "Schema.TaggedError is the native typed error; the check is disabled only around its declaration, not its uses.",
         "Throwing a native error or using an untyped failure would lose the command's typed error channel."
       ],
@@ -39,7 +40,7 @@
       ],
       "owner": "tools/docgen",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -76,6 +77,7 @@
       "reason": "Playwright owns the browser test callbacks and expects promises; its test functions and helpers await browser operations directly. Shared rate-limit probes run sequentially, not as a race.",
       "missingCapability": "The Effect async-function diagnostic cannot recognize a Playwright-owned Promise boundary.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Effect.ts promise still accepts a PromiseLike-returning callback; the unchanged framework and lint boundary remains.",
         "Effect.promise can wrap a foreign Promise, but requires a Promise-returning thunk; the configured promise-function-async rule conflicts with effecttsgo/async-function at that boundary.",
         "An Effect runtime inside each individual browser callback would not remove the framework's Promise ABI or the conflicting rules."
       ],
@@ -85,7 +87,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1",
         "@playwright/test": "1.63.0",
         "typescript": "7.0.2"
@@ -100,11 +102,12 @@
       },
       "reason": "Spec 0006b falsifier 1: each statement must not type-check, and the directive fails the type check itself the day one starts to compile.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 keeps the native type APIs; the rejected-call assertion is enforced by TypeScript’s directive rather than an Effect runtime alternative.",
         "Vitest expectTypeOf asserts the shape of a type, not that a particular call is rejected, and the spec names the directive.",
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
+      "versions": { "effect": "4.1.2", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
@@ -115,11 +118,12 @@
       },
       "reason": "Spec 0007c: a machine query that names a command its group does not have must not type-check, and the directive fails the type check itself the day it starts to compile.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 keeps the native type APIs; the rejected-call assertion is enforced by TypeScript’s directive rather than an Effect runtime alternative.",
         "Vitest expectTypeOf asserts the shape of a type, and the instantiated signature of a generic function does not show what a call infers, so it cannot show that a call is rejected.",
         "A compile-fail fixture project would run a second type check for the same claim."
       ],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.6", "typescript": "7.0.2" },
+      "versions": { "effect": "4.1.2", "typescript": "7.0.2" },
       "retirementTrigger": "Retire when the cases move to a type-test tool that asserts a rejected statement without a directive."
     },
     {
@@ -133,6 +137,7 @@
       "reason": "The rule mistakes the native Schema.TaggedError class declaration for a throw site (as for EX-0003); the tool needs a typed failure for a missing or unacceptable artefact and for an effx run that fails.",
       "missingCapability": "The installed rule cannot distinguish this Effect error declaration from a throw statement.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Schema.ts defines TaggedError as a schema-backed yieldable error class; the unchanged lint rule still owns this exception.",
         "Schema.TaggedError is the native typed error; the check is disabled only around its declaration, not its uses.",
         "Throwing a native error or using an untyped failure would lose the tool's typed error channel."
       ],
@@ -142,7 +147,7 @@
       ],
       "owner": "tools/effx-conformance",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -161,6 +166,7 @@
       "reason": "Spec 0007b R3 items 28 and 32: a text that states a retention period must be built from its declaration, and a test can show that only by evaluating the whole declaration graph again with the periods (or the approvals) replaced and seeing which strings did not move. The domain declares its rules as data that is built once, when its module loads, so the periods and the approvals reach every text through the modules periods.ts, texts.ts and accounts/code.ts, and through nothing that a test can pass in.",
       "missingCapability": "The declarations are values, not functions of their periods, so no interface lets a test supply other periods. Separately, the rule is Ultracite's copy (the root configuration enables only the five local additions) and it recognises a `vi` imported from vitest only, while the repository's autofix rewrites that import to vite-plus/test: today it reports none of these calls. The directives record the deviation, so that the day the rule sees them the justification is already here.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 service and test APIs do not make these import-time declaration values parameterized; the same module-graph guard remains.",
         "Dependency injection: making each declaration a function of its periods would let a test pass other ones, but it would test only the texts that someone turned into functions, and a new text with a number written in it would pass. Catching that new text is the purpose of the guard.",
         "A scan of the source for period phrases finds a typed number, but cannot tell a retention period from another quantity (the four weeks of sendEndingSoon is a job's window) and does not see a phrase built from a constant that is not a period.",
         "A test project with module aliases needs one project for each variant (periods moved, bases decided, bases proposed), and the two graphs would live in two processes, with no way to compare their strings."
@@ -171,7 +177,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "typescript": "7.0.2",
         "vite-plus": "1.2.0"
       },
@@ -198,13 +204,14 @@
       "reason": "The domain groups related service contracts and native typed error constructors in their bounded contexts.",
       "missingCapability": "The lint rules mistake Schema.TaggedError factories for throw sites and require unrelated service contracts to be fragmented.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Schema.ts defines TaggedError as a schema-backed yieldable error class; the unchanged lint rule still owns this exception.",
         "Schema.TaggedError and Context.Service are the native Effect constructs used here.",
         "Throwing untyped errors would lose the typed error channel; splitting related ports would not change their ownership."
       ],
       "verification": ["devenv shell -- bunx vp run ready"],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "vite-plus": "1.2.0",
         "typescript": "7.0.2"
       },
@@ -234,13 +241,14 @@
       "reason": "The PostgreSQL delivery tests exercise the actual Promise-returning request, scheduled and queue runtimes inside an Effect test.",
       "missingCapability": "The configured Promise lint requires an async thunk while the Effect diagnostic rejects async functions at that boundary.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Effect.ts promise still accepts a PromiseLike-returning callback; the unchanged framework and lint boundary remains.",
         "Effect.promise wraps the real runtime boundary and retains its Promise contract.",
         "Replacing the runtime with a mock would not test the real post-commit boundary."
       ],
       "verification": ["devenv shell -- bunx vp run ready"],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1",
         "typescript": "7.0.2"
       },
@@ -268,11 +276,12 @@
       "reason": "The configured rule mistakes Schema.TaggedError declarations for throw statements.",
       "missingCapability": "The rule cannot distinguish Effect's native typed error declarations from a throw expression.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Schema.ts defines TaggedError as a schema-backed yieldable error class; the unchanged lint rule still owns this exception.",
         "Schema.TaggedError is the native typed failure; using an untyped thrown error would lose the failure channel."
       ],
       "verification": ["devenv shell -- bunx vp run ready"],
       "owner": "apps/web",
-      "versions": { "effect": "4.0.6", "vite-plus": "1.2.0" },
+      "versions": { "effect": "4.1.2", "vite-plus": "1.2.0" },
       "retirementTrigger": "Remove the narrow lint override when the rule recognizes Schema.TaggedError declarations."
     },
     {
@@ -302,6 +311,7 @@
       "reason": "A lock token and the typed handles of the ownership declaration state types that the compiler cannot derive: the token's brand has no runtime value, a handle is built from plain data, and the writer states the row type of a statement on a generic table. `verified` (spec 0019) puts the check of the live transaction proof in front of every `Requires` member of a port: it maps the members of a service by name and gives back an object of the service's own type. `refusingInTransaction` (spec 0024) does the same for an integration port, putting the refusal of a call made while a transaction is open in front of every member.",
       "missingCapability": "TypeScript cannot build a value of an opaque type with an unexported brand from a plain object, and Drizzle 1.0.0-rc.5 has no generic form of insert, update, delete and select on a table type parameter whose rows follow that parameter.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Brand.ts uses the string brand key and its nominal constructor casts the value; src/Function.ts cast remains identity, so neither creates a private construction authority.",
         "`verified` maps the members of whichever port it is given, and TypeScript has no mapped-type form that is also a runtime map over a generic service shape, so the object that it builds is stated to have the service's type with one Function.cast at each end of the map.",
         "`refusingInTransaction` (spec 0024, `apps/web/src/core/transactions/integrationGuard.ts`) is the same map over an integration port: its bound says that every member of the service is a method or an effect, and the two casts only read the members by name and give the object back as the service's own type. Each shipped Layer of a port is called member by member inside `Transactor.run` by `integrationGuard.test.ts`, so a Layer that wraps fewer members than it has fails.",
         "Effect Brand.nominal makes a token without a cast, but its brand key is Effect's public type id, so a hand-made literal with that key would type-check. The spec asks for an unexported brand.",
@@ -315,7 +325,7 @@
       ],
       "owner": "apps/web",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "drizzle-orm": "1.0.0-rc.5",
         "typescript": "7.0.2"
       },
@@ -331,14 +341,16 @@
         "modules": [
           "effect/FileSystem",
           "effect/Path",
-          "effect/Crypto",
+          "effect/crypto/Digest",
+          "effect/crypto/SecureRandom",
           "effect/PlatformError",
           "effect/Stdio"
         ]
       },
       "reason": "Platform services lack stable markings.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/FileSystem.ts, Path.ts, PlatformError.ts, Stdio.ts, crypto/Digest.ts and crypto/SecureRandom.ts mark these APIs unstable.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
@@ -347,10 +359,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0006",
@@ -368,12 +380,14 @@
           "@effect/platform-bun/BunRuntime",
           "@effect/platform-bun/BunServices",
           "@effect/platform-node/NodeRuntime",
-          "@effect/platform-node/NodeServices"
+          "@effect/platform-node/NodeServices",
+          "@effect/platform-node-shared/NodeCrypto"
         ]
       },
       "reason": "Process roots and test platform services.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "The installed platform-node and platform-bun runtime and services modules remain unstable; NodeCrypto re-exports the unstable node-shared implementation.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
@@ -382,10 +396,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0007",
@@ -400,8 +414,9 @@
         ]
       },
       "reason": "Test infrastructure.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/Arbitrary.ts and src/rpc/RpcTest.ts remain unstable; the test and PGlite integrations remain version-coupled.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
@@ -410,10 +425,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0008",
@@ -428,8 +443,9 @@
         ]
       },
       "reason": "Command definitions and in-process client (ADR 0006).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/rpc/Rpc.ts, RpcGroup.ts, RpcClient.ts and RpcServer.ts mark these APIs unstable.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
@@ -438,10 +454,10 @@
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0009",
@@ -460,20 +476,21 @@
         "modules": ["effect/sql", "@effect/sql-pg"]
       },
       "reason": "Database path from spec 0000.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/sql/SqlClient.ts marks SQL unstable; the PostgreSQL driver remains version-coupled.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0010",
@@ -483,20 +500,21 @@
         "modules": ["@effect/sql-mysql2"]
       },
       "reason": "Legacy import.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "The installed MySQL driver remains version-coupled to the unstable Effect SQL interfaces.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0011",
@@ -523,20 +541,21 @@
         ]
       },
       "reason": "Outbound HTTP for the CMS, Turnstile, and same-origin authentication.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/http marks FetchHttpClient, Headers and the HttpClient family unstable.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0012",
@@ -552,20 +571,21 @@
         "modules": ["effect/process", "effect/cli"]
       },
       "reason": "Build and process tools.",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/process/ChildProcess.ts and src/cli/Command.ts mark these APIs unstable.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     },
     {
       "id": "EX-0013",
@@ -578,20 +598,21 @@
         "modules": ["effect/reactivity/Reactivity"]
       },
       "reason": "Derived reactivity keys (ADR 0009).",
-      "missingCapability": "The native module is not marked stable in Effect 4.0.6.",
+      "missingCapability": "The native module is not marked stable in Effect 4.1.2.",
       "nativeAlternativesExamined": [
+        "Effect 4.1.2 src/reactivity/Reactivity.ts marks this API unstable.",
         "The native module is the required Effect capability; no stable equivalent provides the same contract."
       ],
       "verification": [
-        "devenv shell -- bun run ready",
-        "devenv shell -- bun run e2e"
+        "devenv shell -- bunx vp run ready",
+        "devenv shell -- bunx vp run e2e"
       ],
       "owner": ".",
       "versions": {
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "@effect/tsgo": "0.53.1"
       },
-      "retirementTrigger": "Effect marks the module stable, or a 4.0.x release breaks a member this repository uses; then move that use behind an adapter."
+      "retirementTrigger": "Effect marks the module stable or a release breaks a member this repository uses; then move that use behind an adapter."
     }
   ]
 }

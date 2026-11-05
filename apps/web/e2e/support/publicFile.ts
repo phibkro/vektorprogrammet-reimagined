@@ -1,6 +1,7 @@
 import { PgClient } from "@effect/sql-pg";
 import { createClient } from "@supabase/supabase-js";
-import { Config, Crypto, Effect, Redacted } from "effect";
+import { Config, Effect, Redacted } from "effect";
+import { Digest } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { fileKeyFor } from "../../src/features/files/domain/fileType";
@@ -14,11 +15,8 @@ const FILE_BYTES = new TextEncoder().encode(PUBLIC_FILE_FIXTURE_TEXT);
 /** Seed the fixture in the same private Storage bucket and database used by the Worker. */
 export const seedPublicFile = Effect.fn("seedPublicFile")(
   function* seedPublicFile(databaseUrl: Redacted.Redacted) {
-    const crypto = yield* Crypto.Crypto;
-
-    const digest = yield* crypto
-      .digest("SHA-256", FILE_BYTES)
-      .pipe(Effect.orDie);
+    const crypto = yield* Digest.Digest;
+    const digest = yield* crypto.digest(Digest.sha256, FILE_BYTES);
 
     const key = fileKeyFor(digest, "application/octet-stream");
     const origin = yield* Config.String("SUPABASE_URL");

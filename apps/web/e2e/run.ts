@@ -5,7 +5,7 @@
  * E2E_DISPOSABLE=1 and E2E_MAILPIT_URL. The CI workflow performs these steps.
  * E2E_BASE_URL optionally reuses an already-running local Worker instead of starting one.
  */
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { NodeCrypto, NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect, Redacted, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -62,4 +62,6 @@ const main = Effect.gen(function* main() {
   return yield* Effect.void;
 }).pipe(Effect.scoped);
 
-NodeRuntime.runMain(main.pipe(Effect.provide(NodeServices.layer)));
+NodeRuntime.runMain(
+  main.pipe(Effect.provide([NodeServices.layer, NodeCrypto.layerDigest]))
+);

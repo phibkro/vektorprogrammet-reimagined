@@ -1,23 +1,8 @@
-/**
- * Web Crypto from the test runtime (Workers provide the same API), for the commands that hash a code. The one
- * definition for the domain and database tests.
- */
-import { Crypto, Effect, Layer } from "effect";
+/** Web Crypto services shared by domain and database tests. */
+import { Layer } from "effect";
+import { Digest, SecureRandom } from "effect/crypto";
 
-export const WebCryptoTest = Layer.succeed(Crypto.Crypto)(
-  Crypto.make({
-    digest: (algorithm, data) =>
-      Effect.map(
-        Effect.promise(
-          globalThis.crypto.subtle.digest.bind(
-            globalThis.crypto.subtle,
-            algorithm,
-            new Uint8Array(data)
-          )
-        ),
-        (buffer) => new Uint8Array(buffer)
-      ),
-    randomBytes: (size) =>
-      globalThis.crypto.getRandomValues(new Uint8Array(size)),
-  })
+export const WebCryptoTest = Layer.merge(
+  Digest.layerWebCrypto,
+  SecureRandom.layerWebCrypto
 );

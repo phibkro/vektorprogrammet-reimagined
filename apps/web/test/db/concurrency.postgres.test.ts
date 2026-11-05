@@ -7,7 +7,7 @@
  */
 import { assert, layer } from "@effect/vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { Array as Arr, Effect, Exit, pipe } from "effect";
+import { Array as Arr, Cause, Effect, Exit, pipe } from "effect";
 
 import * as schema from "../../src/adapters/db/schema.ts";
 import type { Semester } from "../../src/features/organisation/domain/semester";
@@ -95,7 +95,9 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           assert.isTrue(
             pipe(
               outcome.exits,
-              Arr.some((exit) => Exit.hasDies(exit))
+              Arr.some(
+                (exit) => Exit.isFailure(exit) && Cause.hasDies(exit.cause)
+              )
             )
           );
           assert.strictEqual(outcome.rows.length, 0);

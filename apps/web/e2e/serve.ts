@@ -1,5 +1,5 @@
 /** Keep the locally configured browser-test Worker alive for interactive use. */
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { NodeCrypto, NodeRuntime, NodeServices } from "@effect/platform-node";
 import {
   Array as Arr,
   Config,
@@ -43,4 +43,6 @@ const main = Effect.gen(function* main() {
   return yield* Effect.never;
 }).pipe(Effect.scoped);
 
-NodeRuntime.runMain(main.pipe(Effect.provide(NodeServices.layer)));
+NodeRuntime.runMain(
+  main.pipe(Effect.provide([NodeServices.layer, NodeCrypto.layerDigest]))
+);

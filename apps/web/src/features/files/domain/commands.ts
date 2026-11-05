@@ -7,7 +7,8 @@
  *                           retried or orphaned put is harmless).
  *   2. `createPublicFile`   inside the transaction, as the command of `FilesRpc`: registry row + audit entry.
  */
-import { Crypto, DateTime, Effect, Option, Predicate, Schema } from "effect";
+import { DateTime, Effect, Option, Predicate, Schema } from "effect";
+import { Digest } from "effect/crypto";
 
 import { NotFound } from "../../../core/errors.ts";
 import { FileKey } from "../../../core/ids.ts";
@@ -41,11 +42,8 @@ export const storeUpload = Effect.fn("storeUpload")(
       classifyUpload(upload.bytes, upload.accept)
     );
 
-    const crypto = yield* Crypto.Crypto;
-
-    const digest = yield* crypto
-      .digest("SHA-256", upload.bytes)
-      .pipe(Effect.orDie);
+    const crypto = yield* Digest.Digest;
+    const digest = yield* crypto.digest(Digest.sha256, upload.bytes);
 
     const key = fileKeyFor(digest, contentType);
     const store = yield* FileStore;

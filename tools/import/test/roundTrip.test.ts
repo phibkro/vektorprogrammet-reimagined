@@ -12,7 +12,6 @@ import { assert, layer } from "@effect/vitest";
 import {
   Array as Arr,
   Config,
-  Crypto,
   Effect,
   FileSystem,
   Layer,
@@ -24,6 +23,7 @@ import {
   Schema,
   Stream,
 } from "effect";
+import { Digest } from "effect/crypto";
 import { encode as hexEncode } from "effect/encoding/Hex";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import type { SqlError } from "effect/sql/SqlError";
@@ -168,8 +168,8 @@ const expectedKey = Effect.fn("expectedKey")(function* expectedKey(
     return yield* Effect.die(`no fake file ${legacyPath}`);
   }
 
-  const crypto = yield* Crypto.Crypto;
-  const digest = yield* Effect.orDie(crypto.digest("SHA-256", file.bytes));
+  const crypto = yield* Digest.Digest;
+  const digest = yield* crypto.digest(Digest.sha256, file.bytes);
 
   return `${hexEncode(digest)}.${extension}`;
 });

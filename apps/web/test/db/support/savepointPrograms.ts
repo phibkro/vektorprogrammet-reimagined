@@ -10,7 +10,6 @@ import {
   Fiber,
   Match,
   Option,
-  Predicate,
   Schema,
   Tracer,
 } from "effect";
@@ -39,6 +38,7 @@ import { transactional } from "../../../src/adapters/db/transactional.ts";
 import { Outbox } from "../../../src/core/outbox/outbox";
 import type { InTransaction } from "../../../src/core/transactions/transaction";
 import { slack } from "./fixtures.ts";
+import { isTransactionNotLive as refusedExit } from "./race.ts";
 
 type Ending = "commit" | "fail" | "die" | "interrupt" | "timeout";
 
@@ -237,16 +237,19 @@ export const programs: Arbitrary.Arbitrary<Program> = Arbitrary.all({
 /** The parent of the outermost level. */
 const NO_LEVEL = -1;
 
-/** The events that `withTransaction` records on its span when the body has succeeded, before it sends `RELEASE` or `COMMIT`. */
-const COMMIT_EVENTS = [
-  "effect.sql.transaction.commit",
-  "effect.sql.transaction.savepoint",
-];
-
-/** Whether the level's transaction span says that its closing statement was issued by the success path. */
-const statementIssued = (span: Tracer.Span | undefined) =>
-  span instanceof Tracer.NativeSpan &&
-  Arr.some(span.events, ([name]) => Arr.contains(COMMIT_EVENTS, name));
+/** Whether this transaction started its own closing control, not a child level's control. */
+const statementIssued = (
+  span: Tracer.Span | undefined,
+  spans: readonly Tracer.Span[]
+) =>
+  span !== undefined &&
+  Arr.some(
+    spans,
+    (control) =>
+      Option.exists(control.parent, (parent) => parent === span) &&
+      (control.attributes.get("db.operation.name") === "COMMIT" ||
+        control.attributes.get("db.operation.name") === "RELEASE SAVEPOINT")
+  );
 
 interface LevelRecord {
   committed: boolean;
@@ -274,6 +277,7 @@ interface Ledger {
   readonly levels: LevelRecord[];
   readonly prefix: string;
   readonly scope: Scope.Scope;
+  readonly spans: Tracer.Span[];
   readonly writes: WriteRecord[];
 }
 
@@ -282,11 +286,6 @@ const note = (ledger: Ledger, text: string) => {
 };
 
 type Needs = InTransaction | Outbox | SqlClient;
-
-/** Whether the exit is a defect that says the proof was not the live one. */
-const refusedExit = (exit: Exit.Exit<unknown, unknown>) =>
-  Exit.hasDies(exit) &&
-  Predicate.isTagged("TransactionNotLive")(Cause.squash(exit.cause));
 
 const outcomeOf = (exit: Exit.Exit<unknown, unknown>): Outcome => {
   if (Exit.isSuccess(exit)) {
@@ -398,7 +397,7 @@ const levelOf = (
       ),
       (exit) =>
         Effect.sync(() => {
-          const issued = statementIssued(record.span);
+          const issued = statementIssued(record.span, ledger.spans);
           record.committed = Exit.isSuccess(exit);
           record.mergedAfterInterrupt =
             record.reachedCommit &&
@@ -477,8 +476,19 @@ const runStep = (
 };
 
 /** The ledger of one run: the program runs to its end, and every fiber that it left behind is awaited. */
-export const run = (program: Program, prefix: string) =>
-  Effect.scoped(
+export const run = (program: Program, prefix: string) => {
+  const spans: Tracer.Span[] = [];
+
+  const tracer = Tracer.make({
+    span(options) {
+      const span = new Tracer.NativeSpan(options);
+      spans.push(span);
+
+      return span;
+    },
+  });
+
+  return Effect.scoped(
     Effect.gen(function* runProgram() {
       const scope = yield* Effect.scope;
 
@@ -488,6 +498,7 @@ export const run = (program: Program, prefix: string) =>
         levels: [],
         prefix,
         scope,
+        spans,
         writes: [],
       };
 
@@ -507,8 +518,9 @@ export const run = (program: Program, prefix: string) =>
       );
 
       return ledger;
-    })
+    }).pipe(Effect.provideService(Tracer.Tracer, tracer))
   );
+};
 
 /** The labels of the rows of the run in the committed state of the outbox. */
 export const committedLabels = (prefix: string) =>
@@ -526,10 +538,10 @@ export const committedLabels = (prefix: string) =>
 
 /**
  * What became of the rows written in a level, from what its levels reported. A level whose exit failed by interruption
- * alone, after the event that `withTransaction` records on its span before it sends the `RELEASE` or `COMMIT`, has merged:
+ * alone, after `withTransaction` starts its closing control span for `RELEASE` or `COMMIT`, has merged:
  * the statement runs where it cannot be interrupted, and a statement that fails adds a defect or a failure to the cause,
  * so an interrupts-only exit means it succeeded. The interruption is reported afterwards (R26). A level that failed, was
- * interrupted before that event, or was interrupted without reaching its commit, rolled back, and its rows with it.
+ * interrupted before that control, or was interrupted without reaching its commit, rolled back, and its rows with it.
  */
 type Fate = "committed" | "rolledBack";
 

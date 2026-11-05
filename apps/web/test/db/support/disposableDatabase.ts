@@ -31,7 +31,8 @@ const adminUrl = Config.Redacted("TEST_DATABASE_ADMIN_URL");
  * connection it finds idle for 60 to 120 seconds and replaces it from a fibre forked into the scope the pool
  * was built in; that scope is already closed while its finalizers run, so the fibre is interrupted at once and
  * the release waits for ever (Effect 4.0.5 and 4.0.6, `Pool.get`). The browser tests hit it as a CI step that never
- * ended, on the first run longer than two minutes. Here the pool's scope is open for as long as `use` runs.
+ * ended, on the first run longer than two minutes. Effect 4.1.2 forks a child pool scope, but this independent
+ * client remains until a real idle-pool finalizer probe proves its removal safe.
  */
 export const withClient = <A, E, R>(
   url: Redacted.Redacted,

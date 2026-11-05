@@ -34,7 +34,7 @@ import {
   Predicate,
   Schema,
 } from "effect";
-import type { Crypto } from "effect";
+import type { Digest, SecureRandom } from "effect/crypto";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { MessageSender } from "../src/adapters/messaging/senders";
@@ -80,7 +80,8 @@ interface Sent {
 type StoreServices =
   | AccountRepository
   | CodeRepository
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | OutboxDelivery
   | SqlClient;
 
@@ -295,7 +296,8 @@ type DeliveryNeeds =
   | AccountRepository
   | AggregateLocks
   | CodeRepository
-  | Crypto.Crypto
+  | Digest.Digest
+  | SecureRandom.SecureRandom
   | MessageSender
   | Outbox
   | OutboxDelivery
