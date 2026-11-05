@@ -1,6 +1,6 @@
 /**
  * Spec 0017, falsifier 3: the store ports are the domain's. Each service below was declared in `packages/db` or in the
- * web app before; a program that needs one now imports it from `@vektorprogrammet/domain` and never from the adapter.
+ * web app before; a program that needs one now imports its contract and never the adapter.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Record as Rec } from "effect";

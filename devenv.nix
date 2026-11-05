@@ -17,8 +17,8 @@ in
 {
   # Toolchain. Vite+ needs Node >= 22.18 (root package.json engines).
   # gitleaks scans staged changes (pre-commit hook) and the full history (CI) for secrets and
-  # personal data; its rules live in .gitleaks.toml. The git hooks and CI resolve every tool
-  # (vp, gitleaks, commitlint) from this shell's PATH, so they run in the same pinned toolchain.
+  # personal data; its rules live in .gitleaks.toml. Hooks and CI resolve project tools through
+  # Bun and external executables from this shell, keeping one pinned toolchain.
   packages = [
     pkgs.bun
     pkgs.nodejs_24
@@ -26,9 +26,9 @@ in
     playwrightBrowsers
   ];
 
-  # Local stand-in for Neon, matching its version (project bold-poetry-64036846 runs PostgreSQL 18).
-  # Port 54321 avoids a system PostgreSQL on 5432. devenv exports PGHOST/PGPORT for this server:
-  # unset them before using a Neon URL (Neon URLs carry no port, so libpq would dial Neon on 54321).
+  # Local SQL test server; the native Supabase prototype is provisioned separately.
+  # This port avoids the system PostgreSQL. devenv exports PGHOST/PGPORT for this server;
+  # the prototype launcher clears them before selecting its provider connection.
   # Trust auth on localhost only; no password exists for local development.
   services.postgres = {
     enable = true;
@@ -62,8 +62,8 @@ in
   };
 
   env = {
-    # Connection strings for local services only. Deployed environments get theirs from
-    # Alchemy (Hyperdrive binding) or the import operator's shell, never from this file.
+    # Defaults for local test services only. Prototype launchers select separate runtime/bootstrap
+    # targets explicitly; deployed secrets are not declared here.
     DATABASE_URL = "postgres://127.0.0.1:${pgPort}/vektorprogrammet";
     MIGRATION_DATABASE_URL = "postgres://127.0.0.1:${pgPort}/vektorprogrammet";
     TEST_DATABASE_ADMIN_URL = "postgres://127.0.0.1:${pgPort}/postgres";

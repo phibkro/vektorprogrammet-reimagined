@@ -64,7 +64,7 @@ The app-shared foundation now lives in `apps/web/src/core`. It is not a reusable
 
 Native Vite+ tasks replace duplicated root scripts. Bun retains root lifecycle `prepare` and `commitlint`. `vp run ready` runs static dependencies, then serial `test:all` and a fresh build. `vp run @vektorprogrammet/web#test` gates domain, db and web tasks in order. `vp test --project <name>` runs a direct scope; bare `vp test` can continue later groups after failure. Live, probe, generator and security tasks disable caching. The cached app build fingerprints `SITE_URL`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`; release uses the built-in fresh build.
 
-The existing formal digest and confirmed commit remain historical until the lead reviews and confirms a new committed tree. No cutover verification is asserted by this follow-up.
+The lead reviewed covered source at `2cd8996e4e0ef6a9676b1d10de02feb3be6c2d6b` and recorded digest `8ded8aa3cf892ecc020decf7527b9eef6f2e13a7`. This confirms source correspondence, not a new TLC run. The full model run remains pending.
 
 ### Cutover evidence
 
@@ -72,3 +72,13 @@ The existing formal digest and confirmed commit remain historical until the lead
 - An outside-repository graph with the exact ready → serial test-all recipe showed no workspace overlap at outer concurrency 2. Its final build-stage probe ran after both workspaces.
 - Native build cache testing exposed a deploy-pointer read/write issue and parent-directory tracking. The configuration now excludes generated `.wrangler/**` inputs and explicitly preserves `.wrangler/deploy/config.json` as output. A warmed hit restored deleted client JS and the deploy pointer byte-for-byte. Changing `SITE_URL` missed and produced the new binding; restoring it hit the baseline. A fake private environment change caused a conservative miss, not a hit; manifest private bindings stayed empty. A cache database literal audit found no actual SDK secret or runtime URL.
 - The first full ready run passed seven of eight static dependencies and failed lint on key ordering. No tests or build ran in that attempt. The ordering was corrected with native suggestions. A new full ready run has not yet completed; this is not full acceptance.
+
+### Later local evidence and CMS correction
+
+At source `2cd8996e4e0ef6a9676b1d10de02feb3be6c2d6b`, full `ready` passed all 18 tasks, including static gates, 1,487 tests and the build. The formal run passed 30 cases and 53 SQL probes at digest `8ded8aa3cf892ecc020decf7527b9eef6f2e13a7`. These results predate the CMS correction and subsequent comment cleanup.
+
+A compiled smoke then exposed a real immediate-save defect: the title published but the last typed body text was missing from both draft and published SQL snapshots. Unknown future root, block and span fields remained intact. The working-tree correction uses the Portable Text SDK 8.2.11 public beta synchronous LOCAL operation snapshots, not batched mutation events. The route compares the draft with the last saved payload and acknowledges only the submitted snapshot. The beta API is an upgrade constraint.
+
+In a compiled replay, the last key preceded the response by 92 ms. The HTTP payload contained the text, and SQL showed the published title and body. All three future fields remained unchanged in draft and publication. During a delayed POST, a later title edit remained present, Save stayed enabled and Publish stayed disabled. The product adds no timer, wait workaround or package. Uncommitted IME DOM input is not proven.
+
+A separate synthetic membership journey used the restricted runtime role. SQL showed one membership, one welcome claim, one `membership.added` audit row, two intents, two deliveries and two captures. The owned browser closed; the owned preview remained up at this observation. The full browser suite did not run. Full ready and formal verification have not yet been repeated after the CMS fix and comment cleanup.

@@ -1,7 +1,6 @@
 /**
- * The one definition of "a migrated disposable PostgreSQL database", shared by `packages/db`'s tests,
- * `tools/import`'s round trip and the `apps/web` browser tests (through the `@vektorprogrammet/db/testing`
- * export).
+ * The one definition of "a migrated disposable PostgreSQL database", shared by the database tests,
+ * the importer round trip and the browser tests.
  *
  * `migratedTestDatabase` creates a uniquely named `vp_db_test_<random>` database on devenv's PostgreSQL
  * (`TEST_DATABASE_ADMIN_URL`) per Layer build, applies the generated `drizzle/` migrations to it, provides

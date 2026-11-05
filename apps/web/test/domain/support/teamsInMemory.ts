@@ -1,9 +1,8 @@
 /**
- * In-memory implementations of the teams repositories, for the tests of this package and of `apps/web`
- * (`@vektorprogrammet/domain/testing`). They keep the contracts that `packages/db` keeps with constraints and
+ * In-memory implementations of the teams repositories, for domain and web tests. They keep the contracts that the database adapter enforces with constraints and
  * conditional updates: one e-mail address is one person, a team name is unique within its department, a person's
  * memberships in one team never overlap, and a write that finds the row changed since it was read is a `Conflict`.
- * `packages/db` has the real behaviour under test (`test/teams.postgres.test.ts`); these fakes are as far as the
+ * The teams PostgreSQL test covers the real behaviour; these fakes are as far as the
  * domain's handlers need.
  */
 import {
@@ -668,8 +667,7 @@ const adminGrantRepository = Layer.effect(
 
 /**
  * The locks of the fakes: a person's lock exists when the person does, and the admin list's always does. Nothing
- * waits, because nothing runs at once; the real locking is `packages/db`'s, under test in
- * `test/aggregates.postgres.test.ts`. Each lock is logged (`AdminList:1`, `Person:7`) in the order that it was taken,
+ * waits, because nothing runs at once; the real locking is covered by the aggregates PostgreSQL test. Each lock is logged (`AdminList:1`, `Person:7`) in the order that it was taken,
  * so a test can see that a command locks the admin list before the person.
  */
 const aggregateLocks = Layer.effect(

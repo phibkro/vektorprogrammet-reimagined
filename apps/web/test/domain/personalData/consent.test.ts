@@ -1,7 +1,7 @@
 /**
  * Spec 0007b falsifier 5, the rules half: what a consent record holds after each answer, what the answers read as, when a
  * person has left and for how long the alumni question is still worth asking. The commands and the database that use
- * them are `packages/db/test/personalDataAlumni.postgres.test.ts`.
+ * them are the personal-data alumni PostgreSQL test.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Option } from "effect";

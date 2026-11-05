@@ -131,6 +131,31 @@ const TextToolbar = () => {
   );
 };
 
+const EditorChanges = ({
+  onChange,
+}: {
+  onChange: (value: Schema.Json) => void;
+}) => {
+  const editor = useEditor();
+
+  return (
+    <EventListenerPlugin
+      on={(event) => {
+        // Mutation batches lag typing; local operations expose the current normalized snapshot.
+        if (event.type === "operation" && event.origin === "local") {
+          const parsed = Schema.decodeUnknownOption(Schema.Json)(
+            editor.getSnapshot().context.value
+          );
+
+          if (Option.isSome(parsed)) {
+            onChange(parsed.value);
+          }
+        }
+      }}
+    />
+  );
+};
+
 export const ContentTextEditor = ({
   value,
   onChange,
@@ -164,19 +189,7 @@ export const ContentTextEditor = ({
       <EditorProvider
         initialConfig={{ initialValue: blocks, schemaDefinition: editorSchema }}
       >
-        <EventListenerPlugin
-          on={(event) => {
-            if (event.type === "mutation") {
-              const parsed = Schema.decodeUnknownOption(Schema.Json)(
-                event.value ?? []
-              );
-
-              if (Option.isSome(parsed)) {
-                onChange(parsed.value);
-              }
-            }
-          }}
-        />
+        <EditorChanges onChange={onChange} />
         <TextToolbar />
         <NodePlugin nodes={nodes} />
         <PortableTextEditable

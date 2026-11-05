@@ -43,7 +43,7 @@ import { AuditLog } from "../../src/features/audit/domain/auditLog";
 import type { AuditEntry } from "../../src/features/audit/domain/auditLog";
 /**
  * In-memory Layers for apps/web tests (Node, `vp test`). Real database
- * behaviour is `packages/db`'s job; these fakes implement the domain's
+ * behaviour belongs to the database adapter; these fakes implement the domain's
  * service contracts just far enough for the web runtime, routes and outbox
  * delivery to be exercised. Every value is a fake same-shape value.
  */
@@ -621,7 +621,7 @@ const repositories = Layer.effectContext(
         }),
     });
 
-    /** The applications' reads over the table. Their writes need the person aggregate, which PostgreSQL's tests cover (`packages/db/test/admission*.postgres.test.ts`). */
+    /** The applications' reads over the table. Their writes need the person aggregate, which the admission PostgreSQL tests cover. */
     const applications = ApplicationRepository.of({
       existsForAddress: (periodId, email) =>
         Effect.sync(() =>
@@ -727,7 +727,7 @@ const SITE_ORIGIN = "https://vektorprogrammet.test";
 
 /**
  * Every in-memory service over `tables` (fresh by default), acting as `principal` (anonymous by default). The teams
- * repositories are the domain's fakes (`@vektorprogrammet/domain/testing`), over their own tables.
+ * repositories are the domain's fakes, over their own tables.
  */
 export const memoryLayer = (
   tables: MemoryTables = makeTables(),

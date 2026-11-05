@@ -1,7 +1,7 @@
 import { assert } from "@effect/vitest";
 /**
  * Test-only in-memory implementations of the domain's service interfaces.
- * Not exported from the package; `packages/db` provides the real Layers.
+ * The database adapter provides the real Layers.
  */
 import {
   Array as Arr,
@@ -414,7 +414,7 @@ const AuditLogTest = Layer.effect(
   })
 );
 
-/** Stands in for `packages/db`'s transaction runner. */
+/** Stands in for the database transaction runner. */
 const InTransactionTest = Layer.succeed(InTransaction)({
   kind: "database-transaction",
 });

@@ -1,8 +1,7 @@
 /**
  * Spec 0006 at the server function: each test runs the program a server function runs (`saveTeamProgram`,
  * `addMemberProgram`, the views, ...) through the per-request runtime and the error table, over the domain's in-memory
- * teams repositories (`@vektorprogrammet/domain/testing`). The same commands run on real PostgreSQL in
- * `packages/db`, and the browser tests (`e2e/teams.spec.ts`) drive them over HTTP.
+ * teams repositories. The same commands run against real PostgreSQL, and the browser tests (`e2e/teams.spec.ts`) drive them over HTTP.
  *
  * The edge between page and command (ADR 0001, ADR 0007): a control is rendered exactly when the command behind it
  * would go through for the principal, for the membership's calculated state.

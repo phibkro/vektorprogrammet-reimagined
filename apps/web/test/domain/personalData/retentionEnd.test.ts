@@ -1,6 +1,6 @@
 /**
  * Spec 0021 falsifiers 2 and 4 (the domain half), and the worked cases of falsifier 1. The equality with PostgreSQL's arithmetic
- * is `packages/db/test/retentionOracle.postgres.test.ts`: the same functions, the same generators, the database as the
+ * is the retention oracle PostgreSQL test: the same functions, the same generators, the database as the
  * oracle. Here the domain is checked against itself: the ranges that an adapter filters by must say, of every start, what
  * the arithmetic says of its end, near the end of the period, which is where an off-by-one or a wrong zone changes the answer.
  */

@@ -56,8 +56,8 @@ CurrentCode == [
         \* of that person, the read through its token, on which the machine
         \* decides (teams/commands.ts:121-150).
         beginTransition |-> <<"find", "lockPersonOfRow", "read">>, \* 129, 130, 131, 135-147
-        find     |-> <<"find">>,                       \* teams.ts:481-491
-        read     |-> <<"read">>,                       \* teams.ts:493-501
+        find     |-> <<"find">>,                       \* teams.ts:477-487
+        read     |-> <<"read">>,                       \* teams.ts:489-497
         \* AggregateLocks.lock is lockAll of one id: one SELECT ... ORDER BY id
         \* FOR NO KEY UPDATE (db/aggregate/locks.ts:109-122, 146-152). A row
         \* that the transaction holds sends no statement (91-94).
@@ -65,9 +65,9 @@ CurrentCode == [
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
         \* (core/transactions/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
-        insert   |-> <<"insertRow">>,                  \* teams.ts:574-593, Aggregates.insert (aggregates.ts:308-347)
-        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:600-630, Aggregates.update (aggregates.ts:374-394, onHeld :148-165)
-        remove   |-> <<"deleteRow">>                   \* teams.ts:636-665, Aggregates.remove (aggregates.ts:364-368, onHeld :148-165)
+        insert   |-> <<"insertRow">>,                  \* teams.ts:570-589, Aggregates.insert (aggregates.ts:308-347)
+        setEnd   |-> <<"updateEnd">>,                   \* teams.ts:596-626, Aggregates.update (aggregates.ts:374-394, onHeld :148-165)
+        remove   |-> <<"deleteRow">>                   \* teams.ts:632-661, Aggregates.remove (aggregates.ts:364-368, onHeld :148-165)
     ],
     \* A lock that would come before one that the transaction holds is a defect
     \* before any statement is sent (db/aggregate/locks.ts:99-107,
@@ -75,9 +75,9 @@ CurrentCode == [
     \* (core/transactions/aggregate.ts:36-39).
     orderCheck |-> TRUE,
     \* The WHERE clauses of the conditional writes. A statement that matches no
-    \* row is `lostRace`, the typed Conflict (teams.ts:429-434, 627-629, 660-662).
-    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:614-619
-    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:648-656
+    \* row is `lostRace`, the typed Conflict (teams.ts:425-430, 623-625, 656-658).
+    setEndWhere |-> {"id", "end=observed", "start<=current", "end>=current"}, \* teams.ts:610-615
+    removeWhere |-> {"id", "start=observed", "end=observed", "start>current"}, \* teams.ts:644-652
     \* membership_no_overlap: EXCLUDE USING gist (person_id WITH =, team_id WITH =,
     \* int4range(start_ordinal, end_ordinal, '[]') WITH &&)
     exclusion |-> TRUE,                             \* apps/web/drizzle/20261026221817_membership_no_overlap/migration.sql:6-10

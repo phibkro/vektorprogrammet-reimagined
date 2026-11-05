@@ -1,7 +1,6 @@
 /**
  * The handlers of `TeamsRpc` (spec 0006) over the in-memory repositories: who may run each command, what it refuses
- * and what it leaves behind. The conditional updates and the constraints are `packages/db`'s tests
- * (`test/teams.postgres.test.ts`); here the repositories keep the same contracts as fakes.
+ * and what it leaves behind. The conditional updates and the constraints are covered by the teams PostgreSQL test; here the repositories keep the same contracts as fakes.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, DateTime, Effect, Option, Predicate } from "effect";

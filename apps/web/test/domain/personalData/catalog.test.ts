@@ -2,7 +2,7 @@
  * Spec 0007b falsifier 1, the declaration half: the catalog of stored tables and the forms that collect are consistent
  * with themselves (`catalogProblems`), and each way of being inconsistent is found. The real catalog has no problem; a
  * small valid catalog is changed in one way at a time, and each change names the problem that it makes (the negative
- * controls). The closure over the migrated schema is `packages/db/test/personalDataClosure.postgres.test.ts`.
+ * controls). The closure over the migrated schema is the personal-data closure test.
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Array as Arr, Record as Rec, Schema } from "effect";

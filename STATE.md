@@ -19,6 +19,7 @@
 - Server regrouping verification: 272 web tests and 91 quality tests passed; format, lint/type, exception, store-boundary, module-graph, generated-doc and Knip checks passed. The production Worker build passed. A native Supabase browser smoke signed in, read teams, created a synthetic team, reloaded its persisted row and refused anonymous panel access. This run did not repeat the full workspace or browser suites.
 - App-local consolidation at source checkpoint `c95ce8d0c95f535fb84b0f1afcc13a4ecd7cd245` was verified locally as described in [spec 0030](docs/specs/0030-app-local-feature-organisation.md). Approval was pending at that checkpoint. No PR, push, deployment or Terraform external operation was performed.
 - The operator’s proceed authorizes the subsequent core and native Vite+ workflow cutover. Its verification is separate from the historical checkpoint. See spec 0030 for the cutover and its limits.
+- At `2cd8996e4e0ef6a9676b1d10de02feb3be6c2d6b`, ready passed 18 tasks and 1,487 tests; formal passed 30 cases and 53 SQL probes. Later compiled smoke found an immediate-save CMS defect. The working-tree fix passed a compiled replay and in-flight edit check, with unknown fields preserved. Full ready and formal runs remain to be repeated after that fix and comment cleanup. The full browser suite and uncommitted IME input remain unverified. See spec 0030 for scope.
 
 ## Done
 

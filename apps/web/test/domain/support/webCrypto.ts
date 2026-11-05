@@ -1,6 +1,6 @@
 /**
  * Web Crypto from the test runtime (Workers provide the same API), for the commands that hash a code. The one
- * definition for this package's tests and for the database tests (`@vektorprogrammet/domain/testing/crypto`).
+ * definition for the domain and database tests.
  */
 import { Crypto, Effect, Layer } from "effect";
 

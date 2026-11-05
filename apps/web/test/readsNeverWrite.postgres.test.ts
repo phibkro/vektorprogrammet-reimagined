@@ -4,11 +4,11 @@
  *
  * Each read program a server function (or the Worker entry) runs through `runQuery` is run, once per principal
  * (anonymous, admin, team leader, team member, a person with no team), over `DatabaseLive` connected as the SELECT-only role of a migrated
- * disposable PostgreSQL database (`@vektorprogrammet/db/testing`). It runs twice: on empty tables (no
+ * disposable PostgreSQL database. It runs twice: on empty tables (no
  * semester row yet: the state in which the retired `ensureCurrentSemester` inserted from three loaders) and
  * on seeded tables. A write is refused with `permission denied`, which `DatabaseLive` turns into a defect, so
  * any defect fails the test. The role itself is proven to read and to refuse every kind of write in
- * `packages/db/test/readOnlyRole.postgres.test.ts`; the negative controls here run a write through the same
+ * the read-only role test; the negative controls here run a write through the same
  * harness.
  *
  * Every registered read is exercised against actual database privileges; no source-text assertions.

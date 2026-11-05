@@ -45,7 +45,7 @@ import { AuditAction } from "../../features/audit/domain/auditLog.ts";
  * `drizzle/` are generated from this file by `drizzle-kit generate`.
  *
  * Closed value sets (semester terms, content types, audit actions, entity
- * names, outbox kinds) are read from `@vektorprogrammet/domain`,
+ * names, outbox kinds) are read from their domain declarations,
  * so the database constraints and the domain schemas cannot disagree.
  *
  * Conventions:

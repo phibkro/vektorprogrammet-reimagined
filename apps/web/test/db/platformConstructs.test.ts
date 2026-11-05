@@ -8,7 +8,7 @@
  *   names is one that Hyperdrive leaves alone (`works` or `scoped`).
  * - `hyperdrive.allows` is a strict subset of `direct.allows`, and the difference is `directOnly`, each with an outcome on
  *   Hyperdrive that is not `works`.
- * - The real tree: the SQL in `packages/db/src`, `apps/web/src` and the migrations uses no direct-only construct.
+ * - The real tree: the SQL in the database adapter, app source and migrations uses no direct-only construct.
  */
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";

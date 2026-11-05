@@ -145,7 +145,14 @@ const Editor = ({
 }) => {
   const router = useRouter();
   const [draft, setDraft] = useState(initial);
-  const [dirty, setDirty] = useState(initial.isNew);
+  const [saved, setSaved] = useState(initial);
+
+  const dirty =
+    draft.isNew ||
+    draft.collection !== saved.collection ||
+    draft.slug !== saved.slug ||
+    draft.data !== saved.data;
+
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
@@ -154,7 +161,6 @@ const Editor = ({
       ...current,
       data: { ...current.data, [name]: value },
     }));
-    setDirty(true);
     setNotice("");
   };
 
@@ -190,7 +196,7 @@ const Editor = ({
       }
 
       setDraft((current) => ({ ...current, isNew: false }));
-      setDirty(false);
+      setSaved(draft);
       setNotice("Utkastet er lagret. Det er ikke publisert.");
       yield* Effect.tryPromise(() => router.invalidate());
     }).pipe(
@@ -255,7 +261,6 @@ const Editor = ({
           disabled={!draft.isNew}
           onChange={(event) => {
             setDraft({ ...draft, slug: event.target.value });
-            setDirty(true);
           }}
         />
       </label>

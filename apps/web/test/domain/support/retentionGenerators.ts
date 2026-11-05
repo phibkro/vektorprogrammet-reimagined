@@ -1,6 +1,5 @@
 /**
- * Generators and mistakes for the properties of spec 0021 (the domain's and the database's, which import them from
- * `@vektorprogrammet/domain/testing/retention`). Dates are not uniform: every year's two DST changes, the first and last
+ * Generators and mistakes for the properties of spec 0021 (the domain's and the database's). Dates are not uniform: every year's two DST changes, the first and last
  * days of every month, and 29 February are anchors, and a generated instant is an anchor moved by up to three and a half
  * days in minutes (or, one in four, a uniform instant of 2000 to 2100), because the arithmetic breaks at those places and
  * a uniform instant would seldom be there. The mistakes (`inUtc`, `inEffectsDefault`, `negated`) are what a negative
