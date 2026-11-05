@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: b6de534dc14daeb7b927071069bc5ebf7cd8fa85
-confirmed-at: 7e8dd1b1bdfb6bf7c69f4ea9a5b04ad7f7505ab1
+sync-digest: 1b3bf59208deba980f7b00fa2c50e002242b658d
+confirmed-at: 71a415414edb228a32cf552e4b8d243212559585
 apps/web/src/adapters/db/live.ts
 apps/web/src/adapters/db/repositories/teams.ts
 apps/web/src/adapters/db/repositories/accounts.ts
@@ -91,6 +91,10 @@ Spec 0009 (admission periods and applications, 2026-10-30) changed six covered p
 Spec 0009 review rounds 1 and 2 (2026-10-30) changed two covered paths again, `packages/db/src/schema.ts` and `packages/db/drizzle` (migration `person_tombstone_field_of_study`): `person.field_of_study_id` is nullable and a check, `person_field_of_study_or_tombstone`, says that a person with none has `merged_into` set (the merge clears the field on the tombstone). Only `person` changed; `membership`, `membership_no_overlap`, the lock order and every membership statement are as before, and the merge's new rule (`Earliest`, in `packages/db/src/personalData/merge.ts`, which is not a covered path) moves rows of `application` only. The first recorded digest of this spec (`539588e3…`) was taken before these changes, so the pull request's `membership-writes` job failed on drift; the model (`run.sh`, every run as expected) and its `--code` run (53 tests) were run again on `964e756`, and the digest and `confirmed-at` above are the new ones.
 
 The hybrid integration at `ca6785a` was reviewed against `964e756` across every covered path and migration SQL. The account handlers retain the modeled list-before-person order; activation and invitation changed, password reset handlers were removed, and provider identity reads now use `vektor_private.users`. These provider paths and the post-commit delete/relink lifecycle are not modeled. `live.ts` changes only a generic type signature. Ownership removes the deleted Better Auth table. Schema and migrations remove the old auth tables and outbox queue receipt, add CMS content, change code/outbox checks, and enable RLS, including on modeled tables; the seven generated snapshot diffs are schema metadata, not executable migrations. The membership exclusion constraint, modeled conditional writes and explicit READ COMMITTED transaction are unchanged. RLS makes the model conditional on the actual command role having access to its required rows and statements; this review does not establish grants, deployed role configuration, provider lifecycle or cross-system atomicity. Merge and retention remain outside the command model. No new model or PostgreSQL run is claimed by this review.
+
+At `71a415414edb228a32cf552e4b8d243212559585`, review of every covered path against the locally available `7e8dd1b1bdfb6bf7c69f4ea9a5b04ad7f7505ab1` found one changed file: `features/workspace/domain/commands.ts`. Only the report-request nonce changed from the removed Crypto service to native `SecureRandom.uuidV4`; that report handler is outside the modeled SQL projection. The assignment locks, command statements, membership predicates, constraint, transaction wrapper and SQLSTATE mapping are unchanged. An independent statement-by-statement review confirmed `Shapes.tla` and its citations still match, so no action or invariant is changed. CI run `42106517736` already matched all 30 model outcomes, including 1,712,396 current-code states, but exited 3 for the stale digest. This source confirmation does not assume dependency-runtime equivalence; the real PostgreSQL probes remain the evidence for those database facts.
+
+After that review, the full local `run.sh --code` confirmation passed with two TLC workers and a 2 GiB heap: all 30 maintained model cases matched their expected outcomes, current-code visited 1,712,396 states, and all 53 real PostgreSQL probes passed. The covered digest matched the record above.
 
 ## Writers outside the model (spec 0007b)
 

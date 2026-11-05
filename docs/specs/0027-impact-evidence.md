@@ -164,7 +164,7 @@ PR #68 round 1 (head `5d3df6a`) found one high defect and four medium ones; the 
 
 **Mutations run on `release.ts` (each fails the tests named; the file was restored after each).** M1: the prior of bound narrowing back to `0 … ∞` for every hidden cell: fails the oracle property and the two named lattices. M2: bound narrowing left out of `recoverable`: the same three. M3: exact elimination left out of `recoverable`: fails the overlapping-relations test only (the generated lattices are trees, where narrowing finds what elimination does, so no generated lattice needs elimination; it is kept because the relations of a later measure need not be a tree). M6 on `commands.ts`: closing a lattice that the source answers in part: fails the partial-lattice test. The primary-only release (the control) is falsified by the oracle on generated lattices.
 
-### R5 (2026-11-04): explicit privacy refusal, approved by the operator
+### R5 (2026-11-05): explicit privacy refusal, approved by the operator
 
 The normal pre-push property found four department counts of one and their additive total of four, all primary at minimum five. Under the stated external primary knowledge, the relation determines every value even when nothing is published. The independent oracle was correct; further suppression cannot repair this prior.
 
