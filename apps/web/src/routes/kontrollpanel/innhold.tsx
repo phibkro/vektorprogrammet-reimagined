@@ -195,8 +195,13 @@ const Editor = ({
         return;
       }
 
-      setDraft((current) => ({ ...current, isNew: false }));
-      setSaved(draft);
+      setDraft((current) => ({
+        ...current,
+        collection: draft.collection,
+        isNew: false,
+        slug: draft.slug,
+      }));
+      setSaved({ ...draft, isNew: false });
       setNotice("Utkastet er lagret. Det er ikke publisert.");
       yield* Effect.tryPromise(() => router.invalidate());
     }).pipe(
@@ -258,7 +263,7 @@ const Editor = ({
         Nøkkel{" "}
         <Input
           value={draft.slug}
-          disabled={!draft.isNew}
+          disabled={!draft.isNew || busy}
           onChange={(event) => {
             setDraft({ ...draft, slug: event.target.value });
           }}
@@ -361,6 +366,10 @@ const Editor = ({
                     key,
                     event.target.value
                       ? {
+                          ...Option.getOrElse(
+                            decodeRecord(previous),
+                            () => ({})
+                          ),
                           id: event.target.value,
                           src: event.target.value,
                         }
