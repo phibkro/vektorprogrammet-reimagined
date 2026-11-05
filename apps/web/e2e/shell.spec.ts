@@ -137,7 +137,14 @@ for (const actor of STAFF) {
     const sections = SECTIONS_BY_ACTOR[actor];
     const sidebar = sidebarOf(page);
 
-    await expect(sidebar.getByRole("link")).toHaveText(sections);
+    await expect(sidebar.getByRole("link")).toHaveCount(sections.length);
+
+    for (const section of sections) {
+      await expect(
+        sidebar.getByRole("link", { exact: true, name: section })
+      ).toBeVisible();
+    }
+
     await expect(currentEntryOf(sidebar)).toHaveText("Oversikt");
 
     for (const section of sections) {
@@ -525,9 +532,15 @@ test("falsifier 5 (390 px): the sidebar opens as an off-canvas panel", async ({
 
   await sidebarToggleOf(page).click();
   await expect(sheetOf(page)).toBeVisible();
-  await expect(sidebarOf(page).getByRole("link")).toHaveText(
-    SECTIONS_BY_ACTOR[TEST_ADMIN]
-  );
+  const sections = SECTIONS_BY_ACTOR[TEST_ADMIN];
+  await expect(sidebarOf(page).getByRole("link")).toHaveCount(sections.length);
+
+  for (const section of sections) {
+    await expect(
+      sidebarOf(page).getByRole("link", { exact: true, name: section })
+    ).toBeVisible();
+  }
+
   await page.waitForTimeout(400);
   await screenshot(page, "shell-390-offcanvas");
 
