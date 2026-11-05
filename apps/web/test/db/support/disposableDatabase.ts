@@ -80,6 +80,9 @@ export const disposableDatabase = Layer.effect(
           client.unsafe(`drop database if exists "${name}" with (force)`)
         ).pipe(Effect.orDie)
     );
+    yield* withClient(admin, (client) =>
+      client.unsafe(`revoke temporary on database "${name}" from public`)
+    );
     const url = new URL(Redacted.value(admin));
     url.pathname = `/${name}`;
 

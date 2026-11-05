@@ -1,16 +1,35 @@
 import { assert, it } from "@effect/vitest";
-import { Cause, Config, Effect, Exit, Option, Redacted, Schema } from "effect";
+import {
+  Cause,
+  Config,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Redacted,
+  Schema,
+} from "effect";
 
 import { provisionRuntimeAccess } from "../../src/adapters/db/runtimeAccess.ts";
 import {
+  disposableDatabase,
   migratedTestDatabase,
   TestDatabaseUrl,
   withClient,
 } from "./support/disposableDatabase.ts";
+import { restrictedRole } from "./support/restrictedRole.ts";
 import { runtimeRoleCredentials } from "./support/runtimeRole.ts";
 
 const hasCode = (code: string) =>
   Schema.is(Schema.Struct({ code: Schema.Literal(code) }));
+
+// Register before building the database so its grants disappear before the role.
+const ownRuntimeRole = (clusterAdmin: Redacted.Redacted, role: string) =>
+  Effect.acquireRelease(Effect.void, () =>
+    withClient(clusterAdmin, (sql) =>
+      sql.unsafe(`drop role if exists "${role}"`)
+    ).pipe(Effect.orDie)
+  );
 
 it.live(
   "runtime role can transact but cannot administer schema, roles or Auth",
@@ -31,11 +50,7 @@ it.live(
             sql.unsafe(`drop role if exists "${browserRole}"`)
           ).pipe(Effect.orDie)
       );
-      yield* Effect.acquireRelease(Effect.void, () =>
-        withClient(clusterAdmin, (sql) =>
-          sql.unsafe(`drop role if exists "${role}"`)
-        ).pipe(Effect.orDie)
-      );
+      yield* ownRuntimeRole(clusterAdmin, role);
       yield* Effect.gen(function* testDatabase() {
         const admin = yield* TestDatabaseUrl;
         yield* withClient(
@@ -236,4 +251,78 @@ it.live(
         assert.isTrue(Exit.isFailure(rejectedDatabase));
       }).pipe(Effect.provide(migratedTestDatabase), Effect.scoped);
     }).pipe(Effect.orDie)
+);
+
+it.live(
+  "disposable databases isolate foreign fixture TEMP while preserving explicit service TEMP",
+  () =>
+    Effect.gen(function* foreignFixture() {
+      const foreignUrl = yield* restrictedRole("vektor_foreign_", () => []);
+      const serviceUrl = yield* restrictedRole("vektor_service_", () => []);
+      const foreign = new URL(Redacted.value(foreignUrl)).username;
+      const service = new URL(Redacted.value(serviceUrl)).username;
+      const clusterAdmin = yield* Config.Redacted("TEST_DATABASE_ADMIN_URL");
+      const { role, password } = yield* runtimeRoleCredentials;
+      yield* ownRuntimeRole(clusterAdmin, role);
+
+      yield* Effect.gen(function* targetDatabase() {
+        const admin = yield* TestDatabaseUrl;
+        const databaseName = new URL(Redacted.value(admin)).pathname.slice(1);
+        assert.notStrictEqual(
+          databaseName,
+          new URL(Redacted.value(foreignUrl)).pathname.slice(1)
+        );
+        yield* withClient(admin, (sql) =>
+          sql.unsafe(
+            `grant temporary on database "${databaseName}" to "${service}"`
+          )
+        );
+
+        for (const provision of [false, true]) {
+          if (provision) {
+            yield* provisionRuntimeAccess(admin, password, role);
+          }
+
+          const privileges = yield* withClient(
+            admin,
+            (sql) =>
+              sql`select
+              has_database_privilege(current_user, current_database(), 'TEMPORARY') as owner_temp,
+              has_database_privilege(${foreign}::text, current_database(), 'TEMPORARY') as foreign_temp,
+              exists (select 1 from pg_database d, lateral aclexplode(d.datacl) a
+                join pg_roles r on r.oid = a.grantee
+                where d.datname = current_database() and r.rolname = ${foreign}) as foreign_acl,
+              has_database_privilege(${service}::text, current_database(), 'TEMPORARY') as service_temp,
+              exists (select 1 from pg_database d, lateral aclexplode(d.datacl) a
+                join pg_roles r on r.oid = a.grantee
+                where d.datname = current_database() and r.rolname = ${service}
+                  and a.privilege_type = 'TEMPORARY') as service_acl
+            `
+          );
+
+          assert.isTrue(
+            Schema.is(
+              Schema.Array(
+                Schema.Struct({
+                  foreign_acl: Schema.Boolean,
+                  foreign_temp: Schema.Boolean,
+                  owner_temp: Schema.Boolean,
+                  service_acl: Schema.Boolean,
+                  service_temp: Schema.Boolean,
+                })
+              )
+            )(privileges)
+          );
+          assert.deepStrictEqual(privileges, [
+            {
+              foreign_acl: false,
+              foreign_temp: false,
+              owner_temp: true,
+              service_acl: true,
+              service_temp: true,
+            },
+          ]);
+        }
+      }).pipe(Effect.provide(Layer.fresh(migratedTestDatabase)), Effect.scoped);
+    }).pipe(Effect.scoped, Effect.provide(disposableDatabase), Effect.orDie)
 );
