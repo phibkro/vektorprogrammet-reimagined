@@ -35,7 +35,7 @@ Each semester, each department looks for new assistants. The department opens an
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 A, §11.3, §11.7, §11.9. Generated later. Do not add facts that are not in those sources.
+> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 A, §11.3, §11.7, §11.9; changes proposed in [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entities
 
@@ -67,11 +67,9 @@ stateDiagram-v2
   Submitted --> NotAccepted : recordOutcome(notAccepted)
   Submitted --> Withdrawn : withdraw
   Accepted --> Withdrawn : withdraw
-  Accepted --> Placed : Placement.place
-  Placed --> Accepted : Placement.unplace
 ```
 
-The status that the applicant sees is the state itself (replaces RULE-216 ✗, 256).
+The planned states above extend the live Submitted and Withdrawn machine. Under proposed ADR 0016, placement is a query: a Placed Placement exists for the application. Applicant-visible status can use that query with the Application state (replaces RULE-216 ✗, 256).
 
 ### Commands and grants
 
@@ -92,7 +90,7 @@ The status that the applicant sees is the state itself (replaces RULE-216 ✗, 2
 
 | Event | Effect | Replaces |
 | --- | --- | --- |
-| AdmissionPeriod becomes Open | Admission alert to each subscription of the department | 254 |
+| AdmissionPeriod becomes Open | Admission alert to each subscription of the department; scheduled detection and claim as in ADR 0016 and spec 0009b | 254 |
 | Application Submitted | Confirmation e-mail; a subscription only if the consent box is ticked | 240, 271, 272 |
 | Application Submitted with a known e-mail | Link to the existing Person only after the e-mail is verified | 306 ✗ |
 

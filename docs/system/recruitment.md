@@ -42,41 +42,35 @@ Interviewers write knowing that the applicant can ask to read the answers. The f
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §10.4, §11.9–§11.11 and `MODERNIZATION_BRIEF.md` §7 (2026-10-26). Generated later. Do not add facts that are not in those sources.
+> **Hand-written** from `INFORMATION_MODEL.md` §10.4, §11.9–§11.11 and `MODERNIZATION_BRIEF.md` §7 (2026-10-26); changes proposed in [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entities
 
 | Entity | Key fields | Notes |
 | --- | --- | --- |
-| Form | `owner` (national board or a department), `copiedFrom?`, `currentVersion?` |  |
+| Form | `owner` (national board or a department), `copiedFrom?`, `currentVersion?`, `draft?`, `retired` | Published version and draft can exist together |
 | FormVersion | `form`, `number`, `questions: Array<Question>`, `publishedAt` | Immutable after publication |
 | Question | tagged union: `ShortText`, `LongText`, `SingleChoice{options}`, `MultipleChoice{options}`, `Score{min: 1, max: 6}`, `YesNo`, `Section{heading, help}` | A new variant needs code (renderer, answer schema, scoring) |
 | Interview | `application`, `formVersion`, `interviewers: Array<Person>` |  |
 | Response | `interview`, `answers` (decoded with `answersSchema(formVersion)`) |  |
 
-### State machine: Form
+### Form: versioned document
 
-```mermaid
-stateDiagram-v2
-  [*] --> Draft : create / copyForm
-  Draft --> Draft : edit
-  Draft --> Published : publish (new version)
-  Published --> Draft : edit (a new draft next to the published version)
-  Published --> Retired : retire
-```
-
-A published version is never changed. It cannot be deleted while a response refers to it.
+Under proposed ADR 0016, a Form has immutable published versions, an optional draft slot and a retired flag. Create or copy starts a draft. Edit changes the draft without unpublishing the current version. Publish makes a new immutable version and sets it current. Retire sets the flag, distinct from editing. A published version cannot be deleted while a response refers to it.
 
 ### State machine: Interview
 
 ```mermaid
 stateDiagram-v2
   [*] --> Planned : assignInterviewers
+  Planned --> Planned : reassignInterviewers
   Planned --> Completed : submitResponse
   Completed --> Completed : correctResponse
 ```
 
-The outcome is a transition of the Application (`admission.md`), not of the Interview.
+The outcome is a transition of the Application (`admission.md`), not of the Interview. Under proposed ADR 0016, a Planned interview ends as cancelled when its Application is Withdrawn or NotAccepted. Cancellation is derived from the Application, not a second stored state: the Application owns the decision. A derived-cancelled interview cannot be reassigned or completed. Completed interviews remain completed.
+
+**Open questions:** Must `recordOutcome` require a Completed interview? May `correctResponse` run after an outcome? Neither policy is decided here.
 
 ### Commands and grants
 
@@ -85,7 +79,8 @@ The outcome is a transition of the Application (`admission.md`), not of the Inte
 | `Form.create`, `edit`, `publish`, `retire` (standard form) | `Board` (national) | national | — |
 | `Form.copyForm`, `edit`, `publish`, `retire` | `Fn(recruitment, d)` | department | — |
 | `Interview.assignInterviewers` | `Fn(recruitment, d) ∪ Leader(d)` | department | An interviewer is not the applicant (RULE-313) |
-| `Interview.submitResponse`, `correctResponse` | an interviewer of that interview | own | The answers decode with `answersSchema(version)` |
+| `Interview.reassignInterviewers` | `Fn(recruitment, d) ∪ Leader(d)` | department | Planned and not derived-cancelled; an interviewer is not the applicant |
+| `Interview.submitResponse`, `correctResponse` | an interviewer of that interview | own | The answers decode with `answersSchema(version)`; submit requires Planned and not derived-cancelled |
 | `Application.recordOutcome` | `Fn(recruitment, d) ∪ Leader(d)` | department | Application is Submitted |
 | read responses | `Fn(recruitment, d) ∪ Leader(d)` | department | — |
 | read score and outcome | `+ Fn(placement, d)` | department | — |

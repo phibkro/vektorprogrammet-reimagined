@@ -36,7 +36,7 @@ The board decides if assistants must show a police certificate (politiattest). T
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 C, §11.5, §11.9. Generated later. Do not add facts that are not in those sources.
+> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 C, §11.5, §11.9; changes proposed in [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entities
 
@@ -57,14 +57,16 @@ stateDiagram-v2
 
 "Is an assistant" is a query: the person has a Placement in the current semester (RULE-025, 047, 082).
 
+Under proposed ADR 0016, an application is placed when a Placement in state Placed exists for it. The Application stays Accepted when placement changes.
+
 ### Commands and grants
 
 | Command | From → to | Granted to | Scope | Replaces |
 | --- | --- | --- | --- | --- |
 | `setCapacity(school, semester, …)` | — | `Fn(placement, d) ∪ Leader(d)` | department | 186 |
 | `proposePlacements(semester)` | — (pure draft, never written) | `Fn(placement, d)` | department | 001, 003, 006–010, 014 ✗, 036, 037, 079 |
-| `place(application, school, weekday, block)` | — → Placed; Application Accepted → Placed | `Fn(placement, d)` | department | 205 |
-| `unplace` | Placed → Removed; Application Placed → Accepted | `Fn(placement, d)` | department | 288 ✗, 289 ✗, 310, 318 |
+| `place(application, school, weekday, block)` | — → Placed; Application must be Accepted | `Fn(placement, d)` | department | 205 |
+| `unplace` | Placed → Removed | `Fn(placement, d)` | department | 288 ✗, 289 ✗, 310, 318 |
 | `recordPoliceCertificate(date)` | — | `Fn(placement, d) ∪ Leader(d)` | department | new |
 | read placements | — | `Member(d)`; `Self` | department / own | 316, 317 |
 

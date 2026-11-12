@@ -38,7 +38,7 @@ Volunteers sometimes pay for things that Vektorprogrammet needs, for example foo
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 E, §11.3, §11.7–§11.9. When `packages/domain` exports the declarations, this section is generated. Do not add facts that are not in those sources.
+> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 E, §11.3, §11.7–§11.9; recovery proposed in [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entity: ExpenseClaim
 
@@ -72,6 +72,8 @@ stateDiagram-v2
 ```
 
 There is no other transition. The legacy free change between statuses (RULE-203 ✗) is gone.
+
+**Proposed recovery (ADR 0016):** a mistaken Rejected or Refunded claim stays terminal. A new claim references the old claim and records the correction, so the original decision and any payment remain visible. The economy team must check the earlier payment before approving a replacement; the proposal does not reverse a bank payment.
 
 ### Commands and grants
 
