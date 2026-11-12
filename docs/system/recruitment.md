@@ -14,7 +14,7 @@ The recruitment team meets each applicant for an interview. The interviewers ans
 | The department's recruitment team | Copy the standard form and change the copy. Publish it. Plan interviews and write the answers. Record the outcome. Read the interviews of the department. |
 | A team leader in the department | Read the interviews and record outcomes. |
 | The placement team | See the score and the outcome only, not the answers. |
-| An applicant | Not see interviews in the system. An applicant can ask for a copy of everything written about them (a right under the GDPR). |
+| An applicant | See their own application status, including the derived Invited and Scheduled steps. Not see interview answers in the system. An applicant can ask for a copy of everything written about them (a right under the GDPR). |
 | Anyone | **Not** interview themselves. |
 
 Interviewers write knowing that the applicant can ask to read the answers. The form editor shows this reminder.
@@ -28,7 +28,7 @@ Interviewers write knowing that the applicant can ask to read the answers. The f
 ## Over a semester
 
 1. Before the admission period, the recruitment team makes sure that a published form is ready.
-2. After applications arrive, the team plans the interviews in its calendar. The system does not schedule interviews.
+2. After applications arrive, the team plans interviews in its calendar. The system does not schedule interviews. Recruitment records invitation and scheduling facts on the linked Interview for the applicant's status; Calendar does not write them back.
 3. After each interview, an interviewer writes the answers in the system.
 4. The system calculates the score from the score questions.
 5. The team records the outcome: accepted or not accepted. Accepted applicants go to placement (`placement.md`).
@@ -42,41 +42,37 @@ Interviewers write knowing that the applicant can ask to read the answers. The f
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §10.4, §11.9–§11.11 and `MODERNIZATION_BRIEF.md` §7 (2026-10-26). Generated later. Do not add facts that are not in those sources.
+> **Hand-written** from `INFORMATION_MODEL.md` §10.4, §11.9–§11.11 and `MODERNIZATION_BRIEF.md` §7 (2026-10-26); updated by [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entities
 
 | Entity | Key fields | Notes |
 | --- | --- | --- |
-| Form | `owner` (national board or a department), `copiedFrom?`, `currentVersion?` |  |
+| Form | `owner` (national board or a department), `copiedFrom?`, `currentVersion?`, `draft?`, `retired` | Published version and draft can exist together |
 | FormVersion | `form`, `number`, `questions: Array<Question>`, `publishedAt` | Immutable after publication |
 | Question | tagged union: `ShortText`, `LongText`, `SingleChoice{options}`, `MultipleChoice{options}`, `Score{min: 1, max: 6}`, `YesNo`, `Section{heading, help}` | A new variant needs code (renderer, answer schema, scoring) |
-| Interview | `application`, `formVersion`, `interviewers: Array<Person>` |  |
+| Interview | `application`, `formVersion`, `interviewers: Array<Person>`, invitation and scheduling facts | Recruitment owns these facts; application status derives Invited and Scheduled from them. |
 | Response | `interview`, `answers` (decoded with `answersSchema(formVersion)`) |  |
 
-### State machine: Form
+Invited means that recruitment recorded an invitation on the Interview. Scheduled means that recruitment recorded an agreed interview time on it. Neither follows merely from assigning interviewers. The application status reads these facts; it stores neither step.
 
-```mermaid
-stateDiagram-v2
-  [*] --> Draft : create / copyForm
-  Draft --> Draft : edit
-  Draft --> Published : publish (new version)
-  Published --> Draft : edit (a new draft next to the published version)
-  Published --> Retired : retire
-```
+### Form: versioned document
 
-A published version is never changed. It cannot be deleted while a response refers to it.
+Under ADR 0016, a Form has immutable published versions, an optional draft slot and a retired flag. Create or copy starts a draft. Edit changes the draft without unpublishing the current version. Publish makes a new immutable version and sets it current. Retire sets the flag, distinct from editing. A published version cannot be deleted while a response refers to it.
 
 ### State machine: Interview
 
 ```mermaid
 stateDiagram-v2
   [*] --> Planned : assignInterviewers
+  Planned --> Planned : reassignInterviewers
   Planned --> Completed : submitResponse
   Completed --> Completed : correctResponse
 ```
 
-The outcome is a transition of the Application (`admission.md`), not of the Interview.
+The outcome is a transition of the Application (`admission.md`), not of the Interview. Under ADR 0016, a Planned interview ends as cancelled when its Application is Withdrawn or NotAccepted. Cancellation is derived from the Application, not a second stored state: the Application owns the decision. A derived-cancelled interview cannot be reassigned or completed. Completed interviews remain completed.
+
+**Open questions:** ADR 0016 proposes guards for `recordOutcome` and `correctResponse`. They remain pending operator review.
 
 ### Commands and grants
 
@@ -85,7 +81,8 @@ The outcome is a transition of the Application (`admission.md`), not of the Inte
 | `Form.create`, `edit`, `publish`, `retire` (standard form) | `Board` (national) | national | — |
 | `Form.copyForm`, `edit`, `publish`, `retire` | `Fn(recruitment, d)` | department | — |
 | `Interview.assignInterviewers` | `Fn(recruitment, d) ∪ Leader(d)` | department | An interviewer is not the applicant (RULE-313) |
-| `Interview.submitResponse`, `correctResponse` | an interviewer of that interview | own | The answers decode with `answersSchema(version)` |
+| `Interview.reassignInterviewers` | `Fn(recruitment, d) ∪ Leader(d)` | department | Planned and not derived-cancelled; an interviewer is not the applicant |
+| `Interview.submitResponse`, `correctResponse` | an interviewer of that interview | own | The answers decode with `answersSchema(version)`; submit requires Planned and not derived-cancelled |
 | `Application.recordOutcome` | `Fn(recruitment, d) ∪ Leader(d)` | department | Application is Submitted |
 | read responses | `Fn(recruitment, d) ∪ Leader(d)` | department | — |
 | read score and outcome | `+ Fn(placement, d)` | department | — |
