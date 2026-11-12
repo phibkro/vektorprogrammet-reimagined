@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: 5d6ac3ed1bbf1d5f18bb86abffdb3bd930d808c1
-confirmed-at: 7d68cb1a43370a622bce6cf8f808e4a3717447d1
+sync-digest: d196b96e9da775e21d4086a41c194a83be4f6567
+confirmed-at: 02aa5a0017debe254e36e9d12163f4289f9580c1
 apps/web/src/adapters/db/live.ts
 apps/web/src/adapters/db/repositories/teams.ts
 apps/web/src/adapters/db/repositories/accounts.ts
@@ -99,6 +99,10 @@ Spec 0032 adds `TeamRepository.holdPresence` after the Person lock in create, ex
 Spec 0032 confirmation (2026-11-12): the full formal-profile `run.sh --code` on committed product `7d68cb1a43370a622bce6cf8f808e4a3717447d1` found all 37 cases as expected (2,468,125 states for current-code; 272,464 for team-presence-order), and all 62 PostgreSQL probes passed. The initial exit 3 was solely the deliberately stale coverage digest; it was refreshed only after those results. The inspected missing-share counterexample commits deactivate then create; the team-first variant acquires shared before Person; the blocked-exit variant refuses an early end after deactivation. Source coverage now includes the derived Team state and generic machine helper that the prerequisite uses. SQL witnesses check create, extend and move-to waiting behind Team deactivation before any membership write; the create/move-to witnesses also observe the Person RowShareLock at that Team wait. The existing five Person-lock witnesses independently pin Person-first acquisition, including extend. Compatible shared admissions coexist. The three formal variants and three new reachability goals are retained, not skipped or weakened.
 
 After the digest refresh, the full four-worker/two-GiB-heap formal confirmation exited 0: every one of the 37 maintained cases matched its expected result in 209.15 seconds, including 2,468,125 current-code states and 272,464 TeamPresence states. Its retained configs and outputs are in `/tmp/verify-membership-writes.MghP0X`; the preceding `--code` run with all 62 SQL probes is in `/tmp/verify-membership-writes.zO43nj`. The later test-only removed-edge controls do not change the covered product source or its digest.
+
+PR 80 copy-paste correction (2026-11-12): `02aa5a0017debe254e36e9d12163f4289f9580c1` extracts the unchanged local/contributed transition compilation into one private pure helper. No transition, guard, label, statement or lock order changes; claim carriers and the membership fixture are shared without changing their values. The full four-worker/two-GiB formal `--code` run found all 37 cases as expected with the same 2,468,125/272,464 states and all 62 SQL probes passed. Its initial exit 3 was solely the old source digest; only then was the digest refreshed. Outputs/configs: `/tmp/verify-membership-writes.MZfeh1`.
+
+The refreshed-digest PR 80 confirmation used two workers and a one-GiB heap after the three-GiB reservation was refused by live headroom. All 37 cases (unchanged bounds and state counts) and all 62 PostgreSQL probes passed, exit 0, in 430.59 seconds. Outputs/configs: `/tmp/verify-membership-writes.OFxAHY`. Only the runtime resource envelope changed; no model, case, invariant, reachability goal or SQL test was reduced.
 
 ## Writers outside the model (spec 0007b)
 
