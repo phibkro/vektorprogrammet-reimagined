@@ -53,10 +53,10 @@ import { Drizzle, postgresDatabase } from "./support/database.ts";
 import { meetsHeldLock, race, raceReport } from "./support/race.ts";
 import {
   asPerson,
+  freshMembership,
   grantPlace,
   insertMembership,
   lockPerson,
-  placeMembership,
   revokePlace,
   semester,
   world,
@@ -187,27 +187,12 @@ const conflictOrSuccess = (
   (Exit.isFailure(exit) &&
     Option.exists(Exit.findErrorOption(exit), Predicate.isTagged("Conflict")));
 
-/** One membership of Ola from Høst 2026 to Vår 2027 in a world of its own. */
-const freshMembership = Effect.fnUntraced(function* freshMembership(
-  tag: string
-) {
-  const found = yield* world(tag);
-
-  const membership = yield* placeMembership(
-    {
-      personId: found.person.id,
-      positionId: found.memberPosition,
-      teamId: found.team.id,
-    },
-    { end: VAR_2027, start: HOST_2026 }
-  );
-
-  return { ...found, membership };
-});
-
 /** One round of the race: the membership, twenty callers, and what the row and the audit trail say after. */
 const round = Effect.fnUntraced(function* round(tag: string) {
-  const { membership } = yield* freshMembership(tag);
+  const { membership } = yield* freshMembership(tag, {
+    end: VAR_2027,
+    start: HOST_2026,
+  });
 
   const exits = yield* race(
     Arr.makeBy(CALLERS, (index) => callFor(membership.id, index))

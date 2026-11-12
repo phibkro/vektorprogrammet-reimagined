@@ -17,6 +17,7 @@ import { adminPrincipal, runAs } from "./support/personalDataActors.ts";
 import { meetsHeldLock, race, raceReport, raceTwo } from "./support/race.ts";
 import {
   asPerson,
+  freshMembership,
   placeMembership,
   semester,
   twoPeople,
@@ -33,25 +34,12 @@ const START = semester("HOST", 2026);
 const END = semester("VAR", 2027);
 const LATER = semester("HOST", 2027);
 
+const MEMBERSHIP_TERM = { end: END, start: START };
+
 const database = Layer.merge(
   postgresDatabase(),
   Layer.succeed(SiteOrigin)("https://vektorprogrammet.test")
 );
-
-const fixture = Effect.fnUntraced(function* fixture(tag: string) {
-  const found = yield* world(tag);
-
-  const membership = yield* placeMembership(
-    {
-      personId: found.person.id,
-      positionId: found.memberPosition,
-      teamId: found.team.id,
-    },
-    { end: END, start: START }
-  );
-
-  return { ...found, membership };
-});
 
 /** Raw writers deliberately bypass the port; the index must protect them too. */
 const point = Effect.fnUntraced(function* point(from: number, into: number) {
@@ -231,7 +219,7 @@ layer(database, { excludeTestServices: true })(
       "F6: inactive teams refuse extension but allow early end, planned cancellation and a move away",
       () =>
         Effect.gen(function* inactiveExits() {
-          const found = yield* fixture("lc-inactive");
+          const found = yield* freshMembership("lc-inactive", MEMBERSHIP_TERM);
           const actor = adminPrincipal(found.person.id);
           const teams = yield* TeamRepository;
           const memberships = yield* MembershipRepository;
@@ -283,7 +271,7 @@ layer(database, { excludeTestServices: true })(
             Exit.isFailure(yield* Effect.exit(memberships.findById(planned.id)))
           );
 
-          const moving = yield* fixture("lc-away");
+          const moving = yield* freshMembership("lc-away", MEMBERSHIP_TERM);
 
           const target = yield* runAs(
             adminPrincipal(moving.person.id),
@@ -355,7 +343,10 @@ layer(database, { excludeTestServices: true })(
           const memberships = yield* MembershipRepository;
 
           for (const kind of ["create", "move"] as const) {
-            const found = yield* fixture(`lc-presence-${kind}`);
+            const found = yield* freshMembership(
+              `lc-presence-${kind}`,
+              MEMBERSHIP_TERM
+            );
 
             const command =
               kind === "create"
@@ -401,7 +392,7 @@ layer(database, { excludeTestServices: true })(
       () =>
         Effect.gen(function* extendWaits() {
           const sql = yield* SqlClient;
-          const found = yield* fixture("lc-wait");
+          const found = yield* freshMembership("lc-wait", MEMBERSHIP_TERM);
 
           const result = yield* meetsHeldLock(
             sql`update team set active = false where id = ${found.team.id}`,
@@ -433,7 +424,11 @@ layer(database, { excludeTestServices: true })(
           const sql = yield* SqlClient;
 
           for (const round of Arr.range(1, 300)) {
-            const found = yield* fixture(`lc-extend-${round}`);
+            const found = yield* freshMembership(
+              `lc-extend-${round}`,
+              MEMBERSHIP_TERM
+            );
+
             const actor = adminPrincipal(found.person.id);
 
             const exits = yield* raceTwo(

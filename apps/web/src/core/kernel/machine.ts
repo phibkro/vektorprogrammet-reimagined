@@ -150,6 +150,25 @@ const compiled = <Context>(
   };
 };
 
+/** Compile command guards once, with the same representation and label for local and contributed edges. */
+const compileTransitions = <
+  State extends string,
+  Command extends string,
+  Context,
+>(
+  context: Schema.Schema<Context>,
+  transitions: readonly Transition<State, Command, Context>[]
+): readonly Transition<State, Command, Context>[] =>
+  Arr.map(transitions, (transition) =>
+    transition.guard === undefined
+      ? transition
+      : {
+          ...transition,
+          ...compiled(context, transition.guard),
+          when: transition.when ?? Guard.describe(transition.guard),
+        }
+  );
+
 /**
  * Declares a machine. `commands` is the domain's `RpcGroup`: the only source of command names a transition
  * may use.
@@ -187,15 +206,7 @@ export const make = <
     isTagOf(definition.states)
   ),
   terminal: definition.terminal,
-  transitions: Arr.map(definition.transitions, (transition) =>
-    transition.guard === undefined
-      ? transition
-      : {
-          ...transition,
-          ...compiled(definition.context, transition.guard),
-          when: transition.when ?? Guard.describe(transition.guard),
-        }
-  ),
+  transitions: compileTransitions(definition.context, definition.transitions),
 });
 
 /** A foreign command's contribution to a machine. Pure data; it grants no authority and runs no effects. */
@@ -252,15 +263,7 @@ export const contribute = <
   states: definition.target.states,
   target: definition.target,
   terminal: definition.target.terminal,
-  transitions: Arr.map(definition.transitions, (transition) =>
-    transition.guard === undefined
-      ? transition
-      : {
-          ...transition,
-          ...compiled(definition.context, transition.guard),
-          when: transition.when ?? Guard.describe(transition.guard),
-        }
-  ),
+  transitions: compileTransitions(definition.context, definition.transitions),
 });
 
 /**

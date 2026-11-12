@@ -161,6 +161,14 @@ const validityDependsOnTime: Exception = {
     "the Emergency principal of ADR 0011 (Emergency access) restores admin access out of band",
 };
 
+/** Claims whose callers distinguish a new claim from one that was already taken. */
+const claimDecisionCarriers = [
+  carrier(WelcomeLedger, "claim"),
+  carrier(DigestLedger, "claim"),
+  carrier(AlumniRequests, "claim"),
+  carrier(JobRuns, "claim"),
+];
+
 export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "Transactions",
@@ -489,10 +497,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
   {
     capability: "Claims",
     carriers: [
-      carrier(WelcomeLedger, "claim"),
-      carrier(DigestLedger, "claim"),
-      carrier(AlumniRequests, "claim"),
-      carrier(JobRuns, "claim"),
+      ...claimDecisionCarriers,
       carrier(WorkspaceAssignments, "assign"),
       carrier(CapturedMessageStore, "record"),
       carrier(ImpactSnapshots, "close"),
@@ -506,12 +511,7 @@ export const StoreGuarantees: readonly Guarantee[] = [
   },
   {
     capability: "Claims",
-    carriers: [
-      carrier(WelcomeLedger, "claim"),
-      carrier(DigestLedger, "claim"),
-      carrier(AlumniRequests, "claim"),
-      carrier(JobRuns, "claim"),
-    ],
+    carriers: claimDecisionCarriers,
     id: "CL2",
     invariant: false,
     property:
