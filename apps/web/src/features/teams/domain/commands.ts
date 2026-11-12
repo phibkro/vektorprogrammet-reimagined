@@ -30,6 +30,7 @@ import {
   MembershipMachine,
   TeamsDomain,
   TeamsRpc,
+  acceptsPresence,
   changeMembership,
   createAdminGrant,
   createMembership,
@@ -185,11 +186,14 @@ const TeamsHandlers = TeamsRpc.toLayer({
         const { current, locked, membership, memberships } =
           yield* beginTransition(input.id, "changeMembership", input.from);
 
-        const target = yield* teamOf(input.teamId ?? membership.teamId);
+        const target = yield* (yield* TeamRepository).holdPresence(
+          input.teamId ?? membership.teamId
+        );
+
         const positionId = input.positionId ?? membership.positionId;
         yield* positions.findById(positionId);
 
-        if (!target.active) {
+        if (!acceptsPresence(target, "changeMembership")) {
           return yield* validationFailed(["teamId"], TEAM_INACTIVE);
         }
 
@@ -271,12 +275,12 @@ const TeamsHandlers = TeamsRpc.toLayer({
         const persons = yield* PersonRepository;
         const positions = yield* PositionRepository;
         const current = yield* currentSemester;
-        const team = yield* teamOf(input.teamId);
         const locked = yield* locks.lock("Person", input.personId);
         const person = yield* persons.findLocked(locked);
+        const team = yield* (yield* TeamRepository).holdPresence(input.teamId);
         const position = yield* positions.findById(input.positionId);
 
-        if (!team.active) {
+        if (!acceptsPresence(team, "createMembership")) {
           return yield* validationFailed(["teamId"], TEAM_INACTIVE);
         }
 
@@ -473,6 +477,14 @@ const TeamsHandlers = TeamsRpc.toLayer({
       Effect.gen(function* run() {
         const { current, locked, membership, memberships } =
           yield* beginTransition(id, "extendMembership", end);
+
+        const team = yield* (yield* TeamRepository).holdPresence(
+          membership.teamId
+        );
+
+        if (!acceptsPresence(team, "extendMembership")) {
+          return yield* validationFailed(["teamId"], TEAM_INACTIVE);
+        }
 
         const extended = yield* memberships.setEnd(locked, {
           activeIn: current,

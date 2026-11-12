@@ -27,6 +27,7 @@ import * as Machine from "../../../core/kernel/machine.ts";
 import { fn } from "../../../core/kernel/subject.ts";
 import { StoredAdmissionPeriod } from "../../organisation/domain/admission.ts";
 import { Semester } from "../../organisation/domain/semester.ts";
+import { PersonMachine } from "../../teams/domain/declaration.ts";
 import {
   ApplicationState,
   RegisterApplicationInput,
@@ -162,7 +163,7 @@ export const AdmissionRpc = RpcGroup.make(
 
 /**
  * The stored machine of an application: created Submitted by a public submit or a registration, and Withdrawn from
- * there. Spec 0010 adds Accepted and NotAccepted, and spec 0011 Placed.
+ * there.
  */
 export const ApplicationMachine = Machine.make({
   commands: AdmissionRpc,
@@ -185,8 +186,27 @@ export const ApplicationMachine = Machine.make({
 export type ApplicationMachineTransition =
   (typeof ApplicationMachine)["transitions"][number];
 
+export const ApplicantPerson = Machine.contribute({
+  commands: AdmissionRpc,
+  context: Schema.Struct({}),
+  target: PersonMachine,
+  transitions: [
+    {
+      command: "submitApplication",
+      from: [Machine.Boundary],
+      to: "Identifiable",
+    },
+    {
+      command: "registerApplication",
+      from: [Machine.Boundary],
+      to: "Identifiable",
+    },
+  ],
+});
+
 export const AdmissionDomain = declareDomain({
   commands: AdmissionRpc,
+  contributions: [ApplicantPerson],
   grants: [
     grant(
       [leader, fn("recruitment")],

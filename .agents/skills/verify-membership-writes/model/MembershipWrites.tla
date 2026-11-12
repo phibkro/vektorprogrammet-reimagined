@@ -313,6 +313,15 @@ AcquireLock(t) ==
                   /\ UNCHANGED << plan, pc, status, outcome, err, holder, versions,
                                   seen, pending, replaced, backed >>
 
+\* Projection of TeamRepository.holdPresence. The exact shared/exclusive Team
+\* locks and activity refusal are checked in TeamPresence.tla. Erasing their
+\* waits/refusals here overapproximates membership behavior: the new lock is
+\* after the Person lock and no shipped holder of a Team lock then waits for
+\* a Person. No membership, version, Person lock or term changes in this step.
+HoldTeam(t) ==
+    /\ At(t, "holdTeam") /\ Advance(t)
+    /\ UNCHANGED <<plan, status, outcome, err, blocked, holder, versions, seen, pending, replaced, backed>>
+
 \* The membership that an INSERT writes: a command's own input, or for `changeMembership`
 \* the rest of the term of the membership that it ends (teams/commands.ts:200-206).
 InsertedTerm(t) ==
@@ -462,6 +471,7 @@ Next ==
          \/ FindRow(t) \/ ReadRow(t) \/ AcquireLock(t) \/ InsertRow(t) \/ UpdateEnd(t)
          \/ DeleteRow(t) \/ CheckWait(t) \/ CheckRefuse(t) \/ CheckPass(t)
          \/ Commit(t) \/ Cancel(t) \/ Wake(t) \/ Deadlock(t)
+         \/ HoldTeam(t)
     \/ Finished
 
 Spec == Init /\ [][Next]_vars

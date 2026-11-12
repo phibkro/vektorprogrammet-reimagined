@@ -7,6 +7,7 @@ import {
   Option,
   Order,
   Record as Rec,
+  Schema,
 } from "effect";
 
 import { Conflict } from "../../../core/errors.ts";
@@ -31,11 +32,17 @@ import {
   personReferences,
 } from "../../../features/personal-data/domain/derive.ts";
 import type { PersonReference } from "../../../features/personal-data/domain/derive.ts";
+import { mayMerge } from "../../../features/personal-data/domain/rpc.ts";
+import {
+  PersonState,
+  personState,
+} from "../../../features/teams/domain/lifecycle.ts";
 import type { Aggregates, QueryFailure } from "../aggregate/aggregates.ts";
 import { roots } from "../aggregate/declaration.ts";
 import type { Root } from "../aggregate/model.ts";
 import { isConstraintViolation } from "../classifySqlFailure.ts";
 import type { Drizzle } from "../internal/drizzle.ts";
+import { decodeWith } from "../internal/drizzle.ts";
 import { noCounts, tally } from "./counts.ts";
 import { allOf, col, identifier } from "./sql.ts";
 import { ownedBy, propertyOf, tableOf } from "./tables.ts";
@@ -50,6 +57,16 @@ const catalog: CatalogOf = Catalog;
 const personRoot: Root<"Person"> = roots.Person;
 
 const ANONYMISED = "En av personene er anonymisert og kan ikke slås sammen.";
+
+const decodeLifecycleFacts = decodeWith(
+  Schema.Array(
+    Schema.Struct({
+      anonymised: Schema.Boolean,
+      id: PersonId,
+      merged: Schema.Boolean,
+    })
+  )
+);
 
 /** The references in a stable order: by table, then column. */
 const references = Arr.sort(
@@ -313,15 +330,35 @@ export const personalDataMerge = (services: {
       Stay: () => Effect.succeed(0),
     });
 
-  /** Whether either person was anonymised already: a record with no data cannot be merged into or from. */
-  const anyAnonymised = (into: Person, from: Person): Effect.Effect<boolean> =>
+  /** Decide from the locked rows' derived lifecycle, including tombstone precedence. */
+  const canMergeRecords = (
+    into: Person,
+    from: Person
+  ): Effect.Effect<boolean> =>
     db
-      .execute<{ anonymised: boolean }>(
-        sql`select exists (select 1 from person where id in (${into.id}, ${from.id}) and anonymised_at is not null) as anonymised`,
+      .execute(
+        sql`select id, anonymised_at is not null as anonymised, merged_into is not null as merged from person where id in (${into.id}, ${from.id})`,
         "objects"
       )
       .pipe(
-        Effect.map(([row]) => row?.anonymised === true),
+        Effect.flatMap(decodeLifecycleFacts),
+        Effect.map((rows) =>
+          mayMerge({
+            distinct: into.id !== from.id,
+            sourceIdentifiable: Arr.some(
+              rows,
+              (row) =>
+                row.id === from.id &&
+                PersonState.guards.Identifiable(personState(row))
+            ),
+            targetIdentifiable: Arr.some(
+              rows,
+              (row) =>
+                row.id === into.id &&
+                PersonState.guards.Identifiable(personState(row))
+            ),
+          })
+        ),
         Effect.orDie
       );
 
@@ -357,7 +394,7 @@ export const personalDataMerge = (services: {
     into: Person,
     from: Person
   ) {
-    if (yield* anyAnonymised(into, from)) {
+    if (!(yield* canMergeRecords(into, from))) {
       return yield* conflict(into, from, ANONYMISED);
     }
 

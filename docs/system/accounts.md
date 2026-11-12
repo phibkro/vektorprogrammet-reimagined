@@ -29,6 +29,18 @@ stateDiagram-v2
   Invited --> Active : activateAccount
   Active --> Deactivated : deactivateAccount (an account other than the actor's and not the last active admin)
   Deactivated --> Active : reactivateAccount (an account other than the actor's)
+  Active --> [*] : personalData.erasePerson (not the last Active admin and no blocking legal hold)
+  Deactivated --> [*] : personalData.erasePerson (not the last Active admin and no blocking legal hold)
+  Invited --> [*] : personalData.erasePerson (not the last Active admin and no blocking legal hold)
+  Active --> Active : personalData.mergePersons (account follows survivor; at most one account)
+  Active --> Active : personalData.verifyApplicantEmail (verified holder; account follows survivor; at most one account)
+  Deactivated --> Deactivated : personalData.mergePersons (account follows survivor; at most one account)
+  Deactivated --> Deactivated : personalData.verifyApplicantEmail (verified holder; account follows survivor; at most one account)
+  Invited --> Invited : personalData.mergePersons (account follows survivor; at most one account)
+  Invited --> Invited : personalData.verifyApplicantEmail (verified holder; account follows survivor; at most one account)
+  Active --> [*] : personalData.runRetention (Apply mode and person core due by the catalog)
+  Deactivated --> [*] : personalData.runRetention (Apply mode and person core due by the catalog)
+  Invited --> [*] : personalData.runRetention (Apply mode and person core due by the catalog)
 ```
 
 <!-- docgen:end account -->

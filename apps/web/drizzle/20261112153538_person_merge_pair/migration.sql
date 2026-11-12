@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "person_merge_pair_unique" ON "person" (least("id", "merged_into"),greatest("id", "merged_into")) WHERE "merged_into" is not null;

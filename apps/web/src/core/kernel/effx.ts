@@ -13,7 +13,7 @@ import { Array as Arr, Option, Predicate, Record as Rec, Schema } from "effect";
 
 import { AggregateRoots } from "../transactions/aggregate.ts";
 import * as Commands from "./commands.ts";
-import { namesOf } from "./domain.ts";
+import { incoming, namesOf } from "./domain.ts";
 import type { Declaration } from "./domain.ts";
 import * as Guard from "./guard.ts";
 import type { FieldKind } from "./guard.ts";
@@ -139,6 +139,19 @@ export const Gap = Schema.TaggedUnion({
   AdminExpiry: { domain: Schema.String },
   /** The domain has some commands of the admin list (resource `AdminGrant`, `create` or `delete`), but not one of each. */
   AdminListUnclear: { domain: Schema.String, grants: Names, revokes: Names },
+  CrossDomainTransition: {
+    command: Schema.String,
+    domain: Schema.String,
+    from: Names,
+    guard: Schema.NullOr(Schema.Json),
+    machine: Schema.String,
+    to: Schema.String,
+  },
+  IdentityTransfer: {
+    commands: Names,
+    domain: Schema.String,
+    machine: Schema.String,
+  },
   /** A machine that effx cannot be given whole, and the reason. */
   MachineDropped: {
     domain: Schema.String,
@@ -155,6 +168,17 @@ export const Gap = Schema.TaggedUnion({
   NoDescription: { domain: Schema.String, reason: Schema.String },
   /** A kernel declaration that the description has no field for. */
   NoField: { field: Schema.String, values: Names },
+  StateRequirement: {
+    domain: Schema.String,
+    machine: Schema.String,
+    requirements: Schema.Array(
+      Schema.Struct({
+        command: Schema.String,
+        from: Names,
+        guard: Schema.NullOr(Schema.Json),
+      })
+    ),
+  },
   /** Commands that change stored fields of a machine, with no declaration of which: effx keeps the fields fixed. */
   UndeclaredWrites: {
     commands: Names,
@@ -198,6 +222,14 @@ interface DropReason {
  * declare). The words and the party are one record, so a reason without a party does not compile.
  */
 const dropReasons = {
+  crossDomain: {
+    closure: {
+      by: "effx",
+      change:
+        "extend effx spec 0031 with composed cross-domain commands, their own guard contexts and resource ownership effects",
+    },
+    say: "composed lifecycle effects and state prerequisites cannot be represented by the per-domain model",
+  },
   lostCommand: {
     closure: {
       by: "effx",
@@ -245,6 +277,14 @@ export const closures: Readonly<Record<Gap["_tag"], readonly Closure[]>> = {
         "the domain declares one command that grants a place and one that revokes it, or neither",
     },
   ],
+  CrossDomainTransition: [dropReasons.crossDomain.closure],
+  IdentityTransfer: [
+    {
+      by: "effx",
+      change:
+        "extend effx spec 0031 with transfer of a resource to a surviving aggregate without deleting its state",
+    },
+  ],
   MachineDropped: Arr.map(Rec.values(dropReasons), ({ closure }) => closure),
   MissingDeclaration: [
     {
@@ -265,6 +305,13 @@ export const closures: Readonly<Record<Gap["_tag"], readonly Closure[]>> = {
       by: "effx",
       change:
         "a field of the description for the aggregate roots, with entities and relationships (the entity slice of effx spec 0031)",
+    },
+  ],
+  StateRequirement: [
+    {
+      by: "effx",
+      change:
+        "extend effx spec 0031 with command prerequisites on another machine's state",
     },
   ],
   UndeclaredWrites: [
@@ -865,7 +912,10 @@ const commandOf = (rpc: Declaration["commands"][number]): EffxCommand => ({
  * The description of one domain, and what it could not say. A domain with no command or read that effx can state has
  * no description (`NoDescription`).
  */
-export const describe = (declaration: Declaration): Export => {
+export const describe = (
+  declaration: Declaration,
+  domains: readonly Declaration[]
+): Export => {
   const lost = lostSubjects(declaration);
 
   const kept = new Set(
@@ -874,9 +924,85 @@ export const describe = (declaration: Declaration): Export => {
 
   const { grants, subjectSets } = grantsOf(declaration, kept);
 
-  const machines = Arr.map(declaration.machines, (machine) =>
-    exportMachine(declaration, machine, kept)
-  );
+  const machines = Arr.map(declaration.machines, (machine): ExportedMachine => {
+    const contributions = incoming(machine, domains);
+    const local = exportMachine(declaration, machine, kept);
+
+    return Arr.isReadonlyArrayEmpty(contributions)
+      ? local
+      : {
+          gaps: [
+            ...local.gaps,
+            ...Arr.flatMap(contributions, ({ domain, contribution }) =>
+              Arr.flatMap(contribution.transitions, (transition) =>
+                Arr.flatMap(
+                  Option.toArray(translateGuard(transition)),
+                  (translated) =>
+                    Arr.map(translated.unknown, (id) =>
+                      Gap.cases.UnexpressibleGuard.make({
+                        domain,
+                        id,
+                        machine: machine.name,
+                        transition: transition.command,
+                      })
+                    )
+                )
+              )
+            ),
+            Gap.cases.MachineDropped.make({
+              domain: declaration.name,
+              machine: machine.name,
+              reason: dropReasons.crossDomain.say,
+            }),
+            ...Arr.flatMap(contributions, ({ domain, contribution }) =>
+              contribution.effect === "transfer"
+                ? [
+                    Gap.cases.IdentityTransfer.make({
+                      commands: Arr.dedupe(
+                        Arr.map(
+                          contribution.transitions,
+                          (entry) => entry.command
+                        )
+                      ),
+                      domain,
+                      machine: machine.name,
+                    }),
+                  ]
+                : []
+            ),
+            ...Arr.flatMap(
+              contributions,
+              ({ domain, contribution }): readonly Gap[] =>
+                contribution.effect === "requires"
+                  ? [
+                      Gap.cases.StateRequirement.make({
+                        domain,
+                        machine: machine.name,
+                        requirements: Arr.map(
+                          contribution.transitions,
+                          (transition) => ({
+                            command: transition.command,
+                            from: transition.from,
+                            guard: transition.guardRepresentation ?? null,
+                          })
+                        ),
+                      }),
+                    ]
+                  : Arr.map(contribution.transitions, (transition) =>
+                      Gap.cases.CrossDomainTransition.make({
+                        command: transition.command,
+                        domain,
+                        from: transition.from,
+                        guard: transition.guardRepresentation ?? null,
+                        machine: machine.name,
+                        to: transition.to,
+                      })
+                    )
+            ),
+          ],
+          machine: Option.none(),
+        };
+  });
 
   const exported = Arr.flatMap(machines, ({ machine }) =>
     Option.toArray(machine)

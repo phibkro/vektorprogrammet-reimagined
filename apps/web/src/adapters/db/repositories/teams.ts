@@ -212,6 +212,19 @@ export const TeamRepositoryLive = Layer.effect(
       return yield* teamById(id, rows);
     });
 
+    const holdPresence = Effect.fn("TeamRepository.holdPresence")(
+      function* holdPresence(id: TeamId) {
+        const rows = yield* db
+          .select()
+          .from(team)
+          .where(eq(team.id, id))
+          .for("share")
+          .pipe(Effect.orDie);
+
+        return yield* teamById(id, rows);
+      }
+    );
+
     const list = Effect.fn("TeamRepository.list")(function* list(
       departmentId: DepartmentId | null
     ) {
@@ -329,7 +342,14 @@ export const TeamRepositoryLive = Layer.effect(
 
     return yield* verified(
       "TeamRepository",
-      TeamRepository.of({ create, deactivate, findById, list, update })
+      TeamRepository.of({
+        create,
+        deactivate,
+        findById,
+        holdPresence,
+        list,
+        update,
+      })
     );
   })
 );

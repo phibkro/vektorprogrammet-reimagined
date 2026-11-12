@@ -62,6 +62,7 @@ import {
   exportMyData,
   mergePersons,
   runRetention,
+  mayErase,
   sendAlumniConsent,
   setAlumniConsent,
   setPhoto,
@@ -389,25 +390,30 @@ const PersonalDataHandlers = PersonalDataRpc.toLayer({
         const locked = yield* (yield* AggregateLocks).lock("Person", personId);
         const now = yield* DateTime.now;
 
-        if (yield* accounts.isLastActiveAdmin(adminList, personId, now)) {
-          return yield* new Conflict({
-            entity: "Person",
-            key: String(personId),
-            message: LAST_ADMIN,
-          });
-        }
+        const lastActiveAdmin = yield* accounts.isLastActiveAdmin(
+          adminList,
+          personId,
+          now
+        );
 
         const held = yield* holds.of(locked, now);
         const blocking = Arr.filter(held, (hold) => hold.blocks);
 
-        if (Arr.isReadonlyArrayNonEmpty(blocking)) {
+        if (
+          !mayErase({
+            blockingHold: Arr.isReadonlyArrayNonEmpty(blocking),
+            lastActiveAdmin,
+          })
+        ) {
           return yield* new Conflict({
             entity: "Person",
             key: String(personId),
-            message: Arr.join(
-              Arr.map(blocking, (hold) => hold.reason),
-              " "
-            ),
+            message: lastActiveAdmin
+              ? LAST_ADMIN
+              : Arr.join(
+                  Arr.map(blocking, (hold) => hold.reason),
+                  " "
+                ),
           });
         }
 

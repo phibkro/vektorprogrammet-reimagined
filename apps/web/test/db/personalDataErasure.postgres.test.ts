@@ -6,7 +6,15 @@
  * and a scan finds no value of the erased person outside the held rows; skipping the person core fails the scan.
  */
 import { assert, layer } from "@effect/vitest";
-import { Array as Arr, DateTime, Effect, Exit, Record as Rec } from "effect";
+import {
+  Array as Arr,
+  Cause,
+  DateTime,
+  Effect,
+  Exit,
+  Ref,
+  Record as Rec,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 
 import { Aggregates } from "../../src/adapters/db/aggregate/aggregates.ts";
@@ -133,6 +141,59 @@ layer(postgresDatabase(), { excludeTestServices: true })(
     );
 
     it.effect(
+      "spec 0032 F2: a defect or interruption after erasure writes rolls the whole lifecycle back",
+      () =>
+        Effect.gen(function* erasureRollback() {
+          for (const [kind, stop] of [
+            ["defect", Effect.die("spec0032 erasure rollback")],
+            ["interrupt", Effect.interrupt],
+          ] as const) {
+            const ola = yield* seedPerson(
+              `errollback-${kind}`,
+              everything,
+              NOW
+            );
+
+            yield* seedPerson(`errollback-other-${kind}`, everything, NOW);
+            const before = yield* snapshot;
+            const wrote = yield* Ref.make(false);
+            const real = yield* PersonalDataStore;
+
+            const broken = PersonalDataStore.of({
+              ...real,
+              erase: (locked) =>
+                Effect.gen(function* writeThenStop() {
+                  const counts = yield* real.erase(locked);
+                  assert.isAbove(counts.person ?? 0, 0);
+                  yield* Ref.set(wrote, true);
+
+                  return yield* stop;
+                }),
+            });
+
+            const exit = yield* Effect.exit(
+              eraseAs(selfPrincipal(ola.personId), ola.personId).pipe(
+                Effect.provideService(PersonalDataStore, broken)
+              )
+            );
+
+            assert.isTrue(yield* Ref.get(wrote));
+            assert.isTrue(Exit.isFailure(exit));
+
+            if (Exit.isFailure(exit)) {
+              assert.strictEqual(
+                Cause.hasInterrupts(exit.cause),
+                kind === "interrupt"
+              );
+              assert.strictEqual(Cause.hasDies(exit.cause), kind === "defect");
+            }
+
+            assert.deepStrictEqual(yield* snapshot, before);
+          }
+        })
+    );
+
+    it.effect(
       "a second call changes nothing, and writes no second audit row",
       () =>
         Effect.gen(function* second() {
@@ -240,6 +301,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
       () =>
         Effect.gen(function* holds() {
           const ola = yield* seedPerson("erhold", everything, NOW);
+          yield* seedPerson("erholdother", everything, NOW);
           const before = yield* snapshot;
 
           const open: Hold = {
@@ -256,6 +318,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           );
 
           assert.isTrue(Exit.isFailure(refused));
+          assert.include(refusalOf(refused), open.reason);
           assert.deepStrictEqual(yield* snapshot, before);
 
           const kept: Hold = {

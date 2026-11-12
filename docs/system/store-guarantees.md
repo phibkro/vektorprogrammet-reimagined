@@ -45,6 +45,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | UK1 | At most one record per natural key: department city; person e-mail and company e-mail; team name within its department and team group e-mail; semester (term, year); admission period per department and semester; application per person and period; public file key and legacy path; position name; one-time code hash; company address; captured delivery key. | store-enforced | yes | `DepartmentRepository.create`, `DepartmentRepository.update`, `TeamRepository.create`, `TeamRepository.update`, `PersonRepository.create`, `AccountRepository.updateProfile`, `SemesterRepository.ensure`, `PublicFileRepository.register`, `WorkspaceAssignments.assign`, `CodeRepository.issue`, `AdmissionPeriodRepository.create`, `ApplicationRepository.insert`, `CapturedMessageStore.record` | inserts a second record with the same key: refused |
 | UK2 | A write refused for a duplicate key fails with `AlreadyExists` carrying the entity and the key, never as a defect. | port-enforced | no | `DepartmentRepository.create`, `TeamRepository.create`, `PersonRepository.create`, `WorkspaceAssignments.assign` | gets the store's own refusal, with no entity and no key: the port is what names them |
 | UK3 | Find-or-create: concurrent callers all receive the one record; a repeat changes nothing. | store-enforced | no | `SemesterRepository.ensure`, `PublicFileRepository.register` | inserts the record first: the caller receives that record and no second one exists |
+| MG1 | Two distinct person records cannot both be merged into each other. This excludes direct reciprocal pairs, not arbitrary graph cycles. | store-enforced | yes | `PersonalDataStore.merge` | sets A's merge target to B and B's merge target to A, sequentially or in competing transactions |
 
 ### NonOverlap
 
@@ -162,7 +163,7 @@ The page is generated from `packages/domain/src/shared/guarantees.ts` (the guara
 | `SemesterRepository` |  | `ensure` |  | `find`, `list` |  |  |
 | `SignInDirectory` |  |  |  | `match`, `personOfUser`, `profileOf`, `signInEmailOf` |  |  |
 | `SocialEventRepository` |  | `create` |  | `list` |  |  |
-| `TeamRepository` | `create`, `update` | `deactivate` |  | `findById`, `list` |  |  |
+| `TeamRepository` | `create`, `holdPresence`, `update` | `deactivate` |  | `findById`, `list` |  |  |
 | `Transactor` |  |  |  |  |  | `run` |
 | `WelcomeLedger` | `claim` |  |  |  |  |  |
 | `WorkspaceAssignments` | `assign` |  |  |  |  |  |

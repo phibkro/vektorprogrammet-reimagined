@@ -20,6 +20,392 @@
     "machine": "Membership"
   },
   {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/erasure",
+    "machine": "Person",
+    "transition": "erasePerson"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Person",
+    "transition": "mergePersons"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Person",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/verified-holder",
+    "machine": "Person",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/retention",
+    "machine": "Person",
+    "transition": "runRetention"
+  },
+  {
+    "_tag": "MachineDropped",
+    "domain": "teams",
+    "machine": "Person",
+    "reason": "composed lifecycle effects and state prerequisites cannot be represented by the per-domain model"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "erasePerson",
+    "domain": "personalData",
+    "from": [
+      "Identifiable",
+      "Anonymised"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/erasure",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "not the last Active admin and no blocking legal hold"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "blockingHold"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "lastActiveAdmin"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Person",
+    "to": "Anonymised"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "mergePersons",
+    "domain": "personalData",
+    "from": [
+      "Identifiable"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/merge",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "distinct identifiable records; catalog merge constraints must hold"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Person",
+    "to": "Merged"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "verifyApplicantEmail",
+    "domain": "personalData",
+    "from": [
+      "Identifiable"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "FilterGroup",
+            "checks": [
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/merge",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "distinct identifiable records; catalog merge constraints must hold"
+                },
+                "aborted": false
+              },
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/verified-holder",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "a verified holder already owns the address"
+                },
+                "aborted": false
+              }
+            ]
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Person",
+    "to": "Merged"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "runRetention",
+    "domain": "personalData",
+    "from": [
+      "Identifiable"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/retention",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "Apply mode and person core due by the catalog"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "applying"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "coreDue"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Person",
+    "to": "Anonymised"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "submitApplication",
+    "domain": "admission",
+    "from": [
+      "[*]"
+    ],
+    "guard": null,
+    "machine": "Person",
+    "to": "Identifiable"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "registerApplication",
+    "domain": "admission",
+    "from": [
+      "[*]"
+    ],
+    "guard": null,
+    "machine": "Person",
+    "to": "Identifiable"
+  },
+  {
+    "_tag": "MachineDropped",
+    "domain": "teams",
+    "machine": "Team",
+    "reason": "composed lifecycle effects and state prerequisites cannot be represented by the per-domain model"
+  },
+  {
+    "_tag": "StateRequirement",
+    "domain": "teams",
+    "machine": "Team",
+    "requirements": [
+      {
+        "command": "createMembership",
+        "from": [
+          "Active"
+        ],
+        "guard": null
+      },
+      {
+        "command": "extendMembership",
+        "from": [
+          "Active"
+        ],
+        "guard": null
+      },
+      {
+        "command": "changeMembership",
+        "from": [
+          "Active"
+        ],
+        "guard": null
+      }
+    ]
+  },
+  {
     "_tag": "AdminExpiry",
     "domain": "teams"
   },
@@ -49,6 +435,742 @@
     "domain": "accounts",
     "machine": "Account",
     "reason": "a guard uses a check that effx does not know"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/erasure",
+    "machine": "Account",
+    "transition": "erasePerson"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Account",
+    "transition": "mergePersons"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Account",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/verified-holder",
+    "machine": "Account",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Account",
+    "transition": "mergePersons"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Account",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/verified-holder",
+    "machine": "Account",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Account",
+    "transition": "mergePersons"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/merge",
+    "machine": "Account",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/verified-holder",
+    "machine": "Account",
+    "transition": "verifyApplicantEmail"
+  },
+  {
+    "_tag": "UnexpressibleGuard",
+    "domain": "personalData",
+    "id": "vektorprogrammet/privacy/retention",
+    "machine": "Account",
+    "transition": "runRetention"
+  },
+  {
+    "_tag": "MachineDropped",
+    "domain": "accounts",
+    "machine": "Account",
+    "reason": "composed lifecycle effects and state prerequisites cannot be represented by the per-domain model"
+  },
+  {
+    "_tag": "IdentityTransfer",
+    "commands": [
+      "mergePersons",
+      "verifyApplicantEmail"
+    ],
+    "domain": "personalData",
+    "machine": "Account"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "erasePerson",
+    "domain": "personalData",
+    "from": [
+      "Active",
+      "Deactivated",
+      "Invited"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/erasure",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "not the last Active admin and no blocking legal hold"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "blockingHold"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "lastActiveAdmin"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "[*]"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "mergePersons",
+    "domain": "personalData",
+    "from": [
+      "Active"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/merge",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "distinct identifiable records; catalog merge constraints must hold"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "Active"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "verifyApplicantEmail",
+    "domain": "personalData",
+    "from": [
+      "Active"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "FilterGroup",
+            "checks": [
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/merge",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "distinct identifiable records; catalog merge constraints must hold"
+                },
+                "aborted": false
+              },
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/verified-holder",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "a verified holder already owns the address"
+                },
+                "aborted": false
+              }
+            ]
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "Active"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "mergePersons",
+    "domain": "personalData",
+    "from": [
+      "Deactivated"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/merge",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "distinct identifiable records; catalog merge constraints must hold"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "Deactivated"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "verifyApplicantEmail",
+    "domain": "personalData",
+    "from": [
+      "Deactivated"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "FilterGroup",
+            "checks": [
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/merge",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "distinct identifiable records; catalog merge constraints must hold"
+                },
+                "aborted": false
+              },
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/verified-holder",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "a verified holder already owns the address"
+                },
+                "aborted": false
+              }
+            ]
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "Deactivated"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "mergePersons",
+    "domain": "personalData",
+    "from": [
+      "Invited"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/merge",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "distinct identifiable records; catalog merge constraints must hold"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "Invited"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "verifyApplicantEmail",
+    "domain": "personalData",
+    "from": [
+      "Invited"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "FilterGroup",
+            "checks": [
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/merge",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "distinct identifiable records; catalog merge constraints must hold"
+                },
+                "aborted": false
+              },
+              {
+                "_tag": "Filter",
+                "representation": {
+                  "id": "vektorprogrammet/privacy/verified-holder",
+                  "payload": {}
+                },
+                "annotations": {
+                  "expected": "a verified holder already owns the address"
+                },
+                "aborted": false
+              }
+            ]
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "distinct"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "sourceIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "targetIdentifiable"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "verifiedHolder"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": true,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "Invited"
+  },
+  {
+    "_tag": "CrossDomainTransition",
+    "command": "runRetention",
+    "domain": "personalData",
+    "from": [
+      "Active",
+      "Deactivated",
+      "Invited"
+    ],
+    "guard": {
+      "representation": {
+        "_tag": "Objects",
+        "checks": [
+          {
+            "_tag": "Filter",
+            "representation": {
+              "id": "vektorprogrammet/privacy/retention",
+              "payload": {}
+            },
+            "annotations": {
+              "expected": "Apply mode and person core due by the catalog"
+            },
+            "aborted": false
+          }
+        ],
+        "propertySignatures": [
+          {
+            "name": {
+              "type": "string",
+              "value": "applying"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          },
+          {
+            "name": {
+              "type": "string",
+              "value": "coreDue"
+            },
+            "type": {
+              "_tag": "Boolean",
+              "checks": []
+            },
+            "isOptional": false,
+            "isMutable": false
+          }
+        ],
+        "indexSignatures": []
+      },
+      "references": {}
+    },
+    "machine": "Account",
+    "to": "[*]"
   },
   {
     "_tag": "UnexpressibleSubject",

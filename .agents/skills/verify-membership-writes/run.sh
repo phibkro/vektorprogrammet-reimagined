@@ -68,6 +68,13 @@ matrix=(
   "address-order|Address|SortedAddresses|2|NoWaitCycle|pass"
   "address-opposite-order|Address|OppositeAddresses|2|NoWaitCycle|fails:NoWaitCycle"
   "address-reach-conflict|Address|SortedAddresses|2|NeverConflict|fails:NeverConflict"
+  "team-presence-order|TeamPresence|OrderedPresence|3|NoWaitCycle PresenceOrder NoPostDeactivatePresence ExitsNeverRefused|pass"
+  "team-presence-no-share|TeamPresence|MissingPresenceLock|2|NoPostDeactivatePresence|fails:NoPostDeactivatePresence"
+  "team-presence-team-first|TeamPresence|TeamBeforePerson|2|PresenceOrder|fails:PresenceOrder"
+  "team-presence-block-exits|TeamPresence|BlockedInactiveExits|2|ExitsNeverRefused|fails:ExitsNeverRefused"
+  "reach-team-wait|TeamPresence|OrderedPresence|2|NeverTeamWait|fails:NeverTeamWait"
+  "reach-team-presence|TeamPresence|OrderedPresence|2|NeverPresenceCommit|fails:NeverPresenceCommit"
+  "reach-inactive-exit|TeamPresence|OrderedPresence|2|NeverInactiveExit|fails:NeverInactiveExit"
 )
 # The slowest runs; --quick leaves them out and checks the current code with two transactions instead of three.
 quick_skip='^whatif-replace-through-construct$'
@@ -79,6 +86,7 @@ code_tests=(
   test/db/adminList.postgres.test.ts
   test/db/teams.postgres.test.ts
   test/db/classifySqlFailure.test.ts
+  test/db/declaredLifecycles.postgres.test.ts
 )
 
 touched_base=""
@@ -226,7 +234,7 @@ write_cfg() { # module code transactions invariants... > cfg
     *) echo "unsupported transaction count $n" >&2; exit 2 ;;
   esac
   echo "    NoTxn = NoTxn"
-  if [ "$module" = Address ]; then
+  if [ "$module" = Address ] || [ "$module" = TeamPresence ]; then
     echo "    Code <- $code"
     echo "SYMMETRY TxnSymmetry"
     echo "INVARIANTS"

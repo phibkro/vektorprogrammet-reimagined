@@ -86,6 +86,10 @@ export class TeamRepository extends Context.Service<
   TeamRepository,
   {
     readonly findById: (id: TeamId) => Effect.Effect<Team, NotFound>;
+    /** Hold the team's activity until transaction end, after the Person lock, before creating/prolonging presence. */
+    readonly holdPresence: (
+      id: TeamId
+    ) => Effect.Effect<Team, NotFound, InTransaction>;
     /** The teams of one department, or of all of them (`null`), by name; deactivated ones included. */
     readonly list: (
       departmentId: DepartmentId | null

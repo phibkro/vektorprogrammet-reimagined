@@ -148,6 +148,25 @@ export const insertMembership = (
 export const placeMembership = (...args: Parameters<typeof insertMembership>) =>
   transactional(insertMembership(...args));
 
+/** One membership in a fresh department/person/team world for the supplied term. */
+export const freshMembership = Effect.fnUntraced(function* freshMembership(
+  tag: string,
+  term: { readonly end: Semester; readonly start: Semester }
+) {
+  const found = yield* world(tag);
+
+  const membership = yield* placeMembership(
+    {
+      personId: found.person.id,
+      positionId: found.memberPosition,
+      teamId: found.team.id,
+    },
+    term
+  );
+
+  return { ...found, membership };
+});
+
 /**
  * A place on the admin list for the person, in a transaction of its own: the list's lock first, then the person's, as
  * `createAdminGrant` takes them.

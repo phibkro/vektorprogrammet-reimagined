@@ -1,0 +1,58 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "178c840e-c6b4-4961-870c-f908703b9ebd",
+  "prevIds": ["76cd9fde-72cc-4523-9898-98683d988b76"],
+  "footprints": [
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "person",
+        "person_merge_pair_unique"
+      ],
+      "writes": [
+        "s|idx|public.person_merge_pair_unique",
+        "n|idx|public.person_merge_pair_unique",
+        "e|idx|public.person_merge_pair_unique",
+        "n|rel|public.person_merge_pair_unique"
+      ],
+      "reads": ["n|tbl|public.person", "n|sch|public"]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "person",
+        "name": "person_merge_pair_unique",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "least(\"id\", \"merged_into\")",
+            "isExpression": true,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "greatest(\"id\", \"merged_into\")",
+            "isExpression": true,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": "\"merged_into\" is not null",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    }
+  ]
+}

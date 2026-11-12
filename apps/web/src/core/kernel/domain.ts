@@ -30,7 +30,7 @@ import type { Authorize, CanAnywhere, RequireGrant } from "./authorize.ts";
 import * as Commands from "./commands.ts";
 import * as Grant from "./grant.ts";
 import { Boundary } from "./machine.ts";
-import type { Description } from "./machine.ts";
+import type { Contribution, Description } from "./machine.ts";
 import { Principal } from "./principal.ts";
 import type { CurrentPrincipal, SystemJob } from "./principal.ts";
 import * as Subject from "./subject.ts";
@@ -77,6 +77,7 @@ export interface Declaration<Command extends string = string> {
   readonly commands: readonly Rpc.Any[];
   readonly reads: Readonly<Record<string, ReadInfo>>;
   readonly machines: readonly Description[];
+  readonly contributions: readonly Contribution[];
   /** The binding of the membership machine on the domain that has it (`teams`), `null` elsewhere. */
   readonly memberships: Memberships | null;
   /** The rows as the domain wrote them. */
@@ -182,6 +183,7 @@ export const make = <
   readonly reads: { readonly [Read in Reads]: ReadInfo };
   readonly grants: readonly Grant.Row<NoInfer<CommandOf<Rpcs, Reads>>>[];
   readonly machines?: readonly Description[];
+  readonly contributions?: readonly Contribution[];
   readonly memberships?: Memberships;
 }): Domain<Rpcs, Reads> => {
   const rpcs = Arr.fromIterable(declaration.commands.requests.values());
@@ -212,6 +214,7 @@ export const make = <
     authorize: authorizeWith(table),
     canAnywhere: canAnywhereWith(table),
     commands: rpcs,
+    contributions: declaration.contributions ?? [],
     declared: declaration.grants,
     forbidden: (command) => new Forbidden({ command }),
     group: declaration.commands,
@@ -293,9 +296,23 @@ const annotated = (declaration: Declaration) =>
   );
 
 /** The transitions that apply `tag`, in every machine of the declaration. */
-const transitionsOf = (declaration: Declaration, tag: string) =>
-  Arr.flatMap(declaration.machines, (machine) =>
-    Arr.filter(machine.transitions, (transition) => transition.command === tag)
+const transitionsOf = (
+  declaration: Declaration,
+  tag: string
+): Description["transitions"] =>
+  Arr.flatMap(
+    [
+      ...declaration.machines,
+      ...Arr.filter(
+        declaration.contributions,
+        (entry) => entry.effect !== "requires"
+      ),
+    ],
+    (machine: Description) =>
+      Arr.filter(
+        machine.transitions,
+        (transition) => transition.command === tag
+      )
   );
 
 /** A custom verb is lowerCamelCase: it is written after the colon in a URL (`:extend`) and starts a name. */
@@ -550,6 +567,13 @@ const machineFacts = (declaration: Declaration) =>
             `${machine.name} has the terminal state ${state}, which is not one of its states`,
           ]
     ),
+    ...Arr.flatMap(machine.transitions, (transition) =>
+      Arr.flatMap(transition.from, (state) =>
+        state !== transition.to && Arr.contains(machine.terminal, state)
+          ? [`${machine.name} leaves terminal state ${state}`]
+          : []
+      )
+    ),
     ...Arr.map(
       repeated(machine.fields, (field) => Arr.join(field.path, ".")),
       (group) =>
@@ -662,10 +686,139 @@ export const problems = (declaration: Declaration): readonly string[] => [
   ...membershipBinding(declaration),
 ];
 
+/** Contributions are resolved from the causing declarations, never copied into a target's local command table. */
+export const incoming = (
+  target: Description,
+  domains: readonly Declaration[]
+) =>
+  Arr.flatMap(domains, (domain) =>
+    Arr.map(
+      Arr.filter(domain.contributions, (entry) => entry.target === target),
+      (entry) => ({ contribution: entry, domain: domain.name })
+    )
+  );
+
+/** The reference view: local edges and their incoming contributions, retaining the original runtime tables. */
+export const resolvedMachines = (
+  declaration: Declaration,
+  domains: readonly Declaration[]
+): readonly Description[] =>
+  Arr.map(declaration.machines, (machine) => ({
+    ...machine,
+    transitions: [
+      ...machine.transitions,
+      ...Arr.flatMap(incoming(machine, domains), ({ domain, contribution }) =>
+        Arr.map(contribution.transitions, (transition) =>
+          contribution.effect === "requires"
+            ? {
+                ...transition,
+                command: `${domain}.${transition.command}`,
+                when: `requires ${machine.name} in ${Arr.join(
+                  transition.from,
+                  " or "
+                )}`,
+              }
+            : { ...transition, command: `${domain}.${transition.command}` }
+        )
+      ),
+    ],
+  }));
+
+const contributionProblems = (domains: readonly Declaration[]) =>
+  Arr.flatMap(domains, (domain) =>
+    Arr.flatMap(domain.contributions, (entry) => {
+      const targetExists = Arr.some(domains, (owner) =>
+        Arr.some(owner.machines, (machine) => machine === entry.target)
+      );
+
+      return [
+        ...(targetExists
+          ? []
+          : [
+              `${domain.name} contributes to an undeclared machine ${
+                entry.name
+              }`,
+            ]),
+        ...Arr.flatMap(entry.transitions, (transition) => [
+          ...(entry.effect === "requires" &&
+          Arr.some(transition.from, (state) => state !== transition.to)
+            ? [`${entry.name} state requirement changes state`]
+            : []),
+          ...(Arr.some(
+            domain.commands,
+            (rpc) =>
+              rpc._tag === transition.command &&
+              Arr.some(entry.commands, (found) => found === rpc)
+          )
+            ? []
+            : [
+                `${domain.name} does not own contribution command ${
+                  transition.command
+                }`,
+              ]),
+          ...Arr.flatMap([...transition.from, transition.to], (state) =>
+            state === Boundary || Arr.contains(entry.target.states, state)
+              ? []
+              : [`${entry.name} contribution names unknown state ${state}`]
+          ),
+          ...Arr.flatMap(transition.from, (state) =>
+            state !== transition.to &&
+            Arr.contains(entry.target.terminal, state)
+              ? [`${entry.name} contribution leaves terminal state ${state}`]
+              : []
+          ),
+        ]),
+        ...Arr.flatMap(entry.transitions, (transition, index) =>
+          Arr.some(
+            entry.transitions.slice(index + 1),
+            (other) =>
+              transition.command === other.command &&
+              Arr.some(transition.from, (state) =>
+                Arr.contains(other.from, state)
+              )
+          )
+            ? [
+                `${entry.name} has ambiguous contribution for ${
+                  transition.command
+                }`,
+              ]
+            : []
+        ),
+      ];
+    })
+  );
+
+/** Contributions may not disagree across independently declared fragments either. */
+const contributionAmbiguities = (domains: readonly Declaration[]) =>
+  Arr.flatMap(domains, (owner) =>
+    Arr.flatMap(owner.machines, (machine) => {
+      const edges = Arr.flatMap(
+        incoming(machine, domains),
+        ({ contribution }) =>
+          Arr.flatMap(contribution.transitions, (transition) =>
+            Arr.map(transition.from, (from) => ({
+              command: transition.command,
+              from,
+            }))
+          )
+      );
+
+      return Arr.map(
+        repeated(edges, ({ command, from }) => `${command}:${from}`),
+        (group) =>
+          `${machine.name} has overlapping contributions for ${
+            group[0].command
+          } from ${group[0].from}`
+      );
+    })
+  );
+
 /** The problems of every domain, and those that only the whole list shows: a tag, or a resource and a method, twice. */
 export const allProblems = (
   domains: readonly Declaration[]
 ): readonly string[] => [
   ...Arr.flatMap(domains, problems),
   ...sharedNames(domains),
+  ...contributionProblems(domains),
+  ...contributionAmbiguities(domains),
 ];

@@ -283,7 +283,10 @@ const declaredMachine = (
     }
 
     const diagram = Option.getOrUndefined(
-      Arr.findFirst(domain.machines, (entry) => entry.name === machineName)
+      Arr.findFirst(
+        Domain.resolvedMachines(domain, domains),
+        (entry) => entry.name === machineName
+      )
     );
 
     return diagram === undefined
@@ -418,9 +421,24 @@ export const renderDocument = (
     ({ diagram, domain }) => {
       const entries = entriesOf(domain);
 
+      const projected = Domain.resolvedMachines(domain, domains);
+
+      const person = Arr.findFirst(
+        projected,
+        (entry) => entry.name === "Person"
+      );
+
+      const team = Arr.findFirst(projected, (entry) => entry.name === "Team");
+
+      if (Option.isNone(person) || Option.isNone(team)) {
+        return Result.fail("The Person or Team machine is missing");
+      }
+
       return replaceBlocks(document, [
         ["who", who(entries, grants)],
         ["membership", machine(diagram)],
+        ["person", machine(person.value)],
+        ["team", machine(team.value)],
         ["commands", commands(entries, grants)],
         ["subjects", subjects()],
       ]);
