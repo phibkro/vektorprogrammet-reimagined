@@ -9,8 +9,8 @@ import * as JobRun from "../../../core/jobs/runs.ts";
  *
  * - A new period is claimed by `INSERT … ON CONFLICT DO NOTHING RETURNING`: of any number of concurrent callers, the
  *   primary key lets exactly one insert, and the others get no row.
- * - A `partial` period, and a `running` one whose lease ran out, is taken over by one conditional `UPDATE … RETURNING`
- *   that adds one to `attempt`. Two callers cannot both match the row's state after the first one's update.
+ * - One conditional UPDATE takes over partial/expired runs below maxAttempts, or marks exhausted runs failed.
+ *   The decision and update are atomic; a live final attempt remains untouched.
  * - `advance`, `finish`, `release` and `fail` write only `WHERE attempt = $held`, so a runner whose period was taken
  *   over matches no row. `advance` and `finish` are chunk-transaction writes (`InTransaction`): they commit with the
  *   chunk's own rows, so a cursor never stands without its chunk, nor a chunk without its cursor.
@@ -51,11 +51,13 @@ export const JobRunsLive = Layer.effect(
     const claim = Effect.fn("JobRuns.claim")(function* claim(
       name: JobRun.Held["job"],
       period: JobRun.Held["period"],
-      leaseSeconds: number
+      leaseSeconds: number,
+      maxAttempts: number
     ) {
       const now = yield* DateTime.now;
       const nowDate = DateTime.toDateUtc(now);
       const leaseUntil = later(now, leaseSeconds);
+      const exhausted = sql`${jobRun.attempt} >= ${maxAttempts}`;
 
       const claimed = (held: typeof HeldRow.Type) =>
         JobRun.Claim.cases.Claimed.make({
@@ -83,9 +85,11 @@ export const JobRunsLive = Layer.effect(
       const [taken] = yield* db
         .update(jobRun)
         .set({
-          attempt: sql`${jobRun.attempt} + 1`,
-          leaseUntil,
-          outcome: "running",
+          attempt: sql`case when ${exhausted} then ${jobRun.attempt} else ${jobRun.attempt} + 1 end`,
+          endedAt: sql`case when ${exhausted} then ${nowDate}::timestamptz else null end`,
+          lastError: sql`case when ${exhausted} then 'maximum attempts exhausted' else ${jobRun.lastError} end`,
+          leaseUntil: sql`case when ${exhausted} then ${nowDate}::timestamptz else ${leaseUntil}::timestamptz end`,
+          outcome: sql`case when ${exhausted} then 'failed' else 'running' end`,
           startedAt: sql`coalesce(${jobRun.startedAt}, ${nowDate}::timestamptz)`,
         })
         .where(
@@ -101,11 +105,13 @@ export const JobRunsLive = Layer.effect(
             )
           )
         )
-        .returning(heldColumns)
+        .returning({ ...heldColumns, outcome: jobRun.outcome })
         .pipe(Effect.orDie);
 
       if (taken !== undefined) {
-        return claimed(yield* decodeHeld(taken));
+        return taken.outcome === "failed"
+          ? JobRun.Claim.cases.Finished.make({})
+          : claimed(yield* decodeHeld(taken));
       }
 
       const [existing] = yield* db
@@ -244,7 +250,12 @@ export const JobRunsLive = Layer.effect(
     ) {
       const now = DateTime.toDateUtc(yield* DateTime.now);
 
-      yield* write(held, { leaseUntil: now, outcome: "partial" });
+      const recorded = yield* write(held, {
+        leaseUntil: now,
+        outcome: "partial",
+      });
+
+      return recorded ? ("partial" as const) : ("lost" as const);
     });
 
     const fail = Effect.fn("JobRuns.fail")(function* fail(
@@ -255,12 +266,16 @@ export const JobRunsLive = Layer.effect(
       const now = DateTime.toDateUtc(yield* DateTime.now);
       const dead = held.attempt >= maxAttempts;
 
-      yield* write(held, {
+      const recorded = yield* write(held, {
         endedAt: dead ? now : null,
         lastError: reason.slice(0, REASON_LENGTH),
         leaseUntil: now,
         outcome: dead ? "failed" : "partial",
       });
+
+      if (!recorded) {
+        return "lost";
+      }
 
       const outcome: JobRun.Failure = dead ? "failed" : "retry";
 

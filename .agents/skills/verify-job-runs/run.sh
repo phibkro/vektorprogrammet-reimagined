@@ -26,13 +26,19 @@ status=0
 if [ "$(digest HEAD)" != "$sync_digest" ]; then echo 'coverage digest drift' >&2; status=3; fi
 if [ -n "$(git -C "$root" status --porcelain -- "${covered[@]}")" ]; then echo 'warning: coverage digest compares HEAD, not working tree' >&2; fi
 matrix=(
- 'current|current|Spec|NoTwoLive NoStaleWrite AtMostOnce TerminalStable|pass'
+ 'current|current|Spec|NoTwoLive NoStaleWrite AtMostOnce TerminalStable HonestReports DoneHasEnd|pass'
  'holders|holders|Spec|NoTwoLive|NoTwoLive'
  'fence|fence|Spec|NoStaleWrite|NoStaleWrite'
  'atomic|atomic|Spec|AtMostOnce|AtMostOnce'
  'terminal|terminal|Spec|TerminalStable|TerminalStable'
  'progress|current|ProgressSpec|EventuallyTerminal|pass'
- 'crashes|current|CrashSpec|EventuallyTerminal|liveness'
+ 'crashes|current|CrashSpec|EventuallyTerminal|pass'
+ 'legacy-crash|legacy|CrashSpec|EventuallyTerminal|liveness'
+ 'legacy-report|legacy|Spec|HonestReports|HonestReports'
+ 'legacy-check|legacy|Spec|DoneHasEnd|DoneHasEnd'
+ 'unbounded|unbounded|CrashSpec|EventuallyTerminal|liveness'
+ 'reports|reports|Spec|HonestReports|HonestReports'
+ 'check|check|Spec|DoneHasEnd|DoneHasEnd'
 )
 for entry in "${matrix[@]}"; do
  IFS='|' read -r name variant spec properties expected <<<"$entry"

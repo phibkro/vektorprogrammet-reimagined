@@ -155,9 +155,10 @@ const runPeriod = <R extends NotAnIntegration, Providers>(
       };
     }
 
-    yield* runs.release(held);
-
-    return { remaining: 0, result: "partial" } satisfies Progress;
+    return {
+      remaining: 0,
+      result: yield* runs.release(held),
+    } satisfies Progress;
   });
 
 /** An unapproved cadence has no automatic periods. */
@@ -188,7 +189,12 @@ const runDue = <R extends NotAnIntegration, Providers>(
         break;
       }
 
-      const claim = yield* runs.claim(job.name, period, job.leaseSeconds);
+      const claim = yield* runs.claim(
+        job.name,
+        period,
+        job.leaseSeconds,
+        job.maxAttempts
+      );
 
       if (Predicate.isTagged(claim, "Claimed")) {
         const progress = yield* runPeriod(job, runner, claim.held, budget);
@@ -254,6 +260,7 @@ export const dispatchTick = <
             Effect.annotateLogs({
               failed: report.failure !== null,
               job: report.job,
+              outcomes: Arr.map(report.periods, (period) => period.result),
               periods: report.periods.length,
             })
           )

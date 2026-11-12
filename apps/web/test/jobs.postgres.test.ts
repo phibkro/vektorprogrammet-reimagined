@@ -16,6 +16,7 @@ import {
   Logger,
   Option,
   Ref,
+  Predicate,
   Schema,
 } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
@@ -31,6 +32,7 @@ import { OutboxMessage } from "../src/core/outbox/messages";
 import { Outbox } from "../src/core/outbox/outbox";
 import { Transactor } from "../src/core/transactions/transactor";
 import { EmailAddress } from "../src/core/validation";
+import { OutboxPublisher } from "../src/server/background/outbox/publisher";
 import { dispatchTick } from "../src/server/background/scheduler";
 import type { Runner } from "../src/server/background/scheduler";
 import {
@@ -181,6 +183,107 @@ layer(live, { excludeTestServices: true })(
     );
 
     it.layer(TestClock.layer())((layerTest) => {
+      layerTest.effect(
+        "F-b: scheduler reports and logs lost on superseded budget release and failure",
+        () =>
+          Effect.gen(function* staleSchedulerReports() {
+            const sql = yield* SqlClient;
+            const runs = yield* JobRun.JobRuns;
+            const tx = yield* Transactor;
+            const job = declared("workspaceSync", { chunksPerTick: 1 });
+            const logged: string[] = [];
+
+            const logger = Logger.make((entry) => {
+              logged.push(Logger.formatLogFmt.log(entry));
+            });
+
+            for (const mode of ["release", "retry", "failed"] as const) {
+              yield* sql`delete from job_run where job = 'workspaceSync'`;
+              yield* TestClock.setTime(DateTime.toEpochMillis(T0));
+
+              const supersede = Effect.fnUntraced(function* supersede(
+                held: JobRun.Held
+              ) {
+                yield* TestClock.adjust("121 seconds");
+
+                const successor = yield* runs.claim(
+                  held.job,
+                  held.period,
+                  job.leaseSeconds,
+                  job.maxAttempts
+                );
+
+                assert.strictEqual(successor._tag, "Claimed");
+
+                if (Predicate.isTagged(successor, "Claimed")) {
+                  // A fresh successor cannot lose its fence in this serial fixture; failure is a broken setup.
+                  yield* tx
+                    .run(runs.finish(successor.held, { successor: 1 }))
+                    .pipe(Effect.orDie);
+                }
+              });
+
+              const predecessor = yield* Ref.make<JobRun.Held | null>(null);
+
+              const runner: Runner<SqlClient | Transactor> = {
+                prepare: (held) =>
+                  Effect.gen(function* prepareStale() {
+                    yield* Ref.set(predecessor, held);
+
+                    if (mode !== "release") {
+                      yield* supersede(held);
+
+                      return yield* validationFailed(
+                        ["fixture"],
+                        "stale worker failed"
+                      );
+                    }
+
+                    return {
+                      counts: { predecessor: 1 },
+                      cursor: 1,
+                      done: false,
+                    };
+                  }).pipe(Effect.map(Effect.succeed)),
+              };
+
+              const publisher = OutboxPublisher.of({
+                publish: () =>
+                  Effect.gen(function* publishAndSupersede() {
+                    const held = yield* Ref.get(predecessor);
+
+                    if (held !== null) {
+                      yield* supersede(held);
+                    }
+                  }),
+              });
+
+              const reports = yield* dispatchTick(
+                [mode === "failed" ? { ...job, maxAttempts: 1 } : job],
+                { workspaceSync: runner },
+                { at: T0 }
+              ).pipe(
+                Effect.provideService(OutboxPublisher, publisher),
+                Effect.provide(Logger.layer([logger]))
+              );
+
+              assert.strictEqual(reports[0]?.periods[0]?.result, "lost", mode);
+              const row = runOf(yield* jobRuns, "workspaceSync");
+              assert.deepStrictEqual(
+                [row.outcome, row.counts, row.attempt],
+                ["done", { successor: 1 }, 2]
+              );
+            }
+
+            assert.strictEqual(logged.length, 3);
+
+            for (const periods of logged) {
+              assert.include(periods, "lost");
+            }
+
+            yield* sql`delete from job_run where job = 'workspaceSync'`;
+          })
+      );
       layerTest.effect(
         "falsifier 7: twenty concurrent ticks in each of 100 fresh rounds produce one job run and one effect",
         () =>

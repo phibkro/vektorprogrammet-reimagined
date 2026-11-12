@@ -3,11 +3,11 @@
  * period due or a command asked for it. `packages/db` implements it with one row per `(job, period)`.
  *
  * Contract (FX009, FX010):
- * - `claim` never waits. A new period is claimed by recording it if no record of it exists (CL1); a `partial` period,
- *   or a `running` one whose lease has expired, is taken over by one conditional write; a `done` or `failed` one is
- *   `Finished`, and a `running` one under a live lease is `Taken`. Exactly one caller of a period is `Claimed` (CL2).
- * - Fencing: every write after the claim carries the `attempt` of its claim. A runner whose period was taken over
- *   finds no row to write and gets `LeaseLost`, which rolls its chunk back, so a stale runner cannot add to the run.
+ * - A new period is claimed by recording it if absent (CL1). A partial or expired running period is taken over
+ *   atomically only below maxAttempts; otherwise that same statement commits failed and returns Finished.
+ *   A live running period is Taken, including its final attempt. Exactly one caller is Claimed (CL2).
+ * - Every write carries its claim's attempt fence. A superseded chunk gets LeaseLost and rolls back;
+ *   release/fail return lost instead of claiming an outcome their update did not commit.
  * - `advance` and `finish` require `InTransaction`: the chunk's rows and its cursor commit together, or neither
  *   does. A run that is killed between chunks therefore resumes at the cursor and repeats nothing.
  * - Ordering: none across periods. A tick runs the periods of one job in the order `resumable` then `due`.
@@ -62,8 +62,8 @@ export class LeaseLost extends Schema.TaggedError<
   { readonly brand: unique symbol }
 >()("LeaseLost", { job: SystemJob, period: JobPeriod }) {}
 
-/** What `fail` decided: try the period again at a later tick, or leave it for the next period. */
-export type Failure = "retry" | "failed";
+/** A failure report describes only a committed update; lost means the fence matched no row. */
+export type Failure = "retry" | "failed" | "lost";
 
 /** Requests may proceed while an operator has not approved the automatic schedule. */
 export type ResumeScope = "all" | "requests";
@@ -74,7 +74,8 @@ export class JobRuns extends Context.Service<
     readonly claim: (
       job: SystemJob,
       period: JobPeriod,
-      leaseSeconds: number
+      leaseSeconds: number,
+      maxAttempts: number
     ) => Effect.Effect<Claim>;
     /** Partial or expired periods, restricted to explicit requests when the schedule is unapproved. */
     readonly resumable: (
@@ -97,9 +98,9 @@ export class JobRuns extends Context.Service<
       held: Held,
       counts: Counts
     ) => Effect.Effect<void, LeaseLost, InTransaction>;
-    /** Gives the period back as `partial` (the tick's budget ended); the next tick resumes it. */
-    readonly release: (held: Held) => Effect.Effect<void>;
-    /** Records a failed attempt: `partial` again until `maxAttempts`, then `failed`. */
+    /** Commits partial when still held; lost means no row changed. */
+    readonly release: (held: Held) => Effect.Effect<"partial" | "lost">;
+    /** Commits partial until maxAttempts, then failed; lost means no row changed. */
     readonly fail: (
       held: Held,
       reason: string,

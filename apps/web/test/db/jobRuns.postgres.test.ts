@@ -6,7 +6,16 @@
  */
 import { assert, layer } from "@effect/vitest";
 import { and, eq } from "drizzle-orm";
-import { Array as Arr, Cause, DateTime, Effect, Exit, Predicate } from "effect";
+import { readMigrationFiles } from "drizzle-orm/migrator";
+import {
+  Array as Arr,
+  Cause,
+  DateTime,
+  Effect,
+  Exit,
+  Predicate,
+  Option,
+} from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { TestClock } from "effect/testing";
 
@@ -44,7 +53,8 @@ const claimHeld = Effect.fnUntraced(function* claimHeld(value: Job.JobPeriod) {
   const claim = yield* (yield* JobRun.JobRuns).claim(
     "workspaceSync",
     value,
-    LEASE
+    LEASE,
+    3
   );
 
   if (!Predicate.isTagged(claim, "Claimed")) {
@@ -57,6 +67,37 @@ const claimHeld = Effect.fnUntraced(function* claimHeld(value: Job.JobPeriod) {
 layer(postgresDatabase(), { excludeTestServices: true })(
   "job runs on PostgreSQL",
   (it) => {
+    it.effect(
+      "F-c: PostgreSQL refuses done without ended_at for insert and update",
+      () =>
+        Effect.gen(function* completionCheck() {
+          const sql = yield* SqlClient;
+
+          const inserted = yield* Effect.exit(
+            sql`insert into job_run (job, period, outcome, lease_until) values ('workspaceSync', 'invalid-done', 'done', now())`
+          );
+
+          assert.isTrue(Exit.isFailure(inserted));
+
+          if (Exit.isFailure(inserted)) {
+            assert.include(Cause.pretty(inserted.cause), "job_run_done_ended");
+          }
+
+          const held = yield* claimHeld(period("invalid-update"));
+
+          const updated = yield* Effect.exit(
+            sql`update job_run set outcome = 'done' where job = ${held.job} and period = ${held.period}`
+          );
+
+          assert.isTrue(Exit.isFailure(updated));
+
+          if (Exit.isFailure(updated)) {
+            assert.include(Cause.pretty(updated.cause), "job_run_done_ended");
+          }
+
+          yield* transactional((yield* JobRun.JobRuns).finish(held, {}));
+        })
+    );
     it.effect(
       `falsifier 7: ${RACERS} concurrent claims of one period, in each of ${ROUNDS} fresh rounds, leave one winner and one row`,
       () =>
@@ -71,7 +112,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
                 const exits = yield* race(
                   Arr.makeBy(RACERS, () =>
-                    runs.claim("workspaceSync", value, LEASE)
+                    runs.claim("workspaceSync", value, LEASE, 3)
                   )
                 );
 
@@ -126,7 +167,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
                 const exits = yield* race(
                   Arr.makeBy(RACERS, () =>
-                    runs.claim("workspaceSync", value, LEASE)
+                    runs.claim("workspaceSync", value, LEASE, 3)
                   )
                 );
 
@@ -161,7 +202,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           yield* transactional(runs.finish(held, { rows: 3 }));
 
           assert.strictEqual(
-            (yield* runs.claim("workspaceSync", done, LEASE))._tag,
+            (yield* runs.claim("workspaceSync", done, LEASE, 3))._tag,
             "Finished"
           );
           assert.deepStrictEqual(
@@ -188,7 +229,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             "failed"
           );
           assert.strictEqual(
-            (yield* runs.claim("workspaceSync", flaky, LEASE))._tag,
+            (yield* runs.claim("workspaceSync", flaky, LEASE, 3))._tag,
             "Finished",
             "a failed period is left for the next period"
           );
@@ -291,6 +332,112 @@ layer(postgresDatabase(), { excludeTestServices: true })(
 
     it.layer(TestClock.layer())((layerTest) => {
       layerTest.effect(
+        "F-a: crash-only takeovers stop at maxAttempts without killing a live final lease",
+        () =>
+          Effect.gen(function* boundedCrashes() {
+            yield* TestClock.setTime(DateTime.toEpochMillis(AT));
+            const runs = yield* JobRun.JobRuns;
+            const value = period("bounded-crashes");
+
+            for (const attempt of [1, 2]) {
+              const claim = yield* runs.claim("workspaceSync", value, LEASE, 2);
+              assert.isTrue(Predicate.isTagged(claim, "Claimed"));
+
+              if (Predicate.isTagged(claim, "Claimed")) {
+                assert.strictEqual(claim.held.attempt, attempt);
+              }
+
+              assert.strictEqual(
+                (yield* runs.claim("workspaceSync", value, LEASE, 2))._tag,
+                "Taken"
+              );
+              yield* TestClock.adjust(`${LEASE + 1} seconds`);
+            }
+
+            const claims = yield* Effect.all(
+              Arr.makeBy(RACERS, () =>
+                runs.claim("workspaceSync", value, LEASE, 2)
+              ),
+              { concurrency: "unbounded" }
+            );
+
+            assert.isTrue(Arr.every(claims, Predicate.isTagged("Finished")));
+            const [row] = yield* rowsOf("workspaceSync", value);
+            assert.strictEqual(row?.attempt, 2);
+            assert.strictEqual(row?.outcome, "failed");
+            assert.strictEqual(
+              row?.endedAt?.getTime(),
+              DateTime.toEpochMillis(yield* DateTime.now)
+            );
+            assert.strictEqual(row?.lastError, "maximum attempts exhausted");
+          })
+      );
+
+      layerTest.effect(
+        "F-a: a budget release at the limit is terminalized by the next claim",
+        () =>
+          Effect.gen(function* boundedRelease() {
+            const runs = yield* JobRun.JobRuns;
+            const value = period("bounded-release");
+            const claim = yield* runs.claim("workspaceSync", value, LEASE, 1);
+            assert.isTrue(Predicate.isTagged(claim, "Claimed"));
+
+            if (Predicate.isTagged(claim, "Claimed")) {
+              assert.strictEqual(yield* runs.release(claim.held), "partial");
+            }
+
+            assert.strictEqual(
+              (yield* runs.claim("workspaceSync", value, LEASE, 1))._tag,
+              "Finished"
+            );
+            assert.strictEqual(
+              (yield* rowsOf("workspaceSync", value))[0]?.attempt,
+              1
+            );
+            assert.strictEqual(
+              (yield* rowsOf("workspaceSync", value))[0]?.outcome,
+              "failed"
+            );
+          })
+      );
+
+      layerTest.effect(
+        "F-b: superseded release and both failure branches report lost without changing the successor",
+        () =>
+          Effect.gen(function* honestLostReports() {
+            const runs = yield* JobRun.JobRuns;
+            const value = period("lost-reports");
+            const first = yield* claimHeld(value);
+            yield* TestClock.adjust(`${LEASE + 1} seconds`);
+            const second = yield* claimHeld(value);
+            const before = yield* rowsOf("workspaceSync", value);
+            assert.strictEqual(yield* runs.release(first), "lost");
+            assert.strictEqual(
+              yield* runs.fail(first, "stale retry", 3),
+              "lost"
+            );
+            assert.strictEqual(
+              yield* runs.fail(first, "stale failure", 1),
+              "lost"
+            );
+            assert.deepStrictEqual(
+              yield* rowsOf("workspaceSync", value),
+              before
+            );
+            yield* transactional(runs.finish(second, {}));
+            const finished = yield* rowsOf("workspaceSync", value);
+            assert.strictEqual(yield* runs.release(second), "lost");
+            assert.strictEqual(
+              yield* runs.fail(second, "already finished", 1),
+              "lost"
+            );
+            assert.deepStrictEqual(
+              yield* rowsOf("workspaceSync", value),
+              finished
+            );
+          })
+      );
+      layerTest.effect(
         "a live lease is Taken, an expired one is taken over, and the runner that lost it is fenced out",
         () =>
           Effect.gen(function* leases() {
@@ -301,7 +448,7 @@ layer(postgresDatabase(), { excludeTestServices: true })(
             const first = yield* claimHeld(value);
 
             assert.strictEqual(
-              (yield* runs.claim("workspaceSync", value, LEASE))._tag,
+              (yield* runs.claim("workspaceSync", value, LEASE, 3))._tag,
               "Taken"
             );
             assert.deepStrictEqual(
@@ -383,7 +530,8 @@ layer(postgresDatabase(), { excludeTestServices: true })(
                     runs.claim(
                       "workspaceSync",
                       period(`unkeyed-${round}`),
-                      LEASE
+                      LEASE,
+                      3
                     )
                   )
                 ),
@@ -403,6 +551,66 @@ layer(postgresDatabase(), { excludeTestServices: true })(
           );
         }),
       { timeout: 60_000 }
+    );
+  }
+);
+
+const completionMigration = Option.getOrThrow(
+  Arr.findFirst(
+    readMigrationFiles({
+      migrationsFolder: new URL("../../drizzle/", import.meta.url).pathname,
+    }),
+    (migration) => migration.name === "20261112175014_job_run_done_ended"
+  )
+);
+
+layer(postgresDatabase(), { excludeTestServices: true })(
+  "job-run completion migration",
+  (it) => {
+    it.effect(
+      "F-c: migration preflight refuses old violations unchanged, then accepts valid rows",
+      () =>
+        Effect.gen(function* completionPreflight() {
+          const sql = yield* SqlClient;
+
+          yield* sql`alter table job_run drop constraint job_run_done_ended`;
+          yield* sql`insert into job_run (job, period, outcome, lease_until) values ('workspaceSync', 'old-invalid-done', 'done', now())`;
+
+          const apply = transactional(
+            Effect.forEach(
+              completionMigration.sql,
+              (statement) => sql.unsafe(statement),
+              { discard: true }
+            )
+          );
+
+          const refused = yield* Effect.exit(apply);
+          assert.isTrue(Exit.isFailure(refused));
+
+          if (Exit.isFailure(refused)) {
+            assert.include(
+              Cause.pretty(refused.cause),
+              "job_run_done_ended preflight"
+            );
+          }
+
+          const [unchanged] =
+            yield* sql`select outcome, ended_at from job_run where period = 'old-invalid-done'`;
+
+          assert.deepStrictEqual(unchanged, {
+            ended_at: null,
+            outcome: "done",
+          });
+          // Explicit synthetic fixture correction, not migration behavior.
+          yield* sql`update job_run set ended_at = now() where period = 'old-invalid-done'`;
+          yield* apply;
+
+          const invalid = yield* Effect.exit(
+            sql`update job_run set ended_at = null where period = 'old-invalid-done'`
+          );
+
+          assert.isTrue(Exit.isFailure(invalid));
+        })
     );
   }
 );

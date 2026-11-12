@@ -4,6 +4,8 @@
 
 ## Current prototype (2026-11-04)
 
+- **build — spec 0034, implemented and locally checked:** [Job-run findings](docs/specs/0034-job-run-findings.md) follows spec 0033: model-first attempt exhaustion, honest lost-lease reports and completed-run timestamps. All 13 formal variants matched; 419 domain, 12 job-run DB and 10 scheduler tests passed, including failing mutation controls; static/Effect and exception gates passed. Scope/assumptions and exact evidence are in the spec. No publication or deployment ran.
+
 - Architecture: one Start Worker, Supabase Postgres/Auth/Storage, in-app content editor, due-safe Postgres outbox delivery; Terraform owns hosted Worker artifacts and selected existing-project settings. No remote import/plan/apply or deployment has run.
 - The earlier local prototype is described in `docs/specs/0028-supabase-prototype.md`; its evidence predates the hybrid merge and does not verify it.
 - Startup and synthetic account references: `tools/prototype/README.md`, `apps/web/README.md`, `apps/web/test/fixtures/localPeople.ts`. Secrets/captured links stay outside Git and logs. Local CLI defaults and non-loopback published ports make this synthetic-only.
