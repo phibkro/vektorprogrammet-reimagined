@@ -10,8 +10,8 @@ Run `devenv shell --profile formal -- .agents/skills/verify-job-runs/run.sh`. `-
 ## Coverage record
 
 ```coverage
-sync-digest: 0c952a357d2dfbdcba0990d6cad4b3cfc49930a1
-confirmed-at: 3f1d7168
+sync-digest: aa4c25676d898a79699dea7959ea1ee08f2559e1
+confirmed-at: 8ba62c5
 apps/web/src/adapters/db/repositories/jobRuns.ts
 apps/web/src/adapters/db/schema.ts
 apps/web/src/server/background/scheduler.ts

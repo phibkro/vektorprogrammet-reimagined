@@ -31,3 +31,26 @@ TLC checks a finite abstraction (one eligible period, two workers, two chunk pos
 - 2026-11-12: Failing-before evidence: with only exhausted predicate mutated to SQL false, `-t 'F-a:'` failed both crash/takeover and budget-release regressions (Claimed instead of Finished). With stale release outcome restored to partial, repository and scheduler `-t 'F-b:'` failed (partial instead of lost). With release fixed but the failure zero-row branch removed, both failed (retry instead of lost). With only the generated CHECK mutated to true, `-t 'F-c: PostgreSQL'` failed because invalid insert succeeded. All mutations were restored before the passing focused suites. The model's individual unbounded/reports/check variants are the permanent corresponding controls.
 - 2026-11-12: Shared-machine admission used approximately 14–15 GiB MemAvailable out of 64 GiB, low CPU/memory PSI and lightly utilized NVMe devices despite high aggregate I/O PSI; jobs were serialized on CPUs 0–3 with at most two Vitest workers. Lead granted port 54321 custody. `devenv up -d` ran only in this worktree and `devenv down` succeeded afterwards; custody was returned. Synthetic data only.
 - 2026-11-12: Installed Effect, sql-pg, platform-node, sql-pglite and vitest: 4.0.6; @effect/tsgo: 0.53.1. No dependency pins, exceptions or suppressions added. Reused existing Drizzle generator, conditional UPDATE, repository layer, test layers/TestClock and publication boundary. Installed AGENTS, schema/basics/DateTime/SQL/testing examples and Logger/Option source cover the APIs used; there was no missing installed API entry requiring a substitute. No effect-house overlay exists in this checkout.
+- 2026-11-12: `taskset -c 0-3 devenv shell -- bunx vp check` passed: all 885 files formatted, no warnings/lint/type errors in 681 files, including Effect diagnostics. The implementation commit's pre-commit staged checks, secret scan and commitlint passed. Reviewed model/source agreement at `8ba62c5`; only then refreshed the covered-tree digest to `aa4c25676d898a79699dea7959ea1ee08f2559e1`.
+- 2026-11-12: Not run: full workspace ready/test:all, unrelated PostgreSQL suites, fresh production build, full browser suite, hosted migration/deployment and provider-delivery probes. The assigned behavior is bounded job protocol/model, concrete repository/schema and scheduler reporting; these broader checks are not claimed.
+- 2026-11-12: Final digest-gated formal command exited 0 against implementation `8ba62c5`; all 13 variants matched. Logs/configs: `/tmp/verify-job-runs.5mbQX4`. `devenv shell -- bunx vp run check:exceptions` also passed (registry clean; no new exception).
+
+### Final TLC state counts
+
+Generated/distinct counts are bounded exploration results, not proofs about all deployments. Negative controls stop at their counterexample; parallel exploration can change their detection counts.
+
+| Case / counterexample log | Generated | Distinct | Result |
+| --- | --: | --: | --- |
+| current.out | 867 | 337 | Safety passes |
+| progress.out | 867 | 337 | EventuallyTerminal passes |
+| crashes.out | 71 | 43 | Crash-only EventuallyTerminal passes |
+| legacy-crash.out | 97 | 49 | F-a: temporal counterexample |
+| unbounded.out | 97 | 49 | F-a alone: temporal counterexample |
+| legacy-report.out | 87 | 69 | F-b: HonestReports violated |
+| reports.out | 148 | 95 | F-b alone: HonestReports violated |
+| legacy-check.out | 12 | 10 | F-c: DoneHasEnd violated |
+| check.out | 12 | 10 | F-c alone: DoneHasEnd violated |
+| holders.out | 16 | 12 | NoTwoLive violated |
+| fence.out | 175 | 100 | NoStaleWrite violated |
+| atomic.out | 27 | 23 | AtMostOnce violated |
+| terminal.out | 82 | 54 | TerminalStable violated |
