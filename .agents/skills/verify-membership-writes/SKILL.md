@@ -16,8 +16,8 @@ The tests reach this case badly: the deadlock of spec 0006 R6 passed 320 single 
 Everything in the model points at code that you can open: `model/Shapes.tla` lists the statements of each call that a command makes (the lock, the reads, the repository writes) and of each command, with file and line. `run.sh` reads this block. An entry is a file, or a directory and everything under it.
 
 ```coverage
-sync-digest: b6de534dc14daeb7b927071069bc5ebf7cd8fa85
-confirmed-at: 7e8dd1b1bdfb6bf7c69f4ea9a5b04ad7f7505ab1
+sync-digest: 299d47193a502cc0dd8ec953ad8ed0fb6edf2f8f
+confirmed-at: 8b60e22c
 apps/web/src/adapters/db/live.ts
 apps/web/src/adapters/db/repositories/teams.ts
 apps/web/src/adapters/db/repositories/accounts.ts
@@ -55,6 +55,10 @@ apps/web/src/core/transactions/transactor.ts
 The `sync-digest` is the digest of the covered paths at the last confirmation. `confirmed-at` records the human-readable commit for reference only. Squash-merging does not invalidate the content digest. After reviewing the changes and confirming the model describes the code, compute the new value with `run.sh --digest` and record it here (see "Update the model after a change"). The confirmation of 2026-10-27 (spec 0007b) covers the commands in `compose`: the aggregate writes now accept several locks and use `IN`, which for the one token held by these commands selects the same rows as before. The tombstone filter and the writers in the next section are outside the model.
 
 Spec 0030 relocated the covered code into the application at `c95ce8d`; its model and probe results remain historical evidence for that tree. At `2cd8996e4e0ef6a9676b1d10de02feb3be6c2d6b`, review of 80 covered files found 63 byte-identical and 16 with import-path changes only. One `teams.ts` import also collapsed four lines; all 80 matched after normalization. At `7e8dd1b1bdfb6bf7c69f4ea9a5b04ad7f7505ab1`, the only covered change from that tree removes a stale package reference from a `schema.ts` comment; executable code and line count are unchanged. The CMS fix and test comment cleanup are outside coverage. The current digest records this source confirmation. At this source, the full formal run passed 30 maintained cases, with 1,712,396 current-code states and 53 SQL probes (exit 0). No model predicates or bounds changed.
+
+Spec 0034 (2026-11-12, PR #82) changes only three covered files since the prior confirmation: schema.ts adds the job_run_done_ended CHECK; its generated migration and snapshot add that same constraint on job_run. The preflight reads only job_run and refuses historical completion-timestamp violations without changing rows. No membership statement, lock, lock order, constraint, aggregate writer or command changes, and no new membership writer exists. Shapes.tla therefore needs no semantic change. PR #80 independently refreshes this coverage digest too; whichever PR merges second must review the combined covered tree and reconfirm its digest rather than accepting either branch's copied digest.
+
+The spec 0034 confirmation ran the full verifier with --code against 8b60e22c (TLC_WORKERS=2, TLC_HEAP=1g, CPUs 0–3). All 30 maintained cases matched, including every negative control; current-code explored 4,465,355 generated / 1,712,396 distinct states and passed all five invariants. All 53 real-PostgreSQL code tests passed. The verifier exited 3 only because the old coverage digest was still recorded; the digest above was refreshed after this successful behavioral verification. Logs/configurations are retained at /tmp/verify-membership-writes.UUEnFh. No model action or property was changed.
 
 After the 0007d rebase, the model was run again with `--code`. The membership-machine additions declare metadata for effx; they do not change transitions. The added retention-report migration changes only the audit action constraint. Neither changes the modeled statements.
 
