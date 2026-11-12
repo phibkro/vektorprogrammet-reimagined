@@ -1,0 +1,37 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "8984ee31-173a-429c-acd9-ef34af478d71",
+  "prevIds": ["76cd9fde-72cc-4523-9898-98683d988b76"],
+  "footprints": [
+    {
+      "statementType": "add_check",
+      "statementTarget": ["table", "public", "job_run"],
+      "writes": [
+        "s|ck|public.job_run.job_run_done_ended",
+        "n|ck|public.job_run.job_run_done_ended",
+        "e|ck|public.job_run.job_run_done_ended",
+        "n|con|public.job_run.job_run_done_ended"
+      ],
+      "reads": [
+        "n|tbl|public.job_run",
+        "n|sch|public",
+        "n|col|public.job_run.outcome",
+        "n|col|public.job_run.ended_at"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "job_run",
+        "name": "job_run_done_ended",
+        "value": "\"outcome\" <> 'done' or \"ended_at\" is not null",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

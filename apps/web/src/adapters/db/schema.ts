@@ -844,6 +844,10 @@ export const jobRun = pgTable(
       oneOf(sql`${t.outcome}`, JobRun.RunOutcome.literals)
     ),
     check("job_run_attempt", sql`${t.attempt} >= 0`),
+    check(
+      "job_run_done_ended",
+      sql`${t.outcome} <> 'done' or ${t.endedAt} is not null`
+    ),
   ]
 );
 
