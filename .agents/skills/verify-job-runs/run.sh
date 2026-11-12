@@ -13,6 +13,7 @@ case "${1:-}" in
  --touched)
    [ $# -eq 2 ] || { echo 'usage: run.sh --touched <base>' >&2; exit 2; }
    changed=$(git -C "$root" diff --name-only "$2"...HEAD -- "${covered[@]}" "${here#"$root"/}" devenv.nix devenv.lock)
+   if [ "$(digest HEAD)" != "$sync_digest" ]; then echo "coverage digest drift" >&2; exit 3; fi
    if [ -n "$changed" ]; then echo touched; printf '%s\n' "$changed" >&2; else echo untouched; fi
    exit ;;
  '') ;;
