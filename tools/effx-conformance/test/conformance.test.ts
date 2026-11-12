@@ -19,7 +19,10 @@ import {
   Schema,
 } from "effect";
 
-import { GrantTable } from "../../../apps/web/src/core/declarations.ts";
+import {
+  Declarations,
+  GrantTable,
+} from "../../../apps/web/src/core/declarations.ts";
 import { authorizeWith } from "../../../apps/web/src/core/kernel/authorize.ts";
 import type * as Domain from "../../../apps/web/src/core/kernel/domain.ts";
 import * as Effx from "../../../apps/web/src/core/kernel/effx.ts";
@@ -442,10 +445,13 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
         const committed = yield* Committed;
 
         for (const [change, declaration] of Rec.toEntries(mutants)) {
-          const text = Option.match(Effx.describe(declaration).description, {
-            onNone: () => "",
-            onSome: (description) => Effx.committedJson(description),
-          });
+          const text = Option.match(
+            Effx.describe(declaration, Declarations).description,
+            {
+              onNone: () => "",
+              onSome: (description) => Effx.committedJson(description),
+            }
+          );
 
           const found = drift(committed.texts, [{ domain: "teams", text }]);
 
@@ -503,13 +509,16 @@ layer(Committed.layer)("spec 0007d: the kernel and effx's vectors", (it) => {
       Effect.gen(function* control() {
         const committed = yield* Committed;
 
-        const widened = Effx.describe({
-          ...Teams.TeamsDomain,
-          table: [
-            ...Teams.TeamsDomain.table,
-            Grant.make([Subject.anyone], ["viewTeams"], "all"),
-          ],
-        });
+        const widened = Effx.describe(
+          {
+            ...Teams.TeamsDomain,
+            table: [
+              ...Teams.TeamsDomain.table,
+              Grant.make([Subject.anyone], ["viewTeams"], "all"),
+            ],
+          },
+          Declarations
+        );
 
         const added = Arr.flatMap(widened.gaps, (gap) =>
           Predicate.isTagged(gap, "UnexpressibleSubject") ? [gap] : []

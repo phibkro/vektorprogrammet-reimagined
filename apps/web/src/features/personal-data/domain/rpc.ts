@@ -3,7 +3,7 @@
  * merge, and the two jobs that act as their own principals. Each carries its resource and method (ADR 0010). The
  * grants are rows of the domain's table; `Admin` holds every command that a person may run, as one row.
  */
-import { Schema } from "effect";
+import { Array as Arr, Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 
 import { DomainErrorSchema } from "../../../core/errors.ts";
@@ -17,11 +17,14 @@ import {
   system,
   make as declareDomain,
 } from "../../../core/kernel/domain.ts";
+import * as Machine from "../../../core/kernel/machine.ts";
 import {
   CodeToken,
   codeHolder,
   codePolicy,
 } from "../../accounts/domain/code.ts";
+import { AccountMachine } from "../../accounts/domain/declaration.ts";
+import { PersonMachine } from "../../teams/domain/declaration.ts";
 import { ConsentSummary } from "./consents.ts";
 import { durationWords, lifetimeWords } from "./duration.ts";
 import { Periods } from "./periods.ts";
@@ -221,8 +224,183 @@ export const PersonalDataRpc = RpcGroup.make(
   sendAlumniConsent
 );
 
+export const ErasureMoment = Schema.Struct({
+  blockingHold: Schema.Boolean,
+  lastActiveAdmin: Schema.Boolean,
+});
+
+export type ErasureMoment = typeof ErasureMoment.Type;
+
+export const mayErase = ({
+  lastActiveAdmin,
+  blockingHold,
+}: ErasureMoment): boolean => !lastActiveAdmin && !blockingHold;
+
+const erasureGuard = Schema.makeFilter(mayErase, {
+  expected: "not the last Active admin and no blocking legal hold",
+  representation: { id: "vektorprogrammet/privacy/erasure", payload: {} },
+});
+
+export const PersonErasure = Machine.contribute({
+  commands: PersonalDataRpc,
+  context: ErasureMoment,
+  target: PersonMachine,
+  transitions: [
+    {
+      command: "erasePerson",
+      from: ["Identifiable", "Anonymised"],
+      guard: erasureGuard,
+      to: "Anonymised",
+    },
+  ],
+});
+
+export const AccountErasure = Machine.contribute({
+  commands: PersonalDataRpc,
+  context: ErasureMoment,
+  target: AccountMachine,
+  transitions: [
+    {
+      command: "erasePerson",
+      from: AccountMachine.states,
+      guard: erasureGuard,
+      to: Machine.Boundary,
+    },
+  ],
+});
+
+export const MergeMoment = Schema.Struct({
+  distinct: Schema.Boolean,
+  sourceIdentifiable: Schema.Boolean,
+  targetIdentifiable: Schema.Boolean,
+  verifiedHolder: Schema.optionalKey(Schema.Boolean),
+});
+
+export type MergeMoment = typeof MergeMoment.Type;
+
+export const mayMerge = ({
+  sourceIdentifiable,
+  targetIdentifiable,
+  distinct,
+}: MergeMoment): boolean =>
+  sourceIdentifiable && targetIdentifiable && distinct;
+
+const mergeGuard = Schema.makeFilter(mayMerge, {
+  expected:
+    "distinct identifiable records; catalog merge constraints must hold",
+  representation: { id: "vektorprogrammet/privacy/merge", payload: {} },
+});
+
+const verifiedMergeGuard = Schema.makeFilterGroup([
+  mergeGuard,
+  Schema.makeFilter<MergeMoment>(
+    ({ verifiedHolder }) => verifiedHolder === true,
+    {
+      expected: "a verified holder already owns the address",
+      representation: {
+        id: "vektorprogrammet/privacy/verified-holder",
+        payload: {},
+      },
+    }
+  ),
+]);
+
+export const PersonMerge = Machine.contribute({
+  commands: PersonalDataRpc,
+  context: MergeMoment,
+  target: PersonMachine,
+  transitions: [
+    {
+      command: "mergePersons",
+      from: ["Identifiable"],
+      guard: mergeGuard,
+      to: "Merged",
+    },
+    {
+      command: "verifyApplicantEmail",
+      from: ["Identifiable"],
+      guard: verifiedMergeGuard,
+      to: "Merged",
+      when: "verified address already held; distinct identifiable records; catalog merge constraints hold",
+    },
+  ],
+});
+
+/** A merge changes the account's owner, not its stored state. The catalog's Single rule still decides feasibility. */
+export const AccountMerge = Machine.contribute({
+  commands: PersonalDataRpc,
+  context: MergeMoment,
+  effect: "transfer",
+  target: AccountMachine,
+  transitions: Arr.flatMap(AccountMachine.states, (state) => [
+    {
+      command: "mergePersons" as const,
+      from: [state],
+      guard: mergeGuard,
+      to: state,
+      when: "account follows survivor; at most one account",
+    },
+    {
+      command: "verifyApplicantEmail" as const,
+      from: [state],
+      guard: verifiedMergeGuard,
+      to: state,
+      when: "verified holder; account follows survivor; at most one account",
+    },
+  ]),
+});
+
+const RetentionMoment = Schema.Struct({
+  applying: Schema.Boolean,
+  coreDue: Schema.Boolean,
+});
+
+const retentionGuard = Schema.makeFilter<typeof RetentionMoment.Type>(
+  ({ applying, coreDue }) => applying && coreDue,
+  {
+    expected: "Apply mode and person core due by the catalog",
+    representation: { id: "vektorprogrammet/privacy/retention", payload: {} },
+  }
+);
+
+export const PersonRetention = Machine.contribute({
+  commands: PersonalDataRpc,
+  context: RetentionMoment,
+  target: PersonMachine,
+  transitions: [
+    {
+      command: "runRetention",
+      from: ["Identifiable"],
+      guard: retentionGuard,
+      to: "Anonymised",
+    },
+  ],
+});
+
+export const AccountRetention = Machine.contribute({
+  commands: PersonalDataRpc,
+  context: RetentionMoment,
+  target: AccountMachine,
+  transitions: [
+    {
+      command: "runRetention",
+      from: AccountMachine.states,
+      guard: retentionGuard,
+      to: Machine.Boundary,
+    },
+  ],
+});
+
 export const PersonalDataDomain = declareDomain({
   commands: PersonalDataRpc,
+  contributions: [
+    PersonErasure,
+    AccountErasure,
+    PersonMerge,
+    AccountMerge,
+    PersonRetention,
+    AccountRetention,
+  ],
   grants: [
     grant(
       [self],

@@ -37,6 +37,7 @@ import {
   Team,
   TeamDetails,
 } from "./entities.ts";
+import { PersonState, TeamState, teamStateTag } from "./lifecycle.ts";
 import { MembershipState } from "./term.ts";
 
 // ---------------------------------------------------------------- commands
@@ -251,6 +252,49 @@ export const TeamsRpc = RpcGroup.make(
   sendEndingSoon
 );
 
+export const PersonMachine = Machine.make({
+  commands: TeamsRpc,
+  context: Schema.Struct({}),
+  name: "Person",
+  states: PersonState,
+  terminal: ["Anonymised", "Merged"],
+  transitions: [
+    { command: "createPerson", from: [Machine.Boundary], to: "Identifiable" },
+  ],
+});
+
+export const TeamMachine = Machine.make({
+  commands: TeamsRpc,
+  context: Schema.Struct({}),
+  name: "Team",
+  states: TeamState,
+  terminal: ["Inactive"],
+  transitions: [
+    { command: "createTeam", from: [Machine.Boundary], to: "Active" },
+    { command: "deactivateTeam", from: ["Active", "Inactive"], to: "Inactive" },
+    { command: "updateTeam", from: ["Active"], to: "Active" },
+    { command: "updateTeam", from: ["Inactive"], to: "Inactive" },
+  ],
+});
+
+/** Preconditions on the receiving Team, not transitions that create a Team or end existing memberships. */
+export const TeamPresence = Machine.contribute({
+  commands: RpcGroup.make(createMembership, extendMembership, changeMembership),
+  context: Schema.Struct({}),
+  effect: "requires",
+  target: TeamMachine,
+  transitions: [
+    { command: "createMembership", from: ["Active"], to: "Active" },
+    { command: "extendMembership", from: ["Active"], to: "Active" },
+    { command: "changeMembership", from: ["Active"], to: "Active" },
+  ],
+});
+
+export const acceptsPresence = (
+  team: { readonly active: boolean },
+  command: (typeof TeamPresence.transitions)[number]["command"]
+): boolean => Machine.startsFrom(TeamPresence, command, teamStateTag(team));
+
 // ---------------------------------------------------------------- the Membership machine
 
 /** The inputs the membership guards read. A term here is the two stored semesters, already validated at entry. */
@@ -355,6 +399,7 @@ export const MembershipMachine = Machine.make({
 
 export const TeamsDomain = declareDomain({
   commands: TeamsRpc,
+  contributions: [TeamPresence],
   grants: [
     grant(
       [leader, board],
@@ -376,7 +421,7 @@ export const TeamsDomain = declareDomain({
     grant([member], ["viewTeams"], "department"),
     grant([system("endingSoon")], ["sendEndingSoon"], "all"),
   ],
-  machines: [MembershipMachine],
+  machines: [MembershipMachine, PersonMachine, TeamMachine],
   // Only an Active membership grants (ADR 0001, ADR 0002): `term.ts` calculates the state, and effx's model checks that
   // no permission comes from a membership outside it.
   memberships: { grantingStates: ["Active"], machine: "Membership" },

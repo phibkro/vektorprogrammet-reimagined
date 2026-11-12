@@ -198,6 +198,71 @@ export const make = <
   ),
 });
 
+/** A foreign command's contribution to a machine. Pure data; it grants no authority and runs no effects. */
+export interface Contribution extends Description {
+  readonly target: Description;
+  readonly commands: readonly Rpc.Any[];
+  readonly effect: "requires" | "state" | "transfer";
+}
+
+/**
+ * Adds transitions at their causing domain without widening the target's own command group.
+ * The target supplies state tags; the causing group supplies command tags; guards use this contribution's context.
+ */
+export const contribute = <
+  State extends string,
+  Command extends string,
+  TargetContext,
+  const Rpcs extends Rpc.Any,
+  Context,
+>(
+  definition: {
+    readonly target: Table<State, Command, TargetContext>;
+    readonly commands: RpcGroup.RpcGroup<Rpcs>;
+    readonly context: Schema.Schema<Context>;
+  } & (
+    | {
+        readonly effect: "requires";
+        readonly transitions: readonly (Transition<
+          NoInfer<State>,
+          Rpcs["_tag"],
+          Context
+        > & {
+          readonly accepts?: never;
+          readonly guard?: never;
+          readonly guardRepresentation?: never;
+          readonly when?: never;
+        })[];
+      }
+    | {
+        readonly effect?: "state" | "transfer";
+        readonly transitions: readonly Transition<
+          NoInfer<State>,
+          Rpcs["_tag"],
+          Context
+        >[];
+      }
+  )
+): Table<State, Rpcs["_tag"], Context> & Contribution => ({
+  calculated: [],
+  commands: Arr.fromIterable(definition.commands.requests.values()),
+  effect: definition.effect ?? "state",
+  fields: [],
+  name: definition.target.name,
+  states: definition.target.states,
+  target: definition.target,
+  terminal: definition.target.terminal,
+  transitions: Arr.map(definition.transitions, (transition) =>
+    transition.guard === undefined
+      ? transition
+      : {
+          ...transition,
+          ...compiled(definition.context, transition.guard),
+          when: transition.when ?? Guard.describe(transition.guard),
+        }
+  ),
+});
+
 /**
  * What a machine is asked about a command: the table, a command of its own group, a state and the values that the
  * guards read. `command` is inferred from the table alone, so a name that the group does not have does not compile (a

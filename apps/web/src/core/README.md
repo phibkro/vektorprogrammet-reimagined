@@ -4,6 +4,8 @@ Feature-specific domain code lives in `../features/<feature>/domain`. Core is th
 
 Domain tests are in `apps/web/test/domain`; conformance artefacts are in `apps/web/conformance`. See [spec 0030](../../../../docs/specs/0030-app-local-feature-organisation.md) for boundary history and [the web guide](../../README.md) for current commands. Transaction proofs, ordered aggregate locks and service identities retain their existing semantics.
 
+Spec [0032](../../../../docs/specs/0032-declared-lifecycles.md) adds `Machine.contribute`: a causing domain references another domain's actual machine and supplies its own typed command group and guard context. `Domain.incoming` and `resolvedMachines` derive the cross-domain reference view; `allProblems` checks ownership, target identity, state references, terminal exits and overlapping contributions. Contributions grant no authority. Account transfer is distinguished from deletion. Person and Team states project existing columns rather than introducing stored copies. Inactive teams refuse new/prolonged presence, not exits; `holdPresence` serializes membership admission with deactivation after the Person lock. effx receives explicit cross-domain/identity-transfer gaps and whole-machine omission rather than incomplete machines.
+
 ## Historical package references
 
 The following two former package references are preserved for their detailed contracts and evidence. Their old paths, exports, commands, provider names and present-tense implementation claims refer to the earlier package layout and may not describe the current prototype. Use current source and the guides above instead of their instructions.

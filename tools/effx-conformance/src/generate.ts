@@ -24,7 +24,7 @@ export interface Derived {
 export const derive = Effect.fn("derive")(function* derive() {
   const exported = Arr.map(Declarations, (declaration) => ({
     domain: declaration.name,
-    ...Effx.describe(declaration),
+    ...Effx.describe(declaration, Declarations),
   }));
 
   const gaps = yield* Schema.encodeUnknownEffect(GapRegister)([

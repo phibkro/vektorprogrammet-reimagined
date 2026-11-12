@@ -51,7 +51,7 @@ const must = <A>(option: Option.Option<A>, what: string): A =>
 
 const exported = (declaration: Declaration) =>
   must(
-    Effx.describe(declaration).description,
+    Effx.describe(declaration, Declarations).description,
     `the description of ${declaration.name}`
   );
 
@@ -60,8 +60,9 @@ const gapsOf = <Narrowed extends Effx.Gap>(
   declaration: Declaration,
   guard: (gap: unknown) => gap is Narrowed
 ): readonly Narrowed[] =>
-  Arr.filter(Effx.describe(declaration).gaps, (gap): gap is Narrowed =>
-    guard(gap)
+  Arr.filter(
+    Effx.describe(declaration, Declarations).gaps,
+    (gap): gap is Narrowed => guard(gap)
   );
 
 const expressionOf = (declaration: Declaration, name: string) =>
@@ -73,7 +74,7 @@ const expressionOf = (declaration: Declaration, name: string) =>
 describe("spec 0007d falsifier 1: the description is derived from the declarations", () => {
   it("every domain is exported but `contact`, whose only subject is Anyone", () => {
     const without = Arr.filter(Declarations, (declaration) =>
-      Option.isNone(Effx.describe(declaration).description)
+      Option.isNone(Effx.describe(declaration, Declarations).description)
     );
 
     assert.deepStrictEqual(
@@ -228,7 +229,7 @@ describe("spec 0007d falsifier 1: the description is derived from the declaratio
 
 describe("spec 0007d falsifier 4: what effx cannot state is a typed gap, never a silent drop", () => {
   it("a domain whose every command needs a subject that effx cannot state has no description", () => {
-    const described = Effx.describe(Contact.ContactDomain);
+    const described = Effx.describe(Contact.ContactDomain, Declarations);
 
     assert.isTrue(Option.isNone(described.description));
     assert.deepStrictEqual(

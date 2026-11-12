@@ -259,6 +259,12 @@ export const person = pgTable(
     uniqueIndex(UniqueConstraint.personCompanyEmail)
       .on(t.companyEmail)
       .where(sql`${t.companyEmail} is not null`),
+    uniqueIndex("person_merge_pair_unique")
+      .on(
+        sql`least(${t.id}, ${t.mergedInto})`,
+        sql`greatest(${t.id}, ${t.mergedInto})`
+      )
+      .where(sql`${t.mergedInto} is not null`),
     index("person_field_of_study_idx").on(t.fieldOfStudyId),
     check("person_email_lowercase", sql`${t.email} = lower(${t.email})`),
     check(

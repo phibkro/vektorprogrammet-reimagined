@@ -369,6 +369,7 @@ const teamRepository = Layer.effect(
           return team;
         }),
       findById: (id) => findOrNotFound(tables.teams, "Team", id),
+      holdPresence: (id) => findOrNotFound(tables.teams, "Team", id),
       list: (departmentId) =>
         Effect.map(Ref.get(tables.teams), (teams) =>
           Arr.sort(

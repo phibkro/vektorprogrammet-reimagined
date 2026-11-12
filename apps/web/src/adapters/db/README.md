@@ -6,6 +6,8 @@ From the repository root, the app scripts are `devenv shell -- bun run --cwd app
 
 The runtime uses a restricted role; migration authority stays outside the Worker. Domain tables use RLS without browser-role policies. Provider Auth and Storage retain their own policies. Owner-privileged views and definer functions require separate hosted review. Provider identity deletion and relink occur after domain commit through durable outbox work.
 
+Spec [0032](../../../../../docs/specs/0032-declared-lifecycles.md): `TeamRepository.holdPresence` takes `FOR SHARE` on the team after the caller's Person lock, holding activity stable until transaction end. Deactivation's update conflicts with this lock. Creation, extension and move-to check presence; early end, planned cancellation and move-away remain possible. MG1 is a store-enforced exclusion of direct reciprocal Person merge pairs, backed by the partial unordered-pair unique index. Index creation checks existing edges and refuses duplicates; it never repairs data. MG1 does not claim general graph acyclicity.
+
 ## Historical package and provider reference
 
 The following former package reference preserves detailed contracts and historical evidence. Its package paths, barrel exports, commands, Neon/Hyperdrive deployment details and present-tense claims are historical, not current instructions or evidence of the Supabase deployment. Do not execute its remote commands without separate operator authority.

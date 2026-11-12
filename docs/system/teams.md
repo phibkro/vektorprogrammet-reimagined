@@ -112,6 +112,40 @@ stateDiagram-v2
 
 Active, Planned and Ended are calculated from the semester. They replace the legacy suspension flag and job (RULE-219 ✗, 263) and the separate "active" definitions (RULE-016, 023 ✗, 031, 048, 124 ✗).
 
+### State machines: Person and Team
+
+<!-- docgen:begin person -->
+
+```mermaid
+stateDiagram-v2
+  [*] --> Identifiable : createPerson
+  Identifiable --> Anonymised : personalData.erasePerson (not the last Active admin and no blocking legal hold)
+  Anonymised --> Anonymised : personalData.erasePerson (not the last Active admin and no blocking legal hold)
+  Identifiable --> Merged : personalData.mergePersons (distinct identifiable records; catalog merge constraints must hold)
+  Identifiable --> Merged : personalData.verifyApplicantEmail (verified address already held; distinct identifiable records; catalog merge constraints hold)
+  Identifiable --> Anonymised : personalData.runRetention (Apply mode and person core due by the catalog)
+  [*] --> Identifiable : admission.submitApplication
+  [*] --> Identifiable : admission.registerApplication
+```
+
+<!-- docgen:end person -->
+
+<!-- docgen:begin team -->
+
+```mermaid
+stateDiagram-v2
+  [*] --> Active : createTeam
+  Active --> Inactive : deactivateTeam
+  Inactive --> Inactive : deactivateTeam
+  Active --> Active : updateTeam
+  Inactive --> Inactive : updateTeam
+  Active --> Active : teams.createMembership (requires Team in Active)
+  Active --> Active : teams.extendMembership (requires Team in Active)
+  Active --> Active : teams.changeMembership (requires Team in Active)
+```
+
+<!-- docgen:end team -->
+
 ### Commands and grants
 
 <!-- docgen:begin commands -->

@@ -475,6 +475,18 @@ export const StoreGuarantees: readonly Guarantee[] = [
     strength: "port-enforced",
   },
   {
+    capability: "UniqueKeys",
+    carriers: [carrier(PersonalDataStore, "merge")],
+    id: "MG1",
+    invariant: true,
+    property:
+      "Two distinct person records cannot both be merged into each other. This excludes direct reciprocal pairs, not arbitrary graph cycles.",
+    rawWriter:
+      "sets A's merge target to B and B's merge target to A, sequentially or in competing transactions",
+    strength: "store-enforced",
+  },
+
+  {
     capability: "Claims",
     carriers: [
       carrier(WelcomeLedger, "claim"),

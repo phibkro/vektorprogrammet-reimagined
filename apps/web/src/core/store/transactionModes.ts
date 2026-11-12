@@ -285,6 +285,7 @@ export const TransactionModes = {
     create: "Requires",
     deactivate: "Standalone",
     findById: "Read",
+    holdPresence: "Requires",
     list: "Read",
     update: "Requires",
   },
