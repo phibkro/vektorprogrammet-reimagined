@@ -40,11 +40,11 @@ CurrentCode == [
     \* syncWorkspace locks generated-address owners in one sorted lockAll;
     \* its one-person case is below, its multi-person and address ordering in Pair and Address.
     compose |-> [
-        createMembership   |-> <<"lock", "insert">>,           \* teams/commands.ts:275, 314
+        createMembership   |-> <<"lock", "holdPresence", "insert">>, \* teams/domain/commands.ts createMembership
         deleteMembership   |-> <<"beginTransition", "remove">>, \* teams/commands.ts:431, 433
-        changeMembership   |-> <<"beginTransition", "setEnd", "insert">>, \* teams/commands.ts:186, 196, 203
+        changeMembership   |-> <<"beginTransition", "holdPresence", "setEnd", "insert">>, \* destination admission, changeMembership
         endEarlyMembership |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:450, 452
-        extendMembership   |-> <<"beginTransition", "setEnd">>, \* teams/commands.ts:475, 477
+        extendMembership   |-> <<"beginTransition", "holdPresence", "setEnd">>, \* extendMembership
         createAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:244-245
         deleteAdminGrant   |-> <<"lockList", "lock">>,         \* teams/commands.ts:396, 406
         syncWorkspace      |-> <<"lock">>,                     \* workspace/commands.ts:238, one person
@@ -65,6 +65,9 @@ CurrentCode == [
         \* lockAdminList is lock("AdminList", ADMIN_LIST_ID)
         \* (core/transactions/aggregate.ts:90-91): the same statement on admin_list.
         lockList |-> <<"lockAdminList">>,
+        \* The membership projection retains the statement boundary but overapproximates activity.
+        \* TeamPresence.tla checks the shared lock, exclusive deactivation and Person-before-Team order.
+        holdPresence |-> <<"holdTeam">>, \* repositories/teams.ts TeamRepository.holdPresence
         insert   |-> <<"insertRow">>,                  \* teams.ts:570-589, Aggregates.insert (aggregates.ts:308-347)
         setEnd   |-> <<"updateEnd">>,                   \* teams.ts:596-626, Aggregates.update (aggregates.ts:374-394, onHeld :148-165)
         remove   |-> <<"deleteRow">>                   \* teams.ts:632-661, Aggregates.remove (aggregates.ts:364-368, onHeld :148-165)
