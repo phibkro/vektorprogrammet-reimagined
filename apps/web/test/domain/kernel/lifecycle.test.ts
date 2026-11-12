@@ -106,19 +106,31 @@ describe("spec 0032: declared lifecycles", () => {
       "verifyApplicantEmail",
     ]);
 
-    for (const contribution of [
-      ...Privacy.PersonalDataDomain.contributions,
-      ApplicantPerson,
-    ]) {
-      const reduced = Arr.map(Declarations, (entry) => ({
-        ...entry,
-        contributions: Arr.filter(
-          entry.contributions,
-          (found) => found !== contribution
-        ),
-      }));
+    for (const contribution of Arr.filter(
+      [...Privacy.PersonalDataDomain.contributions, ApplicantPerson],
+      (entry) => entry.target === PersonMachine
+    )) {
+      for (const transition of contribution.transitions) {
+        const reduced = Arr.map(Declarations, (domain) => ({
+          ...domain,
+          contributions: Arr.map(domain.contributions, (entry) =>
+            entry === contribution
+              ? {
+                  ...entry,
+                  transitions: Arr.filter(
+                    entry.transitions,
+                    (edge) => edge !== transition
+                  ),
+                }
+              : entry
+          ),
+        }));
 
-      if (contribution.target === PersonMachine) {
+        assert.lengthOf(
+          causes(reduced),
+          causes(Declarations).length - 1,
+          transition.command
+        );
         assert.throws(() => {
           assert.deepStrictEqual(causes(reduced), causes(Declarations));
         });
