@@ -6,6 +6,8 @@
 
 Each semester, each department looks for new assistants. The department opens an admission period. In that period, students apply on the website. People who are interested before the period opens can ask for an e-mail when it opens.
 
+An information meeting is an Activity linked to an AdmissionPeriod (ADR 0013). The period page shows the announced meeting's time, place and link to applicants. Calendar shows the same Activity. The period does not store copies of its details.
+
 ## Who does what
 
 | You are | You can |
@@ -35,7 +37,7 @@ Each semester, each department looks for new assistants. The department opens an
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 A, §11.3, §11.7, §11.9; changes proposed in [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
+> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 A, §11.3, §11.7, §11.9; updated by [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entities
 
@@ -69,7 +71,7 @@ stateDiagram-v2
   Accepted --> Withdrawn : withdraw
 ```
 
-The planned states above extend the live Submitted and Withdrawn machine. Under proposed ADR 0016, placement is a query: a Placed Placement exists for the application. Applicant-visible status can use that query with the Application state (replaces RULE-216 ✗, 256).
+The planned states above extend the live Submitted and Withdrawn machine. Under ADR 0016, placement is a query: a Placed Placement exists for the application. Application status also shows **Invited** and **Scheduled** as derived interview steps. Recruitment owns the invitation and scheduling facts on the linked Interview, never on Application. Only the applicant's own status is visible, not interview answers. These designs are not yet implemented (replaces RULE-216 ✗, 256).
 
 ### Commands and grants
 

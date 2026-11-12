@@ -34,8 +34,9 @@ An Activity has a unit (the unit that organises it), a **scope unit** (the unit 
 | General meeting | optional | required | optional (motion vote) | `UnitLeader(u)` of the unit; an Admin |
 | Election | optional | `required when` mode includes meeting | required (ADR 0012) | As ADR 0012 says; an Admin |
 | Onboarding day, course | optional | optional | absent | `UnitLeader(u)` of the unit; an Admin |
+| Information meeting | absent | absent | absent | Department recruitment team or leader (planner grant to be declared) |
 
-The last two rows are examples. Their audience is open (see Open questions).
+Onboarding and courses are examples. Their audience is open (see Open questions). The information meeting is an accepted type (see Revisions).
 
 **Presets and composition.** A type is a **preset** (porcelain): choosing "Social event" switches on RSVP and nothing else, and every setting has a default. **Composition** (plumbing) is for advanced use: a person may switch an `optional` capability on or off, and set each setting, within the bounds that the type declares. Composition never goes beyond the type: a capability that the type marks `absent` cannot be added to an instance. Adding a type, or a capability to a type, is a change in code. Privileges are static (ADR 0001, ADR 0011), and a capability can carry authority: an election grants roles.
 
@@ -53,14 +54,16 @@ Check-in has one setting, **presence**: `declared` or `scanned`. With `declared`
 
 ## Audience
 
-One rule gives the audience of every Activity. It uses ADR 0012's electorate wording, without its frozen clause:
+**Information meetings** are public; applicants need no membership or account to view them. Their public visibility grants no RSVP, check-in or voting rights. They do not create a list of recipients or send notices to all applicants merely by announcement.
+
+For member Activities, one rule gives the audience. The information meeting is public and does not use this membership audience (see Revisions). The member rule uses ADR 0012's electorate wording, without its frozen clause:
 
 > The audience is the people with current `member`/`leader` assignments in **Team** units in the subtree of the scope unit.
 
 - **Example.** A social event of the Trondheim department (scope unit Trondheim) goes to every person in a team of Trondheim. An Activity of the national board has the root as its scope unit, so it goes to the team members of every department.
 - A person counts once, however many teams they are in.
-- **Never external units.** The contacts of a School or a Sponsor are not members of Vektorprogrammet (ADR 0011). They are never in an audience.
-- **Assistants only if the type says so.** An assistant has a placement, not a team membership. No type in the table above includes assistants. Whether some types should is an open question.
+- **Member audience excludes external units.** School and Sponsor contacts are not members of Vektorprogrammet (ADR 0011). Public information meetings are open to them too.
+- **Assistants in member audiences.** An assistant has a placement, not a team membership. Whether member Activities should include assistants remains open. Public information meetings are open to them.
 - **The audience is computed, not stored.** The system reads the role assignments when it runs a command or sends a notice. A person who joins a team later can answer. A person who leaves can no longer answer. The Voting capability is the exception: it freezes its own electorate at the cut-off (ADR 0012).
 
 The kernel gets four subject sets, in the style of ADR 0011's `TeamMember(t)`. The Activity comes from the command's resource; the unit comes from the command's input before the Activity exists.
@@ -79,7 +82,7 @@ An Activity is a machine with a transition table (ADR 0007). Whether it has happ
 | From | Command | To | Notes |
 | --- | --- | --- | --- |
 | `[*]` | `createActivity` | Planned | The creator is the first organiser. Not visible to the audience. |
-| Planned | `announceActivity` | Announced | Writes one notice per person in the audience to the outbox (see Messages). |
+| Planned | `announceActivity` | Announced | For member Activities, writes one notice per person in the audience to the outbox. An information meeting has no recipient list. |
 | Planned, Announced | `cancelActivity` | Cancelled | Notifies those who answered `yes` or `maybe`. A cancelled Activity never reopens. Never available for an Election Activity (see below). In the same transaction, every open motion vote of the Activity moves `Open → Failed` with the reason "meeting cancelled". |
 | Planned, Announced | `voidElection` (ADR 0012) | Cancelled | Election Activity only: the transition that ADR 0012's `voidElection` applies to the Activity. |
 
@@ -190,6 +193,8 @@ Calendar export is **one way**, from the system to the calendar (ADR 0005). Two 
 
 Which adapter comes first is for the spec. No calendar writes back.
 
+An announced information meeting appears on the linked AdmissionPeriod page and in Calendar as the same Activity. Calendar remains a one-way projection, not the owner of the meeting.
+
 ## Personal data
 
 Each field is declared in `packages/domain` with its purpose, legal basis and retention (ADR 0004). This table is the proposal. The periods and bases are for the operator and the privacy owner to confirm.
@@ -260,6 +265,8 @@ The system cannot do these steps. A human does them.
 12. **Who enqueues and who delivers a system post.** `System(activities)` decides that an invitation or a reminder is due and enqueues it; `System(slackBot)` is the principal of the post itself (Revisions, 2026-10-30). Does the audit entry of a scheduled post name both (the job that decided, the bot that posted), or only the bot? And is `System(slackBot)` a registry job of spec 0008 (a name, a cadence, a limit) or a principal without a schedule that the delivery runs as? The name is a proposal.
 
 ## Revisions
+
+**2026-11-12 (operator decision): information meetings return as Activities.** Each information-meeting Activity links to one AdmissionPeriod. The Activity owns its time, place and optional meeting link. The public period page shows these details for its announced meeting, and Calendar shows the same Activity through its one-way projection. The period does not store copies of these details. This public type is an exception to the member-only audience rule; announcement does not imply a recipient list. Legacy evidence: `BUSINESS_RULES.md` RULE-191 and the InfoMeeting entity; a visible legacy meeting needed a date. This decision describes the future design, not a shipped feature.
 
 **2026-10-30 (operator decision): the Slack bot has its own system principal, and is also a client.** Until now this ADR said the bot is "a client, never a principal and never a holder of grants", and that the system's sends act as `System(activities)` through the Slack client (decision of 2026-10-27). The operator decided that the bot has its **own system principal** for system actions (scheduled and system posts) **and** acts as a **client for a person's principal** when it relays that person's command. What changes: the paragraph on Slack in the introduction, the opening of "Slack as a client", the audit sentence of "The server decides on every click", the rejected option "Build a Slack bot with its own rules", and the Kernel and Jobs consequences (the new principal `System(slackBot)`, a proposed name). What does not change: **the explicit Slack link stays for humans** (a person's click is a Person's command only through a recorded link, never through a name or an address alone); a client still never has more permissions than its principal; every click runs the same command with the same grant check as the web; no person's command runs as the bot's principal. The two roles are kept apart so that a grant of the bot's cannot be used as a person's: the bot's principal can deliver the declared Slack messages and has no command a person can reach, and a person's click is checked against that person. The `GLOSSARY.md` entries for **Client** and **Slack bot** say the same. Nothing is built for this yet: the code has no interactive Slack app and no `System(slackBot)`; this revision is the decision that the first Slack spec builds against. The name and the audit shape are open question 12.
 

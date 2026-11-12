@@ -36,7 +36,7 @@ The board decides if assistants must show a police certificate (politiattest). T
 
 ## Reference
 
-> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 C, §11.5, §11.9; changes proposed in [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
+> **Hand-written** from `INFORMATION_MODEL.md` §9.3, §10.3 C, §11.5, §11.9; updated by [ADR 0016](../decisions/0016-one-owner-derived-facts.md). Generated later.
 
 ### Entities
 
@@ -57,7 +57,7 @@ stateDiagram-v2
 
 "Is an assistant" is a query: the person has a Placement in the current semester (RULE-025, 047, 082).
 
-Under proposed ADR 0016, an application is placed when a Placement in state Placed exists for it. The Application stays Accepted when placement changes.
+Under ADR 0016, an application is placed when a Placement in state Placed exists for it. The Application stays Accepted when placement changes.
 
 ### Commands and grants
 
