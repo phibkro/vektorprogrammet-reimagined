@@ -163,7 +163,7 @@ export const AdmissionRpc = RpcGroup.make(
 
 /**
  * The stored machine of an application: created Submitted by a public submit or a registration, and Withdrawn from
- * there. Spec 0010 adds Accepted and NotAccepted, and spec 0011 Placed.
+ * there.
  */
 export const ApplicationMachine = Machine.make({
   commands: AdmissionRpc,
